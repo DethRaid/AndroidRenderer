@@ -1,0 +1,87 @@
+// Copyright 2022 Google Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+apply plugin: 'com.android.application'
+
+def playcoreDir = file('src/main/cpp/extern/play-core-native-sdk')
+
+android {
+    compileSdkVersion 33
+    ndkVersion "25.1.8937393"
+
+    defaultConfig {
+        applicationId  "com.sah.renderer"
+        minSdkVersion    26
+        targetSdkVersion 33
+        versionCode 272
+        versionName "1.1.0"
+
+        // Shader compilation directives, put glsl shaders to app/src/main/shaders
+        // android studio will pick them up and compile them into APK/assets/shaders
+        // KNOWN ISSUE:  if shaders having errors, it takes long time for gradle to timeout
+        //               but it will eventually time out and complain about shader compiling
+        shaders {
+            def shared_shaders_include_dir =  "-I$projectDir/../RenderCore".toString()
+            print "Include dir: '$shared_shaders_include_dir'"
+            glslcArgs.addAll(['-c', '-g', '--target-env=vulkan1.1', shared_shaders_include_dir])
+        }
+        externalNativeBuild {
+            cmake {
+                abiFilters 'arm64-v8a'
+                arguments '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=c++_static', "-DPLAYCORE_LOCATION=$playcoreDir"
+
+            }
+        }
+        buildTypes {
+            release {
+                // Include Play Core Library proguard config files to strip unused code while retaining the Java symbols needed for JNI.
+                proguardFile '$playcoreDir/proguard/common.pgcfg'
+                proguardFile '$playcoreDir/proguard/gms_task.pgcfg'
+                proguardFile '$playcoreDir/proguard/asset_delivery.pgcfg'
+                proguardFile '$playcoreDir/proguard/app_update.pgcfg'
+                proguardFile '$playcoreDir/proguard/integrity.pgcfg'
+                proguardFile '$playcoreDir/proguard/review.pgcfg'
+            }
+            debug {
+                proguardFile '$playcoreDir/proguard/common.pgcfg'
+                proguardFile '$playcoreDir/proguard/gms_task.pgcfg'
+                proguardFile '$playcoreDir/proguard/asset_delivery.pgcfg'
+                proguardFile '$playcoreDir/proguard/app_update.pgcfg'
+                proguardFile '$playcoreDir/proguard/integrity.pgcfg'
+                proguardFile '$playcoreDir/proguard/review.pgcfg'
+            }
+        }
+
+    }
+    externalNativeBuild {
+        cmake {
+            version '3.22.1'
+            path 'src/main/cpp/CMakeLists.txt'
+        }
+    }
+    buildTypes.release.minifyEnabled = false
+    buildFeatures.prefab  = true
+    namespace 'com.sah.renderer'
+}
+
+dependencies {
+    // Import these feature-specific AARs for each Google Play Core library.
+    implementation 'com.google.android.play:app-update:2.0.0'
+    implementation 'com.google.android.play:asset-delivery:2.0.0'
+    implementation 'com.google.android.play:integrity:1.0.2'
+    implementation 'com.google.android.play:review:2.0.0'
+
+    implementation 'androidx.appcompat:appcompat:1.5.1'
+    implementation "androidx.games:games-activity:1.2.1"
+}

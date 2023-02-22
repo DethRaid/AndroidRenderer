@@ -1,0 +1,334 @@
+stages:
+  - Analysis
+  - Targeted Code Coverage
+  - All Code Coverage
+  - Fedora
+  - openSUSE
+
+variables:
+  CTEST_OUTPUT_ON_FAILURE: '1'
+
+# Analysis
+
+cmake-format Check:
+  image: stabletec/build-core:fedora
+  stage: Analysis
+  tags:
+    - container
+    - linux
+    - amd64
+  allow_failure: true
+  script:
+    - pip install cmake-format
+    - cmake-format --version
+    - cmake-format -i $(find . -name "*.cmake")
+    - cmake-format -i $(find . -name "CMakeLists.txt")
+    - git diff --exit-code
+
+clang-format Check:
+  image: stabletec/build-core:fedora
+  stage: Analysis
+  tags:
+    - container
+    - linux
+    - amd64
+  allow_failure: true
+  script:
+    - clang-format --version
+    - clang-format -i $(find . -name "*.c")
+    - clang-format -i $(find . -name "*.cpp")
+    - clang-format -i $(find . -name "*.h")
+    - clang-format -i $(find . -name "*.hpp")
+    - git diff --exit-code
+
+# Targeted Code Coverage
+
+Targeted CC GCC Static:
+  image: stabletec/build-core:fedora
+  stage: Targeted Code Coverage
+  tags:
+    - container
+    - linux
+    - amd64
+  variables:
+    CC: gcc
+    CXX: g++
+  script:
+    - cmake example/code-coverage-target/ -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCODE_COVERAGE=ON ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build ccov
+  
+Targeted CC GCC Shared:
+  image: stabletec/build-core:fedora
+  stage: Targeted Code Coverage
+  tags:
+    - container
+    - linux
+    - amd64
+  variables:
+    CC: gcc
+    CXX: g++
+    CMAKE_OPTIONS: -DBUILD_SHARED_LIBS=ON
+  script:
+    - cmake example/code-coverage-target/ -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCODE_COVERAGE=ON ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build ccov
+
+Targeted CC Clang Static:
+  image: stabletec/build-core:fedora
+  stage: Targeted Code Coverage
+  tags:
+    - container
+    - linux
+    - amd64
+  variables:
+    CC: clang
+    CXX: clang++
+  script:
+    - cmake example/code-coverage-target/ -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCODE_COVERAGE=ON ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build ccov
+    - ninja -C build ccov-report
+  
+Targeted CC Clang Shared:
+  image: stabletec/build-core:fedora
+  stage: Targeted Code Coverage
+  tags:
+    - container
+    - linux
+    - amd64
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DBUILD_SHARED_LIBS=ON
+  script:
+    - cmake example/code-coverage-target/ -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCODE_COVERAGE=ON ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build ccov
+    - ninja -C build ccov-report
+
+Targeted CC Clang Static (Windows):
+  image: stabletec/build-core:windows
+  stage: Targeted Code Coverage
+  tags:
+    - container
+    - windows
+    - amd64
+  variables:
+    CC: clang
+    CXX: clang++
+  script:
+    - cmake example/code-coverage-target/ -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCODE_COVERAGE=ON ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build ccov
+    - ninja -C build ccov-report
+  
+Targeted CC Clang Shared (Windows):
+  image: stabletec/build-core:windows
+  stage: Targeted Code Coverage
+  tags:
+    - container
+    - windows
+    - amd64
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DBUILD_SHARED_LIBS=ON
+  script:
+    - cmake example/code-coverage-target/ -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCODE_COVERAGE=ON ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build ccov
+    - ninja -C build ccov-report
+
+# All Code Coverage
+
+All CC GCC Static:
+  image: stabletec/build-core:fedora
+  stage: All Code Coverage
+  tags:
+    - container
+    - linux
+    - amd64
+  variables:
+    CC: gcc
+    CXX: g++
+  script:
+    - cmake example/code-coverage-all/ -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCODE_COVERAGE=ON ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build ccov
+    - ninja -C build ccov-all
+  
+All CC GCC Shared:
+  image: stabletec/build-core:fedora
+  stage: All Code Coverage
+  tags:
+    - container
+    - linux
+    - amd64
+  variables:
+    CC: gcc
+    CXX: g++
+    CMAKE_OPTIONS: -DBUILD_SHARED_LIBS=ON
+  script:
+    - cmake example/code-coverage-all/ -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCODE_COVERAGE=ON ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build ccov
+    - ninja -C build ccov-all
+
+All CC Clang Static:
+  image: stabletec/build-core:fedora
+  stage: All Code Coverage
+  tags:
+    - container
+    - linux
+    - amd64
+  variables:
+    CC: clang
+    CXX: clang++
+  script:
+    - cmake example/code-coverage-all/ -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCODE_COVERAGE=ON ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build ccov-all
+    - ninja -C build ccov-report
+    - ninja -C build ccov-all-report
+  
+All CC Clang Shared:
+  image: stabletec/build-core:fedora
+  stage: All Code Coverage
+  tags:
+    - container
+    - linux
+    - amd64
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DBUILD_SHARED_LIBS=ON
+  script:
+    - cmake example/code-coverage-all/ -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DCODE_COVERAGE=ON ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build ccov
+    - ninja -C build ccov-all
+    - ninja -C build ccov-report
+    - ninja -C build ccov-all-report
+
+# Fedora
+
+.fedora_success_template: &fedora_success_template
+  stage: Fedora
+  image: stabletec/build-core:fedora
+  tags:
+    - container
+    - linux
+    - amd64
+  script:
+    - cmake example/all -B build -GNinja -DCMAKE_BUILD_TYPE=Release ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build test
+
+.fedora_failure_template: &fedora_failure_template
+  stage: Fedora
+  image: stabletec/build-core:fedora
+  tags:
+    - container
+    - linux
+    - amd64
+  script:
+    - cmake example/all -B build -GNinja -DCMAKE_BUILD_TYPE=Release ${CMAKE_OPTIONS}
+    - ninja -C build
+    - "! ninja -C build test"
+
+Fedora Static Analysis:
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DCLANG_TIDY=ON -DCPPCHECK=ON
+  <<: *fedora_success_template
+
+Fedora ThreadSanitizer:
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DUSE_SANITIZER=Thread
+  <<: *fedora_failure_template
+
+Fedora AddressSanitizer:
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DUSE_SANITIZER=Address
+  <<: *fedora_failure_template
+
+Fedora LeakSanitizer:
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DUSE_SANITIZER=Leak
+  <<: *fedora_failure_template
+
+Fedora UndefinedSanitizer:
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DUSE_SANITIZER=Undefined
+  <<: *fedora_success_template
+
+# openSUSE
+
+.opensuse_success_template: &opensuse_success_template
+  stage: openSUSE
+  image: stabletec/build-core:opensuse
+  tags:
+    - container
+    - linux
+    - amd64
+  script:
+    - cmake example/all -B build -GNinja -DCMAKE_BUILD_TYPE=Release ${CMAKE_OPTIONS}
+    - ninja -C build
+    - ninja -C build test
+
+.opensuse_failure_template: &opensuse_failure_template
+  stage: openSUSE
+  image: stabletec/build-core:opensuse
+  tags:
+    - container
+    - linux
+    - amd64
+  script:
+    - cmake example/all -B build -GNinja -DCMAKE_BUILD_TYPE=Release ${CMAKE_OPTIONS}
+    - ninja -C build
+    - "! ninja -C build test"
+
+openSUSE Static Analysis:
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DCLANG_TIDY=ON -DCPPCHECK=ON
+  <<: *opensuse_success_template
+
+openSUSE ThreadSanitizer:
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DUSE_SANITIZER=Thread
+  <<: *opensuse_failure_template
+
+openSUSE AddressSanitizer:
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DUSE_SANITIZER=Address
+  <<: *opensuse_failure_template
+
+openSUSE LeakSanitizer:
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DUSE_SANITIZER=Leak
+  <<: *opensuse_failure_template
+
+openSUSE UndefinedSanitizer:
+  variables:
+    CC: clang
+    CXX: clang++
+    CMAKE_OPTIONS: -DUSE_SANITIZER=Undefined
+  <<: *opensuse_success_template

@@ -1,0 +1,49 @@
+#pragma once
+
+#include <volk.h>
+#include "phase_interface.hpp"
+#include "render/backend/handles.hpp"
+
+class RenderScene;
+class RenderBackend;
+class SceneView;
+
+struct GBuffer {
+    TextureHandle color = TextureHandle::None;
+    TextureHandle normal = TextureHandle::None;
+    TextureHandle data = TextureHandle::None;
+    TextureHandle emission = TextureHandle::None;
+    TextureHandle depth = TextureHandle::None;
+};
+
+/**
+ * Computes the lighting form the gbuffers
+ *
+ * This pass adds in lighting from a variety of sources: the sun, the sky, indirect lighting, area
+ * lights, etc
+ */
+class LightingPhase : public PhaseInterface {
+public:
+    explicit LightingPhase(RenderBackend& backend_in);
+
+    void set_scene(RenderScene& scene_in);
+
+    void set_gbuffer(const GBuffer& gbuffer_in);
+
+    void set_shadowmap(TextureHandle shadowmap_in);
+
+    void render(CommandBuffer& commands, SceneView& view) override;
+
+private:
+    RenderBackend& backend;
+
+    RenderScene* scene = nullptr;
+
+    GBuffer gbuffer;
+
+    void add_sun_lighting(CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor_set, const SceneView& view);
+
+    void add_lpv_lighting(const CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor_set, const SceneView& view);
+
+    TextureHandle shadowmap = TextureHandle::None;
+};

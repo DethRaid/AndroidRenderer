@@ -1,0 +1,336 @@
+#include "command_buffer.hpp"
+
+#include "render/backend/render_backend.hpp"
+#include "utils.hpp"
+#include "core/system_interface.hpp"
+
+static std::shared_ptr<spdlog::logger> logger;
+
+CommandBuffer::CommandBuffer(VkCommandBuffer vk_cmds, RenderBackend& backend_in) :
+    commands{vk_cmds}, backend{&backend_in} {
+    if (logger == nullptr) {
+        logger = SystemInterface::get().get_logger("CommandBuffer");
+    }
+    for (auto& set : descriptor_sets) {
+        set = VK_NULL_HANDLE;
+    }
+}
+
+void CommandBuffer::begin() {
+    const auto begin_info = VkCommandBufferBeginInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    };
+    vkBeginCommandBuffer(commands, &begin_info);
+}
+
+void CommandBuffer::set_marker(const std::string& marker_name) {
+    if (vkCmdSetCheckpointNV != nullptr) {
+        vkCmdSetCheckpointNV(commands, marker_name.c_str());
+    }
+}
+
+void
+CommandBuffer::update_buffer(
+    const BufferHandle buffer, const void* data, const uint32_t data_size, const uint32_t offset
+) {
+    auto& resource_allocator = backend->get_global_allocator();
+    const auto& buffer_actual = resource_allocator.get_buffer(buffer);
+
+    auto* write_ptr = static_cast<uint8_t*>(buffer_actual.allocation_info.pMappedData) + offset;
+
+    std::memcpy(write_ptr, data, data_size);
+
+    flush_buffer(buffer);
+}
+
+void
+CommandBuffer::set_resource_usage(
+    const BufferHandle resource, const VkPipelineStageFlags pipeline_stage,
+    const VkAccessFlags access
+) {
+    if (!initial_buffer_usages.contains(resource)) {
+        initial_buffer_usages.emplace(resource, std::make_pair(pipeline_stage, access));
+    }
+
+    if (const auto& itr = last_buffer_usages.find(resource); itr != last_buffer_usages.end()) {
+        if (itr->second.first != pipeline_stage || itr->second.second != access) {
+            barrier(resource, itr->second.first, itr->second.second, pipeline_stage, access);
+        }
+    }
+
+    last_buffer_usages.insert_or_assign(resource, std::make_pair(pipeline_stage, access));
+}
+
+void CommandBuffer::flush_buffer(const BufferHandle buffer) {
+    auto& resources = backend->get_global_allocator();
+    const auto& buffer_actual = resources.get_buffer(buffer);
+
+    vmaFlushAllocation(resources.get_vma(), buffer_actual.allocation, 0, VK_WHOLE_SIZE);
+}
+
+void CommandBuffer::barrier(
+    const BufferHandle buffer, const VkPipelineStageFlags source_pipeline_stage,
+    const VkAccessFlags source_access,
+    const VkPipelineStageFlags destination_pipeline_stage,
+    const VkAccessFlags destination_access
+) {
+    auto& allocator = backend->get_global_allocator();
+    const auto& buffer_actual = allocator.get_buffer(buffer);
+    const auto barrier = VkBufferMemoryBarrier{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = source_access,
+        .dstAccessMask = destination_access,
+        .buffer = buffer_actual.buffer,
+        .offset = 0,
+        .size = buffer_actual.create_info.size
+    };
+
+    // V0: Issue the barrier immediately
+    vkCmdPipelineBarrier(
+        commands, source_pipeline_stage, destination_pipeline_stage, 0,
+        0, nullptr,
+        1, &barrier,
+        0, nullptr
+    );
+
+    // V1: Batch the barriers. We'll need lists grouped by source stage and dest stage, because Vulkan is strange
+}
+
+void CommandBuffer::barrier(
+    const TextureHandle texture, const VkPipelineStageFlags source_pipeline_stage,
+    const VkAccessFlags source_access, const VkImageLayout old_layout,
+    const VkPipelineStageFlags destination_pipeline_stage,
+    const VkAccessFlags destination_access,
+    const VkImageLayout new_layout
+) {
+    auto& allocator = backend->get_global_allocator();
+    const auto& texture_actual = allocator.get_texture(texture);
+
+    auto aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+    if (is_depth_format(texture_actual.create_info.format)) {
+        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+    }
+
+    const auto barrier = VkImageMemoryBarrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = source_access,
+        .dstAccessMask = destination_access,
+        .oldLayout = old_layout,
+        .newLayout = new_layout,
+        .image = texture_actual.image,
+        .subresourceRange = {
+            .aspectMask = static_cast<VkImageAspectFlags>(aspect),
+            .baseMipLevel = 0,
+            .levelCount = texture_actual.create_info.mipLevels,
+            .baseArrayLayer = 0,
+            .layerCount = texture_actual.create_info.arrayLayers,
+        }
+    };
+
+    // V0: Issue the barrier immediately
+    vkCmdPipelineBarrier(
+        commands, source_pipeline_stage, destination_pipeline_stage, 0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier
+    );
+
+    // V1: Batch the barriers. We'll need lists grouped by source stage and dest stage, because Vulkan is strange
+}
+
+void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_value) {
+    auto& allocator = backend->get_global_allocator();
+    const auto& buffer_actual = allocator.get_buffer(buffer);
+
+    vkCmdFillBuffer(commands, buffer_actual.buffer, 0, buffer_actual.create_info.size, fill_value);
+}
+
+void CommandBuffer::begin_render_pass(
+    const VkRenderPass render_pass, const Framebuffer& framebuffer,
+    const std::vector<VkClearValue>& clears
+) {
+    current_render_pass = render_pass;
+    current_framebuffer = framebuffer;
+
+    current_subpass = 0;
+
+    const auto begin_info = VkRenderPassBeginInfo{
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = render_pass,
+        .framebuffer = framebuffer.framebuffer,
+        .renderArea = framebuffer.render_area,
+        .clearValueCount = static_cast<uint32_t>(clears.size()),
+        .pClearValues = clears.data()
+    };
+    vkCmdBeginRenderPass(commands, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+    const auto viewport = VkViewport{
+        .x = 0,
+        .y = 0,
+        .width = static_cast<float>(framebuffer.render_area.extent.width),
+        .height = static_cast<float>(framebuffer.render_area.extent.height),
+        .minDepth = 0.f,
+        .maxDepth = 1.f,
+    };
+    vkCmdSetViewport(commands, 0, 1, &viewport);
+
+    vkCmdSetScissor(commands, 0, 1, &framebuffer.render_area);
+}
+
+void CommandBuffer::advance_subpass() {
+    current_subpass++;
+
+    vkCmdNextSubpass(commands, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void CommandBuffer::end_render_pass() {
+    current_render_pass = VK_NULL_HANDLE;
+    current_framebuffer = {};
+
+    current_subpass = 0;
+
+    vkCmdEndRenderPass(commands);
+}
+
+void CommandBuffer::bind_vertex_buffer(const uint32_t binding_index, const BufferHandle buffer) {
+    const auto& allocator = backend->get_global_allocator();
+    const auto& buffer_actual = allocator.get_buffer(buffer);
+
+    const auto offset = VkDeviceSize{0};
+
+    vkCmdBindVertexBuffers(commands, binding_index, 1, &buffer_actual.buffer, &offset);
+}
+
+void CommandBuffer::bind_index_buffer(const BufferHandle buffer) {
+    const auto& allocator = backend->get_global_allocator();
+    const auto& buffer_actual = allocator.get_buffer(buffer);
+
+    vkCmdBindIndexBuffer(commands, buffer_actual.buffer, 0, VK_INDEX_TYPE_UINT32);
+}
+
+void CommandBuffer::draw_indexed(
+    const uint32_t num_indices, const uint32_t num_instances,
+    const uint32_t first_index,
+    const uint32_t first_vertex, const uint32_t first_instance
+) {
+    // commit bindings
+    commit_bindings();
+
+    // issue draw
+    vkCmdDrawIndexed(
+        commands, num_indices, num_instances, first_index,
+        static_cast<int32_t>(first_vertex),
+        first_instance
+    );
+}
+
+void CommandBuffer::draw_triangle() {
+    commit_bindings();
+
+    vkCmdDraw(commands, 3, 1, 0, 0);
+}
+
+void CommandBuffer::bind_shader(const ComputeShader& shader) {
+    current_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
+    current_pipeline_layout = shader.layout;
+    vkCmdBindPipeline(commands, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline);
+
+    are_bindings_dirty = true;
+}
+
+void CommandBuffer::bind_pipeline(Pipeline& pipeline) {
+    current_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+    current_pipeline_layout = pipeline.get_layout();
+
+    pipeline.create_vk_pipeline(*backend, current_render_pass, current_subpass);
+
+    vkCmdBindPipeline(commands, current_bind_point, pipeline.get_vk_pipeline());
+
+    are_bindings_dirty = true;
+}
+
+void CommandBuffer::set_push_constant(const uint32_t index, const uint32_t data) {
+    push_constants[index] = data;
+
+    are_bindings_dirty = true;
+}
+
+void CommandBuffer::bind_descriptor_set(const uint32_t set_index, const VkDescriptorSet set) {
+    descriptor_sets[set_index] = set;
+
+    are_bindings_dirty = true;
+}
+
+void CommandBuffer::clear_descriptor_set(const uint32_t set_index) {
+    descriptor_sets[set_index] = VK_NULL_HANDLE;
+
+    are_bindings_dirty = true;
+}
+
+void CommandBuffer::dispatch(const uint32_t width, const uint32_t height, const uint32_t depth) {
+    commit_bindings();
+
+    vkCmdDispatch(commands, width, height, depth);
+}
+
+void CommandBuffer::end() {
+    vkEndCommandBuffer(commands);
+}
+
+void CommandBuffer::commit_bindings() {
+    if (!are_bindings_dirty) {
+        return;
+    }
+
+    vkCmdPushConstants(
+        commands, current_pipeline_layout,
+        current_bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS
+            ? VK_SHADER_STAGE_ALL
+            : VK_SHADER_STAGE_COMPUTE_BIT, 0,
+        static_cast<uint32_t>(push_constants.size() * sizeof(uint32_t)), push_constants.data()
+    );
+
+    for (uint32_t i = 0; i < descriptor_sets.size(); i++) {
+        if (descriptor_sets[i] != VK_NULL_HANDLE) {
+            vkCmdBindDescriptorSets(
+                commands, current_bind_point, current_pipeline_layout, i,
+                1, &descriptor_sets[i], 0, nullptr
+            );
+        }
+    }
+
+    for (auto& set : descriptor_sets) {
+        set = VK_NULL_HANDLE;
+    }
+
+    are_bindings_dirty = false;
+}
+
+VkCommandBuffer CommandBuffer::get_vk_commands() const {
+    return commands;
+}
+
+const BufferUsageMap& CommandBuffer::get_final_buffer_usages() const {
+    return last_buffer_usages;
+}
+
+VkRenderPass CommandBuffer::get_current_renderpass() const {
+    return current_render_pass;
+}
+
+uint32_t CommandBuffer::get_current_subpass() const {
+    return current_subpass;
+}
+
+const BufferUsageMap& CommandBuffer::get_initial_buffer_usages() const {
+    return initial_buffer_usages;
+}
+
+const RenderBackend& CommandBuffer::get_backend() const {
+    return *backend;
+}
+
+tracy::VkCtx* const CommandBuffer::get_tracy_context() const {
+    return backend->get_tracy_context();
+}

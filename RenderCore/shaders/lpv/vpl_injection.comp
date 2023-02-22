@@ -1,0 +1,116 @@
+#version 460
+
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "shared/vpl.hpp"
+
+/**
+ * Adds lights to the LPV
+ */
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, std430) readonly buffer VplListBuffer {
+    PackedVPL vpls[];
+};
+
+layout(set = 0, binding = 1, std430) readonly uniform CascadeDataBuffer {
+    mat4 world_to_cascade[4];
+};
+
+layout(set = 0, binding = 2, std430) readonly buffer LightLinkedListBuffer {
+    // Linked list of lights! The X is the light's index, the Y is the index of the next element in
+    // the linked list
+    uvec2 light_linked_list[];
+};
+
+layout(set = 0, binding = 3, std430) readonly buffer LightListBuffer {
+// index of the head of each cell's light list. Starts at 0xFFFFFFFF, set to a real value if needed
+    uint light_list_head[];
+};
+
+layout(set = 0, binding = 4, rgba16f) uniform image3D lpv_red;
+layout(set = 0, binding = 5, rgba16f) uniform image3D lpv_green;
+layout(set = 0, binding = 6, rgba16f) uniform image3D lpv_blue;
+
+layout(push_constant) uniform Constants {
+    int cascade_index;
+    uint padding1;
+    uint padding2;
+    uint padding3;
+    uint padding4;
+    uint padding5;
+    uint padding6;
+    uint padding7;
+} push_constants;
+
+VPL unpack_vpl(PackedVPL packed_vpl) {
+    VPL vpl;
+
+    vpl.position.xy = unpackHalf2x16(packed_vpl.data.x);
+    vpl.position.z = unpackHalf2x16(packed_vpl.data.y).x;
+    vpl.color = unpackUnorm4x8(packed_vpl.data.z).rgb;
+    vpl.normal = normalize(unpackSnorm4x8(packed_vpl.data.w).xyz);
+
+    return vpl;
+}
+
+// Borrowed from appendix A of the LPV paper
+
+vec4 sh_rotate(const in vec3 vec, const in vec2 zh_coeffs) {
+    // compute sine and cosine of thetta angle
+    // beware of singularity when both x and y are 0 (no need to rotate at all)
+    vec2 theta12_cs = normalize(vec.xy);
+
+    // compute sine and cosine of phi angle
+    vec2 phi12_cs;
+    phi12_cs.x = sqrt(1.0 - vec.z * vec.z);
+    phi12_cs.y = vec.z;
+
+    vec4 result;
+    // The first band is rotation-independent
+    result.x = zh_coeffs.x;
+    // rotating the second band of SH
+    result.y = zh_coeffs.y * phi12_cs.x * theta12_cs.y;
+    result.z = -zh_coeffs.y * phi12_cs.y;
+    result.w = zh_coeffs.y * phi12_cs.x * theta12_cs.x;
+    return result;
+}
+
+vec4 sh_project_cone(const in vec3 vector) {
+    const vec2 zh_coeffs = vec2(0.25, 0.5);
+
+    return sh_rotate(vector, zh_coeffs);
+}
+
+void main() {
+    // We use signed integer vectors to address images, because negative texels are meaningful?
+    // This is such stupid bullshit
+    ivec3 texel = ivec3(gl_GlobalInvocationID);
+    texel.x += push_constants.cascade_index * 32;
+
+    vec4 lpv_red_sh = imageLoad(lpv_red, texel);
+    vec4 lpv_green_sh = imageLoad(lpv_green, texel);
+    vec4 lpv_blue_sh = imageLoad(lpv_blue, texel);
+
+    uint global_invocation_index = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * 32 + gl_GlobalInvocationID.z * 32 * 32;
+    uint next_light = light_list_head[global_invocation_index];
+    while(next_light != 0xFFFFFFFF) {
+        uvec2 light_index_and_next = light_linked_list[next_light];
+
+        uint light_index = light_index_and_next.x;
+        next_light = light_index_and_next.y;
+
+        PackedVPL packed_vpl = vpls[light_index];
+        VPL vpl = unpack_vpl(packed_vpl);
+
+        lpv_red_sh += sh_project_cone(vpl.normal * vpl.color.r);
+        lpv_green_sh += sh_project_cone(vpl.normal * vpl.color.g);
+        lpv_blue_sh += sh_project_cone(vpl.normal * vpl.color.b);
+    }
+
+    imageStore(lpv_red, texel, lpv_red_sh);
+    imageStore(lpv_green, texel, lpv_green_sh);
+    imageStore(lpv_blue, texel, lpv_blue_sh);
+}

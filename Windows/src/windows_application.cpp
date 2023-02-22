@@ -1,0 +1,30 @@
+#include "windows_application.hpp"
+
+#include <core/system_interface.hpp>
+#include <GLFW/glfw3.h>
+
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+
+#include <core/application.hpp>
+
+int main(const int argc, const char** argv) {
+    glfwInit();
+
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    GLFWwindow* window = glfwCreateWindow(1920, 1080, "SAH Renderer", nullptr, nullptr);
+    
+    SystemInterface::initialize(window);
+
+    Application application;
+    application.load_scene("Sponza/Sponza.gltf");
+    application.update_resolution();
+    
+    while (!glfwWindowShouldClose(window)) {
+        application.tick();
+
+        glfwPollEvents();
+    }
+
+    glfwTerminate();
+}

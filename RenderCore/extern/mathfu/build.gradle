@@ -1,0 +1,14 @@
+package extern.mathfu
+
+task (get_mathfu, type: Exec) {
+    def folder = new File(projectDir.toString() + "/src")
+    if (!folder.exists()) {
+        commandLine 'git', 'clone', '--recursive', 'https://github.com/google/mathfu.git', 'src'
+    } else {
+        commandLine 'echo', 'mathfu:get_mathfu:: mathfu is up to date!'
+    }
+}
+task (clean_mathfu, type: Delete) {
+    delete 'src'
+}
+

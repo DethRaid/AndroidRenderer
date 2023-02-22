@@ -1,0 +1,84 @@
+#version 460
+
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "shared/vpl.hpp"
+
+/**
+ * Places VPLs into each cell's light list
+ */
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, std430) readonly buffer VplListBuffer {
+    PackedVPL vpls[];
+};
+
+layout(set = 0, binding = 1, std430) readonly uniform CascadeDataBuffer {
+    mat4 world_to_cascade[4];
+};
+
+layout(set = 0, binding = 2, std430) buffer LightLinkedListBuffer {
+    // Linked list of lights! The X is the light's index, the Y is the index of the next element in
+    // the linked list
+    // Both start out at 0xFFFFFFFF. Every time we add a light to a cell, we set the X to the
+    // light's index and the Y to the next available element in this list
+    uvec2 light_linked_list[];
+};
+
+layout(set = 0, binding = 3, std430) buffer LinkedListNextElementBuffer {
+    uint linked_list_global_tail;
+};
+
+layout(set = 0, binding = 4, std430) buffer LightListBuffer {
+    // index of the head of each cell's light list. Starts at 0xFFFFFFFF, set to a real value if needed
+    uint light_list_head[];
+};
+
+layout(push_constant) uniform Constants {
+    int cascade_index;
+    uint padding1;
+    uint padding2;
+    uint padding3;
+    uint padding4;
+    uint padding5;
+    uint padding6;
+    uint padding7;
+} push_constants;
+
+VPL unpack_vpl(PackedVPL packed_vpl) {
+    VPL vpl;
+
+    vpl.position.xy = unpackHalf2x16(packed_vpl.data.x);
+    vpl.position.z = unpackHalf2x16(packed_vpl.data.y).x;
+    vpl.color = unpackUnorm4x8(packed_vpl.data.z).rgb;
+    vpl.normal = normalize(unpackSnorm4x8(packed_vpl.data.w).xyz);
+
+    return vpl;
+}
+
+void main() {
+    PackedVPL packed_vpl = vpls[gl_GlobalInvocationID.x];
+    VPL vpl = unpack_vpl(packed_vpl);
+
+    mat4 world_to_cascade = world_to_cascade[push_constants.cascade_index];
+
+    vec4 local_position = world_to_cascade * vec4(vpl.position, 1);
+
+    if (all(greaterThan(local_position.xyz, vec3(0.f))) && all(lessThan(local_position.xyz, vec3(1.f)))) {
+        uvec3 cell = uvec3(round(local_position.xyz * 32.f));
+
+        uint cell_index = cell.x + cell.y * 32 + cell.z * 32 * 32;
+
+        uint light_place_in_linked_list = atomicAdd(linked_list_global_tail, 1);
+        uint cell_list_old_head = atomicExchange(light_list_head[cell_index], light_place_in_linked_list);
+
+        // New linked list element that points to the old head
+        uvec2 new_light_list_element;
+        new_light_list_element.x = gl_GlobalInvocationID.x;
+        new_light_list_element.y = cell_list_old_head;
+
+        light_linked_list[light_place_in_linked_list] = new_light_list_element;
+    }
+}

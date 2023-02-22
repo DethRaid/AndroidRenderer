@@ -1,0 +1,67 @@
+#ifndef SAHRENDERER_BASIC_PBR_MATERIAL_HPP
+#define SAHRENDERER_BASIC_PBR_MATERIAL_HPP
+
+#include <glm/glm.hpp>
+#include <filesystem>
+
+#include "render/backend/handles.hpp"
+#include "render/backend/pipeline.hpp"
+
+struct BasicPbrMaterialGpu {
+    glm::vec4 base_color_tint;
+    glm::vec4 emission_factor;
+    float metalness_factor;
+    float roughness_factor;
+
+    glm::vec2 padding0;
+    glm::vec4 padding1;
+};
+
+static_assert(sizeof(BasicPbrMaterialGpu) % 64 == 0);
+
+enum class TransparencyMode {
+    Solid,
+    Cutout,
+    Translucent
+};
+
+struct PipelineData {
+    std::filesystem::path vertex_shader_path;
+    std::filesystem::path fragment_shader_path;
+};
+
+/**
+ * Basic PBR material, based on glTF PBR metallic roughness
+ *
+ * Contains data for all the material features, even if a particular model doesn't use them. We set
+ * those members to a sensible default - base color and metallic roughness textures are pure white,
+ * normal texture is (0.5, 0.5, 1.0), emission texture is pure black
+ *
+ * The material storage fills out the Vulkan objects in here when you add a material. You need only
+ * set the other members
+ */
+struct BasicPbrMaterial {
+    TransparencyMode transparency_mode;
+
+    bool double_sided;
+
+    TextureHandle base_color_texture;
+    VkSampler base_color_sampler;
+
+    TextureHandle normal_texture;
+    VkSampler normal_sampler;
+
+    TextureHandle metallic_roughness_texture;
+    VkSampler metallic_roughness_sampler;
+
+    TextureHandle emission_texture;
+    VkSampler emission_sampler;
+
+    VkDescriptorSet descriptor_set;
+
+    BasicPbrMaterialGpu gpu_data;
+    Pipeline pipeline;
+    Pipeline shadow_pipeline;
+};
+
+#endif //SAHRENDERER_BASIC_PBR_MATERIAL_HPP
