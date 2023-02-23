@@ -134,12 +134,12 @@ void SunLight::update_shadow_cascades(SceneView& view) {
         const auto light_dir = glm::normalize(glm::vec3{constants.direction_and_size});
 
         // TODO: Properly find the top of the scene. Maybe the top of the bounding boxes of the objects that are potentially in the shadow frustum?
-        const auto max_height = std::max(32.f, radius);
+        const auto max_height = std::max(64.f, radius);
                 
         const auto light_view_matrix = glm::lookAt(
             frustum_center - light_dir * max_height, frustum_center, glm::vec3{0.f, 1.f, 0.f}
         );
-        const auto light_projection_matrix = glm::ortho(-radius, radius, -radius, max_height, 0.f, max_height + radius);
+        const auto light_projection_matrix = glm::ortho(-radius, radius, -radius, radius, 0.f, max_height + radius);
 
         // Store split distance and matrix in cascade
         constants.data[i] = glm::vec4{};

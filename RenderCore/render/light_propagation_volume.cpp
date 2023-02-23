@@ -273,10 +273,7 @@ void LightPropagationVolume::inject_lights(RenderGraph& render_graph, BufferHand
             {
                 .name = fmt::format("Clear light list: cascade {}", cascade_index),
                 .buffers = {
-                    {
-                        cascade.vpl_list_count,
-                        {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT}
-                    },
+                    {cascade.vpl_list_count, {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT}},
                     {cascade.vpl_list_head, {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT}},
                 },
                 .execute = [&](CommandBuffer& commands) {
@@ -292,21 +289,21 @@ void LightPropagationVolume::inject_lights(RenderGraph& render_graph, BufferHand
                 .buffers = {
                     {
                         cascade.vpl_list,
-                        BufferUsageToken{
+                        {
                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
                         }
                     },
                     {
                         cascade.vpl_list_count,
-                        BufferUsageToken{
+                        {
                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
                         }
                     },
                     {
                         cascade.vpl_list_head,
-                        BufferUsageToken{
+                        {
                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
                         }

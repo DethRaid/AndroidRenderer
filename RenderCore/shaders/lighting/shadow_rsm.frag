@@ -39,7 +39,15 @@ void main() {
     vec4 base_color_sample = texture(base_color_texture, vertex_texcoord);
     vec4 tinted_base_color = base_color_sample * material.base_color_tint;// * vertex_color;
 
-    rsm_flux = tinted_base_color;
+    vec4 data_sample = texture(data_texture, vertex_texcoord);
+    vec4 tinted_data = data_sample * vec4(0.f, material.metalness_factor, material.roughness_factor, 0.f);
+
+    const float dielectric_f0 = 0.04; // TODO: Get this from a texture
+    const vec3 f0 = mix(dielectric_f0.xxx, tinted_base_color.rgb, tinted_data.g);
+
+    const vec3 diffuse_color = tinted_base_color.rgb * (1 - dielectric_f0) * (1 - tinted_data.g);
+
+    rsm_flux = vec4(diffuse_color, 1);
 
     // Normals
     // TODO: Normalmapping

@@ -122,7 +122,7 @@ void main() {
     vec4 reflection_coefficients = sh_project_cone(reflection_vector);
     
     // Number chosen based on what happened to look fine
-    const float exposure_factor = 0.00004;
+    const float exposure_factor = PI;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 

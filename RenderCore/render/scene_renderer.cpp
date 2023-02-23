@@ -32,7 +32,7 @@ SceneRenderer::SceneRenderer() :
     gbuffer_pass{*this}, lighting_pass{backend}, ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
-    player_view.set_position_and_direction(glm::vec3{0.f, 1.7f, -0.25f}, glm::vec3{-1.f, 0.f, 0.f});
+    player_view.set_position_and_direction(glm::vec3{7.f, 2.f, -0.25f}, glm::vec3{-1.f, 0.0f, 0.f});
 
     const auto render_resolution = SystemInterface::get().get_resolution();
 
@@ -124,6 +124,13 @@ void SceneRenderer::render() {
     render_graph.add_render_pass(
         {
             .name = "RSM",
+            .textures = {
+                    {
+                        shadowmap_handle, {
+                        VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                    }
+                },
+            },
             .render_pass = rsm_render_pass,
             .framebuffer = shadow_frame_buffer,
             .clear_values = std::vector{
@@ -148,12 +155,15 @@ void SceneRenderer::render() {
         }
     );
 
-    for (const auto& vpl_list : rsm_vpl_pass.get_vpl_lists()) {
-        lpv.inject_lights(render_graph, vpl_list);
-    }
+    // for (const auto& vpl_list : rsm_vpl_pass.get_vpl_lists()) {
+    //     lpv.inject_lights(render_graph, vpl_list);
+    // }
+
+    // TODO: Render RSM separately for the LPV
+    const auto& vpl_list = rsm_vpl_pass.get_vpl_lists()[2];
+    lpv.inject_lights(render_graph, vpl_list);
 
     lpv.propagate_lighting(render_graph);
-
 
     // Gbuffers, lighting, and translucency
 
@@ -267,14 +277,16 @@ void SceneRenderer::create_render_passes() {
      *
      * # Sun shadow
      *
-     * The sun shadow renderpass only has one subpass
+     * The sun shadow renderpass only two subpasses
      * - Shadowmap + RSM
+     * - Build VPL lists
      *
-     * The shadowmap + RSM pass is straightforwarwd. We render the shadowmap using normal CSM techniques. We also
-     * is we render the RSM flux and normal targets at the same time. This will hopefully save on something
+     * The shadowmap + RSM pass is straightforward. We render the shadowmap using normal CSM techniques. We also
+     * render the RSM flux and normal targets at the same time. This will hopefully save on something
      *
-     * We'll build the VPL lists and inject them into the LPVs in compute shaders. There's possible savings to be had
-     * with clever use of subpasses, but the initial implementation won't need that
+     * Building the VPL lists happens in fragment shaders, so we can keep the RSM targets in tile memory
+     *
+     * We inject the VPLs into the LPVs in compute shaders
      *
      * # Scene Render
      *

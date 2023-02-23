@@ -63,11 +63,11 @@ void main() {
     vec4 red_data = imageLoad(read_lpv_red, cell + cascade_offset);
     vec4 green_data = imageLoad(read_lpv_green, cell + cascade_offset);
     vec4 blue_data = imageLoad(read_lpv_blue, cell + cascade_offset);
-    
+
     ivec3 offset = ivec3(1, 0, 0);
     ivec3 offset_cell = cell + offset;
     if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset));
+        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
 
         vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
         float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
@@ -85,7 +85,7 @@ void main() {
     offset = ivec3(-1, 0, 0);
     offset_cell = cell + offset;
     if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset));
+        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
 
         vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
         float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
@@ -103,7 +103,7 @@ void main() {
     offset =  ivec3(0, 1, 0);
     offset_cell = cell + offset;
     if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset));
+        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
 
         vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
         float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
@@ -121,7 +121,7 @@ void main() {
     offset = ivec3(0, -1, 0);
     offset_cell = cell + offset;
     if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset));
+        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
 
         vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
         float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
@@ -139,7 +139,7 @@ void main() {
     offset = ivec3(0, 0, 1);
     offset_cell = cell + offset;
     if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset));
+        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
 
         vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
         float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
@@ -157,7 +157,7 @@ void main() {
     offset = ivec3(0, 0, -1);
     offset_cell = cell + offset;
     if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset));
+        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
 
         vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
         float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
@@ -172,7 +172,7 @@ void main() {
         blue_data += blue_coefficients * blue_incident_luminance;
     }
     
-    imageStore(write_lpv_red, cell + cascade_offset, red_data);
-    imageStore(write_lpv_green, cell + cascade_offset, green_data);
-    imageStore(write_lpv_blue, cell + cascade_offset, blue_data);
+    imageStore(write_lpv_red, cell + cascade_offset, red_data / (2.f * PI));
+    imageStore(write_lpv_green, cell + cascade_offset, green_data / (2.f * PI));
+    imageStore(write_lpv_blue, cell + cascade_offset, blue_data / (2.f * PI));
 }

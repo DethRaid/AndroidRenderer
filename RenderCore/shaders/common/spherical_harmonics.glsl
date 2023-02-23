@@ -34,6 +34,13 @@ vec4 sh_rotate(const in vec3 vec, const in vec2 zh_coeffs) {
     return result;
 }
 
+vec4 sh_project_cone(const in vec3 vcDir, float angle)
+{
+	const vec2 vZHCoeffs = vec2(0.5 * (1.0 - cos(angle)), // 1/2 (1 - Cos[\[Alpha]])
+								0.75 * sin(angle) * sin(angle)); // 3/4 Sin[\[Alpha]]^2
+	return sh_rotate(vcDir, vZHCoeffs);
+}
+
 vec4 sh_project_cone(const in vec3 vector) {
     const vec2 zh_coeffs = vec2(0.25, 0.5);
 
