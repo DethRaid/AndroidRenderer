@@ -4,6 +4,7 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "shared/vpl.hpp"
+#include "common/spherical_harmonics.glsl"
 
 /**
  * Adds lights to the LPV
@@ -56,34 +57,6 @@ VPL unpack_vpl(PackedVPL packed_vpl) {
     return vpl;
 }
 
-// Borrowed from appendix A of the LPV paper
-
-vec4 sh_rotate(const in vec3 vec, const in vec2 zh_coeffs) {
-    // compute sine and cosine of thetta angle
-    // beware of singularity when both x and y are 0 (no need to rotate at all)
-    vec2 theta12_cs = normalize(vec.xy);
-
-    // compute sine and cosine of phi angle
-    vec2 phi12_cs;
-    phi12_cs.x = sqrt(1.0 - vec.z * vec.z);
-    phi12_cs.y = vec.z;
-
-    vec4 result;
-    // The first band is rotation-independent
-    result.x = zh_coeffs.x;
-    // rotating the second band of SH
-    result.y = zh_coeffs.y * phi12_cs.x * theta12_cs.y;
-    result.z = -zh_coeffs.y * phi12_cs.y;
-    result.w = zh_coeffs.y * phi12_cs.x * theta12_cs.x;
-    return result;
-}
-
-vec4 sh_project_cone(const in vec3 vector) {
-    const vec2 zh_coeffs = vec2(0.25, 0.5);
-
-    return sh_rotate(vector, zh_coeffs);
-}
-
 void main() {
     // We use signed integer vectors to address images, because negative texels are meaningful?
     // This is such stupid bullshit
@@ -105,9 +78,11 @@ void main() {
         PackedVPL packed_vpl = vpls[light_index];
         VPL vpl = unpack_vpl(packed_vpl);
 
-        lpv_red_sh += sh_project_cone(vpl.normal * vpl.color.r);
-        lpv_green_sh += sh_project_cone(vpl.normal * vpl.color.g);
-        lpv_blue_sh += sh_project_cone(vpl.normal * vpl.color.b);
+        if(length(vpl.normal) > 0) {
+            lpv_red_sh += sh_project_cone(vpl.normal * vpl.color.r);
+            lpv_green_sh += sh_project_cone(vpl.normal * vpl.color.g);
+            lpv_blue_sh += sh_project_cone(vpl.normal * vpl.color.b);   
+        }
     }
 
     imageStore(lpv_red, texel, lpv_red_sh);

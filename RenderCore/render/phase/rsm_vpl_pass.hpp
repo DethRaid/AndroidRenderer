@@ -3,6 +3,7 @@
 #include "render/backend/handles.hpp"
 #include "render/backend/pipeline.hpp"
 
+class RenderGraph;
 class CommandBuffer;
 class SceneRenderer;
 class SunLight;
@@ -22,7 +23,7 @@ public:
 
     void set_rsm(const RsmTargets& rsm_in);
 
-    void setup_buffers(CommandBuffer& commands);
+    void setup_buffers(RenderGraph& render_graph);
 
     void render(CommandBuffer& commands, const SunLight& light);
 

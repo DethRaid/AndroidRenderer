@@ -15,7 +15,7 @@ RenderScene::RenderScene(RenderBackend &backend_in) : backend{backend_in},
                                                     BufferUsage::StorageBuffer);
 
     // Defaults
-    sun.set_direction({0.15f, -1.f, 0.25f});
+    sun.set_direction({0.15f, -1.f, 0.4f});
     sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 80000.f);
 }
 

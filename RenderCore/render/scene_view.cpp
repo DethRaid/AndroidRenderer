@@ -95,5 +95,5 @@ glm::vec3 SceneView::get_postion() const {
 }
 
 glm::vec3 SceneView::get_forward() const {
-    return glm::normalize(glm::vec3{gpu_data.inverse_view[2]});
+    return glm::normalize(glm::vec3{gpu_data.inverse_view[3]});
 }

@@ -208,4 +208,6 @@ void main() {
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 
     lighting = vec4(direct_light * exposure_factor, 1.f);
+
+    // lighting = vec4(0, 0, 0, 1);
 }

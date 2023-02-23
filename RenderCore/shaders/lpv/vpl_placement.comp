@@ -16,7 +16,7 @@ layout(set = 0, binding = 0, std430) readonly buffer VplListBuffer {
 };
 
 layout(set = 0, binding = 1, std430) readonly uniform CascadeDataBuffer {
-    mat4 world_to_cascade[4];
+    mat4 world_to_cascade;
 };
 
 layout(set = 0, binding = 2, std430) buffer LightLinkedListBuffer {
@@ -62,7 +62,10 @@ void main() {
     PackedVPL packed_vpl = vpls[gl_GlobalInvocationID.x];
     VPL vpl = unpack_vpl(packed_vpl);
 
-    mat4 world_to_cascade = world_to_cascade[push_constants.cascade_index];
+    if(length(vpl.normal) == 0) {
+        // My code isn't smart enough to handle a variable number of VPLs, but this should work
+        return;
+    }
 
     vec4 local_position = world_to_cascade * vec4(vpl.position, 1);
 

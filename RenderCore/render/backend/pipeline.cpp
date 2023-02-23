@@ -743,6 +743,8 @@ void Pipeline::create_vk_pipeline(
 
         last_renderpass = render_pass;
         last_subpass_index = subpass_index;
+
+        logger->warn("Compiling pipeline {}", pipeline_name);
     }
 }
 

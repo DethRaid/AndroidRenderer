@@ -45,20 +45,46 @@ CommandBuffer::update_buffer(
 
 void
 CommandBuffer::set_resource_usage(
-    const BufferHandle resource, const VkPipelineStageFlags pipeline_stage,
+    const BufferHandle buffer, const VkPipelineStageFlags pipeline_stage,
     const VkAccessFlags access
 ) {
-    if (!initial_buffer_usages.contains(resource)) {
-        initial_buffer_usages.emplace(resource, std::make_pair(pipeline_stage, access));
+    if (!initial_buffer_usages.contains(buffer)) {
+        initial_buffer_usages.emplace(buffer, std::make_pair(pipeline_stage, access));
     }
 
-    if (const auto& itr = last_buffer_usages.find(resource); itr != last_buffer_usages.end()) {
+    if (const auto& itr = last_buffer_usages.find(buffer); itr != last_buffer_usages.end()) {
         if (itr->second.first != pipeline_stage || itr->second.second != access) {
-            barrier(resource, itr->second.first, itr->second.second, pipeline_stage, access);
+            barrier(buffer, itr->second.first, itr->second.second, pipeline_stage, access);
         }
     }
 
-    last_buffer_usages.insert_or_assign(resource, std::make_pair(pipeline_stage, access));
+    last_buffer_usages.insert_or_assign(buffer, std::make_pair(pipeline_stage, access));
+}
+
+void CommandBuffer::set_resource_usage(
+    TextureHandle texture, VkPipelineStageFlags pipeline_stage, VkAccessFlags access, VkImageLayout layout
+) {
+    const auto current_usage = std::make_tuple(pipeline_stage, access, layout);
+
+    if (!initial_texture_usages.contains(texture)) {
+        initial_texture_usages.emplace(texture, current_usage);
+        barrier(
+            texture,
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+            pipeline_stage, access, layout
+        );
+    }
+
+    // Always issue a barrier between usages, even if they're the same
+    if (const auto& itr = last_texture_usages.find(texture); itr != last_texture_usages.end()) {
+        barrier(
+            texture,
+            std::get<0>(itr->second), std::get<1>(itr->second), std::get<2>(itr->second),
+            pipeline_stage, access, layout
+        );
+    }
+
+    last_texture_usages.insert_or_assign(texture, current_usage);
 }
 
 void CommandBuffer::flush_buffer(const BufferHandle buffer) {
@@ -272,6 +298,19 @@ void CommandBuffer::dispatch(const uint32_t width, const uint32_t height, const 
     commit_bindings();
 
     vkCmdDispatch(commands, width, height, depth);
+}
+
+void CommandBuffer::begin_label(const std::string& event_name) {
+    const auto label = VkDebugUtilsLabelEXT{
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+        .pLabelName = event_name.c_str()
+    };
+
+    vkCmdBeginDebugUtilsLabelEXT(commands, &label);
+}
+
+void CommandBuffer::end_label() {
+    vkCmdEndDebugUtilsLabelEXT(commands);
 }
 
 void CommandBuffer::end() {

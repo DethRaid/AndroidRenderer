@@ -7,9 +7,12 @@
 #include <tl/optional.hpp>
 #include <glm/vec4.hpp>
 
+#include "framebuffer.hpp"
 #include "render/backend/buffer_state.hpp"
 #include "render/backend/texture_state.hpp"
 #include "render/backend/handles.hpp"
+#include "render/backend/buffer_usage_token.hpp"
+#include "render/backend/texture_usage_token.hpp"
 
 class CommandBuffer;
 
@@ -19,33 +22,12 @@ struct AttachmentBinding {
     tl::optional<glm::vec4> clear_color;
 };
 
-struct RenderPass {
+struct ComputePass {
     std::string name;
+    
+    std::unordered_map<TextureHandle, TextureUsageToken> textures;
 
-    /**
-     * All the render targets to render to in this render pass
-     *
-     * If this list is empty, the pass is either a transfer or a compute pass
-     *
-     * The render targets with a color state are bound in the order they appear, then the depth target is bound to the
-     * depth slot (if present)
-     *
-     * If a depth target, the red of the clear color is the clear depth
-     */
-    std::vector<AttachmentBinding> attachments;
-
-    /**
-     * Non-render target textures this pass weill use
-     *
-     * Useful for compute passes that render to a texture, or render passes that read from a render target
-     *
-     * May or may not be useful for input attachments
-     *
-     * You don't need to track material textures with this if you know that they're already in the proper layout
-     */
-    std::unordered_map<TextureHandle, TextureState> textures;
-
-    std::unordered_map<BufferHandle, BufferState> buffers;
+    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
 
     /**
      * Executes this render pass
@@ -56,5 +38,30 @@ struct RenderPass {
     std::function<void(CommandBuffer&)> execute;
 };
 
+struct TransitionPass {
+    std::unordered_map<TextureHandle, TextureUsageToken> textures;
 
+    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+};
 
+struct Subpass {
+    std::string name;
+
+    std::function<void(CommandBuffer&)> execute;
+};
+
+struct RenderPass {
+    std::string name;
+
+    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+
+    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+
+    VkRenderPass render_pass;
+
+    Framebuffer framebuffer;
+
+    std::vector<VkClearValue> clear_values;
+
+    std::vector<Subpass> subpasses;
+};

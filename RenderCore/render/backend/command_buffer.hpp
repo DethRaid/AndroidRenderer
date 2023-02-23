@@ -17,6 +17,8 @@ class RenderBackend;
 
 using BufferUsageMap = std::unordered_map<BufferHandle, std::pair<VkPipelineStageFlags, VkAccessFlags>>;
 
+using TextureUsageMap = std::unordered_map<TextureHandle, std::tuple<VkPipelineStageFlags, VkAccessFlags, VkImageLayout>>;
+
 /**
  * Command buffer abstraction
  *
@@ -53,11 +55,13 @@ public:
      * This method ensures that the given resource can be accessed by future commands in the specified way. It may or
      * may not issue a barrier if needed, or it may only update the internal state tracking information.
      *
-     * @param resource
+     * @param buffer
      * @param pipeline_stage
      * @param access
      */
-    void set_resource_usage(BufferHandle resource, VkPipelineStageFlags pipeline_stage, VkAccessFlags access);
+    void set_resource_usage(BufferHandle buffer, VkPipelineStageFlags pipeline_stage, VkAccessFlags access);
+
+    void set_resource_usage(TextureHandle texture, VkPipelineStageFlags pipeline_stage, VkAccessFlags access, VkImageLayout layout);
 
     void flush_buffer(BufferHandle buffer);
 
@@ -144,6 +148,10 @@ public:
 
     void dispatch(uint32_t width, uint32_t height, uint32_t depth);
 
+    void begin_label(const std::string& event_name);
+
+    void end_label();
+
     void end();
 
     tracy::VkCtx* const get_tracy_context() const;
@@ -184,6 +192,10 @@ private:
     BufferUsageMap initial_buffer_usages;
 
     BufferUsageMap last_buffer_usages;
+
+    TextureUsageMap initial_texture_usages;
+
+    TextureUsageMap last_texture_usages;
 
     void commit_bindings();
 };

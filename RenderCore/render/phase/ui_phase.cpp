@@ -17,9 +17,13 @@ void UiPhase::render(CommandBuffer& commands, SceneView& view) {
 
     GpuZoneScoped(commands);
 
+    commands.begin_label(__func__);
+
     upscale_scene_color(commands);
 
-    // render UI
+    // TODO: render UI
+
+    commands.end_label();
 }
 
 void UiPhase::upscale_scene_color(CommandBuffer& commands) {

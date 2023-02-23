@@ -5,7 +5,7 @@
 
 LightingPhase::LightingPhase(RenderBackend& backend_in) : backend{backend_in} {}
 
-void LightingPhase::render(CommandBuffer& commands, SceneView& view) {
+void LightingPhase::render(CommandBuffer& commands, const SceneView& view, LightPropagationVolume& lpv) {
     if (scene == nullptr) {
         return;
     }
@@ -13,6 +13,8 @@ void LightingPhase::render(CommandBuffer& commands, SceneView& view) {
     ZoneScoped;
 
     GpuZoneScoped(commands);
+
+    commands.begin_label(__func__);
 
     auto gbuffers_descriptor_set = VkDescriptorSet{};
     backend.create_frame_descriptor_builder()
@@ -45,7 +47,9 @@ void LightingPhase::render(CommandBuffer& commands, SceneView& view) {
 
     add_sun_lighting(commands, gbuffers_descriptor_set, view);
 
-    add_lpv_lighting(commands, gbuffers_descriptor_set, view);
+    lpv.add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer());
+
+    commands.end_label();
 }
 
 void LightingPhase::set_gbuffer(const GBuffer& gbuffer_in) {
@@ -62,6 +66,8 @@ void LightingPhase::set_scene(RenderScene& scene_in) {
 
 void
 LightingPhase::add_sun_lighting(CommandBuffer& commands, const VkDescriptorSet gbuffers_descriptor_set, const SceneView& view) {
+    commands.begin_label(__func__);
+
     auto& allocator = backend.get_global_allocator();
 
     // Hardware PCF sampler
@@ -111,4 +117,6 @@ LightingPhase::add_sun_lighting(CommandBuffer& commands, const VkDescriptorSet g
 
     commands.clear_descriptor_set(0);
     commands.clear_descriptor_set(1);
+
+    commands.end_label();
 }

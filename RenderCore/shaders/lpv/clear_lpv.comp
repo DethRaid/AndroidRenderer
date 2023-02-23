@@ -1,0 +1,31 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "common/spherical_harmonics.glsl"
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, rgba16f) uniform writeonly image3D lpv_red;
+layout(set = 0, binding = 1, rgba16f) uniform writeonly image3D lpv_green;
+layout(set = 0, binding = 2, rgba16f) uniform writeonly image3D lpv_blue;
+
+// Dummy push constants because I'm dummy
+layout(push_constant) uniform Constants {
+    uint padding0;
+    uint padding1;
+    uint padding2;
+    uint padding3;
+    uint padding4;
+    uint padding5;
+    uint padding6;
+    uint padding7;
+} push_constants;
+
+void main() {
+    ivec3 texel = ivec3(gl_GlobalInvocationID);
+
+    imageStore(lpv_red, texel, vec4(0));
+    imageStore(lpv_green, texel, vec4(0));
+    imageStore(lpv_blue, texel, vec4(0));
+}

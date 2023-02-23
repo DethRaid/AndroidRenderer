@@ -22,6 +22,8 @@ void SunShadowPhase::render(CommandBuffer& commands, SunLight& light) {
 
     GpuZoneScoped(commands);
 
+    commands.begin_label(__func__);
+
     // Pull drawcalls from the scene
 
     auto& backend = scene_renderer.get_backend();
@@ -61,4 +63,6 @@ void SunShadowPhase::render(CommandBuffer& commands, SunLight& light) {
     }
 
     commands.clear_descriptor_set(0);
+
+    commands.end_label();
 }

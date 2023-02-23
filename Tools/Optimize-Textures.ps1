@@ -2,7 +2,11 @@
 param (
     [Parameter()]
     [string]
-    $DirectoryToCompress
+    $DirectoryToCompress,
+    
+    [Parameter()]
+    [string]
+    $CompressionFormat
 )
 
 Get-ChildItem $DirectoryToCompress -Filter *.png |
@@ -12,7 +16,7 @@ ForEach-Object {
 
     Write-Host "Converting file $OriginalFilename to $KtxFilename"
 
-    toktx --genmipmap --t2 --encode astc $KtxFilename $OriginalFilename
+    toktx --genmipmap --t2 --encode $CompressionFormat $KtxFilename $OriginalFilename
 }
 
 Get-ChildItem $DirectoryToCompress -Filter *.jpg |
@@ -22,5 +26,5 @@ ForEach-Object {
 
     Write-Host "Converting file $OriginalFilename to $KtxFilename"
 
-    toktx --genmipmap --t2 --encode astc $KtxFilename $OriginalFilename
+    toktx --genmipmap --t2 --encode $CompressionFormat $KtxFilename $OriginalFilename
 }

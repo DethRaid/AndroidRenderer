@@ -7,6 +7,7 @@
 class RenderScene;
 class RenderBackend;
 class SceneView;
+class LightPropagationVolume;
 
 struct GBuffer {
     TextureHandle color = TextureHandle::None;
@@ -22,7 +23,7 @@ struct GBuffer {
  * This pass adds in lighting from a variety of sources: the sun, the sky, indirect lighting, area
  * lights, etc
  */
-class LightingPhase : public PhaseInterface {
+class LightingPhase {
 public:
     explicit LightingPhase(RenderBackend& backend_in);
 
@@ -32,7 +33,7 @@ public:
 
     void set_shadowmap(TextureHandle shadowmap_in);
 
-    void render(CommandBuffer& commands, SceneView& view) override;
+    void render(CommandBuffer& commands, const SceneView& view, LightPropagationVolume& lpv);
 
 private:
     RenderBackend& backend;
@@ -42,8 +43,6 @@ private:
     GBuffer gbuffer;
 
     void add_sun_lighting(CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor_set, const SceneView& view);
-
-    void add_lpv_lighting(const CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor_set, const SceneView& view);
-
+    
     TextureHandle shadowmap = TextureHandle::None;
 };

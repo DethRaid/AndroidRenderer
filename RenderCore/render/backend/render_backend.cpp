@@ -32,7 +32,7 @@ static AutoCVar_Int cvar_break_on_validation_warning{
 static AutoCVar_Int cvar_break_on_validation_error{
     "r.vulkan.BreakOnValidationError",
     "Whether to issue a breakpoint when the validation layers detect an error",
-    0
+    1
 };
 
 VkBool32 VKAPI_ATTR debug_callback(

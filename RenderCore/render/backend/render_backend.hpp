@@ -25,7 +25,7 @@
  * flush commands at the end of the frame, but you can flush more often to reduce latency
  *
  * When the frame begins, the backend does a couple things:
- * - Wait for the GPu to finish processing the last commands for the current frame index
+ * - Wait for the GPU to finish processing the last commands for the current frame index
  * - Destroys the command buffers for this frame and resets the command pool
  */
 class RenderBackend {
