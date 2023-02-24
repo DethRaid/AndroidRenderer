@@ -62,6 +62,7 @@ struct BasicPbrMaterial {
     BasicPbrMaterialGpu gpu_data;
     Pipeline pipeline;
     Pipeline shadow_pipeline;
+    Pipeline rsm_pipeline;
 };
 
 #endif //SAHRENDERER_BASIC_PBR_MATERIAL_HPP

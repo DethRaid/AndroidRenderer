@@ -32,8 +32,9 @@ void SceneView::set_render_resolution(const glm::uvec2 render_resolution) {
     is_dirty = true;
 }
 
-void SceneView::set_position_and_direction(const glm::vec3& position, const glm::vec3& direction) {
-    gpu_data.view = glm::lookAt(position, position + direction, glm::vec3{0.f, 1.f, 0.f});
+void SceneView::set_position_and_direction(const glm::vec3& position, const glm::vec3& direction_in) {
+    direction = direction_in;
+    gpu_data.view = glm::lookAt(position, position + direction_in, glm::vec3{0.f, 1.f, 0.f});
     gpu_data.inverse_view = glm::inverse(gpu_data.view);
     is_dirty = true;
 }
@@ -95,5 +96,5 @@ glm::vec3 SceneView::get_postion() const {
 }
 
 glm::vec3 SceneView::get_forward() const {
-    return glm::normalize(glm::vec3{gpu_data.inverse_view[3]});
+    return glm::normalize(glm::vec3{gpu_data.inverse_view[0][2], gpu_data.inverse_view[1][2] , gpu_data.inverse_view[2][2] });
 }

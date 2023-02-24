@@ -18,12 +18,6 @@ void SunShadowPhase::render(CommandBuffer& commands, SunLight& light) {
         return;
     }
 
-    ZoneScoped;
-
-    GpuZoneScoped(commands);
-
-    commands.begin_label(__func__);
-
     // Pull drawcalls from the scene
 
     auto& backend = scene_renderer.get_backend();
@@ -48,21 +42,13 @@ void SunShadowPhase::render(CommandBuffer& commands, SunLight& light) {
     commands.bind_index_buffer(mesh_storage.get_index_buffer());
 
     for (const auto& primitive: solids) {
-        // View uniform buffer and primitive data buffer
-
-        commands.bind_descriptor_set(1, primitive->material->second.descriptor_set);
-
         commands.set_push_constant(0, primitive.index);
 
         commands.bind_pipeline(primitive->material->first.shadow_pipeline);
 
         const auto& mesh = primitive->mesh;
         commands.draw_indexed(mesh.num_indices, 1, mesh.first_index, mesh.first_vertex, 0);
-
-        commands.clear_descriptor_set(1);
     }
 
     commands.clear_descriptor_set(0);
-
-    commands.end_label();
 }

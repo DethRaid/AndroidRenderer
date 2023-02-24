@@ -9,6 +9,7 @@
 enum class TextureAllocationType {
     Vma,
     Ktx,
+    Swapchain,
 };
 
 struct VmaTextureAllocation {

@@ -59,7 +59,9 @@ struct RenderPass {
 
     VkRenderPass render_pass;
 
-    Framebuffer framebuffer;
+    std::vector<TextureHandle> render_targets;
+
+    tl::optional<TextureHandle> depth_target;
 
     std::vector<VkClearValue> clear_values;
 

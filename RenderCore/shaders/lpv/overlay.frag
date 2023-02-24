@@ -4,6 +4,7 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "common/spherical_harmonics.glsl"
+#include "shared/lpv.hpp"
 
 struct ViewInfo {
     mat4 view;
@@ -28,7 +29,7 @@ layout(set = 1, binding = 0) uniform sampler3D lpv_red;
 layout(set = 1, binding = 1) uniform sampler3D lpv_green;
 layout(set = 1, binding = 2) uniform sampler3D lpv_blue;
 layout(set = 1, binding = 3) uniform LpvCascadeBuffer {
-    mat4 world_to_cascade;
+    LPVCascadeMatrices cascade_matrices[4];
 };
 
 layout(set = 1, binding = 4) uniform ViewUniformBuffer {
@@ -95,11 +96,7 @@ void main() {
     //     }
     // }
 
-    vec4 cascade_position = world_to_cascade * worldspace_position;
-    if(any(lessThan(cascade_position.rgb, vec3(0))) || any(greaterThan(cascade_position.xyz, vec3(1)))) {
-        lighting = vec4(1, 0, 1, 1);
-        return;
-    }
+    vec4 cascade_position = cascade_matrices[0].world_to_cascade * worldspace_position;
 
     vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
     vec4 green_coefficients = texture(lpv_green, cascade_position.xyz);

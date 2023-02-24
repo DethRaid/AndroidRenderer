@@ -144,7 +144,7 @@ vec3 brdf(in SurfaceInfo surface, vec3 l, const vec3 v) {
     const float NoH = clamp(dot(surface.normal, h), 0, 1);
     const float VoH = clamp(dot(v, h), 0, 1);
 
-    if(NoL < 0) {
+    if(NoL <= 0) {
         return vec3(0);
     }
 

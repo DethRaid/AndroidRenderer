@@ -57,7 +57,9 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
         cmds.set_resource_usage(texture_token.first, texture_token.second.stage, texture_token.second.access, texture_token.second.layout);
     }
 
-    cmds.begin_render_pass(pass.render_pass, pass.framebuffer, pass.clear_values);
+    auto framebuffer = Framebuffer::create(backend, pass.render_targets, pass.depth_target, pass.render_pass);
+
+    cmds.begin_render_pass(pass.render_pass, framebuffer, pass.clear_values);
 
     auto first_subpass = true;
 
@@ -82,6 +84,8 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     cmds.end_render_pass();
 
     cmds.end_label();
+
+    backend.get_global_allocator().destroy_framebuffer(std::move(framebuffer));
 }
 
 void RenderGraph::finish() {

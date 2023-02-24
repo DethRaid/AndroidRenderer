@@ -50,6 +50,7 @@ void main() {
     // Data
     vec4 data_sample = texture(data_texture, vertex_texcoord);
     vec4 tinted_data = data_sample * vec4(0.f, material.metalness_factor, material.roughness_factor, 0.f);
+    tinted_data.b = max(0.001, tinted_data.b);
 
     gbuffer_data = tinted_data;
 

@@ -58,6 +58,11 @@ private:
 
     float near_value = 0.05f;
 
+    /**
+     * Worldspace forward vector of the camera
+     */
+    glm::vec3  direction = {};
+
     SceneViewGpu gpu_data = {};
 
     BufferHandle buffer = BufferHandle::None;

@@ -4,6 +4,7 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "shared/vpl.hpp"
+#include "shared/lpv.hpp"
 
 /**
  * Places VPLs into each cell's light list
@@ -16,14 +17,14 @@ layout(set = 0, binding = 0, std430) readonly buffer VplListBuffer {
 };
 
 layout(set = 0, binding = 1, std430) readonly uniform CascadeDataBuffer {
-    mat4 world_to_cascade;
-};
+    LPVCascadeMatrices cascade_matrices[4];
+} cascade_matrices_buffer;
 
 layout(set = 0, binding = 2, std430) buffer LightLinkedListBuffer {
-    // Linked list of lights! The X is the light's index, the Y is the index of the next element in
-    // the linked list
-    // Both start out at 0xFFFFFFFF. Every time we add a light to a cell, we set the X to the
-    // light's index and the Y to the next available element in this list
+// Linked list of lights! The X is the light's index, the Y is the index of the next element in
+// the linked list
+// Both start out at 0xFFFFFFFF. Every time we add a light to a cell, we set the X to the
+// light's index and the Y to the next available element in this list
     uvec2 light_linked_list[];
 };
 
@@ -32,7 +33,7 @@ layout(set = 0, binding = 3, std430) buffer LinkedListNextElementBuffer {
 };
 
 layout(set = 0, binding = 4, std430) buffer LightListBuffer {
-    // index of the head of each cell's light list. Starts at 0xFFFFFFFF, set to a real value if needed
+// index of the head of each cell's light list. Starts at 0xFFFFFFFF, set to a real value if needed
     uint light_list_head[];
 };
 
@@ -62,12 +63,12 @@ void main() {
     PackedVPL packed_vpl = vpls[gl_GlobalInvocationID.x];
     VPL vpl = unpack_vpl(packed_vpl);
 
-    if(length(vpl.normal) == 0) {
+    if (length(vpl.normal) == 0) {
         // My code isn't smart enough to handle a variable number of VPLs, but this should work
         return;
     }
-
-    vec4 local_position = world_to_cascade * vec4(vpl.position, 1);
+   
+    vec4 local_position = cascade_matrices_buffer.cascade_matrices[push_constants.cascade_index].world_to_cascade * vec4(vpl.position, 1);
 
     if (all(greaterThan(local_position.xyz, vec3(0.f))) && all(lessThan(local_position.xyz, vec3(1.f)))) {
         uvec3 cell = uvec3(round(local_position.xyz * 32.f));

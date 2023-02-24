@@ -6,17 +6,17 @@
 #include <spdlog/fmt/bundled/format.h>
 
 ResourceAllocator::ResourceAllocator(RenderBackend& backend_in) :
-        backend{backend_in} {
+    backend{backend_in} {
     const auto functions = VmaVulkanFunctions{
-            .vkGetInstanceProcAddr = vkGetInstanceProcAddr,
-            .vkGetDeviceProcAddr = vkGetDeviceProcAddr,
+        .vkGetInstanceProcAddr = vkGetInstanceProcAddr,
+        .vkGetDeviceProcAddr = vkGetDeviceProcAddr,
     };
     const auto create_info = VmaAllocatorCreateInfo{
-            .physicalDevice = backend.get_physical_device(),
-            .device = backend.get_device().device,
-            .pVulkanFunctions = &functions,
-            .instance = backend.get_instance(),
-            .vulkanApiVersion = VK_API_VERSION_1_1
+        .physicalDevice = backend.get_physical_device(),
+        .device = backend.get_device().device,
+        .pVulkanFunctions = &functions,
+        .instance = backend.get_instance(),
+        .vulkanApiVersion = VK_API_VERSION_1_1
     };
     const auto result = vmaCreateAllocator(&create_info, &vma);
     if (result != VK_SUCCESS) {
@@ -62,26 +62,26 @@ TextureHandle ResourceAllocator::create_texture(const std::string& name, VkForma
     }
 
     const auto image_create_info = VkImageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-            .imageType = VK_IMAGE_TYPE_2D,
-            .format = format,
-            .extent = VkExtent3D{.width = resolution.x, .height = resolution.y, .depth = 1},
-            .mipLevels = num_mips,
-            .arrayLayers = num_layers,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .tiling = VK_IMAGE_TILING_OPTIMAL,
-            .usage = vk_usage,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = format,
+        .extent = VkExtent3D{.width = resolution.x, .height = resolution.y, .depth = 1},
+        .mipLevels = num_mips,
+        .arrayLayers = num_layers,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = vk_usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
 
     const auto allocation_info = VmaAllocationCreateInfo{
-            .flags = vma_flags,
-            .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        .flags = vma_flags,
+        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     };
 
     auto texture = Texture{
-            .type = TextureAllocationType::Vma
+        .type = TextureAllocationType::Vma
     };
 
     auto result = vmaCreateImage(vma, &image_create_info, &allocation_info, &texture.image, &texture.vma.allocation,
@@ -91,10 +91,10 @@ TextureHandle ResourceAllocator::create_texture(const std::string& name, VkForma
     }
 
     const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_IMAGE,
-            .objectHandle = reinterpret_cast<uint64_t>(texture.image),
-            .pObjectName = name.c_str(),
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType = VK_OBJECT_TYPE_IMAGE,
+        .objectHandle = reinterpret_cast<uint64_t>(texture.image),
+        .pObjectName = name.c_str(),
     };
     vkSetDebugUtilsObjectNameEXT(device, &name_info);
 
@@ -104,17 +104,17 @@ TextureHandle ResourceAllocator::create_texture(const std::string& name, VkForma
     const auto image_view_name = fmt::format("{} View", name);
 
     const auto view_create_info = VkImageViewCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = texture.image,
-            .viewType = num_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
-            .format = format,
-            .subresourceRange = {
-                    .aspectMask = view_aspect,
-                    .baseMipLevel = 0,
-                    .levelCount = num_mips,
-                    .baseArrayLayer = 0,
-                    .layerCount = num_layers,
-            },
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = texture.image,
+        .viewType = num_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
+        .format = format,
+        .subresourceRange = {
+            .aspectMask = view_aspect,
+            .baseMipLevel = 0,
+            .levelCount = num_mips,
+            .baseArrayLayer = 0,
+            .layerCount = num_layers,
+        },
     };
     result = vkCreateImageView(device, &view_create_info, nullptr, &texture.image_view);
     if (result != VK_SUCCESS) {
@@ -122,10 +122,10 @@ TextureHandle ResourceAllocator::create_texture(const std::string& name, VkForma
     }
 
     const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-            .objectHandle = reinterpret_cast<uint64_t>(texture.image_view),
-            .pObjectName = image_view_name.c_str(),
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
+        .objectHandle = reinterpret_cast<uint64_t>(texture.image_view),
+        .pObjectName = image_view_name.c_str(),
     };
     vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
 
@@ -162,26 +162,26 @@ TextureHandle ResourceAllocator::create_volume_texture(const std::string& name, 
     }
 
     const auto image_create_info = VkImageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-            .imageType = VK_IMAGE_TYPE_3D,
-            .format = format,
-            .extent = VkExtent3D{.width = resolution.x, .height = resolution.y, .depth = resolution.z},
-            .mipLevels = num_mips,
-            .arrayLayers = 1,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .tiling = VK_IMAGE_TILING_OPTIMAL,
-            .usage = vk_usage,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_3D,
+        .format = format,
+        .extent = VkExtent3D{.width = resolution.x, .height = resolution.y, .depth = resolution.z},
+        .mipLevels = num_mips,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = vk_usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
 
     const auto allocation_info = VmaAllocationCreateInfo{
-            .flags = vma_flags,
-            .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        .flags = vma_flags,
+        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     };
 
     auto texture = Texture{
-            .type = TextureAllocationType::Vma
+        .type = TextureAllocationType::Vma
     };
 
     auto result = vmaCreateImage(vma, &image_create_info, &allocation_info, &texture.image, &texture.vma.allocation,
@@ -191,10 +191,10 @@ TextureHandle ResourceAllocator::create_volume_texture(const std::string& name, 
     }
 
     const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_IMAGE,
-            .objectHandle = reinterpret_cast<uint64_t>(texture.image),
-            .pObjectName = name.c_str(),
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType = VK_OBJECT_TYPE_IMAGE,
+        .objectHandle = reinterpret_cast<uint64_t>(texture.image),
+        .pObjectName = name.c_str(),
     };
     vkSetDebugUtilsObjectNameEXT(device, &name_info);
 
@@ -204,17 +204,17 @@ TextureHandle ResourceAllocator::create_volume_texture(const std::string& name, 
     const auto image_view_name = fmt::format("{} View", name);
 
     const auto view_create_info = VkImageViewCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = texture.image,
-            .viewType = VK_IMAGE_VIEW_TYPE_3D,
-            .format = format,
-            .subresourceRange = {
-                    .aspectMask = view_aspect,
-                    .baseMipLevel = 0,
-                    .levelCount = num_mips,
-                    .baseArrayLayer = 0,
-                    .layerCount = 1,
-            },
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = texture.image,
+        .viewType = VK_IMAGE_VIEW_TYPE_3D,
+        .format = format,
+        .subresourceRange = {
+            .aspectMask = view_aspect,
+            .baseMipLevel = 0,
+            .levelCount = num_mips,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
     };
     result = vkCreateImageView(device, &view_create_info, nullptr, &texture.image_view);
     if (result != VK_SUCCESS) {
@@ -222,10 +222,10 @@ TextureHandle ResourceAllocator::create_volume_texture(const std::string& name, 
     }
 
     const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-            .objectHandle = reinterpret_cast<uint64_t>(texture.image_view),
-            .pObjectName = image_view_name.c_str(),
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
+        .objectHandle = reinterpret_cast<uint64_t>(texture.image_view),
+        .pObjectName = image_view_name.c_str(),
     };
     vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
 
@@ -240,10 +240,10 @@ TextureHandle ResourceAllocator::emplace_texture(const std::string& name, Textur
         const auto device = backend.get_device().device;
 
         const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_IMAGE,
-                .objectHandle = reinterpret_cast<uint64_t>(new_texture.image),
-                .pObjectName = name.c_str(),
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_IMAGE,
+            .objectHandle = reinterpret_cast<uint64_t>(new_texture.image),
+            .pObjectName = name.c_str(),
         };
         vkSetDebugUtilsObjectNameEXT(device, &name_info);
 
@@ -255,17 +255,17 @@ TextureHandle ResourceAllocator::emplace_texture(const std::string& name, Textur
         }
 
         const auto view_create_info = VkImageViewCreateInfo{
-                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = new_texture.image,
-                .viewType = new_texture.ktx.ktx_vk_tex.viewType,
-                .format = new_texture.create_info.format,
-                .subresourceRange = {
-                        .aspectMask = view_aspect,
-                        .baseMipLevel = 0,
-                        .levelCount = new_texture.create_info.mipLevels,
-                        .baseArrayLayer = 0,
-                        .layerCount = new_texture.create_info.arrayLayers,
-                },
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = new_texture.image,
+            .viewType = new_texture.ktx.ktx_vk_tex.viewType,
+            .format = new_texture.create_info.format,
+            .subresourceRange = {
+                .aspectMask = view_aspect,
+                .baseMipLevel = 0,
+                .levelCount = new_texture.create_info.mipLevels,
+                .baseArrayLayer = 0,
+                .layerCount = new_texture.create_info.arrayLayers,
+            },
         };
         const auto result = vkCreateImageView(device, &view_create_info, nullptr, &new_texture.image_view);
         if (result != VK_SUCCESS) {
@@ -273,10 +273,10 @@ TextureHandle ResourceAllocator::emplace_texture(const std::string& name, Textur
         }
 
         const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-                .objectHandle = reinterpret_cast<uint64_t>(new_texture.image_view),
-                .pObjectName = image_view_name.c_str(),
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
+            .objectHandle = reinterpret_cast<uint64_t>(new_texture.image_view),
+            .pObjectName = image_view_name.c_str(),
         };
         vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
     }
@@ -335,15 +335,15 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, size_t si
             break;
     }
     const auto create_info = VkBufferCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = size,
-            .usage = vk_usage,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = size,
+        .usage = vk_usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
 
     const auto vma_create_info = VmaAllocationCreateInfo{
-            .flags = vma_flags,
-            .usage = memory_usage,
+        .flags = vma_flags,
+        .usage = memory_usage,
     };
 
     Buffer buffer;
@@ -354,10 +354,10 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, size_t si
     }
 
     const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_BUFFER,
-            .objectHandle = reinterpret_cast<uint64_t>(buffer.buffer),
-            .pObjectName = name.c_str(),
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType = VK_OBJECT_TYPE_BUFFER,
+        .objectHandle = reinterpret_cast<uint64_t>(buffer.buffer),
+        .pObjectName = name.c_str(),
     };
     vkSetDebugUtilsObjectNameEXT(device, &name_info);
 
@@ -375,6 +375,11 @@ const Buffer& ResourceAllocator::get_buffer(BufferHandle handle) const {
 void ResourceAllocator::destroy_buffer(BufferHandle handle) {
     auto& cur_frame_zombies = buffer_zombie_lists[backend.get_current_gpu_frame()];
     cur_frame_zombies.emplace_back(handle);
+}
+
+void ResourceAllocator::destroy_framebuffer(Framebuffer&& framebuffer) {
+    auto& cur_frame_zombies = framebuffer_zombie_lists[backend.get_current_gpu_frame()];
+    cur_frame_zombies.emplace_back(framebuffer);
 }
 
 VkSampler ResourceAllocator::get_sampler(const VkSamplerCreateInfo& info) {
@@ -419,12 +424,23 @@ void ResourceAllocator::free_resources_for_frame(uint32_t frame_idx) {
                 ktxVulkanTexture_Destruct(&texture.ktx.ktx_vk_tex, device, nullptr);
                 break;
 
+            case TextureAllocationType::Swapchain:
+                // We just need to destroy the image view
+                vkDestroyImageView(device, texture.image_view, nullptr);
+                break;
+
             default:
                 throw std::runtime_error{"Unknown texture allocation type"};
         }
     }
 
     zombie_textures.clear();
+
+    auto& zombie_framebuffers = framebuffer_zombie_lists[frame_idx];
+    for(const auto& framebuffer : zombie_framebuffers) {
+        vkDestroyFramebuffer(device, framebuffer.framebuffer, nullptr);
+    }
+    zombie_framebuffers.clear();
 }
 
 VmaAllocator ResourceAllocator::get_vma() const {

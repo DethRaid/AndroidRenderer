@@ -4,6 +4,7 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "shared/vpl.hpp"
+#include "shared/lpv.hpp"
 #include "common/spherical_harmonics.glsl"
 
 /**
@@ -17,7 +18,7 @@ layout(set = 0, binding = 0, std430) readonly buffer VplListBuffer {
 };
 
 layout(set = 0, binding = 1, std430) readonly uniform CascadeDataBuffer {
-    mat4 world_to_cascade[4];
+    LPVCascadeMatrices cascade_matrices[4];
 };
 
 layout(set = 0, binding = 2, std430) readonly buffer LightLinkedListBuffer {
@@ -58,8 +59,6 @@ VPL unpack_vpl(PackedVPL packed_vpl) {
 }
 
 void main() {
-    // We use signed integer vectors to address images, because negative texels are meaningful?
-    // This is such stupid bullshit
     ivec3 texel = ivec3(gl_GlobalInvocationID);
     texel.x += push_constants.cascade_index * 32;
 

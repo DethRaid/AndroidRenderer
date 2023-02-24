@@ -14,6 +14,7 @@
 #include "core/object_pool.hpp"
 #include "render/backend/buffer.hpp"
 #include "render/backend/constants.hpp"
+#include "framebuffer.hpp"
 
 class RenderBackend;
 
@@ -112,6 +113,8 @@ public:
 
     void destroy_buffer(BufferHandle handle);
 
+    void destroy_framebuffer(Framebuffer&& framebuffer);
+
     /**
      * Get a sampler that matches the provided desc
      *
@@ -140,6 +143,7 @@ private:
 
     std::array<std::vector<BufferHandle>, num_in_flight_frames> buffer_zombie_lists;
     std::array<std::vector<TextureHandle>, num_in_flight_frames> texture_zombie_lists;
+    std::array<std::vector<Framebuffer>, num_in_flight_frames> framebuffer_zombie_lists;
 
     struct SamplerCreateInfoHasher
     {

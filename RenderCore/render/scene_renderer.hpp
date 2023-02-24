@@ -64,19 +64,13 @@ private:
 
     LightPropagationVolume lpv;
 
-    VkRenderPass rsm_render_pass = VK_NULL_HANDLE;
+    VkRenderPass shadow_render_pass = VK_NULL_HANDLE;
 
     VkRenderPass scene_render_pass = VK_NULL_HANDLE;
 
     VkRenderPass ui_render_pass = VK_NULL_HANDLE;
 
     TextureHandle shadowmap_handle = TextureHandle::None;
-
-    TextureHandle rsm_color_handle = TextureHandle::None;
-
-    TextureHandle rsm_normals_handle = TextureHandle::None;
-
-    Framebuffer shadow_frame_buffer;
 
     TextureHandle gbuffer_color_handle = TextureHandle::None;
 
@@ -90,13 +84,9 @@ private:
 
     TextureHandle lit_scene_handle = TextureHandle::None;
 
-    Framebuffer scene_frame_buffer;
-
-    std::vector<Framebuffer> swapchain_framebuffers;
+    std::vector<TextureHandle> swapchain_images;
 
     SunShadowPhase sun_shadow_pass;
-
-    RsmVplPhase rsm_vpl_pass;
 
     GbufferPhase gbuffer_pass;
 

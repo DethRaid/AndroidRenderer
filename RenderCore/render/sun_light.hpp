@@ -33,6 +33,8 @@ public:
 
     Pipeline& get_pipeline();
 
+    glm::vec3 get_direction() const;
+
 private:
     ResourceAllocator& allocator;
 

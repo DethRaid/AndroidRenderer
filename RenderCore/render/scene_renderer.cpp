@@ -28,7 +28,6 @@ static auto cvar_shadow_cascade_split_lambda = AutoCVar_Float{
 SceneRenderer::SceneRenderer() :
     backend{}, player_view{backend}, texture_loader{backend}, materials{backend},
     meshes{backend.get_global_allocator(), backend.get_upload_queue()}, lpv{backend}, sun_shadow_pass{*this},
-    rsm_vpl_pass{*this},
     gbuffer_pass{*this}, lighting_pass{backend}, ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
@@ -38,7 +37,7 @@ SceneRenderer::SceneRenderer() :
 
     player_view.set_perspective_projection(
         75.f, static_cast<float>(render_resolution.y) /
-        static_cast<float>(render_resolution.x), 0.05f
+              static_cast<float>(render_resolution.x), 0.05f
     );
 
     create_render_passes();
@@ -94,7 +93,7 @@ void SceneRenderer::render() {
 
                 player_view.update_transforms(commands);
 
-                lpv.update_cascade_transforms(player_view);
+                lpv.update_cascade_transforms(player_view, scene->get_sun_light());
                 lpv.update_buffers(commands);
 
                 scene->flush_primitive_upload(commands);
@@ -117,25 +116,27 @@ void SceneRenderer::render() {
         }
     );
 
-    // Shadows and VPL cloud generation
+    // VPL cloud generation
 
-    rsm_vpl_pass.setup_buffers(render_graph);
+    lpv.render_rsm(render_graph, *scene, meshes);
 
+    // Shadows
+    // Render shadow pass after RSM so the shadow VS can overlap with the RSM VPL generation FS
     render_graph.add_render_pass(
         {
-            .name = "RSM",
+            .name = "CSM sun shadow",
             .textures = {
-                    {
-                        shadowmap_handle, {
-                        VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-                    }
+                {
+                    shadowmap_handle, {
+                    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                }
                 },
             },
-            .render_pass = rsm_render_pass,
-            .framebuffer = shadow_frame_buffer,
+            .render_pass = shadow_render_pass,
+            .depth_target = shadowmap_handle,
             .clear_values = std::vector{
-                VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
-                VkClearValue{.color = {.float32 = {0.5f, 0.5f, 1.f, 0}}},
                 VkClearValue{.depthStencil = {.depth = 1.f}}
             },
             .subpasses = {
@@ -144,24 +145,13 @@ void SceneRenderer::render() {
                     .execute = [&](CommandBuffer& commands) {
                         sun_shadow_pass.render(commands, scene->get_sun_light());
                     }
-                },
-                {
-                    .name = "Generate VPL list",
-                    .execute = [&](CommandBuffer& commands) {
-                        rsm_vpl_pass.render(commands, scene->get_sun_light());
-                    }
                 }
             }
         }
     );
 
-    // for (const auto& vpl_list : rsm_vpl_pass.get_vpl_lists()) {
-    //     lpv.inject_lights(render_graph, vpl_list);
-    // }
-
-    // TODO: Render RSM separately for the LPV
-    const auto& vpl_list = rsm_vpl_pass.get_vpl_lists()[2];
-    lpv.inject_lights(render_graph, vpl_list);
+    // Inject lights after the shadow pass. Unfortunately no VS/CS overlap ;(
+    lpv.inject_lights(render_graph);
 
     lpv.propagate_lighting(render_graph);
 
@@ -172,20 +162,23 @@ void SceneRenderer::render() {
             .name = "Scene pass",
             .textures = {
                 {
-                    shadowmap_handle, {
-                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                        VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    shadowmap_handle,
+                    {VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,         VK_ACCESS_SHADER_READ_BIT,            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
                 },
                 {
-                    lit_scene_handle, {
-                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                    }
+                    lit_scene_handle,
+                    {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}
                 }
             },
             .render_pass = scene_render_pass,
-            .framebuffer = scene_frame_buffer,
+            .render_targets = std::vector{
+                gbuffer_color_handle,
+                gbuffer_normals_handle,
+                gbuffer_data_handle,
+                gbuffer_emission_handle,
+                lit_scene_handle
+            },
+            .depth_target = gbuffer_depth_handle,
             .clear_values = std::vector{
                 // Clear color targets to black, clear depth to 1.f
                 VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
@@ -199,15 +192,19 @@ void SceneRenderer::render() {
             .subpasses = {
                 {
                     .name = "Gbuffer",
-                    .execute = [&](CommandBuffer& commands) { gbuffer_pass.render(commands, player_view); }
+                    .execute = [&](CommandBuffer& commands) {
+                        gbuffer_pass.render(commands, player_view);
+                    }
                 },
                 {
                     .name = "Lighting",
-                    .execute = [&](CommandBuffer& commands) { lighting_pass.render(commands, player_view, lpv); }
+                    .execute = [&](CommandBuffer& commands) {
+                        lighting_pass.render(commands, player_view, lpv);
+                    }
                 },
                 {
                     .name = "Translucency",
-                    .execute = [&](CommandBuffer& commands) { }
+                    .execute = [&](CommandBuffer& commands) {}
                 }
             }
         }
@@ -218,20 +215,20 @@ void SceneRenderer::render() {
     // Other postprocessing
 
     const auto swapchain_index = backend.get_current_swapchain_index();
-    const auto& swapchain_framebuffer = swapchain_framebuffers.at(swapchain_index);
+    const auto& swapchain_image = swapchain_images.at(swapchain_index);
     render_graph.add_render_pass(
         {
             .name = "UI",
             .textures = {
                 {
                     lit_scene_handle, {
-                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                }
                 }
             },
             .render_pass = ui_render_pass,
-            .framebuffer = swapchain_framebuffer,
+            .render_targets = {swapchain_image},
             .subpasses = {
                 {
                     .name = "UI",
@@ -308,29 +305,9 @@ void SceneRenderer::create_render_passes() {
      * One pass for tonemapping and color grading. Uses fragment shaders so it can overlap with next frame's shadow pass
      */
 
-    // Sun shadow and RSM injection
+    // CSM sun shadow
     {
         const auto attachments = std::array{
-            // RSM flux
-            VkAttachmentDescription{
-                .format = VK_FORMAT_R8G8B8A8_SRGB,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-            },
-
-            // RSM normals
-            VkAttachmentDescription{
-                .format = VK_FORMAT_R8G8B8A8_UNORM,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-            },
-
             // Shadowmap
             VkAttachmentDescription{
                 .format = VK_FORMAT_D16_UNORM,
@@ -342,69 +319,17 @@ void SceneRenderer::create_render_passes() {
             }
         };
 
-        const auto rsm_attachments = std::array{
-            // Flux
-            VkAttachmentReference{
-                .attachment = 0,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            },
-            // Normals
-            VkAttachmentReference{
-                .attachment = 1,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            }
-        };
         const auto depth_attachment = VkAttachmentReference{
-            .attachment = 2,
+            .attachment = 0,
             .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         };
 
-        const auto vpl_input_attachments = std::array{
-            // Flux
-            VkAttachmentReference{
-                .attachment = 0,
-                .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            },
-            // Normals
-            VkAttachmentReference{
-                .attachment = 1,
-                .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            },
-            // Depth
-            VkAttachmentReference{
-                .attachment = 2,
-                .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-            }
-        };
-
         const auto subpasses = std::array{
-            // Shadow + RSM
+            // Shadow
             VkSubpassDescription{
                 .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                .colorAttachmentCount = static_cast<uint32_t>(rsm_attachments.size()),
-                .pColorAttachments = rsm_attachments.data(),
                 .pDepthStencilAttachment = &depth_attachment,
             },
-
-            // VPL list extraction
-            VkSubpassDescription{
-                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                .inputAttachmentCount = static_cast<uint32_t>(vpl_input_attachments.size()),
-                .pInputAttachments = vpl_input_attachments.data(),
-            }
-        };
-
-        const auto dependencies = std::array{
-            // VPL depends on RSM
-            VkSubpassDependency{
-                .srcSubpass = 0,
-                .dstSubpass = 1,
-                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT | VK_DEPENDENCY_VIEW_LOCAL_BIT,
-            }
         };
 
         // TODO: Create this dynamically based on the number of sun shadow cascades?
@@ -413,7 +338,7 @@ void SceneRenderer::create_render_passes() {
         auto view_masks = std::vector<uint32_t>{};
         view_masks.reserve(subpasses.size());
 
-        for (uint32_t i = 0; i < subpasses.size(); i++) {
+        for (uint32_t i = 0 ; i < subpasses.size() ; i++) {
             view_masks.push_back(view_mask);
         }
 
@@ -430,18 +355,13 @@ void SceneRenderer::create_render_passes() {
             .pAttachments = attachments.data(),
             .subpassCount = static_cast<uint32_t>(subpasses.size()),
             .pSubpasses = subpasses.data(),
-            .dependencyCount = static_cast<uint32_t>(dependencies.size()),
-            .pDependencies = dependencies.data()
         };
 
-        const auto result = vkCreateRenderPass(
-            backend.get_device().device, &create_info, nullptr,
-            &rsm_render_pass
-        );
+        const auto result = vkCreateRenderPass(backend.get_device().device, &create_info, nullptr, &shadow_render_pass);
         if (result != VK_SUCCESS) {
             logger->error("Could not create shadow renderpass. Vulkan error {}", result);
         } else {
-            logger->info("Scene renderpass created!");
+            logger->info("Shadow renderpass created!");
         }
     }
 
@@ -721,14 +641,6 @@ void SceneRenderer::create_shadow_render_targets() {
         allocator.destroy_texture(shadowmap_handle);
     }
 
-    if (rsm_color_handle != TextureHandle::None) {
-        allocator.destroy_texture(rsm_color_handle);
-    }
-
-    if (rsm_normals_handle != TextureHandle::None) {
-        allocator.destroy_texture(rsm_normals_handle);
-    }
-
     shadowmap_handle = allocator.create_texture(
         "Sun shadowmap", VK_FORMAT_D16_UNORM,
         glm::uvec2{
@@ -736,37 +648,6 @@ void SceneRenderer::create_shadow_render_targets() {
             cvar_shadow_cascade_resolution.Get()
         }, 1,
         TextureUsage::RenderTarget, cvar_num_shadow_cascades.Get()
-    );
-
-    rsm_color_handle = allocator.create_texture(
-        "Sun RSM Color", VK_FORMAT_R8G8B8A8_SRGB,
-        glm::uvec2{
-            cvar_shadow_cascade_resolution.Get(),
-            cvar_shadow_cascade_resolution.Get()
-        }, 1,
-        TextureUsage::RenderTarget, cvar_num_shadow_cascades.Get()
-    );
-
-    rsm_normals_handle = allocator.create_texture(
-        "Sun RSM Normals", VK_FORMAT_R8G8B8A8_UNORM,
-        glm::uvec2{
-            cvar_shadow_cascade_resolution.Get(),
-            cvar_shadow_cascade_resolution.Get()
-        }, 1,
-        TextureUsage::RenderTarget, cvar_num_shadow_cascades.Get()
-    );
-
-    shadow_frame_buffer = Framebuffer::create(
-        backend, std::vector{rsm_color_handle, rsm_normals_handle},
-        shadowmap_handle, rsm_render_pass
-    );
-
-    rsm_vpl_pass.set_rsm(
-        {
-            .rsm_flux = rsm_color_handle,
-            .rsm_normal = rsm_normals_handle,
-            .rsm_depth = shadowmap_handle
-        }
     );
 
     lighting_pass.set_shadowmap(shadowmap_handle);
@@ -798,10 +679,6 @@ void SceneRenderer::create_scene_render_targets_and_framebuffers() {
 
     if (lit_scene_handle != TextureHandle::None) {
         allocator.destroy_texture(lit_scene_handle);
-    }
-
-    if (scene_frame_buffer.framebuffer != VK_NULL_HANDLE) {
-        vkDestroyFramebuffer(device, scene_frame_buffer.framebuffer, nullptr);
     }
 
     // gbuffer and lighting render targets
@@ -842,30 +719,25 @@ void SceneRenderer::create_scene_render_targets_and_framebuffers() {
         TextureUsage::RenderTarget
     );
 
-    // gbuffer/lighting framebuffer
-    scene_frame_buffer = Framebuffer::create(
-        backend,
-        std::vector{
-            gbuffer_color_handle,
-            gbuffer_normals_handle,
-            gbuffer_data_handle,
-            gbuffer_emission_handle,
-            lit_scene_handle
-        },
-        gbuffer_depth_handle, scene_render_pass
-    );
-
     auto& swapchain = backend.get_swapchain();
-    swapchain_framebuffers.reserve(swapchain.image_count);
-    const auto image_views = swapchain.get_image_views();
-    for (const auto& image_view : *image_views) {
-        swapchain_framebuffers.emplace_back(
-            Framebuffer::create(
-                device, std::vector{image_view}, tl::nullopt,
-                VkRect2D{.extent = swapchain.extent},
-                ui_render_pass
-            )
-        );
+    for (auto swapchain_image_index = 0 ; swapchain_image_index < swapchain.image_count ; swapchain_image_index++) {
+       const auto swapchain_image = allocator.emplace_texture(fmt::format("Swapchain image {}", swapchain_image_index), Texture{
+            .create_info = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                .imageType = VK_IMAGE_TYPE_2D,
+                .format = swapchain.image_format,
+                .extent = VkExtent3D{swapchain.extent.width, swapchain.extent.height, 1},
+                .mipLevels = 1,
+                .arrayLayers = 1,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .tiling = VK_IMAGE_TILING_OPTIMAL,
+                .usage = swapchain.image_usage_flags,
+            },
+            .image = swapchain.get_images()->at(swapchain_image_index),
+            .image_view = swapchain.get_image_views()->at(swapchain_image_index),
+        });
+
+       swapchain_images.push_back(swapchain_image);
     }
 
     lighting_pass.set_gbuffer(

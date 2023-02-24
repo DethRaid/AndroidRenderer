@@ -188,3 +188,7 @@ BufferHandle SunLight::get_constant_buffer() const {
 Pipeline& SunLight::get_pipeline() {
     return pipeline;
 }
+
+glm::vec3 SunLight::get_direction() const {
+    return glm::normalize(glm::vec3{ constants.direction_and_size });
+}

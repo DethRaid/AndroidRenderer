@@ -222,8 +222,17 @@ GltfModel::import_materials(
         }
 
         material.shadow_pipeline = backend.begin_building_pipeline(fmt::format("{} SHADOW", material_name))
-                                          .set_vertex_shader("shaders/lighting/shadow_rsm.vert.spv")
-                                          .set_fragment_shader("shaders/lighting/shadow_rsm.frag.spv")
+                                          .set_vertex_shader("shaders/lighting/shadow.vert.spv")
+                                          .set_depth_state(
+                                              DepthStencilState{
+                                                  .compare_op = VK_COMPARE_OP_LESS
+                                              }
+                                          )
+                                          .build();
+
+        material.rsm_pipeline = backend.begin_building_pipeline(fmt::format("{} RSM", material_name))
+                                          .set_vertex_shader("shaders/lpv/rsm.vert.spv")
+                                          .set_fragment_shader("shaders/lpv/rsm.frag.spv")
                                           .set_depth_state(
                                               DepthStencilState{
                                                   .compare_op = VK_COMPARE_OP_LESS
@@ -233,18 +242,18 @@ GltfModel::import_materials(
                                               0,
                                               {
                                                   .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                                                  VK_COLOR_COMPONENT_G_BIT |
-                                                  VK_COLOR_COMPONENT_B_BIT |
-                                                  VK_COLOR_COMPONENT_A_BIT
+                                                                    VK_COLOR_COMPONENT_G_BIT |
+                                                                    VK_COLOR_COMPONENT_B_BIT |
+                                                                    VK_COLOR_COMPONENT_A_BIT
                                               }
                                           )
                                           .set_blend_state(
                                               1,
                                               {
                                                   .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                                                  VK_COLOR_COMPONENT_G_BIT |
-                                                  VK_COLOR_COMPONENT_B_BIT |
-                                                  VK_COLOR_COMPONENT_A_BIT
+                                                                    VK_COLOR_COMPONENT_G_BIT |
+                                                                    VK_COLOR_COMPONENT_B_BIT |
+                                                                    VK_COLOR_COMPONENT_A_BIT
                                               }
                                           )
                                           .build();
