@@ -81,7 +81,6 @@ if(ANDROID)
     )
 elseif(WIN32)
     target_link_libraries(SahCore PUBLIC
-        aftermath
         glfw 
     )
 endif()

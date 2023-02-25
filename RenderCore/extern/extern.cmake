@@ -132,18 +132,3 @@ elseif(WIN32)
 endif()
 
 find_package(ktx)
-
-# aftermath
-if(WIN32)
-    set(AFTERMATH_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/aftermath/include")
-    set(AFTERMATH_LIB_DIR "${CMAKE_CURRENT_LIST_DIR}/aftermath/lib/x64")
-
-    file(COPY "${AFTERMATH_LIB_DIR}/GFSDK_Aftermath_Lib.x64.dll" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-
-    add_library(aftermath STATIC IMPORTED GLOBAL) 
-    set_target_properties(aftermath
-        PROPERTIES 
-        IMPORTED_LOCATION "${AFTERMATH_LIB_DIR}/GFSDK_Aftermath_Lib.x64.lib"
-        INTERFACE_INCLUDE_DIRECTORIES "${AFTERMATH_INCLUDE_DIR}"
-        )
-endif()
