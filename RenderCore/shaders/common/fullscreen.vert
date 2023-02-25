@@ -1,5 +1,4 @@
 #version 460 core
-#pragma shader_stage(vertex)
 
 out gl_PerVertex {
     vec4 gl_Position;

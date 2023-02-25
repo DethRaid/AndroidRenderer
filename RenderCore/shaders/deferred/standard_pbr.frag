@@ -1,5 +1,4 @@
 #version 460
-#pragma shader_stage(fragment)
 
 struct BasicPbrMaterialGpu {
     vec4 base_color_tint;
