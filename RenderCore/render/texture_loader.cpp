@@ -1,6 +1,7 @@
 #include "texture_loader.hpp"
 
 #include <stb_image.h>
+#include <magic_enum.hpp>
 
 #include "core/system_interface.hpp"
 #include "render/backend/render_backend.hpp"
@@ -56,7 +57,7 @@ tl::optional<TextureHandle> TextureLoader::load_texture_ktx(const std::filesyste
                                                           KTX_TEXTURE_CREATE_NO_FLAGS,
                                                           &ktx_texture);
                 if (result != KTX_SUCCESS) {
-                    logger->error("Could not load file {}: {}", filepath.string(), result);
+                    logger->error("Could not load file {}: {}", filepath.string(), magic_enum::enum_name(result));
                     return tl::nullopt;
                 }
 
@@ -67,7 +68,7 @@ tl::optional<TextureHandle> TextureLoader::load_texture_ktx(const std::filesyste
                 result = ktxTexture_VkUploadEx(ktx_texture, &ktx, &texture.ktx.ktx_vk_tex, VK_IMAGE_TILING_OPTIMAL,
                                                VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 if (result != KTX_SUCCESS) {
-                    logger->error("Could not create Vulkan texture for KTX file {}: {}", filepath.string(), result);
+                    logger->error("Could not create Vulkan texture for KTX file {}: {}", filepath.string(), magic_enum::enum_name(result));
                     return tl::nullopt;
                 }
 

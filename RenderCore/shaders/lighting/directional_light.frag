@@ -160,7 +160,7 @@ vec3 brdf(in SurfaceInfo surface, vec3 l, const vec3 v) {
 
     // diffuse BRDF
     const float LoH = clamp(dot(l, h), 0, 1);
-    const vec3 Fd = diffuse_color; // * Fd_Burley(NoV, NoL, LoH, surface.roughness);
+    const vec3 Fd = diffuse_color * Fd_Burley(NoV, NoL, LoH, surface.roughness);
 
     return Fd + Fr;
 }
@@ -182,8 +182,8 @@ void main() {
     SurfaceInfo surface;
     surface.base_color = vec4(base_color_sample, 1.0);
     surface.normal = normal_sample;
-    surface.metalness = data_sample.g;
-    surface.roughness = data_sample.b;
+    surface.roughness = data_sample.g;
+    surface.metalness = data_sample.b;
     surface.emission = emission_sample.rgb;
     surface.location = worldspace_position.xyz;
 
@@ -200,14 +200,13 @@ void main() {
 
     float ndotl = clamp(dot(normal_sample, light_vector), 0.f, 1.f);
 
-    vec3 direct_light = ndotl * brdf_result * sun_light.color.rgb * shadow;
+    vec3 direct_light = ndotl * brdf_result * shadow;
 
     // Number chosen based on what happened to look fine
-    const float exposure_factor = 0.0004;
+    const float exposure_factor = 1.f;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 
-    lighting = vec4(direct_light * exposure_factor, 1.f);
-
-    // lighting = vec4(0, 0, 0, 1);
+    // lighting = vec4(direct_light * exposure_factor, 1.f);
+    lighting = vec4(surface.base_color.rgb, 1.f);
 }

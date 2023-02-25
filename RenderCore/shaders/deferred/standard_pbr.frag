@@ -39,6 +39,7 @@ layout(location = 3) out vec4 gbuffer_emission;
 void main() {
     // Base color
     vec4 base_color_sample = texture(base_color_texture, vertex_texcoord);
+    // base_color_sample.rgb = pow(base_color_sample.rgb, vec3(1.f / 2.2f));
     vec4 tinted_base_color = base_color_sample * material.base_color_tint;// * vertex_color;
 
     gbuffer_base_color = tinted_base_color;
@@ -49,8 +50,7 @@ void main() {
 
     // Data
     vec4 data_sample = texture(data_texture, vertex_texcoord);
-    vec4 tinted_data = data_sample * vec4(0.f, material.metalness_factor, material.roughness_factor, 0.f);
-    tinted_data.b = max(0.001, tinted_data.b);
+    vec4 tinted_data = data_sample * vec4(0.f, material.roughness_factor, material.metalness_factor, 0.f);
 
     gbuffer_data = tinted_data;
 

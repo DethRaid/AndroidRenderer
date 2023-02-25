@@ -25,7 +25,5 @@ void main() {
     float factor = luma / (luma + 1.f);
     vec3 mapped_color = scene_color.rgb * factor;
 
-    mapped_color = pow(mapped_color, vec3(1.f / 2.2f));
-
-    color_out = vec4(mapped_color.rgb, 1.f);
+    color_out = vec4(scene_color.rgb, 1.f);
 }

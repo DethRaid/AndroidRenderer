@@ -37,10 +37,11 @@ layout(location = 1) out vec4 rsm_normal;
 void main() {
     // Base color
     vec4 base_color_sample = texture(base_color_texture, vertex_texcoord);
+    // base_color_sample.rgb = pow(base_color_sample.rgb, vec3(1.f / 2.2f));
     vec4 tinted_base_color = base_color_sample * material.base_color_tint;// * vertex_color;
 
     vec4 data_sample = texture(data_texture, vertex_texcoord);
-    vec4 tinted_data = data_sample * vec4(0.f, material.metalness_factor, material.roughness_factor, 0.f);
+    vec4 tinted_data = data_sample * vec4(0.f, material.roughness_factor, material.metalness_factor, 0.f);
 
     const float dielectric_f0 = 0.04; // TODO: Get this from a texture
     const vec3 f0 = mix(dielectric_f0.xxx, tinted_base_color.rgb, tinted_data.g);

@@ -81,8 +81,8 @@ void main() {
     SurfaceInfo surface;
     surface.base_color = vec4(base_color_sample, 1.0);
     surface.normal = normal_sample;
-    surface.metalness = data_sample.g;
-    surface.roughness = data_sample.b;
+    surface.metalness = data_sample.b;
+    surface.roughness = data_sample.g;
     surface.emission = emission_sample.rgb;
     surface.location = worldspace_position.xyz;
 
@@ -119,9 +119,11 @@ void main() {
     vec4 reflection_coefficients = sh_project_cone(reflection_vector);
     
     // Number chosen based on what happened to look fine
-    const float exposure_factor = PI;
+    const float exposure_factor = 1.f;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 
     lighting = vec4(diffuse_color * indirect_light * exposure_factor, 1.f);
+
+    lighting = vec4(0);
 }
