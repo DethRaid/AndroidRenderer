@@ -9,7 +9,7 @@
 
 ## Windows build
 
-- Build the cmake project in `Windows/`
+- Build the cmake project in `Windows`
 - Symlink (or copy) the folder `RenderCore/shaders/` to `Windows/build/Debug/shaders/` (or wherever the working directory for your build is)
 - Copy the glTF Sponza to `Windows/build/Debug/Sponza/`
 - Run the SahWindows executable
