@@ -97,7 +97,7 @@ public:
      * @return A handle to the texture
      */
     TextureHandle create_texture(const std::string& name, VkFormat format, glm::uvec2 resolution, uint32_t num_mips,
-                                 TextureUsage usage, uint32_t num_layers = 1);
+                                 TextureUsage usage, uint32_t num_layers = 1, VkFormat view_format = VK_FORMAT_UNDEFINED);
 
     TextureHandle create_volume_texture(const std::string& name, VkFormat format, glm::uvec3 resolution, uint32_t num_mips, TextureUsage usage);
 

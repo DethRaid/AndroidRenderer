@@ -15,9 +15,9 @@ void GbufferPhase::render(CommandBuffer& commands, SceneView& view) {
         return;
     }
 
-    ZoneScoped;
+    ZoneScopedN("GbufferPhase::render");
 
-    GpuZoneScoped(commands);
+    GpuZoneScopedN(commands, "GbufferPhase::render");
 
     commands.begin_label(__func__);
 

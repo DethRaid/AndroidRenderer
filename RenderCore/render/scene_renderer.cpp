@@ -87,6 +87,9 @@ void SceneRenderer::render() {
         ComputePass{
             .name = "Init Frame",
             .execute = [&](CommandBuffer& commands) {
+                ZoneScopedN("Init Frame");
+                GpuZoneScopedN(commands, "Init Frame");
+
                 auto& sun = scene->get_sun_light();
                 sun.update_shadow_cascades(player_view);
                 sun.update_buffer(commands);

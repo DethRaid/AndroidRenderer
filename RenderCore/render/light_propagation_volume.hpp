@@ -83,7 +83,7 @@ public:
 
     void update_buffers(CommandBuffer& commands) const;
 
-    void render_rsm(RenderGraph& graph, RenderScene& scene, MeshStorage& meshes);
+    void render_rsm(RenderGraph& graph, RenderScene& scene, const MeshStorage& meshes);
 
     void add_clear_volume_pass(RenderGraph& render_graph);
 

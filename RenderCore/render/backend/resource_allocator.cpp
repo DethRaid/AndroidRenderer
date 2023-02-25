@@ -34,7 +34,7 @@ ResourceAllocator::~ResourceAllocator() {
 
 TextureHandle ResourceAllocator::create_texture(const std::string& name, VkFormat format, glm::uvec2 resolution,
                                                 const uint32_t num_mips, const TextureUsage usage,
-                                                const uint32_t num_layers) {
+                                                const uint32_t num_layers, const VkFormat view_format) {
     const auto device = backend.get_device().device;
 
     VkImageUsageFlags vk_usage = VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -107,7 +107,7 @@ TextureHandle ResourceAllocator::create_texture(const std::string& name, VkForma
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = texture.image,
         .viewType = num_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
-        .format = format,
+        .format = view_format == VK_FORMAT_UNDEFINED ? format : view_format,
         .subresourceRange = {
             .aspectMask = view_aspect,
             .baseMipLevel = 0,
@@ -399,7 +399,9 @@ VkSampler ResourceAllocator::get_sampler(const VkSamplerCreateInfo& info) {
     return sampler;
 }
 
-void ResourceAllocator::free_resources_for_frame(uint32_t frame_idx) {
+void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
+    ZoneScoped;
+
     auto& zombie_buffers = buffer_zombie_lists[frame_idx];
     for (auto handle: zombie_buffers) {
         auto& buffer = buffers[static_cast<uint32_t>(handle)];

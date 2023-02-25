@@ -10,9 +10,9 @@ void LightingPhase::render(CommandBuffer& commands, const SceneView& view, Light
         return;
     }
 
-    ZoneScoped;
+    ZoneScopedN("LightingPhase::render");
 
-    GpuZoneScoped(commands);
+    GpuZoneScopedN(commands, "LightingPhase::render");
 
     commands.begin_label(__func__);
 

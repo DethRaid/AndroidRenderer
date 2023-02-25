@@ -19,6 +19,7 @@ float to_luminance(const vec3 color) { return color.r * 0.2126 + color.g * 0.715
 
 void main() {
     vec4 scene_color = textureLod(scene_color_texture, texcoord, 0);
+    scene_color.rgb = pow(scene_color.rgb, vec3(1.f / 2.2));
 
     // Simple reinhard
     float luma = to_luminance(scene_color.rgb);

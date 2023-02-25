@@ -18,6 +18,9 @@ void SunShadowPhase::render(CommandBuffer& commands, SunLight& light) {
         return;
     }
 
+    ZoneScopedN("SunShadowPhase::render");
+    GpuZoneScopedN(commands, "SunShadowPhase::render");
+
     // Pull drawcalls from the scene
 
     auto& backend = scene_renderer.get_backend();

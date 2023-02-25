@@ -345,7 +345,7 @@ void LightPropagationVolume::update_buffers(CommandBuffer& commands) const {
                            0);
 }
 
-void LightPropagationVolume::render_rsm(RenderGraph& graph, RenderScene& scene, MeshStorage& meshes) {
+void LightPropagationVolume::render_rsm(RenderGraph& graph, RenderScene& scene, const MeshStorage& meshes) {
     auto cascade_index = 0;
     for (const auto& cascade: cascades) {
         graph.add_compute_pass(
@@ -572,6 +572,8 @@ void LightPropagationVolume::inject_lights(RenderGraph& render_graph) const {
                                                                                     VK_ACCESS_SHADER_WRITE_BIT}}
                 },
                 .execute = [&](CommandBuffer& commands) {
+                    ZoneScopedN("Build light list");
+                    GpuZoneScopedN(commands, "Build light list");
                     auto descriptor_set = *backend.create_frame_descriptor_builder()
                                                   .bind_buffer(
                                                       0, {.buffer = cascade.vpl_buffer},
@@ -662,6 +664,8 @@ void LightPropagationVolume::inject_lights(RenderGraph& render_graph) const {
                     {cascade.vpl_list_head, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}}
                 },
                 .execute = [&](CommandBuffer& commands) {
+                    ZoneScopedN("Inject light list");
+                    GpuZoneScopedN(commands, "Inject light list");
                     auto descriptor_set = *backend.create_frame_descriptor_builder()
                                                   .bind_buffer(
                                                       0, {.buffer = cascade.vpl_buffer},
@@ -881,6 +885,8 @@ void LightPropagationVolume::perform_propagation_step(
                 },
             },
             .execute = [&](CommandBuffer& commands) {
+                ZoneScoped;
+                GpuZoneScoped(commands);
                 const auto descriptor_set = *backend.create_frame_descriptor_builder()
                                                     .bind_image(
                                                         0, {

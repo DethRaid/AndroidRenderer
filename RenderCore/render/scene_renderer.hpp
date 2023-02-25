@@ -4,13 +4,11 @@
 #include "scene_view.hpp"
 #include "render/material_storage.hpp"
 #include "render/texture_loader.hpp"
-#include "render/backend/framebuffer.hpp"
 #include "render/phase/gbuffer_phase.hpp"
 #include "mesh_storage.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
 #include "render/phase/sun_shadow_phase.hpp"
-#include "render/phase/rsm_vpl_pass.hpp"
 
 class GltfModel;
 

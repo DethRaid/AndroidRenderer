@@ -8,6 +8,8 @@
 
 Framebuffer Framebuffer::create(RenderBackend& backend, const std::vector<TextureHandle>& color_attachments,
                                 tl::optional<TextureHandle> depth_attachment, VkRenderPass render_pass) {
+    ZoneScoped;
+
     auto device = backend.get_device();
     auto& allocator = backend.get_global_allocator();
 
@@ -62,6 +64,8 @@ Framebuffer Framebuffer::create(RenderBackend& backend, const std::vector<Textur
 Framebuffer Framebuffer::create(VkDevice device, const std::vector<VkImageView>& color_attachments,
                                 tl::optional<VkImageView> depth_attachment, const VkRect2D& render_area,
                                 VkRenderPass render_pass) {
+    ZoneScoped;
+
     auto depth_attachment_count = depth_attachment ? 1 : 0;
 
     auto attachments = std::vector<VkImageView>{};

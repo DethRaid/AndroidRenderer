@@ -43,9 +43,9 @@ void RenderGraph::add_compute_pass(ComputePass&& pass) {
 }
 
 void RenderGraph::add_render_pass(RenderPass&& pass) {
-    // ZoneScopedN(pass.name);
+    // ZoneScopedN(pass.name.c_str());
 
-    // GpuZoneScopedN(cmds, pass.name);
+    // GpuZoneScopedN(cmds, pass.name.c_str());
 
     cmds.begin_label(pass.name);
 
