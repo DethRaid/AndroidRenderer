@@ -329,8 +329,11 @@ void RenderBackend::begin_frame() {
     cur_frame_idx++;
     cur_frame_idx %= num_in_flight_frames;
 
-    vkWaitForFences(device, 1, &frame_fences[cur_frame_idx], VK_TRUE, std::numeric_limits<uint64_t>::max());
-    vkResetFences(device, 1, &frame_fences[cur_frame_idx]);
+    {
+        ZoneScopedN("Wait for previous frame");
+        vkWaitForFences(device, 1, &frame_fences[cur_frame_idx], VK_TRUE, std::numeric_limits<uint64_t>::max());
+        vkResetFences(device, 1, &frame_fences[cur_frame_idx]);
+    }
 
     command_allocators[cur_frame_idx].reset();
 
@@ -341,10 +344,13 @@ void RenderBackend::begin_frame() {
     allocator->free_resources_for_frame(cur_frame_idx);
 
     swapchain_semaphore = create_transient_semaphore();
-    vkAcquireNextImageKHR(
-        device, swapchain.swapchain, std::numeric_limits<uint64_t>::max(), swapchain_semaphore,
-        VK_NULL_HANDLE, &cur_swapchain_image_idx
-    );
+    {
+        ZoneScopedN("Acquire swapchain image");
+        vkAcquireNextImageKHR(
+            device, swapchain.swapchain, std::numeric_limits<uint64_t>::max(), swapchain_semaphore,
+            VK_NULL_HANDLE, &cur_swapchain_image_idx
+        );
+    }
 
     frame_descriptor_allocators[cur_frame_idx].reset_pools();
 }
@@ -420,12 +426,15 @@ void RenderBackend::end_frame() {
 
         last_submission_semaphore = signal_semaphore;
 
-        const auto result = vkQueueSubmit(graphics_queue, 1, &submit, frame_fences[cur_frame_idx]);
+        {
+            ZoneScopedN("vkQueueSubmit");
+            const auto result = vkQueueSubmit(graphics_queue, 1, &submit, frame_fences[cur_frame_idx]);
 
-        queued_command_buffers.clear();
+            queued_command_buffers.clear();
 
-        if (result == VK_ERROR_DEVICE_LOST) {
-            logger->error("Device lost detected!");
+            if (result == VK_ERROR_DEVICE_LOST) {
+                logger->error("Device lost detected!");
+            }
         }
     }
     
@@ -437,7 +446,10 @@ void RenderBackend::end_frame() {
         .pSwapchains = &swapchain.swapchain,
         .pImageIndices = &cur_swapchain_image_idx
     };
-    vkQueuePresentKHR(graphics_queue, &present_info);
+    {
+        ZoneScopedN("vkQueuePresentKHR");
+        vkQueuePresentKHR(graphics_queue, &present_info);
+    }
 }
 
 void RenderBackend::collect_tracy_data(CommandBuffer& commands) {

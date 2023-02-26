@@ -19,12 +19,12 @@ float to_luminance(const vec3 color) { return color.r * 0.2126 + color.g * 0.715
 
 void main() {
     vec4 scene_color = textureLod(scene_color_texture, texcoord, 0);
-    scene_color.rgb = pow(scene_color.rgb, vec3(1.f / 2.2));
+    scene_color.rgb = pow(scene_color.rgb, vec3(1.f / 2.2f));
 
     // Simple reinhard
     float luma = to_luminance(scene_color.rgb);
     float factor = luma / (luma + 1.f);
     vec3 mapped_color = scene_color.rgb * factor;
 
-    color_out = vec4(scene_color.rgb, 1.f);
+    color_out = vec4(mapped_color.rgb, 1.f);
 }

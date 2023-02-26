@@ -91,8 +91,8 @@ const SceneViewGpu& SceneView::get_gpu_data() const {
     return gpu_data;
 }
 
-glm::vec3 SceneView::get_postion() const {
-    return glm::vec3{gpu_data.view[3][0], gpu_data.view[3][1], gpu_data.view[3][2]} * -1.f;
+glm::vec3 SceneView::get_position() const {
+    return glm::vec3{gpu_data.inverse_view[0][3], gpu_data.inverse_view[1][3], gpu_data.inverse_view[2][3]};
 }
 
 glm::vec3 SceneView::get_forward() const {

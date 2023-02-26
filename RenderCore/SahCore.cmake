@@ -39,6 +39,7 @@ add_library(SahCore STATIC ${SOURCES})
 target_compile_definitions(SahCore PUBLIC
         VK_NO_PROTOTYPES
         GLM_FORCE_DEPTH_ZERO_TO_ONE
+        TRACY_ENABLE
         )
 
 if(WIN32)

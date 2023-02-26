@@ -76,6 +76,7 @@ void main() {
 
         PackedVPL packed_vpl = vpls[light_index];
         VPL vpl = unpack_vpl(packed_vpl);
+        vpl.color *= (32 * 32) / (1024 * 1024);
 
         if(length(vpl.normal) > 0) {
             lpv_red_sh += sh_project_cone(vpl.normal * vpl.color.r);

@@ -13,7 +13,7 @@ void SunShadowPhase::set_scene(RenderScene& scene_in) {
     scene = &scene_in;
 }
 
-void SunShadowPhase::render(CommandBuffer& commands, SunLight& light) {
+void SunShadowPhase::render(CommandBuffer& commands, const SunLight& light) {
     if(scene == nullptr) {
         return;
     }

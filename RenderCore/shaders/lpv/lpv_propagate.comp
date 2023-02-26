@@ -172,7 +172,7 @@ void main() {
         blue_data += blue_coefficients * blue_incident_luminance;
     }
     
-    imageStore(write_lpv_red, cell + cascade_offset, red_data / (2.f * PI));
-    imageStore(write_lpv_green, cell + cascade_offset, green_data / (2.f * PI));
-    imageStore(write_lpv_blue, cell + cascade_offset, blue_data / (2.f * PI));
+    imageStore(write_lpv_red, cell + cascade_offset, red_data / (7.f));
+    imageStore(write_lpv_green, cell + cascade_offset, green_data / (7.f));
+    imageStore(write_lpv_blue, cell + cascade_offset, blue_data / (7.f));
 }

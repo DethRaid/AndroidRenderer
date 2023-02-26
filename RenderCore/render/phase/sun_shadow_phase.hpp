@@ -16,7 +16,7 @@ public:
 
     void set_scene(RenderScene& scene_in);
 
-    void render(CommandBuffer& commands, SunLight& light);
+    void render(CommandBuffer& commands, const SunLight& light);
 
 private:
     SceneRenderer& scene_renderer;

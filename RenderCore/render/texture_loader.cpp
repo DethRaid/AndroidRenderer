@@ -29,7 +29,10 @@ TextureLoader::TextureLoader(RenderBackend& backend_in) : backend{backend_in} {
 
         vkCreateCommandPool(device.device, &command_pool_create_info, nullptr, &ktx_command_pool);
 
-        ktxVulkanDeviceInfo_Construct(&ktx, physical_device, device.device, queue, ktx_command_pool, nullptr);
+        const auto result = ktxVulkanDeviceInfo_Construct(&ktx, physical_device, device.device, queue, ktx_command_pool, nullptr);
+        if (result != KTX_SUCCESS) {
+            logger->error("Could not initialize KTX loader: {}", magic_enum::enum_name(result));
+        }
     }
 }
 

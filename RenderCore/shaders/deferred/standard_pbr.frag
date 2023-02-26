@@ -38,7 +38,7 @@ layout(location = 3) out vec4 gbuffer_emission;
 void main() {
     // Base color
     vec4 base_color_sample = texture(base_color_texture, vertex_texcoord);
-    vec4 tinted_base_color = base_color_sample * material.base_color_tint;// * vertex_color;
+    vec4 tinted_base_color = base_color_sample * material.base_color_tint * vertex_color;
 
     gbuffer_base_color = tinted_base_color;
 

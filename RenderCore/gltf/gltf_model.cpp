@@ -228,35 +228,40 @@ GltfModel::import_materials(
                                                   .compare_op = VK_COMPARE_OP_LESS
                                               }
                                           )
+                                          .set_raster_state(
+                                              {
+                                                  .depth_clamp_enable = true
+                                              }
+                                          )
                                           .build();
 
         material.rsm_pipeline = backend.begin_building_pipeline(fmt::format("{} RSM", material_name))
-                                          .set_vertex_shader("shaders/lpv/rsm.vert.spv")
-                                          .set_fragment_shader("shaders/lpv/rsm.frag.spv")
-                                          .set_depth_state(
-                                              DepthStencilState{
-                                                  .compare_op = VK_COMPARE_OP_LESS
-                                              }
-                                          )
-                                          .set_blend_state(
-                                              0,
-                                              {
-                                                  .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                                                                    VK_COLOR_COMPONENT_G_BIT |
-                                                                    VK_COLOR_COMPONENT_B_BIT |
-                                                                    VK_COLOR_COMPONENT_A_BIT
-                                              }
-                                          )
-                                          .set_blend_state(
-                                              1,
-                                              {
-                                                  .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                                                                    VK_COLOR_COMPONENT_G_BIT |
-                                                                    VK_COLOR_COMPONENT_B_BIT |
-                                                                    VK_COLOR_COMPONENT_A_BIT
-                                              }
-                                          )
-                                          .build();
+                                       .set_vertex_shader("shaders/lpv/rsm.vert.spv")
+                                       .set_fragment_shader("shaders/lpv/rsm.frag.spv")
+                                       .set_depth_state(
+                                           DepthStencilState{
+                                               .compare_op = VK_COMPARE_OP_LESS
+                                           }
+                                       )
+                                       .set_blend_state(
+                                           0,
+                                           {
+                                               .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+                                               VK_COLOR_COMPONENT_G_BIT |
+                                               VK_COLOR_COMPONENT_B_BIT |
+                                               VK_COLOR_COMPONENT_A_BIT
+                                           }
+                                       )
+                                       .set_blend_state(
+                                           1,
+                                           {
+                                               .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+                                               VK_COLOR_COMPONENT_G_BIT |
+                                               VK_COLOR_COMPONENT_B_BIT |
+                                               VK_COLOR_COMPONENT_A_BIT
+                                           }
+                                       )
+                                       .build();
 
         material.pipeline = builder.build();
 
@@ -652,12 +657,14 @@ void copy_vertex_data_to_vector(
             attribute_accessor.byteOffset;
         auto* write_ptr = vertices;
 
+        write_ptr->color = glm::packUnorm4x8(glm::vec4{1.f});
+
         if (attribute_name == "POSITION") {
             const auto* read_ptr_vec3 = reinterpret_cast<const glm::vec3*>(read_ptr_u8);
 
             for (auto i = 0u; i < attribute_accessor.count; i++) {
                 auto position = *read_ptr_vec3;
-                position.x *= -1; // RH to LH conversion
+                position.x *= -1;
                 write_ptr->position = position;
 
                 write_ptr++;

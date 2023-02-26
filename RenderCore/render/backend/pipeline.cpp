@@ -233,6 +233,7 @@ PipelineBuilder& PipelineBuilder::set_depth_state(const DepthStencilState& depth
 PipelineBuilder& PipelineBuilder::set_raster_state(const RasterState& raster_state_in) {
     raster_state = VkPipelineRasterizationStateCreateInfo{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+            .depthClampEnable = raster_state_in.depth_clamp_enable,
             .polygonMode = raster_state_in.polygon_mode,
             .cullMode = raster_state_in.cull_mode,
             .frontFace = raster_state_in.front_face,

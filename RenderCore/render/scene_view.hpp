@@ -45,7 +45,7 @@ public:
 
     const SceneViewGpu& get_gpu_data() const;
 
-    glm::vec3 get_postion() const;
+    glm::vec3 get_position() const;
 
     glm::vec3 get_forward() const;
 

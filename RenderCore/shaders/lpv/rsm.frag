@@ -1,5 +1,10 @@
 #version 460
 
+#extension GL_GOOGLE_include_directive : enable
+
+#include "common/brdf.glsl"
+#include "shared/sun_light_constants.hpp"
+
 struct BasicPbrMaterialGpu {
     vec4 base_color_tint;
     vec4 emission_factor;
@@ -16,6 +21,10 @@ layout(push_constant) uniform Constants {
     int constant2;
     int constant3;
 } push_constants;
+
+layout(set = 0, binding = 2) uniform SunLightBuffer {
+    SunLightConstants sun;
+};
 
 layout(set = 1, binding = 0) uniform sampler2D base_color_texture;
 layout(set = 1, binding = 1) uniform sampler2D normal_texture;
@@ -36,17 +45,22 @@ layout(location = 1) out vec4 rsm_normal;
 void main() {
     // Base color
     vec4 base_color_sample = texture(base_color_texture, vertex_texcoord);
-    vec4 tinted_base_color = base_color_sample * material.base_color_tint;// * vertex_color;
+    vec4 tinted_base_color = base_color_sample * material.base_color_tint * vertex_color;
 
     vec4 data_sample = texture(data_texture, vertex_texcoord);
     vec4 tinted_data = data_sample * vec4(0.f, material.roughness_factor, material.metalness_factor, 0.f);
 
-    const float dielectric_f0 = 0.04; // TODO: Get this from a texture
-    const vec3 f0 = mix(dielectric_f0.xxx, tinted_base_color.rgb, tinted_data.g);
+    SurfaceInfo surface;
+    surface.base_color = tinted_base_color;
+    surface.normal = vertex_normal;
+    surface.metalness = tinted_data.b;
+    surface.roughness = tinted_data.g;
+    
+    // We use the normal as the view vector because we want the light reflected directly away from the surface
+    const vec3 brdf_result = Fd(surface, -sun.direction_and_size.xyz, surface.normal);
+    const float ndotl = clamp(dot(-sun.direction_and_size.xyz, surface.normal), 0.f, 1.f);
 
-    const vec3 diffuse_color = tinted_base_color.rgb * (1 - dielectric_f0) * (1 - tinted_data.g);
-
-    rsm_flux = vec4(diffuse_color, 1);
+    rsm_flux = vec4(ndotl * brdf_result, 1.f);
 
     // Normals
     // TODO: Normalmapping

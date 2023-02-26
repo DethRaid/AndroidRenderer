@@ -31,7 +31,7 @@ SceneRenderer::SceneRenderer() :
     gbuffer_pass{*this}, lighting_pass{backend}, ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
-    player_view.set_position_and_direction(glm::vec3{7.f, 2.f, -0.25f}, glm::vec3{-1.f, 0.0f, 0.f});
+    player_view.set_position_and_direction(glm::vec3{7.f, 1.f, -0.25f}, glm::vec3{-1.f, 0.0f, 0.f});
 
     const auto render_resolution = SystemInterface::get().get_resolution();
 
@@ -413,7 +413,7 @@ void SceneRenderer::create_render_passes() {
 
             // Lit scene
             VkAttachmentDescription{
-                .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                .format = VK_FORMAT_B10G11R11_UFLOAT_PACK32,
                 .samples = VK_SAMPLE_COUNT_1_BIT,
                 .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                 .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -717,7 +717,7 @@ void SceneRenderer::create_scene_render_targets_and_framebuffers() {
     );
 
     lit_scene_handle = allocator.create_texture(
-        "lit_scene", VK_FORMAT_R16G16B16A16_SFLOAT,
+        "lit_scene", VK_FORMAT_B10G11R11_UFLOAT_PACK32,
         scene_render_resolution, 1,
         TextureUsage::RenderTarget
     );

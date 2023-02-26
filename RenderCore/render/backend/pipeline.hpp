@@ -61,6 +61,8 @@ struct RasterState {
     VkFrontFace front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     float line_width = 1.f;
+
+    bool depth_clamp_enable = false;
 };
 
 class PipelineBuilder {
@@ -86,9 +88,6 @@ public:
      * The vertex shader must already be compiled to SPIR-V
      *
      * Calling this method multiple times is a problem
-     *
-     * @param vertex_path Full path to the vertex shader
-     * @return
      */
     PipelineBuilder& set_vertex_shader(const std::filesystem::path& vertex_path);
 
@@ -155,9 +154,7 @@ public:
     /**
      * Binds this pipeline to the command list
      *
-     * Note: You should not call this directly. Call CommandBuffer.bind_pipeline
-     *
-     * @param commands Command list to bind the pipeline to
+     * Note: You should not call this directly. Call CommandBuffer.bind_pipeline, and it'll call this if needed
      */
     void create_vk_pipeline(RenderBackend& backend, VkRenderPass render_pass, uint32_t subpass_index);
 
