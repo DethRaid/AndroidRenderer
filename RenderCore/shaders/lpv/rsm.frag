@@ -58,9 +58,8 @@ void main() {
     
     // We use the normal as the view vector because we want the light reflected directly away from the surface
     const vec3 brdf_result = Fd(surface, -sun.direction_and_size.xyz, surface.normal);
-    const float ndotl = clamp(dot(-sun.direction_and_size.xyz, surface.normal), 0.f, 1.f);
 
-    rsm_flux = vec4(ndotl * brdf_result, 1.f);
+    rsm_flux = vec4(brdf_result, 1.f);
 
     // Normals
     // TODO: Normalmapping

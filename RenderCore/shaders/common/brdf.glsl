@@ -78,7 +78,7 @@ vec3 Fd(in SurfaceInfo surface, vec3 l, const vec3 v) {
 
     // diffuse BRDF
     const float LoH = clamp(dot(l, h), 0, 1);
-    return diffuse_color * Fd_Lambert(); // * Fd_Burley(NoV, NoL, LoH, surface.roughness);
+    return diffuse_color * Fd_Burley(NoV, NoL, LoH, surface.roughness);
 }
 
 vec3 Fr(in SurfaceInfo surface, vec3 l, const vec3 v) {
