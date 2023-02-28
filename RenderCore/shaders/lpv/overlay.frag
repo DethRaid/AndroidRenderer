@@ -136,7 +136,7 @@ void main() {
     const vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
-    const float exposure_factor = 80000.f * 0.00025f / PI;
+    const float exposure_factor = 0.25f;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 

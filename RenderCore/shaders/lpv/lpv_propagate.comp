@@ -2,7 +2,22 @@
 
 #extension GL_GOOGLE_include_directive : enable
 
+#include "shared/prelude.h"
 #include "common/spherical_harmonics.glsl"
+
+// Propagation scheme from https://ericpolman.com/2016/06/28/light-propagation-volumes/
+
+/*Spherical harmonics coefficients – precomputed*/
+// 1 / 2sqrt(pi)
+#define SH_c0 0.282094792f 
+// sqrt(3/pi) / 2
+#define SH_c1 0.488602512f 
+
+/*Cosine lobe coeff*/
+// sqrt(pi)/2
+#define SH_cosLobe_c0 0.886226925f
+// sqrt(pi/3) 
+#define SH_cosLobe_c1 1.02332671f 
 
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
@@ -24,155 +39,98 @@ layout(push_constant) uniform Constants {
     uint padding7;
 } push_constants;
 
-// Would be really nice if you could pass an image to a function, but GLSL's braindead "let's use a million fucking qualifiers on shader storage images" ideas makes it impossible. Holy fuck
-// vec4 read_neighbor_cell(readonly image3D read_image, ivec3 cell, ivec3 offset) {
-//     ivec3 cascade_offset = push_constants.cascade_index * ivec3(32, 0, 0);
-//     ivec3 forward_cell = cell + ivec3(1, 0, 0);
-//     if(any(lessThan(forward_cell, ivec3(0))) || any(greaterThan(forward_cell, ivec3(32)))) {
-//         return vec4(0);
-//     }
-//         
-//     vec4 coefficients = imageLoad(read_image, forward_cell + cascade_offset);
-// 
-//     vec4 direction_coefficients = sh_project_cone(vec3(-offset));
-// 
-//     return coefficients * direction_coefficients;
-// }
-// 
-// void propagate_one_channel(readonly image3D read_image, writeonly image3D write_image, ivec3 cell) {
-//     ivec3 cascade_offset = push_constants.cascade_index * ivec3(32, 0, 0);
-//     vec4 data = imageLoad(read_image, cell + cascade_offset);
-// 
-//     data += read_neighbor_cell(read_image, cell, ivec3(1, 0, 0));
-//     data += read_neighbor_cell(read_image, cell, ivec3(-1, 0, 0));
-//     data += read_neighbor_cell(read_image, cell, ivec3(0, 1, 0));
-//     data += read_neighbor_cell(read_image, cell, ivec3(0, -1, 0));
-//     data += read_neighbor_cell(read_image, cell, ivec3(0, 0, 1));
-//     data += read_neighbor_cell(read_image, cell, ivec3(0, 0, -1));
-// 
-//     imageStore(write_image, cell + cascade_offset, data);
-// }
+const mat3 neighbour_orientations[6] = mat3[](
+        // Z+
+        mat3(1, 0, 0, 0, 1, 0, 0, 0, 1),
+        // Z-
+        mat3(-1, 0, 0, 0, 1, 0, 0, 0, -1),
+        // X+
+        mat3(0, 0, 1, 0, 1, 0, -1, 0, 0),
+        // X-
+        mat3(0, 0, -1, 0, 1, 0, 1, 0, 0),
+        // Y+
+        mat3(1, 0, 0, 0, 0, 1, 0, -1, 0),
+        // Y-
+        mat3(1, 0, 0, 0, 0, -1, 0, 1, 0)
+    );
+
+const vec3 directions[] = vec3[](vec3(0,0,1), vec3(0,0,-1), vec3(1,0,0), vec3(-1,0,0) , vec3(0,1,0), vec3(0,-1,0));
+
+// right up
+vec2 side[4] = vec2[]( vec2(1.0, 0.0), vec2(0.0, 1.0), vec2(-1.0, 0.0), vec2(0.0, -1.0) );
+
+// orientation = [ right | up | forward ] = [ x | y | z ]
+vec3 get_eval_side_direction(uint index, mat3 orientation) {
+    const float smallComponent = 0.4472135; // 1 / sqrt(5)
+    const float bigComponent = 0.894427; // 2 / sqrt(5)
+
+    const vec2 s = side[index];
+    // *either* x = 0 or y = 0
+    return orientation * vec3(s.x * smallComponent, s.y * smallComponent, bigComponent);
+}
+
+vec3 get_reproj_side_direction(uint index, mat3 orientation) {
+    const vec2 s = side[index];
+    return orientation * vec3(s.x, s.y, 0);
+}
+
+vec4 dir_to_cosine_lobe(vec3 dir) {
+    return vec4(SH_cosLobe_c0, -SH_cosLobe_c1 * dir.y, SH_cosLobe_c1 * dir.z, -SH_cosLobe_c1 * dir.x);
+}
+
+vec4 dir_to_sh(vec3 dir) {
+    return vec4(SH_c0, -SH_c1 * dir.y, SH_c1 * dir.z, -SH_c1 * dir.x);
+}
 
 void main() {
     ivec3 cell = ivec3(gl_GlobalInvocationID);
-
-    // Manually write out everything, because GLSL's approach to textures is braindead
-
+    
     ivec3 cascade_offset = push_constants.cascade_index * ivec3(32, 0, 0);
 
-    vec4 red_data = imageLoad(read_lpv_red, cell + cascade_offset);
-    vec4 green_data = imageLoad(read_lpv_green, cell + cascade_offset);
-    vec4 blue_data = imageLoad(read_lpv_blue, cell + cascade_offset);
+    vec4 red_data = vec4(0);
+    vec4 green_data = vec4(0);
+    vec4 blue_data = vec4(0);
 
-    ivec3 offset = ivec3(1, 0, 0);
-    ivec3 offset_cell = cell + offset;
-    if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
+    for (uint neighbor = 0; neighbor < 6; neighbor++) {
+        mat3 orientation = neighbour_orientations[neighbor];
 
-        vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
-        float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
-        red_data += red_coefficients * red_incident_luminance;
-        
-        vec4 green_coefficients = imageLoad(read_lpv_green, offset_cell + cascade_offset);
-        float green_incident_luminance = clamp(dot(direction_coefficients, green_coefficients), 0, 1);
-        green_data += green_coefficients * green_incident_luminance;
-        
-        vec4 blue_coefficients = imageLoad(read_lpv_blue, offset_cell + cascade_offset);
-        float blue_incident_luminance = clamp(dot(direction_coefficients, blue_coefficients), 0, 1);
-        blue_data += blue_coefficients * blue_incident_luminance;
+        vec3 main_direction = orientation * vec3(0, 0, 1);
+
+        ivec3 neighbor_cell = cell - ivec3(directions[neighbor]);
+
+        vec4 red_coefficients = imageLoad(read_lpv_red, neighbor_cell + cascade_offset);
+        vec4 green_coefficients = imageLoad(read_lpv_green, neighbor_cell + cascade_offset);
+        vec4 blue_coefficients = imageLoad(read_lpv_blue, neighbor_cell + cascade_offset);
+
+        const float direct_face_subtended_solid_angle = 0.4006696846f / PI / 2.f;
+        const float side_face_subtended_solid_angle = 0.4234413544f / PI / 3.f;
+
+        for (uint side_face = 0; side_face < 4; side_face++) {
+            vec3 eval_direction = get_eval_side_direction(side_face, orientation);
+            vec3 reproj_direction = get_reproj_side_direction(side_face, orientation);
+
+            vec4 eval_direction_sh = dir_to_sh(eval_direction);
+            vec4 reproj_direction_cosine_lobs_sh = dir_to_cosine_lobe(reproj_direction);
+
+            red_data += side_face_subtended_solid_angle * dot(red_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh;
+            green_data += side_face_subtended_solid_angle * dot(green_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh;
+            blue_data += side_face_subtended_solid_angle * dot(blue_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh;
+        }
+
+        vec3 cur_direction = directions[neighbor];
+        vec4 cur_cosine_lobe = dir_to_cosine_lobe(cur_direction);
+        vec4 cur_direction_sh = dir_to_sh(cur_direction);
+
+        red_data += direct_face_subtended_solid_angle * dot(red_coefficients, cur_direction_sh) * cur_cosine_lobe;
+        green_data += direct_face_subtended_solid_angle * dot(green_coefficients, cur_direction_sh) * cur_cosine_lobe;
+        blue_data += direct_face_subtended_solid_angle * dot(blue_coefficients, cur_direction_sh) * cur_cosine_lobe;
     }
 
-    offset = ivec3(-1, 0, 0);
-    offset_cell = cell + offset;
-    if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
-
-        vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
-        float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
-        red_data += red_coefficients * red_incident_luminance;
-        
-        vec4 green_coefficients = imageLoad(read_lpv_green, offset_cell + cascade_offset);
-        float green_incident_luminance = clamp(dot(direction_coefficients, green_coefficients), 0, 1);
-        green_data += green_coefficients * green_incident_luminance;
-        
-        vec4 blue_coefficients = imageLoad(read_lpv_blue, offset_cell + cascade_offset);
-        float blue_incident_luminance = clamp(dot(direction_coefficients, blue_coefficients), 0, 1);
-        blue_data += blue_coefficients * blue_incident_luminance;
-    }
-
-    offset =  ivec3(0, 1, 0);
-    offset_cell = cell + offset;
-    if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
-
-        vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
-        float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
-        red_data += red_coefficients * red_incident_luminance;
-        
-        vec4 green_coefficients = imageLoad(read_lpv_green, offset_cell + cascade_offset);
-        float green_incident_luminance = clamp(dot(direction_coefficients, green_coefficients), 0, 1);
-        green_data += green_coefficients * green_incident_luminance;
-        
-        vec4 blue_coefficients = imageLoad(read_lpv_blue, offset_cell + cascade_offset);
-        float blue_incident_luminance = clamp(dot(direction_coefficients, blue_coefficients), 0, 1);
-        blue_data += blue_coefficients * blue_incident_luminance;
-    }
-
-    offset = ivec3(0, -1, 0);
-    offset_cell = cell + offset;
-    if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
-
-        vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
-        float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
-        red_data += red_coefficients * red_incident_luminance;
-        
-        vec4 green_coefficients = imageLoad(read_lpv_green, offset_cell + cascade_offset);
-        float green_incident_luminance = clamp(dot(direction_coefficients, green_coefficients), 0, 1);
-        green_data += green_coefficients * green_incident_luminance;
-        
-        vec4 blue_coefficients = imageLoad(read_lpv_blue, offset_cell + cascade_offset);
-        float blue_incident_luminance = clamp(dot(direction_coefficients, blue_coefficients), 0, 1);
-        blue_data += blue_coefficients * blue_incident_luminance;
-    }
-
-    offset = ivec3(0, 0, 1);
-    offset_cell = cell + offset;
-    if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
-
-        vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
-        float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
-        red_data += red_coefficients * red_incident_luminance;
-        
-        vec4 green_coefficients = imageLoad(read_lpv_green, offset_cell + cascade_offset);
-        float green_incident_luminance = clamp(dot(direction_coefficients, green_coefficients), 0, 1);
-        green_data += green_coefficients * green_incident_luminance;
-        
-        vec4 blue_coefficients = imageLoad(read_lpv_blue, offset_cell + cascade_offset);
-        float blue_incident_luminance = clamp(dot(direction_coefficients, blue_coefficients), 0, 1);
-        blue_data += blue_coefficients * blue_incident_luminance;
-    }
-
-    offset = ivec3(0, 0, -1);
-    offset_cell = cell + offset;
-    if(all(greaterThanEqual(offset_cell, ivec3(0))) || all(lessThanEqual(offset_cell, ivec3(32)))) {
-        vec4 direction_coefficients = sh_project_cone(vec3(-offset), 90);
-
-        vec4 red_coefficients = imageLoad(read_lpv_red, offset_cell + cascade_offset);
-        float red_incident_luminance = clamp(dot(direction_coefficients, red_coefficients), 0, 1);
-        red_data += red_coefficients * red_incident_luminance;
-        
-        vec4 green_coefficients = imageLoad(read_lpv_green, offset_cell + cascade_offset);
-        float green_incident_luminance = clamp(dot(direction_coefficients, green_coefficients), 0, 1);
-        green_data += green_coefficients * green_incident_luminance;
-        
-        vec4 blue_coefficients = imageLoad(read_lpv_blue, offset_cell + cascade_offset);
-        float blue_incident_luminance = clamp(dot(direction_coefficients, blue_coefficients), 0, 1);
-        blue_data += blue_coefficients * blue_incident_luminance;
-    }
+    red_data += imageLoad(read_lpv_red, cell + cascade_offset);
+    green_data += imageLoad(read_lpv_green, cell + cascade_offset);
+    blue_data += imageLoad(read_lpv_blue, cell + cascade_offset);
     
-    imageStore(write_lpv_red, cell + cascade_offset, red_data / (7.f));
-    imageStore(write_lpv_green, cell + cascade_offset, green_data / (7.f));
-    imageStore(write_lpv_blue, cell + cascade_offset, blue_data / (7.f));
+    imageStore(write_lpv_red, cell + cascade_offset, red_data);
+    imageStore(write_lpv_green, cell + cascade_offset, green_data);
+    imageStore(write_lpv_blue, cell + cascade_offset, blue_data);
 }

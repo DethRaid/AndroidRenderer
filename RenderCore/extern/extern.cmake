@@ -54,7 +54,7 @@ FetchContent_Declare(
 FetchContent_Declare(
         fetch_tracy
         GIT_REPOSITORY  https://github.com/wolfpld/tracy.git
-        GIT_TAG         v0.9
+        GIT_TAG         v0.9.1
 )
 FetchContent_Declare(
         fetch_volk
