@@ -58,7 +58,7 @@ enum class BufferUsage {
     IndexBuffer,
 
     /**
-     * Indirect commands buffer. Written to by one shader, used as indirect dispath or draw arguments
+     * Indirect commands buffer. Written to by one shader, used as indirect dispatch or draw arguments
      */
     IndirectBuffer,
 

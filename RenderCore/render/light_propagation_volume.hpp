@@ -42,22 +42,7 @@ struct CascadeData {
      * VPLs in this cascade
      */
     BufferHandle vpl_buffer = BufferHandle::None;
-
-    /**
-     * Linked list of VPLs in each cell of this cascade
-     */
-    BufferHandle vpl_list = BufferHandle::None;
-
-    /**
-     * Count of the next free element in the VPL list for each cell
-     */
-    BufferHandle vpl_list_count = BufferHandle::None;
-
-    /**
-     * Head of the VPL linked list for each cell. May be 0xFFFFFFFF
-     */
-    BufferHandle vpl_list_head = BufferHandle::None;
-
+    
     void create_render_targets(ResourceAllocator& allocator);
 };
 
@@ -83,12 +68,10 @@ public:
 
     void update_buffers(CommandBuffer& commands) const;
 
-    void render_rsm(RenderGraph& graph, RenderScene& scene, const MeshStorage& meshes);
+    void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene, const MeshStorage& meshes);
 
     void add_clear_volume_pass(RenderGraph& render_graph);
-
-    void inject_lights(RenderGraph& render_graph) const;
-
+    
     void propagate_lighting(RenderGraph& render_graph);
 
     /**
@@ -120,13 +103,13 @@ private:
 
     VkRenderPass rsm_render_pass = VK_NULL_HANDLE;
 
+    VkRenderPass vpl_injection_render_pass = VK_NULL_HANDLE;
+
     Pipeline vpl_pipeline;
 
     ComputeShader clear_lpv_shader;
 
-    ComputeShader vpl_placement_shader;
-
-    ComputeShader vpl_injection_shader;
+    Pipeline vpl_injection_pipeline;
 
     ComputeShader propagation_shader;
 

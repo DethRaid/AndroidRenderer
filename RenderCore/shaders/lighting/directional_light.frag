@@ -58,7 +58,7 @@ const mat4 biasMat = mat4(
 	0.5, 0.5, 0.0, 1.0 
 );
 
-float get_shadow_factor(vec3 worldspace_position, uint cascade_index) {
+float get_shadow_factor(vec3 worldspace_position, uint cascade_index, float bias) {
     vec4 shadow_lookup = vec4(-1);
     
     vec4 shadowspace_position = biasMat * sun_light.cascade_matrices[cascade_index] * vec4(worldspace_position, 1.0);
@@ -71,7 +71,7 @@ float get_shadow_factor(vec3 worldspace_position, uint cascade_index) {
     // Use this cascade
     shadow_lookup.xy = shadowspace_position.xy;
     shadow_lookup.z = cascade_index;
-    shadow_lookup.w = shadowspace_position.z - 0.005;
+    shadow_lookup.w = shadowspace_position.z - bias;
         
     return texture(sun_shadowmap, shadow_lookup);
 }
@@ -106,14 +106,14 @@ void main() {
         }
     }
 
-    float shadow = get_shadow_factor(worldspace_position.xyz, cascade_index);
+    float ndotl = clamp(dot(normal_sample, light_vector), 0.f, 1.f);
+
+    float shadow = get_shadow_factor(worldspace_position.xyz, cascade_index, 0.025 * (1.f - ndotl));
     if(cascade_index > 3) {
         shadow = 1.f;
     }
 
     vec3 brdf_result = brdf(surface, light_vector, worldspace_view_vector);
-
-    float ndotl = clamp(dot(normal_sample, light_vector), 0.f, 1.f);
 
     vec3 direct_light = ndotl * brdf_result * sun_light.color.rgb * shadow;
 

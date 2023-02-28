@@ -33,8 +33,11 @@ layout(set = 0, binding = 3, std430) uniform LPVCascadesBuffer {
 } cascade_matrices_buffer;
 
 layout(std430, set = 0, binding = 4) buffer CountBuffer {
-    uint next_vpl_index;
-};
+     uint    vertex_count;
+     uint    instance_count;
+     uint    first_vertex;
+     uint    first_instance;
+} vpl_count_buffer;
 layout(std430, set = 0, binding = 5) writeonly buffer VplListBuffer {
     PackedVPL lights[];
 };
@@ -56,7 +59,7 @@ vec4 get_worldspace_position() {
 }
 
 void store_light(in VPL light) {
-    uint light_index = atomicAdd(next_vpl_index, 1);
+    uint light_index = atomicAdd(vpl_count_buffer.vertex_count, 1);
 
     PackedVPL packed_light;
     packed_light.data.x = packHalf2x16(light.position.xy);
@@ -86,5 +89,7 @@ void main() {
         // TODO: Store this light in the cascade's VPL linked list. Then there's no need to store
         // the VPL position, and we can SMASH that data usage!!!!
         store_light(light);
+
+        vpl_count_buffer.instance_count = 1; 
     }
 }

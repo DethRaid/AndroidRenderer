@@ -14,7 +14,7 @@ static std::shared_ptr<spdlog::logger> logger;
 
 static AutoCVar_Int cvar_enable_validation_layers{
     "r.vulkan.EnableValidationLayers",
-    "Whether to enable Vulkan validation layers", 0
+    "Whether to enable Vulkan validation layers", 1
 };
 
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
@@ -202,7 +202,8 @@ void RenderBackend::create_instance_and_device() {
 #endif
 
     auto required_features = VkPhysicalDeviceFeatures{
-        .robustBufferAccess = VK_TRUE,
+        .geometryShader = VK_TRUE,
+        .depthClamp = VK_TRUE,
         .samplerAnisotropy = VK_TRUE,
         .fragmentStoresAndAtomics = VK_TRUE,
         .shaderSampledImageArrayDynamicIndexing = VK_TRUE,

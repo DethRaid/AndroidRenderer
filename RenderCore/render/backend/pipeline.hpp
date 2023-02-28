@@ -71,6 +71,8 @@ public:
 
     PipelineBuilder& set_name(std::string_view name_in);
 
+    PipelineBuilder& set_topology(VkPrimitiveTopology topology_in);
+
     /**
      * Sets the vertex shader to use
      *
@@ -90,6 +92,8 @@ public:
      * Calling this method multiple times is a problem
      */
     PipelineBuilder& set_vertex_shader(const std::filesystem::path& vertex_path);
+
+    PipelineBuilder& set_geometry_shader(const std::filesystem::path& geometry_path);
 
     PipelineBuilder& set_fragment_shader(const std::filesystem::path& fragment_path);
 
@@ -112,6 +116,10 @@ private:
     tl::optional<std::vector<uint8_t>> vertex_shader;
 
     std::string vertex_shader_name;
+
+    tl::optional<std::vector<uint8_t>> geometry_shader;
+
+    std::string geometry_shader_name;
 
     tl::optional<std::vector<uint8_t>> fragment_shader;
 
@@ -137,6 +145,8 @@ private:
 
     std::vector<VkVertexInputBindingDescription> vertex_inputs;
     std::vector<VkVertexInputAttributeDescription> vertex_attributes;
+
+    VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 };
 
 /**
@@ -156,7 +166,7 @@ public:
      *
      * Note: You should not call this directly. Call CommandBuffer.bind_pipeline, and it'll call this if needed
      */
-    void create_vk_pipeline(RenderBackend& backend, VkRenderPass render_pass, uint32_t subpass_index);
+    void create_vk_pipeline(const RenderBackend& backend, VkRenderPass render_pass, uint32_t subpass_index);
 
     VkPipeline get_vk_pipeline() const;
 
@@ -169,11 +179,17 @@ private:
 
     VkPipelineShaderStageCreateInfo vertex_stage = {};
 
-    std::string fragment_shader_name;
+    VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     std::vector<VkVertexInputBindingDescription> vertex_inputs;
 
     std::vector<VkVertexInputAttributeDescription> vertex_attributes;
+
+    std::string geometry_shader_name;
+
+    tl::optional<VkPipelineShaderStageCreateInfo> geometry_stage = tl::nullopt;
+
+    std::string fragment_shader_name;
 
     tl::optional<VkPipelineShaderStageCreateInfo> fragment_stage = tl::nullopt;
 

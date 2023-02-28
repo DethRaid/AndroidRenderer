@@ -250,6 +250,24 @@ void CommandBuffer::draw_indexed(
     );
 }
 
+void CommandBuffer::draw_indirect(const BufferHandle indirect_buffer) {
+    commit_bindings();
+
+    const auto& allocator = backend->get_global_allocator();
+    const auto& buffer_actual = allocator.get_buffer(indirect_buffer);
+
+    vkCmdDrawIndirect(commands, buffer_actual.buffer, 0, 1, 0);
+}
+
+void CommandBuffer::draw_indexed_indirect(const BufferHandle indirect_buffer) {
+    commit_bindings();
+    
+    const auto& allocator = backend->get_global_allocator();
+    const auto& buffer_actual = allocator.get_buffer(indirect_buffer);
+    
+    vkCmdDrawIndexedIndirect(commands, buffer_actual.buffer, 0, 1, 0);
+}
+
 void CommandBuffer::draw_triangle() {
     commit_bindings();
 

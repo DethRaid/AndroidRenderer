@@ -1,5 +1,6 @@
 #include "light_propagation_volume.hpp"
 
+#include <magic_enum.hpp>
 #include <glm/ext/matrix_transform.hpp>
 
 #include "backend/render_graph.hpp"
@@ -59,12 +60,51 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
         clear_lpv_shader = *backend.create_compute_shader("Clear LPV", bytes);
     }
     {
-        const auto bytes = *SystemInterface::get().load_file("shaders/lpv/vpl_placement.comp.spv");
-        vpl_placement_shader = *backend.create_compute_shader("VPL Placement", bytes);
-    }
-    {
-        const auto bytes = *SystemInterface::get().load_file("shaders/lpv/vpl_injection.comp.spv");
-        vpl_injection_shader = *backend.create_compute_shader("VPL Injection", bytes);
+        vpl_injection_pipeline = backend.begin_building_pipeline("VPL Injection")
+                                        .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+                                        .set_vertex_shader("shaders/lpv/vpl_injection.vert.spv")
+                                        .set_geometry_shader("shaders/lpv/vpl_injection.geom.spv")
+                                        .set_fragment_shader("shaders/lpv/vpl_injection.frag.spv")
+                                        .set_blend_state(
+                                            0, {
+                                                .blendEnable = VK_TRUE,
+                                                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .colorBlendOp = VK_BLEND_OP_ADD,
+                                                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .alphaBlendOp = VK_BLEND_OP_ADD,
+                                                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                            }
+                                        )
+                                        .set_blend_state(
+                                            1, {
+                                                .blendEnable = VK_TRUE,
+                                                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .colorBlendOp = VK_BLEND_OP_ADD,
+                                                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .alphaBlendOp = VK_BLEND_OP_ADD,
+                                                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                            }
+                                        )
+                                        .set_blend_state(
+                                            2, {
+                                                .blendEnable = VK_TRUE,
+                                                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .colorBlendOp = VK_BLEND_OP_ADD,
+                                                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .alphaBlendOp = VK_BLEND_OP_ADD,
+                                                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                            }
+                                        )
+                                        .build();
     }
     {
         const auto bytes = *SystemInterface::get().load_file("shaders/lpv/lpv_propagate.comp.spv");
@@ -206,6 +246,85 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
             logger->info("RSM renderpass created!");
         }
     }
+
+    // VPL injection
+    {
+        const auto attachments = std::array{
+            // LPV Red
+            VkAttachmentDescription{
+                .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+            },
+
+            // LPV Green
+            VkAttachmentDescription{
+                .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+            },
+
+            // LPV Blue
+            VkAttachmentDescription{
+                .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+            }
+        };
+
+        const auto subpass_attachments = std::array{
+            // LPV Red
+            VkAttachmentReference{
+                .attachment = 0,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            },
+            // LPV Green
+            VkAttachmentReference{
+                .attachment = 1,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            },
+            // LPV Blue
+            VkAttachmentReference{
+                .attachment = 2,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            }
+        };
+
+        const auto subpasses = std::array{
+            // VPL Injection
+            VkSubpassDescription{
+                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                .colorAttachmentCount = static_cast<uint32_t>(subpass_attachments.size()),
+                .pColorAttachments = subpass_attachments.data(),
+            },
+        };
+
+        const auto create_info = VkRenderPassCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+            .attachmentCount = static_cast<uint32_t>(attachments.size()),
+            .pAttachments = attachments.data(),
+            .subpassCount = static_cast<uint32_t>(subpasses.size()),
+            .pSubpasses = subpasses.data()
+        };
+
+        const auto result = vkCreateRenderPass(
+            backend.get_device().device, &create_info, nullptr, &vpl_injection_render_pass
+        );
+        if (result != VK_SUCCESS) {
+            logger->error("Could not create LPV injection renderpass. Vulkan error {}", magic_enum::enum_name(result));
+        } else {
+            logger->info("LPV injection renderpass created!");
+        }
+    }
 }
 
 void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
@@ -258,24 +377,12 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
         cascade.create_render_targets(allocator);
         cascade.count_buffer = allocator.create_buffer(
             fmt::format("Cascade {} VPL Count", cascade_index),
-            sizeof(uint32_t),
-            BufferUsage::StorageBuffer
+            sizeof(VkDrawIndirectCommand),
+            BufferUsage::IndirectBuffer
         );
         cascade.vpl_buffer = allocator.create_buffer(
             fmt::format("Cascade {} VPL List", cascade_index),
             sizeof(PackedVPL) * 65536, BufferUsage::StorageBuffer
-        );
-        cascade.vpl_list = allocator.create_buffer(
-            fmt::format("Cascade {} VPL Linked List", cascade_index),
-            sizeof(glm::uvec2) * 65536, BufferUsage::StorageBuffer
-        );
-        cascade.vpl_list_count = allocator.create_buffer(
-            fmt::format("Cascade {} VPL Linked List Bump Point", cascade_index),
-            sizeof(uint32_t), BufferUsage::StorageBuffer
-        );
-        cascade.vpl_list_head = allocator.create_buffer(
-            fmt::format("Cascade {} VPL Linked List Head", cascade_index),
-            sizeof(uint32_t) * num_cells, BufferUsage::StorageBuffer
         );
         cascade_index++;
     }
@@ -355,7 +462,20 @@ void LightPropagationVolume::update_buffers(CommandBuffer& commands) const {
     );
 }
 
-void LightPropagationVolume::render_rsm(RenderGraph& graph, RenderScene& scene, const MeshStorage& meshes) {
+void LightPropagationVolume::inject_indirect_sun_light(
+    RenderGraph& graph, RenderScene& scene, const MeshStorage& meshes
+) {
+    // For each LPV cascade:
+    // Rasterize RSM render targets for the cascade, then render a fullscreen triangle over them. That triangle's FS
+    // will select the brightest VPL in each subgroup, and write it to a buffer
+    // Then, we dispatch one VS invocation for each VPL. We use a geometry shader to send the VPL to the correct part
+    // of the cascade
+    // Why do this? I want to keep the large, heavy RSM targets in tile memory. I have to use a FS for VPL extraction
+    // because only a FS can read from tile memory. I reduce the 1024x1024 RSM to only 65k VPLs, so there's much less
+    // data flushed to main memory
+    // Unfortunately there's a sync point between the VPL generation FS and the VPL injection pass. Not sure I can get
+    // rid of that
+
     auto cascade_index = 0;
     for (const auto& cascade : cascades) {
         graph.add_compute_pass(
@@ -505,6 +625,75 @@ void LightPropagationVolume::render_rsm(RenderGraph& graph, RenderScene& scene, 
             }
         );
 
+        graph.add_render_pass(
+            {
+                .name = "VPL Injection",
+                .textures = {
+                    {
+                        lpv_a_red,
+                        {
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                            VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                        }
+                    },
+                    {
+                        lpv_a_green,
+                        {
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                            VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                        }
+                    },
+                    {
+                        lpv_a_blue,
+                        {
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                            VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                        }
+                    },
+                },
+                .buffers = {
+                    {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
+                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+                    {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
+                },
+                .render_pass = vpl_injection_render_pass,
+                .render_targets = {lpv_a_red, lpv_a_green, lpv_a_blue},
+                .subpasses = {
+                    {
+                        .name = "VPL Injection",
+                        .execute = [&](CommandBuffer& commands) {
+                            GpuZoneScopedN(commands, "VPL Injection");
+
+                            const auto set = *backend.create_frame_descriptor_builder()
+                                                     .bind_buffer(
+                                                         0, {.buffer = cascade_data_buffer},
+                                                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                         VK_SHADER_STAGE_VERTEX_BIT
+                                                     )
+                                                     .bind_buffer(
+                                                         1, {.buffer = cascade.vpl_buffer},
+                                                         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                                     )
+                                                     .build();
+
+                            commands.bind_descriptor_set(0, set);
+
+                            commands.set_push_constant(0, cascade_index);
+
+                            commands.bind_pipeline(vpl_injection_pipeline);
+
+                            commands.draw_indirect(cascade.count_buffer);
+
+                            commands.clear_descriptor_set(0);
+                        }
+                    }
+                }
+            }
+        );
+
         cascade_index++;
     }
 }
@@ -574,214 +763,6 @@ void LightPropagationVolume::add_clear_volume_pass(RenderGraph& render_graph) {
             }
         }
     );
-}
-
-void LightPropagationVolume::inject_lights(RenderGraph& render_graph) const {
-    const auto num_cascades = cvar_lpv_num_cascades.Get();
-
-    // For each cascade:
-    // - Dispatch a compute shader over the lights. Transform the lights into cascade space, add them to the linked list
-    //      of lights for the cell they're in
-    // - Dispatch a compute shader over the cascade. Read all the lights from the current cell's light list and add them
-    //      to the cascade
-
-    // Build a per-cell linked list of lights
-    for (uint32_t cascade_index = 0; cascade_index < num_cascades; cascade_index++) {
-        const auto& cascade = cascades[cascade_index];
-
-        render_graph.add_compute_pass(
-            {
-                .name = fmt::format("Clear light list: cascade {}", cascade_index),
-                .buffers = {
-                    {cascade.vpl_list_count, {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT}},
-                    {cascade.vpl_list_head, {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT}},
-                },
-                .execute = [&](CommandBuffer& commands) {
-                    commands.fill_buffer(cascade.vpl_list_count, 0xFFFFFFFF);
-                    commands.fill_buffer(cascade.vpl_list_head, 0xFFFFFFFF);
-                }
-            }
-        );
-
-        render_graph.add_compute_pass(
-            {
-                .name = fmt::format("Build light list: cascade {}", cascade_index),
-                .buffers = {
-                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                    {
-                        cascade.vpl_list, {
-                            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT |
-                            VK_ACCESS_SHADER_WRITE_BIT
-                        }
-                    },
-                    {
-                        cascade.vpl_list_count, {
-                            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT |
-                            VK_ACCESS_SHADER_WRITE_BIT
-                        }
-                    },
-                    {
-                        cascade.vpl_list_head, {
-                            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT |
-                            VK_ACCESS_SHADER_WRITE_BIT
-                        }
-                    }
-                },
-                .execute = [&](CommandBuffer& commands) {
-                    ZoneScopedN("Build light list");
-                    GpuZoneScopedN(commands, "Build light list");
-                    auto descriptor_set = *backend.create_frame_descriptor_builder()
-                                                  .bind_buffer(
-                                                      0, {.buffer = cascade.vpl_buffer},
-                                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .bind_buffer(
-                                                      1, {.buffer = cascade_data_buffer},
-                                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .bind_buffer(
-                                                      2, {.buffer = cascade.vpl_list},
-                                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .bind_buffer(
-                                                      3, {.buffer = cascade.vpl_list_count},
-                                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .bind_buffer(
-                                                      4, {.buffer = cascade.vpl_list_head},
-                                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .build();
-
-                    commands.bind_descriptor_set(0, descriptor_set);
-
-                    commands.set_push_constant(0, cascade_index);
-
-                    commands.bind_shader(vpl_placement_shader);
-
-                    commands.dispatch(65536 / 32, 1, 1);
-
-                    commands.clear_descriptor_set(0);
-
-                    commands.end_label();
-                }
-            }
-        );
-    }
-
-    // Transition the images ahead of time so all the cascades can execute together
-
-    render_graph.add_transition_pass(
-        {
-            .textures = {
-                {
-                    lpv_a_red, {
-                        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                        .access = VK_ACCESS_SHADER_READ_BIT |
-                        VK_ACCESS_SHADER_WRITE_BIT,
-                        .layout = VK_IMAGE_LAYOUT_GENERAL
-                    },
-                },
-                {
-                    lpv_a_green, {
-                        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                        .access = VK_ACCESS_SHADER_READ_BIT |
-                        VK_ACCESS_SHADER_WRITE_BIT,
-                        .layout = VK_IMAGE_LAYOUT_GENERAL
-                    },
-                },
-                {
-                    lpv_a_blue, {
-                        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                        .access = VK_ACCESS_SHADER_READ_BIT |
-                        VK_ACCESS_SHADER_WRITE_BIT,
-                        .layout = VK_IMAGE_LAYOUT_GENERAL
-                    }
-                }
-            }
-        }
-    );
-
-    for (uint32_t cascade_index = 0; cascade_index < num_cascades; cascade_index++) {
-        // Walk the linked list and add the lights to the LPV
-        const auto& cascade = cascades[cascade_index];
-
-        render_graph.add_compute_pass(
-            {
-                .name = fmt::format("Inject VPLs into cascade {}", cascade_index),
-                .buffers = {
-                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                    {cascade.vpl_list, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                    {cascade.vpl_list_head, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}}
-                },
-                .execute = [&](CommandBuffer& commands) {
-                    ZoneScopedN("Inject light list");
-                    GpuZoneScopedN(commands, "Inject light list");
-                    auto descriptor_set = *backend.create_frame_descriptor_builder()
-                                                  .bind_buffer(
-                                                      0, {.buffer = cascade.vpl_buffer},
-                                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .bind_buffer(
-                                                      1, {.buffer = cascade_data_buffer},
-                                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .bind_buffer(
-                                                      2, {.buffer = cascade.vpl_list},
-                                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .bind_buffer(
-                                                      3, {.buffer = cascade.vpl_list_head},
-                                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .bind_image(
-                                                      4, {
-                                                          .image = lpv_a_red,
-                                                          .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                                      },
-                                                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .bind_image(
-                                                      5, {
-                                                          .image = lpv_a_green,
-                                                          .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                                      },
-                                                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .bind_image(
-                                                      6, {
-                                                          .image = lpv_a_blue,
-                                                          .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                                      },
-                                                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                                      VK_SHADER_STAGE_COMPUTE_BIT
-                                                  )
-                                                  .build();
-
-                    commands.bind_descriptor_set(0, descriptor_set);
-
-                    commands.set_push_constant(0, cascade_index);
-
-                    commands.bind_shader(vpl_injection_shader);
-
-                    commands.dispatch(1, 32, 32);
-
-                    commands.clear_descriptor_set(0);
-                }
-            }
-        );
-    }
 }
 
 void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {

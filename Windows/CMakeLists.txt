@@ -22,6 +22,7 @@ set(SHADER_DIR ${CMAKE_CURRENT_LIST_DIR}/../RenderCore/shaders)
 
 file(GLOB_RECURSE SHADERS CONFIGURE_DEPENDS
         ${SHADER_DIR}/*.vert
+        ${SHADER_DIR}/*.geom
         ${SHADER_DIR}/*.frag
         ${SHADER_DIR}/*.comp
         )

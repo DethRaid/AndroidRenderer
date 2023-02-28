@@ -116,6 +116,12 @@ PipelineBuilder& PipelineBuilder::set_name(std::string_view name_in) {
     return *this;
 }
 
+PipelineBuilder& PipelineBuilder::set_topology(VkPrimitiveTopology topology_in) {
+    topology = topology_in;
+
+    return *this;
+}
+
 PipelineBuilder& PipelineBuilder::set_vertex_shader(const std::filesystem::path& vertex_path) {
     if (vertex_shader) {
         throw std::runtime_error{"Vertex shader already loaded set"};
@@ -182,6 +188,60 @@ PipelineBuilder& PipelineBuilder::set_vertex_shader(const std::filesystem::path&
     has_error |= collect_vertex_attributes(
         vertex_path, spv_vertex_inputs, vertex_inputs,
         vertex_attributes
+    );
+
+    return *this;
+}
+
+PipelineBuilder& PipelineBuilder::set_geometry_shader(const std::filesystem::path& geometry_path) {
+    if(geometry_shader) {
+        throw std::runtime_error{ "Geometry shader already set!" };
+    }
+
+    const auto geometry_shader_maybe = SystemInterface::get().load_file(geometry_path);
+    if(!geometry_shader_maybe) {
+        throw std::runtime_error{ "Could not load geometry shader" };
+    }
+
+    geometry_shader = *geometry_shader_maybe;
+    geometry_shader_name = geometry_path.string();
+
+    const auto shader_module = spv_reflect::ShaderModule{
+        *geometry_shader,
+        SPV_REFLECT_MODULE_FLAG_NO_COPY
+    };
+    if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
+        throw std::runtime_error{ "Could not perform reflection on geometry shader" };
+    }
+
+    bool has_error = false;
+
+    logger->debug("Beginning reflection on geometry shader {}", geometry_shader_name);
+
+    // Collect descriptor set info
+    uint32_t set_count;
+    auto result = shader_module.EnumerateDescriptorSets(&set_count, nullptr);
+    assert(result == SPV_REFLECT_RESULT_SUCCESS);
+    auto sets = std::vector<SpvReflectDescriptorSet*>{ set_count };
+    result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
+    assert(result == SPV_REFLECT_RESULT_SUCCESS);
+
+    has_error |= collect_descriptor_sets(
+        geometry_path, sets, VK_SHADER_STAGE_GEOMETRY_BIT,
+        descriptor_sets
+    );
+
+    // Collect push constant info
+    uint32_t constant_count;
+    result = shader_module.EnumeratePushConstantBlocks(&constant_count, nullptr);
+    assert(result == SPV_REFLECT_RESULT_SUCCESS);
+    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{ constant_count };
+    result = shader_module.EnumeratePushConstantBlocks(&constant_count, spv_push_constants.data());
+    assert(result == SPV_REFLECT_RESULT_SUCCESS);
+
+    has_error |= collect_push_constants(
+        geometry_path, spv_push_constants, VK_SHADER_STAGE_GEOMETRY_BIT,
+        push_constants
     );
 
     return *this;
@@ -300,6 +360,35 @@ Pipeline PipelineBuilder::build() {
         throw std::runtime_error{"Missing vertex shader"};
     }
 
+    if(geometry_shader) {
+        ZoneScopedN("Compile geometry shader");
+
+        const auto module_create_info = VkShaderModuleCreateInfo{
+           .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+           .codeSize = static_cast<uint32_t>(geometry_shader->size()),
+           .pCode = reinterpret_cast<const uint32_t*>(geometry_shader->data()),
+        };
+        auto geometry_module = VkShaderModule{};
+        vkCreateShaderModule(device, &module_create_info, nullptr, &geometry_module);
+
+        pipeline.geometry_shader_name = geometry_shader_name;
+
+        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
+            .objectHandle = reinterpret_cast<uint64_t>(geometry_module),
+            .pObjectName = geometry_shader_name.c_str()
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+
+        pipeline.geometry_stage = VkPipelineShaderStageCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_GEOMETRY_BIT,
+            .module = geometry_module,
+            .pName = "main",
+        };
+    }
+
     if (fragment_shader) {
         ZoneScopedN("Compile fragment shader");
 
@@ -333,6 +422,7 @@ Pipeline PipelineBuilder::build() {
     pipeline.raster_state = raster_state;
     pipeline.blends = blends;
 
+    pipeline.topology = topology;
     pipeline.vertex_inputs = vertex_inputs;
     pipeline.vertex_attributes = vertex_attributes;
 
@@ -643,7 +733,7 @@ bool collect_vertex_attributes(
 }
 
 void Pipeline::create_vk_pipeline(
-    RenderBackend& backend, VkRenderPass render_pass,
+    const RenderBackend& backend, VkRenderPass render_pass,
     uint32_t subpass_index
 ) {
     ZoneScoped;
@@ -654,6 +744,9 @@ void Pipeline::create_vk_pipeline(
         }
 
         auto stages = std::vector{vertex_stage};
+        if(geometry_stage) {
+            stages.emplace_back(*geometry_stage);
+        }
         if (fragment_stage) {
             stages.emplace_back(*fragment_stage);
         }
@@ -668,7 +761,7 @@ void Pipeline::create_vk_pipeline(
 
         const auto input_assembly_state = VkPipelineInputAssemblyStateCreateInfo{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            .topology = topology,
         };
 
         const auto viewport_state = VkPipelineViewportStateCreateInfo{

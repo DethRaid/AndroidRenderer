@@ -12,6 +12,7 @@
 #include "render/backend/framebuffer.hpp"
 #include "render/backend/vk_descriptors.hpp"
 #include "compute_shader.hpp"
+#include "render/light_propagation_volume.hpp"
 
 class RenderBackend;
 
@@ -129,6 +130,16 @@ public:
                       uint32_t first_instance);
 
     /**
+     * Draws one mesh, pulling draw arguments from the given indirect buffer
+     */
+    void draw_indirect(BufferHandle indirect_buffer);
+
+    /**
+     * Draws one mesh, pulling draw arguments from the given indirect buffer
+     */
+    void draw_indexed_indirect(BufferHandle indirect_buffer);
+
+    /**
      * Draws a single triangle
      *
      * Intended for use with a pipeline that renders a fullscreen triangle, such as a postprocessing
@@ -167,7 +178,7 @@ public:
     uint32_t get_current_subpass() const;
 
     const RenderBackend& get_backend() const;
-
+    
 private:
     VkCommandBuffer commands;
 

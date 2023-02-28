@@ -20,10 +20,16 @@ Framebuffer Framebuffer::create(RenderBackend& backend, const std::vector<Textur
     auto attachments = std::vector<VkImageView>{};
     attachments.reserve(color_attachments.size() + depth_attachment_count);
 
+    auto num_layers = 1u;
+
     for (const auto& color_att: color_attachments) {
         const auto& attachment_actual = allocator.get_texture(color_att);
 
-        attachments.push_back(attachment_actual.image_view);
+        attachments.push_back(attachment_actual.rtv);
+
+        // Assumes that all render targets have the same depth
+        // If they don't all have the same depth, I'll get very sad
+        num_layers = attachment_actual.create_info.extent.depth;
 
         if (render_area.extent.width == 0) {
             render_area.extent.width = attachment_actual.create_info.extent.width;
@@ -34,7 +40,11 @@ Framebuffer Framebuffer::create(RenderBackend& backend, const std::vector<Textur
     if (depth_attachment) {
         const auto& attachment_actual = allocator.get_texture(*depth_attachment);
 
-        attachments.push_back(attachment_actual.image_view);
+        attachments.push_back(attachment_actual.rtv);
+
+        // Assumes that all render targets have the same depth
+        // If they don't all have the same depth, I'll get very sad
+        num_layers = attachment_actual.create_info.extent.depth;
 
         if (render_area.extent.width == 0) {
             render_area.extent.width = attachment_actual.create_info.extent.width;
@@ -49,7 +59,7 @@ Framebuffer Framebuffer::create(RenderBackend& backend, const std::vector<Textur
             .pAttachments = attachments.data(),
             .width = render_area.extent.width,
             .height = render_area.extent.height,
-            .layers = 1,
+            .layers = num_layers,
     };
 
     auto framebuffer = Framebuffer{.render_area = render_area};

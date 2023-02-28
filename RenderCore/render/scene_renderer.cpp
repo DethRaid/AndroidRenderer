@@ -121,10 +121,10 @@ void SceneRenderer::render() {
 
     // VPL cloud generation
 
-    lpv.render_rsm(render_graph, *scene, meshes);
+    lpv.inject_indirect_sun_light(render_graph, *scene, meshes);
 
     // Shadows
-    // Render shadow pass after RSM so the shadow VS can overlap with the RSM VPL generation FS
+    // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
     render_graph.add_render_pass(
         {
             .name = "CSM sun shadow",
@@ -152,10 +152,7 @@ void SceneRenderer::render() {
             }
         }
     );
-
-    // Inject lights after the shadow pass. Unfortunately no VS/CS overlap ;(
-    lpv.inject_lights(render_graph);
-
+    
     lpv.propagate_lighting(render_graph);
 
     // Gbuffers, lighting, and translucency
@@ -723,6 +720,8 @@ void SceneRenderer::create_scene_render_targets_and_framebuffers() {
     );
 
     auto& swapchain = backend.get_swapchain();
+    const auto& images = swapchain.get_images();
+    const auto& image_views = swapchain.get_image_views();
     for (auto swapchain_image_index = 0 ; swapchain_image_index < swapchain.image_count ; swapchain_image_index++) {
        const auto swapchain_image = allocator.emplace_texture(fmt::format("Swapchain image {}", swapchain_image_index), Texture{
             .create_info = {
@@ -736,8 +735,8 @@ void SceneRenderer::create_scene_render_targets_and_framebuffers() {
                 .tiling = VK_IMAGE_TILING_OPTIMAL,
                 .usage = swapchain.image_usage_flags,
             },
-            .image = swapchain.get_images()->at(swapchain_image_index),
-            .image_view = swapchain.get_image_views()->at(swapchain_image_index),
+            .image = images->at(swapchain_image_index),
+            .image_view = image_views->at(swapchain_image_index),
         });
 
        swapchain_images.push_back(swapchain_image);
