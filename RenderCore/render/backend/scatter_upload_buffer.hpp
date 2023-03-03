@@ -107,10 +107,6 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(CommandBuffer& commands, Buf
     commands.flush_buffer(scatter_indices);
     commands.flush_buffer(scatter_data);
 
-    const auto& scatter_indices_actual = resources.get_buffer(scatter_indices);
-    const auto& scatter_data_actual = resources.get_buffer(scatter_data);
-    const auto& destination_buffer_actual = resources.get_buffer(destination_buffer);
-
     auto set = *backend->create_frame_descriptor_builder()
                       .bind_buffer(0, {.buffer = scatter_indices}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                    VK_SHADER_STAGE_COMPUTE_BIT)

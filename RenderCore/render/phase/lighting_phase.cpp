@@ -5,7 +5,7 @@
 
 LightingPhase::LightingPhase(RenderBackend& backend_in) : backend{backend_in} {}
 
-void LightingPhase::render(CommandBuffer& commands, const SceneView& view, LightPropagationVolume& lpv) {
+void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, LightPropagationVolume& lpv) {
     if (scene == nullptr) {
         return;
     }
@@ -61,7 +61,7 @@ void LightingPhase::set_scene(RenderScene& scene_in) {
 }
 
 void
-LightingPhase::add_sun_lighting(CommandBuffer& commands, const VkDescriptorSet gbuffers_descriptor_set, const SceneView& view) {
+LightingPhase::add_sun_lighting(CommandBuffer& commands, const VkDescriptorSet gbuffers_descriptor_set, const SceneTransform& view) {
     commands.begin_label("LightingPhase::add_sun_lighting");
 
     auto& allocator = backend.get_global_allocator();

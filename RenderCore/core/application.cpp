@@ -28,9 +28,13 @@ void Application::load_scene(const std::filesystem::path& scene_path) {
     tinygltf::Model model;
     std::string err;
     std::string warn;
-    const auto success = loader.LoadASCIIFromFile(&model, &err, &warn, scene_path.string());
-    if (!warn.empty()) {
-        logger->warn("Warnings generated when loading {}: {}", scene_path.string(), warn);
+    auto success = false;
+    {
+        ZoneScopedN("Parse glTF");
+        success = loader.LoadASCIIFromFile(&model, &err, &warn, scene_path.string());
+        if (!warn.empty()) {
+            logger->warn("Warnings generated when loading {}: {}", scene_path.string(), warn);
+        }
     }
     if (success) {
         logger->info("Beginning import of scene {}", scene_path.string());

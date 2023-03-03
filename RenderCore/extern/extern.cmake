@@ -63,14 +63,15 @@ FetchContent_Declare(
 )
 FetchContent_Declare(
         vk-bootstrap
-        GIT_REPOSITORY  https://github.com/charles-lunarg/vk-bootstrap.git
-        GIT_TAG         v0.7
+        GIT_REPOSITORY  https://github.com/DethRaid/vk-bootstrap.git
+        GIT_TAG         master
 )
 FetchContent_Declare(
         fetch_vma
         GIT_REPOSITORY  https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
         GIT_TAG         c351692490513cdb0e5a2c925aaf7ea4a9b672f4
 )
+
 
 FetchContent_MakeAvailable(glm spdlog tinygltf tl_optional fetch_magic_enum fetch_spirv_reflect
         fetch_tracy fetch_vma vk-bootstrap fetch_volk)

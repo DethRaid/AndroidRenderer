@@ -17,9 +17,7 @@ struct BasicPbrMaterialGpu {
 
 layout(push_constant) uniform Constants {
     int primitive_id;
-    int constant1;
-    int constant2;
-    int constant3;
+    int cascade_index;
 } push_constants;
 
 layout(set = 0, binding = 2) uniform SunLightBuffer {

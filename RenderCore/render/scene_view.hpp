@@ -11,13 +11,11 @@ class ResourceAllocator;
 class RenderBackend;
 
 /**
- * Stinky view of the scene
- *
- * Might represent the player or a shadow camera
+ * A transform that can represent a camera viewing the scene
  */
-class SceneView {
+class SceneTransform {
 public:
-    explicit SceneView(RenderBackend& backend_in);
+    explicit SceneTransform(RenderBackend& backend_in);
 
     void set_render_resolution(const glm::uvec2 render_resolution);
 

@@ -5,6 +5,8 @@
 
 #include <spdlog/fmt/bundled/format.h>
 
+#include "render_pass.hpp"
+
 ResourceAllocator::ResourceAllocator(RenderBackend& backend_in) :
     backend{backend_in} {
     const auto functions = VmaVulkanFunctions{
@@ -94,14 +96,6 @@ TextureHandle ResourceAllocator::create_texture(
         throw std::runtime_error{fmt::format("Could not create image {}", name)};
     }
 
-    const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-        .objectType = VK_OBJECT_TYPE_IMAGE,
-        .objectHandle = reinterpret_cast<uint64_t>(texture.image),
-        .pObjectName = name.c_str(),
-    };
-    vkSetDebugUtilsObjectNameEXT(device, &name_info);
-
     texture.name = name;
     texture.create_info = image_create_info;
 
@@ -125,15 +119,25 @@ TextureHandle ResourceAllocator::create_texture(
         throw std::runtime_error{fmt::format("Could not create image view {}", image_view_name)};
     }
 
-    const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-        .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-        .objectHandle = reinterpret_cast<uint64_t>(texture.image_view),
-        .pObjectName = image_view_name.c_str(),
-    };
-    vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
-
     texture.rtv = texture.image_view;
+
+    if (vkSetDebugUtilsObjectNameEXT != nullptr) {
+        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_IMAGE,
+            .objectHandle = reinterpret_cast<uint64_t>(texture.image),
+            .pObjectName = name.c_str(),
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+
+        const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
+            .objectHandle = reinterpret_cast<uint64_t>(texture.image_view),
+            .pObjectName = image_view_name.c_str(),
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
+    }
 
     auto handle = textures.add_object(std::move(texture));
     return static_cast<TextureHandle>(handle.index);
@@ -204,14 +208,6 @@ TextureHandle ResourceAllocator::create_volume_texture(
         throw std::runtime_error{fmt::format("Could not create image {}", name)};
     }
 
-    const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-        .objectType = VK_OBJECT_TYPE_IMAGE,
-        .objectHandle = reinterpret_cast<uint64_t>(texture.image),
-        .pObjectName = name.c_str(),
-    };
-    vkSetDebugUtilsObjectNameEXT(device, &name_info);
-
     texture.name = name;
     texture.create_info = image_create_info;
 
@@ -235,14 +231,6 @@ TextureHandle ResourceAllocator::create_volume_texture(
         throw std::runtime_error{fmt::format("Could not create image view {}", image_view_name)};
     }
 
-    const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-        .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-        .objectHandle = reinterpret_cast<uint64_t>(texture.image_view),
-        .pObjectName = image_view_name.c_str(),
-    };
-    vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
-
     const auto rtv_name = fmt::format("{} RTV", name);
 
     const auto rtv_create_info = VkImageViewCreateInfo{
@@ -263,13 +251,31 @@ TextureHandle ResourceAllocator::create_volume_texture(
         throw std::runtime_error{fmt::format("Could not create image view {}", image_view_name)};
     }
 
-    const auto rtv_name_info = VkDebugUtilsObjectNameInfoEXT{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-        .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-        .objectHandle = reinterpret_cast<uint64_t>(texture.rtv),
-        .pObjectName = image_view_name.c_str(),
-    };
-    vkSetDebugUtilsObjectNameEXT(device, &rtv_name_info);
+    if (vkSetDebugUtilsObjectNameEXT != nullptr) {
+        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_IMAGE,
+            .objectHandle = reinterpret_cast<uint64_t>(texture.image),
+            .pObjectName = name.c_str(),
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+
+        const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
+            .objectHandle = reinterpret_cast<uint64_t>(texture.image_view),
+            .pObjectName = image_view_name.c_str(),
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
+
+        const auto rtv_name_info = VkDebugUtilsObjectNameInfoEXT{
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
+            .objectHandle = reinterpret_cast<uint64_t>(texture.rtv),
+            .pObjectName = image_view_name.c_str(),
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &rtv_name_info);
+    }
 
     auto handle = textures.add_object(std::move(texture));
     return static_cast<TextureHandle>(handle.index);
@@ -280,14 +286,6 @@ TextureHandle ResourceAllocator::emplace_texture(const std::string& name, Textur
         // Name the image, create an image view, name the image view
 
         const auto device = backend.get_device().device;
-
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_IMAGE,
-            .objectHandle = reinterpret_cast<uint64_t>(new_texture.image),
-            .pObjectName = name.c_str(),
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
 
         const auto image_view_name = fmt::format("{} View", name);
 
@@ -316,16 +314,26 @@ TextureHandle ResourceAllocator::emplace_texture(const std::string& name, Textur
             }
         }
 
-        const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-            .objectHandle = reinterpret_cast<uint64_t>(new_texture.image_view),
-            .pObjectName = image_view_name.c_str(),
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
+        if (vkSetDebugUtilsObjectNameEXT != nullptr) {
+            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
+                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .objectType = VK_OBJECT_TYPE_IMAGE,
+                .objectHandle = reinterpret_cast<uint64_t>(new_texture.image),
+                .pObjectName = name.c_str(),
+            };
+            vkSetDebugUtilsObjectNameEXT(device, &name_info);
+
+            const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
+                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
+                .objectHandle = reinterpret_cast<uint64_t>(new_texture.image_view),
+                .pObjectName = image_view_name.c_str(),
+            };
+            vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
+        }
     }
 
-    if(new_texture.rtv == VK_NULL_HANDLE) {
+    if (new_texture.rtv == VK_NULL_HANDLE) {
         new_texture.rtv = new_texture.image_view;
     }
 
@@ -404,13 +412,15 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, size_t si
         throw std::runtime_error{fmt::format("Could not create buffer {}", name)};
     }
 
-    const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-        .objectType = VK_OBJECT_TYPE_BUFFER,
-        .objectHandle = reinterpret_cast<uint64_t>(buffer.buffer),
-        .pObjectName = name.c_str(),
-    };
-    vkSetDebugUtilsObjectNameEXT(device, &name_info);
+    if (vkSetDebugUtilsObjectNameEXT != nullptr) {
+        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_BUFFER,
+            .objectHandle = reinterpret_cast<uint64_t>(buffer.buffer),
+            .pObjectName = name.c_str(),
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+    }
 
     buffer.name = name;
     buffer.create_info = create_info;
@@ -448,6 +458,185 @@ VkSampler ResourceAllocator::get_sampler(const VkSamplerCreateInfo& info) {
     sampler_cache.emplace(info_hash, sampler);
 
     return sampler;
+}
+
+VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
+    ZoneScoped;
+
+    if (const auto itr = cached_render_passes.find(pass.name); itr != cached_render_passes.end()) {
+        return itr->second;
+    }
+
+    const auto total_num_attachments = pass.render_targets.size();
+
+    auto attachments = std::vector<VkAttachmentDescription>{};
+    attachments.reserve(total_num_attachments);
+
+    for (const auto& render_target : pass.render_targets) {
+        const auto& render_target_actual = get_texture(render_target);
+
+        auto load_action = VK_ATTACHMENT_LOAD_OP_LOAD;
+        auto store_action = VK_ATTACHMENT_STORE_OP_STORE;
+        if (render_target_actual.is_transient) {
+            load_action = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            store_action = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        }
+        if (!pass.clear_values.empty()) {
+            load_action = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        }
+
+        auto layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        if (is_depth_format(render_target_actual.create_info.format)) {
+            layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        }
+
+        attachments.emplace_back(
+            VkAttachmentDescription{
+                .format = render_target_actual.create_info.format,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .loadOp = load_action,
+                .storeOp = store_action,
+                .initialLayout = layout,
+                .finalLayout = layout,
+            }
+        );
+    }
+
+    auto attachment_references = std::vector<std::vector<VkAttachmentReference>>{};
+    auto subpasses = std::vector<VkSubpassDescription>{};
+    auto dependencies = std::vector<VkSubpassDependency>{};
+
+    attachment_references.reserve(pass.subpasses.size() * 3);
+    subpasses.reserve(pass.subpasses.size());
+    dependencies.reserve(pass.subpasses.size() - 1);
+
+    for (auto subpass_index = 0u; subpass_index < pass.subpasses.size(); subpass_index++) {
+        const auto& subpass = pass.subpasses[subpass_index];
+        auto description = VkSubpassDescription{
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .inputAttachmentCount = {},
+            .pInputAttachments = {},
+            .colorAttachmentCount = {},
+            .pColorAttachments = {},
+            .pDepthStencilAttachment = {},
+        };
+
+        if (!subpass.input_attachments.empty()) {
+            auto& input_attachment_references = attachment_references.emplace_back();
+            input_attachment_references.reserve(subpass.input_attachments.size());
+            for (const auto& input_attachment_index : subpass.input_attachments) {
+                const auto input_attachment_handle = pass.render_targets[input_attachment_index];
+                const auto& input_attachment_actual = get_texture(input_attachment_handle);
+                if (is_depth_format(input_attachment_actual.create_info.format)) {
+                    input_attachment_references.emplace_back(
+                        input_attachment_index, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+                    );
+                } else {
+                    input_attachment_references.emplace_back(
+                        input_attachment_index, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    );
+                }
+            }
+            description.inputAttachmentCount = static_cast<uint32_t>(input_attachment_references.size());
+            description.pInputAttachments = input_attachment_references.data();
+        }
+
+        if (!subpass.color_attachments.empty()) {
+            auto& color_attachment_references = attachment_references.emplace_back();
+            color_attachment_references.reserve(subpass.color_attachments.size());
+            for (const auto& color_attachment_index : subpass.color_attachments) {
+                color_attachment_references.emplace_back(
+                    color_attachment_index, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                );
+            }
+            description.colorAttachmentCount = static_cast<uint32_t>(color_attachment_references.size());
+            description.pColorAttachments = color_attachment_references.data();
+        }
+
+        if (subpass.depth_attachment) {
+            auto& depth_attachment_references = attachment_references.emplace_back();
+            depth_attachment_references.reserve(1);
+
+            depth_attachment_references.emplace_back(
+                *subpass.depth_attachment, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+            );
+
+            description.pDepthStencilAttachment = depth_attachment_references.data();
+        }
+
+        subpasses.emplace_back(description);
+
+        if (subpass_index != 0 && !subpass.input_attachments.empty()) {
+            // Find the previous subpass that produces this subpass's input attachments, and add a dependency between them
+
+            // Copy the input attachments to a new array so we can remove from the new array
+            auto input_attachments_unproduced = subpass.input_attachments;
+
+            for (auto producer_index = static_cast<int32_t>(subpass_index - 1); producer_index >= 0; producer_index--) {
+                const auto& previous_subpass = pass.subpasses[producer_index];
+
+                // If the previous subpass produces any of the input attachments, add a dependency between the passes
+                auto is_color_producer = false;
+                auto is_depth_producer = false;
+                auto it = input_attachments_unproduced.begin();
+                while (it != input_attachments_unproduced.end()) {
+                    if (std::find(
+                        previous_subpass.color_attachments.begin(), previous_subpass.color_attachments.end(),
+                        *it
+                    ) != previous_subpass.color_attachments.end()) {
+                        it = input_attachments_unproduced.erase(it);
+                        is_color_producer = true;
+                    }
+
+                    if (previous_subpass.depth_attachment && *previous_subpass.depth_attachment == *it) {
+                        it = input_attachments_unproduced.erase(it);
+                        is_depth_producer = true;
+                    }
+                }
+
+                if (is_color_producer || is_depth_producer) {
+                    auto& dependency = dependencies.emplace_back();
+                    dependency.srcSubpass = producer_index;
+                    dependency.dstSubpass = subpass_index;
+                    dependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                    if (is_color_producer) {
+                        dependency.srcStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                        dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                    }
+                    if (is_depth_producer) {
+                        dependency.srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                        dependency.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+                    }
+                    dependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                }
+
+                // Early-out
+                if (input_attachments_unproduced.empty()) {
+                    break;
+                }
+            }
+        }
+    }
+
+    auto create_info = VkRenderPassCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .attachmentCount = static_cast<uint32_t>(attachments.size()),
+        .pAttachments = attachments.data(),
+        .subpassCount = static_cast<uint32_t>(subpasses.size()),
+        .pSubpasses = subpasses.data(),
+        .dependencyCount = static_cast<uint32_t>(dependencies.size()),
+        .pDependencies = dependencies.data(),
+    };
+
+    VkRenderPass render_pass;
+    {
+        ZoneScopedN("vkCreateRenderPass");
+        vkCreateRenderPass(backend.get_device().device, &create_info, nullptr, &render_pass);
+    }
+
+    cached_render_passes.emplace(pass.name, render_pass);
+
+    return render_pass;
 }
 
 void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {

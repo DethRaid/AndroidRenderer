@@ -29,7 +29,7 @@ glm::mat4 get_node_to_parent_matrix(const tinygltf::Node& node);
  */
 class GltfModel {
 public:
-    GltfModel(std::filesystem::path filepath, tinygltf::Model model, SceneRenderer& renderer);
+    GltfModel(std::filesystem::path filepath_in, tinygltf::Model model, SceneRenderer& renderer);
 
     glm::vec4 get_bounding_sphere() const;
 

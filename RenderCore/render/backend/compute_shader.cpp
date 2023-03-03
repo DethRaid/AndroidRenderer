@@ -107,21 +107,23 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
     }
 
     const auto layout_name = fmt::format("{} Layout", name);
-    const auto layout_name_info = VkDebugUtilsObjectNameInfoEXT{
+    if(vkSetDebugUtilsObjectNameEXT != nullptr) {
+        const auto layout_name_info = VkDebugUtilsObjectNameInfoEXT{
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .objectType = VK_OBJECT_TYPE_PIPELINE_LAYOUT,
             .objectHandle = reinterpret_cast<uint64_t>(pipeline_layout),
             .pObjectName = layout_name.c_str()
-    };
-    vkSetDebugUtilsObjectNameEXT(device, &layout_name_info);
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &layout_name_info);
 
-    const auto pipeline_name_info = VkDebugUtilsObjectNameInfoEXT{
+        const auto pipeline_name_info = VkDebugUtilsObjectNameInfoEXT{
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .objectType = VK_OBJECT_TYPE_PIPELINE,
             .objectHandle = reinterpret_cast<uint64_t>(pipeline),
             .pObjectName = name.c_str()
-    };
-    vkSetDebugUtilsObjectNameEXT(device, &pipeline_name_info);
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &pipeline_name_info);
+    }
 
     return ComputeShader{.layout = pipeline_layout, .pipeline = pipeline};
 }

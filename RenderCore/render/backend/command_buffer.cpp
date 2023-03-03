@@ -318,7 +318,11 @@ void CommandBuffer::dispatch(const uint32_t width, const uint32_t height, const 
     vkCmdDispatch(commands, width, height, depth);
 }
 
-void CommandBuffer::begin_label(const std::string& event_name) {
+void CommandBuffer::begin_label(const std::string& event_name) const {
+    if(vkCmdBeginDebugUtilsLabelEXT == nullptr) {
+        return;
+    }
+
     const auto label = VkDebugUtilsLabelEXT{
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
         .pLabelName = event_name.c_str()
@@ -327,11 +331,15 @@ void CommandBuffer::begin_label(const std::string& event_name) {
     vkCmdBeginDebugUtilsLabelEXT(commands, &label);
 }
 
-void CommandBuffer::end_label() {
+void CommandBuffer::end_label() const {
+    if(vkCmdEndDebugUtilsLabelEXT == nullptr) {
+        return;
+    }
+
     vkCmdEndDebugUtilsLabelEXT(commands);
 }
 
-void CommandBuffer::end() {
+void CommandBuffer::end() const {
     vkEndCommandBuffer(commands);
 }
 
@@ -384,7 +392,7 @@ const BufferUsageMap& CommandBuffer::get_initial_buffer_usages() const {
     return initial_buffer_usages;
 }
 
-const RenderBackend& CommandBuffer::get_backend() const {
+RenderBackend& CommandBuffer::get_backend() const {
     return *backend;
 }
 

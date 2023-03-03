@@ -101,33 +101,33 @@ void main() {
 
     vec3 reflection_vector = reflect(-worldspace_view_vector, surface.normal);
     vec3 specular_light = vec3(0);
-    {
-        vec4 reflection_coefficients = sh_project_cone(reflection_vector);
-
-        float red_strength = dot(red_coefficients, reflection_coefficients);
-        float green_strength = dot(green_coefficients, reflection_coefficients);
-        float blue_strength = dot(blue_coefficients, reflection_coefficients);
-
-        specular_light = vec3(red_strength, green_strength, blue_strength);
-
-        const uint num_additional_specular_samples = 3;
-        for(uint sample_index = 1; sample_index <= num_additional_specular_samples; sample_index++) {
-            vec3 sample_location = worldspace_position.xyz + reflection_vector * sample_index;
-            
-            cascade_position = cascade_matrices[0].world_to_cascade * vec4(sample_location, 1.f);
-            red_coefficients = texture(lpv_red, cascade_position.xyz);
-            green_coefficients = texture(lpv_green, cascade_position.xyz);
-            blue_coefficients = texture(lpv_blue, cascade_position.xyz);
-
-            red_strength = dot(red_coefficients, reflection_coefficients);
-            green_strength = dot(green_coefficients, reflection_coefficients);
-            blue_strength = dot(blue_coefficients, reflection_coefficients);
-
-            specular_light += vec3(red_strength, green_strength, blue_strength);
-        }
-
-        specular_light /= vec3(num_additional_specular_samples + 1);
-    }
+    // {
+    //     vec4 reflection_coefficients = sh_project_cone(reflection_vector);
+    // 
+    //     float red_strength = dot(red_coefficients, reflection_coefficients);
+    //     float green_strength = dot(green_coefficients, reflection_coefficients);
+    //     float blue_strength = dot(blue_coefficients, reflection_coefficients);
+    // 
+    //     specular_light = vec3(red_strength, green_strength, blue_strength);
+    // 
+    //     const uint num_additional_specular_samples = 3;
+    //     for(uint sample_index = 1; sample_index <= num_additional_specular_samples; sample_index++) {
+    //         vec3 sample_location = worldspace_position.xyz + reflection_vector * sample_index;
+    //         
+    //         cascade_position = cascade_matrices[0].world_to_cascade * vec4(sample_location, 1.f);
+    //         red_coefficients = texture(lpv_red, cascade_position.xyz);
+    //         green_coefficients = texture(lpv_green, cascade_position.xyz);
+    //         blue_coefficients = texture(lpv_blue, cascade_position.xyz);
+    // 
+    //         red_strength = dot(red_coefficients, reflection_coefficients);
+    //         green_strength = dot(green_coefficients, reflection_coefficients);
+    //         blue_strength = dot(blue_coefficients, reflection_coefficients);
+    // 
+    //         specular_light += vec3(red_strength, green_strength, blue_strength);
+    //     }
+    // 
+    //     specular_light /= vec3(num_additional_specular_samples + 1);
+    // }
 
     const vec3 diffuse_factor = Fd(surface, surface.normal, surface.normal);
 
@@ -136,7 +136,7 @@ void main() {
     const vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
-    const float exposure_factor = 0.25f;
+    const float exposure_factor = 1.f / PI;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 

@@ -11,7 +11,7 @@
 class ResourceAllocator;
 
 class CommandBuffer;
-class SceneView;
+class SceneTransform;
 class RenderBackend;
 
 /**
@@ -21,7 +21,7 @@ class SunLight {
 public:
     explicit SunLight(RenderBackend& backend);
 
-    void update_shadow_cascades(SceneView& view);
+    void update_shadow_cascades(SceneTransform& view);
 
     void set_direction(const glm::vec3& direction);
 

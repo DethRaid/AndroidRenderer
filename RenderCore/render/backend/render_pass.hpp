@@ -47,6 +47,21 @@ struct TransitionPass {
 struct Subpass {
     std::string name;
 
+    /**
+     * Indices of any input attachments. These indices refer to the render targets in the parent render pass
+     */
+    std::vector<uint32_t> input_attachments;
+
+    /**
+     * Indices of any output attachments. These indices refer to the render targets in the parent render pass
+     */
+    std::vector<uint32_t> color_attachments;
+
+    /**
+     * Index of the depth attachment. This index refers to the render targets in the parent render pass
+     */
+    tl::optional<uint32_t> depth_attachment = tl::nullopt;
+
     std::function<void(CommandBuffer&)> execute;
 };
 
@@ -56,12 +71,8 @@ struct RenderPass {
     std::unordered_map<TextureHandle, TextureUsageToken> textures;
 
     std::unordered_map<BufferHandle, BufferUsageToken> buffers;
-
-    VkRenderPass render_pass;
-
+    
     std::vector<TextureHandle> render_targets;
-
-    tl::optional<TextureHandle> depth_target;
 
     std::vector<VkClearValue> clear_values;
 

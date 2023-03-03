@@ -4,11 +4,10 @@
 #include "scene_view.hpp"
 #include "render/material_storage.hpp"
 #include "render/texture_loader.hpp"
-#include "render/phase/gbuffer_phase.hpp"
 #include "mesh_storage.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
-#include "render/phase/sun_shadow_phase.hpp"
+#include "render/sdf/lpv_gv_voxelizer.hpp"
 
 class GltfModel;
 
@@ -37,7 +36,7 @@ public:
 
     RenderBackend& get_backend();
 
-    SceneView& get_local_player();
+    SceneTransform& get_local_player();
 
     TextureLoader& get_texture_loader();
 
@@ -48,7 +47,7 @@ public:
 private:
     RenderBackend backend;
 
-    SceneView player_view;
+    SceneTransform player_view;
 
     TextureLoader texture_loader;
 
@@ -61,6 +60,8 @@ private:
     glm::uvec2 scene_render_resolution = glm::uvec2{};
 
     LightPropagationVolume lpv;
+
+    LpvGvVoxelizer voxelizer;
 
     VkRenderPass shadow_render_pass = VK_NULL_HANDLE;
 
@@ -84,10 +85,10 @@ private:
 
     std::vector<TextureHandle> swapchain_images;
 
-    SunShadowPhase sun_shadow_pass;
+    SceneDrawer sun_shadow_drawer;
 
-    GbufferPhase gbuffer_pass;
-
+    SceneDrawer gbuffer_drawer;
+    
     LightingPhase lighting_pass;
 
     UiPhase ui_phase;

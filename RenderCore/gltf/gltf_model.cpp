@@ -59,11 +59,11 @@ glm::mat4 get_node_to_parent_matrix(const tinygltf::Node& node) {
 }
 
 GltfModel::GltfModel(
-    std::filesystem::path filepath,
+    std::filesystem::path filepath_in,
     tinygltf::Model model,
     SceneRenderer& renderer
 )
-    : filepath{std::move(filepath)}, model{std::move(model)} {
+    : filepath{std::move(filepath_in)}, model{std::move(model)} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("GltfModel");
     }
@@ -71,9 +71,7 @@ GltfModel::GltfModel(
     ZoneScoped;
 
     logger->info("Beginning load of model {}", filepath.string());
-
-    auto loader = tinygltf::TinyGLTF{};
-
+    
     import_resources_for_model(renderer);
 
     calculate_bounding_sphere_and_footprint();
@@ -152,6 +150,8 @@ GltfModel::import_materials(
                                        : "Unnamed material";
         logger->info("Importing material {}", material_name);
 
+        // MASSIVE TODO: Material builder
+
         // Naive implementation creates a separate material for each glTF material
         // A better implementation would have a few pipeline objects that can be shared - e.g. we'd save the
         // pipeline create info and descriptor set layout info, and copy it down as needed
@@ -221,7 +221,7 @@ GltfModel::import_materials(
             material.transparency_mode = TransparencyMode::Translucent;
         }
 
-        material.shadow_pipeline = backend.begin_building_pipeline(fmt::format("{} SHADOW", material_name))
+        auto shadow_pipeline = backend.begin_building_pipeline(fmt::format("{} SHADOW", material_name))
                                           .set_vertex_shader("shaders/lighting/shadow.vert.spv")
                                           .set_depth_state(
                                               DepthStencilState{
@@ -235,7 +235,7 @@ GltfModel::import_materials(
                                           )
                                           .build();
 
-        material.rsm_pipeline = backend.begin_building_pipeline(fmt::format("{} RSM", material_name))
+        auto rsm_pipeline = backend.begin_building_pipeline(fmt::format("{} RSM", material_name))
                                        .set_vertex_shader("shaders/lpv/rsm.vert.spv")
                                        .set_fragment_shader("shaders/lpv/rsm.frag.spv")
                                        .set_depth_state(
@@ -263,7 +263,11 @@ GltfModel::import_materials(
                                        )
                                        .build();
 
-        material.pipeline = builder.build();
+        auto gbuffer_pipeline = builder.build();
+
+        material.pipelines.emplace(ScenePassType::Gbuffer, gbuffer_pipeline);
+        material.pipelines.emplace(ScenePassType::RSM, rsm_pipeline);
+        material.pipelines.emplace(ScenePassType::Shadow, shadow_pipeline);
 
         material.double_sided = gltf_material.doubleSided;
 

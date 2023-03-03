@@ -11,9 +11,8 @@
 #include "render/backend/pipeline.hpp"
 #include "render/backend/framebuffer.hpp"
 #include "render/backend/vk_descriptors.hpp"
-#include "compute_shader.hpp"
-#include "render/light_propagation_volume.hpp"
 
+struct ComputeShader;
 class RenderBackend;
 
 using BufferUsageMap = std::unordered_map<BufferHandle, std::pair<VkPipelineStageFlags, VkAccessFlags>>;
@@ -40,7 +39,7 @@ public:
      * This method makes no attempt to solve for GPU/CPU resource access. You're expected to write to a region of the
      * buffer that's not currently in use
      *
-     * @tparam DataType
+     * @tparam DataType Type of the data to upload
      * @param buffer
      * @param data
      * @param offset Offset in bytes
@@ -159,11 +158,11 @@ public:
 
     void dispatch(uint32_t width, uint32_t height, uint32_t depth);
 
-    void begin_label(const std::string& event_name);
+    void begin_label(const std::string& event_name) const;
 
-    void end_label();
+    void end_label() const;
 
-    void end();
+    void end() const;
 
     tracy::VkCtx* const get_tracy_context() const;
 
@@ -177,7 +176,7 @@ public:
 
     uint32_t get_current_subpass() const;
 
-    const RenderBackend& get_backend() const;
+    RenderBackend& get_backend() const;
     
 private:
     VkCommandBuffer commands;

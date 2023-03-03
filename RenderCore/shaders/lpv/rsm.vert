@@ -19,8 +19,8 @@ layout(std430, set = 0, binding = 1) readonly buffer PrimitiveDataBuffer {
 } primitive_data_buffer;
 
 layout(push_constant) uniform Constants {
-    int cascade_index;
     int primitive_id;
+    int cascade_index;
 } push_constants;
 
 layout(location = 0) in vec3 position_in;

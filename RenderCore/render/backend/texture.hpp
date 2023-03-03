@@ -30,6 +30,12 @@ struct Texture {
     VkImageView image_view;
 
     /**
+     * Whether or not the image needs to be backed by real memory. Transient images may only be used as render targets
+     * or input attachments. They only exist within a single renderpass
+     */
+    bool is_transient = false;
+
+    /**
      * View to use when using this image as a render target. Probably the same as image_view for 2D images, may be a
      * 2D array view for 3D images
      */

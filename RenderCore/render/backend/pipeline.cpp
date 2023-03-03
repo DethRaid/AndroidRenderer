@@ -342,13 +342,15 @@ Pipeline PipelineBuilder::build() {
 
         pipeline.vertex_shader_name = vertex_shader_name;
 
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
-            .objectHandle = reinterpret_cast<uint64_t>(vertex_module),
-            .pObjectName = vertex_shader_name.c_str()
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+        if(vkSetDebugUtilsObjectNameEXT != nullptr) {
+            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
+                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
+                .objectHandle = reinterpret_cast<uint64_t>(vertex_module),
+                .pObjectName = vertex_shader_name.c_str()
+            };
+            vkSetDebugUtilsObjectNameEXT(device, &name_info);
+        }
 
         pipeline.vertex_stage = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -373,13 +375,15 @@ Pipeline PipelineBuilder::build() {
 
         pipeline.geometry_shader_name = geometry_shader_name;
 
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
-            .objectHandle = reinterpret_cast<uint64_t>(geometry_module),
-            .pObjectName = geometry_shader_name.c_str()
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+        if(vkSetDebugUtilsObjectNameEXT != nullptr) {
+            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
+                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
+                .objectHandle = reinterpret_cast<uint64_t>(geometry_module),
+                .pObjectName = geometry_shader_name.c_str()
+            };
+            vkSetDebugUtilsObjectNameEXT(device, &name_info);
+        }
 
         pipeline.geometry_stage = VkPipelineShaderStageCreateInfo{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -402,13 +406,15 @@ Pipeline PipelineBuilder::build() {
 
         pipeline.fragment_shader_name = fragment_shader_name;
 
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
-            .objectHandle = reinterpret_cast<uint64_t>(fragment_module),
-            .pObjectName = fragment_shader_name.c_str()
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+        if(vkSetDebugUtilsObjectNameEXT != nullptr) {
+            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
+                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
+                .objectHandle = reinterpret_cast<uint64_t>(fragment_module),
+                .pObjectName = fragment_shader_name.c_str()
+            };
+            vkSetDebugUtilsObjectNameEXT(device, &name_info);
+        }
 
         pipeline.fragment_stage = VkPipelineShaderStageCreateInfo{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -825,7 +831,7 @@ void Pipeline::create_vk_pipeline(
             &pipeline
         );
 
-        if (!pipeline_name.empty()) {
+        if (!pipeline_name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
             const auto name_info = VkDebugUtilsObjectNameInfoEXT{
                 .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
                 .objectType = VK_OBJECT_TYPE_PIPELINE,
@@ -888,7 +894,7 @@ void Pipeline::create_pipeline_layout(
 
     vkCreatePipelineLayout(device, &create_info, nullptr, &pipeline_layout);
 
-    if (!pipeline_name.empty()) {
+    if (!pipeline_name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
         const auto name_info = VkDebugUtilsObjectNameInfoEXT{
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .objectType = VK_OBJECT_TYPE_PIPELINE_LAYOUT,

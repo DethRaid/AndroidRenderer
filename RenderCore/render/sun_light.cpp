@@ -43,7 +43,7 @@ SunLight::SunLight(RenderBackend& backend) : allocator{backend.get_global_alloca
     
 }
 
-void SunLight::update_shadow_cascades(SceneView& view) {
+void SunLight::update_shadow_cascades(SceneTransform& view) {
     const auto num_cascades = static_cast<uint32_t>(*CVarSystem::Get()->GetIntCVar("r.Shadow.NumCascades"));
     const auto max_shadow_distance = static_cast<float>(*CVarSystem::Get()->GetFloatCVar("r.Shadow.Distance"));
     const auto cascade_split_lambda = static_cast<float>(*CVarSystem::Get()->GetFloatCVar("r.Shadow.CascadeSplitLambda"));

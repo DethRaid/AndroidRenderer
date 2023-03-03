@@ -27,8 +27,8 @@ static auto cvar_shadow_cascade_split_lambda = AutoCVar_Float{
 
 SceneRenderer::SceneRenderer() :
     backend{}, player_view{backend}, texture_loader{backend}, materials{backend},
-    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, lpv{backend}, sun_shadow_pass{*this},
-    gbuffer_pass{*this}, lighting_pass{backend}, ui_phase{*this} {
+    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, lpv{backend},
+    voxelizer{backend, glm::uvec3{32, 32, 32}}, lighting_pass{backend}, ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
     player_view.set_position_and_direction(glm::vec3{7.f, 1.f, -0.25f}, glm::vec3{-1.f, 0.0f, 0.f});
@@ -37,7 +37,7 @@ SceneRenderer::SceneRenderer() :
 
     player_view.set_perspective_projection(
         75.f, static_cast<float>(render_resolution.y) /
-              static_cast<float>(render_resolution.x), 0.05f
+        static_cast<float>(render_resolution.x), 0.05f
     );
 
     create_render_passes();
@@ -71,9 +71,12 @@ void SceneRenderer::set_render_resolution(const glm::uvec2& resolution) {
 
 void SceneRenderer::set_scene(RenderScene& scene_in) {
     scene = &scene_in;
-    sun_shadow_pass.set_scene(scene_in);
-    gbuffer_pass.set_scene(scene_in);
     lighting_pass.set_scene(scene_in);
+
+    sun_shadow_drawer = scene->create_view(ScenePassType::Shadow, meshes);
+    gbuffer_drawer = scene->create_view(ScenePassType::Gbuffer, meshes);
+
+    lpv.set_rsm_view(scene->create_view(ScenePassType::RSM, meshes));
 }
 
 void SceneRenderer::render() {
@@ -85,10 +88,10 @@ void SceneRenderer::render() {
 
     render_graph.add_compute_pass(
         ComputePass{
-            .name = "Init Frame",
+            .name = "Begin Frame",
             .execute = [&](CommandBuffer& commands) {
-                ZoneScopedN("Init Frame");
-                GpuZoneScopedN(commands, "Init Frame");
+                ZoneScopedN("Begin Frame");
+                GpuZoneScopedN(commands, "Begin Frame");
 
                 auto& sun = scene->get_sun_light();
                 sun.update_shadow_cascades(player_view);
@@ -125,34 +128,48 @@ void SceneRenderer::render() {
 
     // Shadows
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
+    // TODO: Multiview
     render_graph.add_render_pass(
-        {
+        RenderPass{
             .name = "CSM sun shadow",
-            .textures = {
-                {
-                    shadowmap_handle, {
-                    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-                }
-                },
-            },
-            .render_pass = shadow_render_pass,
-            .depth_target = shadowmap_handle,
+            .render_targets = {shadowmap_handle},
             .clear_values = std::vector{
                 VkClearValue{.depthStencil = {.depth = 1.f}}
             },
             .subpasses = {
-                {
+                Subpass{
                     .name = "Sun shadow",
+                    .depth_attachment = {0},
                     .execute = [&](CommandBuffer& commands) {
-                        sun_shadow_pass.render(commands, scene->get_sun_light());
+                        ZoneScopedN("Sun Shadow");
+                        GpuZoneScopedN(commands, "Sun Shadow");
+
+                        auto& sun = scene->get_sun_light();
+
+                        auto global_set = *backend.create_frame_descriptor_builder()
+                                                  .bind_buffer(
+                                                      0, {
+                                                          .buffer = sun.get_constant_buffer()
+                                                      }, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                                  )
+                                                  .bind_buffer(
+                                                      1, {
+                                                          .buffer = scene->get_primitive_buffer(),
+                                                      }, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                                  )
+                                                  .build();
+
+                        commands.bind_descriptor_set(0, global_set);
+
+                        sun_shadow_drawer.draw(commands);
+
+                        commands.clear_descriptor_set(0);
                     }
                 }
             }
         }
     );
-    
+
     lpv.propagate_lighting(render_graph);
 
     // Gbuffers, lighting, and translucency
@@ -163,22 +180,20 @@ void SceneRenderer::render() {
             .textures = {
                 {
                     shadowmap_handle,
-                    {VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,         VK_ACCESS_SHADER_READ_BIT,            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
-                },
-                {
-                    lit_scene_handle,
-                    {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}
+                    {
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
                 }
             },
-            .render_pass = scene_render_pass,
             .render_targets = std::vector{
                 gbuffer_color_handle,
                 gbuffer_normals_handle,
                 gbuffer_data_handle,
                 gbuffer_emission_handle,
-                lit_scene_handle
+                lit_scene_handle,
+                gbuffer_depth_handle,
             },
-            .depth_target = gbuffer_depth_handle,
             .clear_values = std::vector{
                 // Clear color targets to black, clear depth to 1.f
                 VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
@@ -190,22 +205,49 @@ void SceneRenderer::render() {
                 VkClearValue{.depthStencil = {.depth = 1.f}},
             },
             .subpasses = {
-                {
+                Subpass{
                     .name = "Gbuffer",
+                    .color_attachments = {0, 1, 2, 3},
+                    .depth_attachment = {5},
                     .execute = [&](CommandBuffer& commands) {
-                        gbuffer_pass.render(commands, player_view);
+                        ZoneScopedN("GBuffer");
+                        GpuZoneScopedN(commands, "GBuffer");
+
+                        auto global_set = *backend.create_frame_descriptor_builder()
+                                                  .bind_buffer(
+                                                      0, {
+                                                          .buffer = player_view.get_buffer()
+                                                      }, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                                  )
+                                                  .bind_buffer(
+                                                      1, {
+                                                          .buffer = scene->get_primitive_buffer(),
+                                                      }, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                                  )
+                                                  .build();
+
+                        commands.bind_descriptor_set(0, global_set);
+
+                        gbuffer_drawer.draw(commands);
+
+                        commands.clear_descriptor_set(0);
                     }
                 },
-                {
+                Subpass{
                     .name = "Lighting",
+                    .input_attachments = {0, 1, 2, 3, 5},
+                    .color_attachments = {4},
                     .execute = [&](CommandBuffer& commands) {
                         lighting_pass.render(commands, player_view, lpv);
                     }
                 },
-                {
-                    .name = "Translucency",
-                    .execute = [&](CommandBuffer& commands) {}
-                }
+                // TODO
+                // Subpass{
+                //     .name = "Translucency",
+                //     .color_attachments = {4},
+                //     .depth_attachment = {5},
+                //     .execute = [&](CommandBuffer& commands) {}
+                // }
             }
         }
     );
@@ -222,16 +264,16 @@ void SceneRenderer::render() {
             .textures = {
                 {
                     lit_scene_handle, {
-                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                }
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
                 }
             },
-            .render_pass = ui_render_pass,
             .render_targets = {swapchain_image},
             .subpasses = {
                 {
                     .name = "UI",
+                    .color_attachments = {0},
                     .execute = [&](CommandBuffer& commands) {
                         ui_phase.render(commands, player_view);
                     }
@@ -244,6 +286,17 @@ void SceneRenderer::render() {
         {
             .name = "Tracy Collect",
             .execute = [&](CommandBuffer& commands) { backend.collect_tracy_data(commands); }
+        }
+    );
+
+    render_graph.add_transition_pass(
+        {
+            .textures = {
+                {
+                    swapchain_image,
+                    {VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR}
+                }
+            }
         }
     );
 
@@ -260,7 +313,7 @@ RenderBackend& SceneRenderer::get_backend() {
     return backend;
 }
 
-SceneView& SceneRenderer::get_local_player() {
+SceneTransform& SceneRenderer::get_local_player() {
     return player_view;
 }
 
@@ -338,7 +391,7 @@ void SceneRenderer::create_render_passes() {
         auto view_masks = std::vector<uint32_t>{};
         view_masks.reserve(subpasses.size());
 
-        for (uint32_t i = 0 ; i < subpasses.size() ; i++) {
+        for (uint32_t i = 0; i < subpasses.size(); i++) {
             view_masks.push_back(view_mask);
         }
 
@@ -722,24 +775,26 @@ void SceneRenderer::create_scene_render_targets_and_framebuffers() {
     auto& swapchain = backend.get_swapchain();
     const auto& images = swapchain.get_images();
     const auto& image_views = swapchain.get_image_views();
-    for (auto swapchain_image_index = 0 ; swapchain_image_index < swapchain.image_count ; swapchain_image_index++) {
-       const auto swapchain_image = allocator.emplace_texture(fmt::format("Swapchain image {}", swapchain_image_index), Texture{
-            .create_info = {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                .imageType = VK_IMAGE_TYPE_2D,
-                .format = swapchain.image_format,
-                .extent = VkExtent3D{swapchain.extent.width, swapchain.extent.height, 1},
-                .mipLevels = 1,
-                .arrayLayers = 1,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .tiling = VK_IMAGE_TILING_OPTIMAL,
-                .usage = swapchain.image_usage_flags,
-            },
-            .image = images->at(swapchain_image_index),
-            .image_view = image_views->at(swapchain_image_index),
-        });
+    for (auto swapchain_image_index = 0; swapchain_image_index < swapchain.image_count; swapchain_image_index++) {
+        const auto swapchain_image = allocator.emplace_texture(
+            fmt::format("Swapchain image {}", swapchain_image_index), Texture{
+                .create_info = {
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                    .imageType = VK_IMAGE_TYPE_2D,
+                    .format = swapchain.image_format,
+                    .extent = VkExtent3D{swapchain.extent.width, swapchain.extent.height, 1},
+                    .mipLevels = 1,
+                    .arrayLayers = 1,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .tiling = VK_IMAGE_TILING_OPTIMAL,
+                    .usage = swapchain.image_usage_flags,
+                },
+                .image = images->at(swapchain_image_index),
+                .image_view = image_views->at(swapchain_image_index),
+            }
+        );
 
-       swapchain_images.push_back(swapchain_image);
+        swapchain_images.push_back(swapchain_image);
     }
 
     lighting_pass.set_gbuffer(

@@ -4,6 +4,7 @@
 
 #include <glm/mat4x4.hpp>
 
+#include "mesh_drawer.hpp"
 #include "backend/pipeline.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/compute_shader.hpp"
@@ -13,7 +14,7 @@ class RenderBackend;
 class ResourceAllocator;
 class CommandBuffer;
 class RenderScene;
-class SceneView;
+class SceneTransform;
 class SunLight;
 class MeshStorage;
 
@@ -61,10 +62,12 @@ public:
 
     void init_resources(ResourceAllocator& allocator);
 
+    void set_rsm_view(SceneDrawer&& mesh_drawer);
+
     /**
      * Updates the transform of this LPV to match the scene view
      */
-    void update_cascade_transforms(const SceneView& view, const SunLight& light);
+    void update_cascade_transforms(const SceneTransform& view, const SunLight& light);
 
     void update_buffers(CommandBuffer& commands) const;
 
@@ -121,9 +124,11 @@ private:
      */
     Pipeline lpv_render_shader;
 
+    SceneDrawer rsm_drawer;
+
     void perform_propagation_step(RenderGraph& render_graph,
-        TextureHandle read_red, TextureHandle read_green, TextureHandle read_blue,
-        TextureHandle write_red, TextureHandle write_green, TextureHandle write_blue) const;
+                                  TextureHandle read_red, TextureHandle read_green, TextureHandle read_blue,
+                                  TextureHandle write_red, TextureHandle write_green, TextureHandle write_blue) const;
 
 };
 

@@ -20,26 +20,26 @@ glm::mat4 infinitePerspectiveFovReverseZ_ZO(const float fov, const float width, 
     return result;
 }
 
-SceneView::SceneView(RenderBackend& backend_in) : backend{&backend_in} {
+SceneTransform::SceneTransform(RenderBackend& backend_in) : backend{&backend_in} {
     auto& allocator = backend->get_global_allocator();
     buffer = allocator.create_buffer("Scene View Buffer", sizeof(SceneViewGpu),
                                      BufferUsage::UniformBuffer);
 }
 
-void SceneView::set_render_resolution(const glm::uvec2 render_resolution) {
+void SceneTransform::set_render_resolution(const glm::uvec2 render_resolution) {
     gpu_data.render_resolution.x = render_resolution.x;
     gpu_data.render_resolution.y = render_resolution.y;
     is_dirty = true;
 }
 
-void SceneView::set_position_and_direction(const glm::vec3& position, const glm::vec3& direction_in) {
+void SceneTransform::set_position_and_direction(const glm::vec3& position, const glm::vec3& direction_in) {
     direction = direction_in;
     gpu_data.view = glm::lookAt(position, position + direction_in, glm::vec3{0.f, 1.f, 0.f});
     gpu_data.inverse_view = glm::inverse(gpu_data.view);
     is_dirty = true;
 }
 
-void SceneView::set_perspective_projection(const float fov_in, const float aspect_in, const float near_value_in) {
+void SceneTransform::set_perspective_projection(const float fov_in, const float aspect_in, const float near_value_in) {
     fov = fov_in;
     aspect = aspect_in;
     near_value = near_value_in;
@@ -56,11 +56,11 @@ void SceneView::set_perspective_projection(const float fov_in, const float aspec
     is_dirty = true;
 }
 
-BufferHandle SceneView::get_buffer() const {
+BufferHandle SceneTransform::get_buffer() const {
     return buffer;
 }
 
-void SceneView::update_transforms(CommandBuffer commands) {
+void SceneTransform::update_transforms(CommandBuffer commands) {
     if (buffer != BufferHandle::None && is_dirty) {
         commands.update_buffer(buffer, gpu_data);
 
@@ -71,30 +71,30 @@ void SceneView::update_transforms(CommandBuffer commands) {
     }
 }
 
-void SceneView::set_aspect_ratio(const float aspect_in) {
+void SceneTransform::set_aspect_ratio(const float aspect_in) {
     set_perspective_projection(fov, aspect_in, near_value);
 }
 
-float SceneView::get_near() const {
+float SceneTransform::get_near() const {
     return near_value;
 }
 
-float SceneView::get_fov() const {
+float SceneTransform::get_fov() const {
     return fov;
 }
 
-float SceneView::get_aspect_ratio() const {
+float SceneTransform::get_aspect_ratio() const {
     return aspect;
 }
 
-const SceneViewGpu& SceneView::get_gpu_data() const {
+const SceneViewGpu& SceneTransform::get_gpu_data() const {
     return gpu_data;
 }
 
-glm::vec3 SceneView::get_position() const {
+glm::vec3 SceneTransform::get_position() const {
     return glm::vec3{gpu_data.inverse_view[3]};
 }
 
-glm::vec3 SceneView::get_forward() const {
+glm::vec3 SceneTransform::get_forward() const {
     return glm::normalize(glm::vec3{gpu_data.inverse_view[0][2], gpu_data.inverse_view[1][2] , gpu_data.inverse_view[2][2] });
 }

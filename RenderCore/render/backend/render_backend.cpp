@@ -2,6 +2,7 @@
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/android_sink.h>
+#include <magic_enum.hpp>
 
 #include "render_backend.hpp"
 
@@ -131,18 +132,14 @@ RenderBackend::RenderBackend() {
 }
 
 void RenderBackend::create_instance_and_device() {
+    // vk-bs enables the surface extensions for us
     auto instance_builder = vkb::InstanceBuilder{vkGetInstanceProcAddr}
                             .set_app_name("Renderer")
                             .set_engine_name("Sarah")
                             .set_app_version(0, 0, 1)
                             .require_api_version(1, 1, 0)
-                            .enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
-                            .enable_extension(VK_KHR_SURFACE_EXTENSION_NAME)
-            //.enable_extension(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME)
-#if defined(__ANDROID__)
-            .enable_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)
-#elif defined(_WIN32 )
-            .enable_extension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME)
+#if defined(_WIN32 )
+            .enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
 #endif
         ;
 
@@ -152,6 +149,11 @@ void RenderBackend::create_instance_and_device() {
 #endif
 
     if (cvar_enable_validation_layers.Get()) {
+#if defined(__ANDROID__)
+        // Only enable the debug utils extension when we have validation layers. Apparently the validation layer
+        // provides that extension on Android
+        instance_builder.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
         instance_builder.enable_validation_layers(true)
                         .request_validation_layers(true)
                         .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
@@ -164,11 +166,14 @@ void RenderBackend::create_instance_and_device() {
                                 VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT
                             );
         }
+    } else {
+        instance_builder.enable_validation_layers(false)
+            .request_validation_layers(false);
     }
 
     auto instance_ret = instance_builder.build();
     if (!instance_ret) {
-        const auto error_message = fmt::format("Could not initialize Vulkan: {}", instance_ret.error().message());
+        const auto error_message = fmt::format("Could not initialize Vulkan: {} (VK_RESULT {})", instance_ret.error().message(), magic_enum::enum_name(instance_ret.vk_result()));
         throw std::runtime_error{error_message};
     }
     instance = instance_ret.value();

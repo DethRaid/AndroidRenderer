@@ -1,12 +1,12 @@
 #pragma once
 
 #include <volk.h>
-#include "phase_interface.hpp"
 #include "render/backend/handles.hpp"
 
+class CommandBuffer;
 class RenderScene;
 class RenderBackend;
-class SceneView;
+class SceneTransform;
 class LightPropagationVolume;
 
 struct GBuffer {
@@ -33,7 +33,7 @@ public:
 
     void set_shadowmap(TextureHandle shadowmap_in);
 
-    void render(CommandBuffer& commands, const SceneView& view, LightPropagationVolume& lpv);
+    void render(CommandBuffer& commands, const SceneTransform& view, LightPropagationVolume& lpv);
 
 private:
     RenderBackend& backend;
@@ -42,7 +42,7 @@ private:
 
     GBuffer gbuffer;
 
-    void add_sun_lighting(CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor_set, const SceneView& view);
+    void add_sun_lighting(CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor_set, const SceneTransform& view);
     
     TextureHandle shadowmap = TextureHandle::None;
 };

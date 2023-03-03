@@ -64,3 +64,7 @@ BufferHandle RenderScene::get_primitive_buffer() {
 SunLight &RenderScene::get_sun_light() {
     return sun;
 }
+
+SceneDrawer RenderScene::create_view(const ScenePassType type, const MeshStorage& meshes) {
+    return SceneDrawer{ type, *this, meshes};
+}

@@ -388,7 +388,11 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
     }
 }
 
-void LightPropagationVolume::update_cascade_transforms(const SceneView& view, const SunLight& light) {
+void LightPropagationVolume::set_rsm_view(SceneDrawer&& mesh_drawer) {
+    rsm_drawer = std::move(mesh_drawer);
+}
+
+void LightPropagationVolume::update_cascade_transforms(const SceneTransform& view, const SunLight& light) {
     const auto num_cells = cvar_lpv_resolution.Get();
     const auto base_cell_size = cvar_lpv_cell_size.GetFloat();
 
@@ -498,68 +502,53 @@ void LightPropagationVolume::inject_indirect_sun_light(
                     {cascade.count_buffer, {VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
                 },
-                .render_pass = rsm_render_pass,
                 .render_targets = {
                     cascade.flux_target,
                     cascade.normals_target,
+                    cascade.depth_target,
                 },
-                .depth_target = cascade.depth_target,
                 .clear_values = {
                     VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
                     VkClearValue{.color = {.float32 = {0.5, 0.5, 1.0, 0}}},
                     VkClearValue{.depthStencil = {.depth = 1.f}}
                 },
                 .subpasses = {
-                    {
+                    Subpass{
                         .name = "RSM",
+                        .color_attachments = {0, 1},
+                        .depth_attachment = 2,
                         .execute = [&](CommandBuffer& commands) {
                             GpuZoneScopedN(commands, "Render RSM");
-                            auto global_set = VkDescriptorSet{};
-                            backend.create_frame_descriptor_builder()
-                                   .bind_buffer(
-                                       0, {
-                                           .buffer = cascade_data_buffer
-                                       }, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
-                                   )
-                                   .bind_buffer(
-                                       1, {
-                                           .buffer = scene.get_primitive_buffer(),
-                                       }, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
-                                   )
-                                   .bind_buffer(
-                                       2, {.buffer = scene.get_sun_light().get_constant_buffer()},
-                                       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT
-                                   )
-                                   .build(global_set);
+                            auto global_set = *backend.create_frame_descriptor_builder()
+                                                      .bind_buffer(
+                                                          0, {.buffer = cascade_data_buffer},
+                                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                          VK_SHADER_STAGE_VERTEX_BIT
+                                                      )
+                                                      .bind_buffer(
+                                                          1, {.buffer = scene.get_primitive_buffer(),},
+                                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                                          VK_SHADER_STAGE_VERTEX_BIT
+                                                      )
+                                                      .bind_buffer(
+                                                          2, {.buffer = scene.get_sun_light().get_constant_buffer()},
+                                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                          VK_SHADER_STAGE_FRAGMENT_BIT
+                                                      )
+                                                      .build();
 
                             commands.bind_descriptor_set(0, global_set);
 
-                            commands.set_push_constant(0, cascade_index);
+                            commands.set_push_constant(1, cascade_index);
 
-                            const auto solids = scene.get_solid_primitives();
-
-                            commands.bind_vertex_buffer(0, meshes.get_vertex_position_buffer());
-                            commands.bind_vertex_buffer(1, meshes.get_vertex_data_buffer());
-                            commands.bind_index_buffer(meshes.get_index_buffer());
-
-                            for (const auto& primitive : solids) {
-                                commands.bind_descriptor_set(1, primitive->material->second.descriptor_set);
-
-                                commands.set_push_constant(1, primitive.index);
-
-                                commands.bind_pipeline(primitive->material->first.rsm_pipeline);
-
-                                const auto& mesh = primitive->mesh;
-                                commands.draw_indexed(mesh.num_indices, 1, mesh.first_index, mesh.first_vertex, 0);
-
-                                commands.clear_descriptor_set(1);
-                            }
+                            rsm_drawer.draw(commands);
 
                             commands.clear_descriptor_set(0);
                         }
                     },
-                    {
+                    Subpass{
                         .name = "VPL Generation",
+                        .input_attachments = {0, 1, 2},
                         .execute = [&](CommandBuffer& commands) {
                             GpuZoneScopedN(commands, "VPL Generation");
                             const auto sampler = backend.get_default_sampler();
@@ -659,11 +648,11 @@ void LightPropagationVolume::inject_indirect_sun_light(
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
                     {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
                 },
-                .render_pass = vpl_injection_render_pass,
                 .render_targets = {lpv_a_red, lpv_a_green, lpv_a_blue},
                 .subpasses = {
                     {
                         .name = "VPL Injection",
+                        .color_attachments = {0, 1, 2},
                         .execute = [&](CommandBuffer& commands) {
                             GpuZoneScopedN(commands, "VPL Injection");
 

@@ -40,5 +40,5 @@ public:
 private:
     RenderBackend& backend;
 
-    CommandBuffer cmds;
+    CommandBuffer cmds;    
 };

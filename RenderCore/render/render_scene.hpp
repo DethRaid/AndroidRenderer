@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mesh_drawer.hpp"
+#include "scene_pass_type.hpp"
 #include "core/object_pool.hpp"
 #include "render/backend/handles.hpp"
 #include "render/scene_primitive.hpp"
@@ -29,6 +31,8 @@ public:
     BufferHandle get_primitive_buffer();
 
     SunLight &get_sun_light();
+
+    SceneDrawer create_view(ScenePassType type, const MeshStorage& meshes);
 
 private:
     RenderBackend& backend;

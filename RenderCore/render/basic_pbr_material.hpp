@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <filesystem>
 
+#include "scene_pass_type.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/pipeline.hpp"
 
@@ -60,9 +61,8 @@ struct BasicPbrMaterial {
     VkDescriptorSet descriptor_set;
 
     BasicPbrMaterialGpu gpu_data;
-    Pipeline pipeline;
-    Pipeline shadow_pipeline;
-    Pipeline rsm_pipeline;
+
+    std::unordered_map<ScenePassType, Pipeline> pipelines;
 };
 
 #endif //SAHRENDERER_BASIC_PBR_MATERIAL_HPP
