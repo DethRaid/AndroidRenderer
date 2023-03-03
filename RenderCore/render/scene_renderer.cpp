@@ -102,12 +102,12 @@ void SceneRenderer::render() {
                 lpv.update_cascade_transforms(player_view, scene->get_sun_light());
                 lpv.update_buffers(commands);
 
-                scene->flush_primitive_upload(commands);
-
                 materials.flush_material_buffer(commands);
             }
         }
     );
+
+    scene->flush_primitive_upload(render_graph);
 
     lpv.add_clear_volume_pass(render_graph);
 

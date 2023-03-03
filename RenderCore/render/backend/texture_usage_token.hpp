@@ -3,9 +3,9 @@
 #include <volk.h>
 
 struct TextureUsageToken {
-    VkPipelineStageFlags stage;
+    VkPipelineStageFlags2KHR stage;
 
-    VkAccessFlags access;
+    VkAccessFlags2KHR access;
 
     VkImageLayout layout;
 };

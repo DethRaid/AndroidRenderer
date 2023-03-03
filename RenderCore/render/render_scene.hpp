@@ -20,9 +20,9 @@ class RenderScene {
 public:
     explicit RenderScene(RenderBackend& backend_in);
 
-    PooledObject<MeshPrimitive> add_primitive(CommandBuffer& commands, MeshPrimitive primitive);
+    PooledObject<MeshPrimitive> add_primitive(RenderGraph& graph, MeshPrimitive primitive);
 
-    void flush_primitive_upload(CommandBuffer& commands);
+    void flush_primitive_upload(RenderGraph& graph);
 
     void add_model(GltfModel& model);
 
@@ -39,7 +39,7 @@ private:
 
     SunLight sun;
 
-    ObjectPool<MeshPrimitive> meshes;
+    ObjectPool<MeshPrimitive> mesh_primitives;
 
     BufferHandle primitive_data_buffer;
 

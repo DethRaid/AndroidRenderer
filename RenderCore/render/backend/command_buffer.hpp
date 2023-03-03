@@ -15,10 +15,6 @@
 struct ComputeShader;
 class RenderBackend;
 
-using BufferUsageMap = std::unordered_map<BufferHandle, std::pair<VkPipelineStageFlags, VkAccessFlags>>;
-
-using TextureUsageMap = std::unordered_map<TextureHandle, std::tuple<VkPipelineStageFlags, VkAccessFlags, VkImageLayout>>;
-
 /**
  * Command buffer abstraction
  *
@@ -44,47 +40,37 @@ public:
      * @param data
      * @param offset Offset in bytes
      */
-    template<typename DataType>
+    template <typename DataType>
     void update_buffer(BufferHandle buffer, const DataType& data, uint32_t offset = 0);
 
     void update_buffer(BufferHandle buffer, const void* data, uint32_t data_size, uint32_t offset = 0);
-
-    /**
-     * Ensures that the resource can be accessed in the specified way
-     *
-     * This method ensures that the given resource can be accessed by future commands in the specified way. It may or
-     * may not issue a barrier if needed, or it may only update the internal state tracking information.
-     *
-     * @param buffer
-     * @param pipeline_stage
-     * @param access
-     */
-    void set_resource_usage(BufferHandle buffer, VkPipelineStageFlags pipeline_stage, VkAccessFlags access);
-
-    void set_resource_usage(TextureHandle texture, VkPipelineStageFlags pipeline_stage, VkAccessFlags access, VkImageLayout layout);
 
     void flush_buffer(BufferHandle buffer);
 
     // Explicit barrier methods, for when the resource tracking fails
 
-    void barrier(BufferHandle buffer, VkPipelineStageFlags source_pipeline_stage, VkAccessFlags source_access,
-                 VkPipelineStageFlags destination_pipeline_stage, VkAccessFlags destination_access);
+    void barrier(
+        BufferHandle buffer, VkPipelineStageFlags source_pipeline_stage, VkAccessFlags source_access,
+        VkPipelineStageFlags destination_pipeline_stage, VkAccessFlags destination_access
+    );
 
     /**
      * Executes a barrier for all mip levels of an image
-     *
-     * @param texture
-     * @param source_pipeline_stage
-     * @param source_access
-     * @param old_layout
-     * @param destination_pipeline_stage
-     * @param destination_access
-     * @param new_layout
      */
-    void barrier(TextureHandle texture, const VkPipelineStageFlags source_pipeline_stage,
-                 const VkAccessFlags source_access, const VkImageLayout old_layout,
-                 const VkPipelineStageFlags destination_pipeline_stage, const VkAccessFlags destination_access,
-                 const VkImageLayout new_layout);
+    void barrier(
+        TextureHandle texture, const VkPipelineStageFlags source_pipeline_stage,
+        const VkAccessFlags source_access, const VkImageLayout old_layout,
+        const VkPipelineStageFlags destination_pipeline_stage, const VkAccessFlags destination_access,
+        const VkImageLayout new_layout
+    );
+
+    /**
+     * Issues a batch of pipeline barriers
+     */
+    void barrier(
+        const std::vector<VkMemoryBarrier2KHR>& memory_barriers, const std::vector<VkBufferMemoryBarrier2>& buffer_barriers,
+        const std::vector<VkImageMemoryBarrier2>& image_barriers
+    ) const;
 
     /**
      * Clears a whole buffer to the specified value
@@ -102,8 +88,10 @@ public:
      * @param clears The clear values for the framebuffer attachments. Must have one entry for every attachment that the
      * render pass clears
      */
-    void begin_render_pass(VkRenderPass render_pass, const Framebuffer& framebuffer,
-                           const std::vector<VkClearValue>& clears);
+    void begin_render_pass(
+        VkRenderPass render_pass, const Framebuffer& framebuffer,
+        const std::vector<VkClearValue>& clears
+    );
 
     /**
      * Ends the current subpass and begins the next subpass
@@ -121,12 +109,14 @@ public:
      * @param binding_index Index of the vertex input to bind to
      * @param buffer Buffer to bind
      */
-    void bind_vertex_buffer(uint32_t binding_index, BufferHandle buffer);
+    void bind_vertex_buffer(uint32_t binding_index, BufferHandle buffer) const;
 
-    void bind_index_buffer(BufferHandle buffer);
+    void bind_index_buffer(BufferHandle buffer) const;
 
-    void draw_indexed(uint32_t num_indices, uint32_t num_instances, uint32_t first_index, uint32_t first_vertex,
-                      uint32_t first_instance);
+    void draw_indexed(
+        uint32_t num_indices, uint32_t num_instances, uint32_t first_index, uint32_t first_vertex,
+        uint32_t first_instance
+    );
 
     /**
      * Draws one mesh, pulling draw arguments from the given indirect buffer
@@ -167,17 +157,13 @@ public:
     tracy::VkCtx* const get_tracy_context() const;
 
     VkCommandBuffer get_vk_commands() const;
-
-    const BufferUsageMap& get_initial_buffer_usages() const;
-
-    const BufferUsageMap& get_final_buffer_usages() const;
-
+    
     VkRenderPass get_current_renderpass() const;
 
     uint32_t get_current_subpass() const;
 
     RenderBackend& get_backend() const;
-    
+
 private:
     VkCommandBuffer commands;
 
@@ -199,19 +185,11 @@ private:
 
     bool are_bindings_dirty = false;
 
-    BufferUsageMap initial_buffer_usages;
-
-    BufferUsageMap last_buffer_usages;
-
-    TextureUsageMap initial_texture_usages;
-
-    TextureUsageMap last_texture_usages;
-
     void commit_bindings();
 };
 
-template<typename DataType>
-void CommandBuffer::update_buffer(BufferHandle buffer, const DataType &data, const uint32_t offset) {
+template <typename DataType>
+void CommandBuffer::update_buffer(BufferHandle buffer, const DataType& data, const uint32_t offset) {
     update_buffer(buffer, &data, sizeof(DataType), offset);
 }
 

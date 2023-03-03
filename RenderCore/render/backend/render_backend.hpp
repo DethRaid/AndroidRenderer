@@ -14,6 +14,7 @@
 #include "render/backend/resource_upload_queue.hpp"
 #include "render/backend/command_buffer.hpp"
 #include "render/backend/constants.hpp"
+#include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/compute_shader.hpp"
 
 /**
@@ -188,15 +189,7 @@ private:
     std::vector<VkCommandBuffer> queued_transfer_command_buffers = {};
 
     std::vector<CommandBuffer> queued_command_buffers = {};
-
-    /**
-     * The last usages of a buffer in a submitted command buffer
-     *
-     * This is updated at the end of frame, when we execute submitted command buffers. Individual command lists perform
-     * their own state tracking
-     */
-    BufferUsageMap last_buffer_usages;
-
+    
     void create_instance_and_device();
 
     void create_swapchain();
@@ -204,20 +197,6 @@ private:
     void create_tracy_context();
 
     void create_command_pools();
-
-    /**
-     * Creates a command list with barriers from the previous usages of each resource to the current states of each
-     * resource
-     *
-     * This method should be called with the initial resource usages from a given command buffer. The final resource
-     * states should just be used to update the render backend's state tracking
-     *
-     * @param buffer_usages Destination usages of buffers
-     * @return A command list with the appropriate barriers, or VK_NULL_HANDLE
-     */
-    VkCommandBuffer create_barrier_command_list(const BufferUsageMap& buffer_usages);
-
-    void update_buffer_usages(const BufferUsageMap& new_usages);
 
     /**
      * Creates a semaphore that'll be destroyed at the start of next frame

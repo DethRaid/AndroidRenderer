@@ -7,12 +7,13 @@
 
 #include "render/backend/handles.hpp"
 #include "render/backend/render_backend.hpp"
+#include "render/backend/render_graph.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 
 static AutoCVar_Int cvar_scatter_buffer_size = {
-        "r.PrimitiveUpload.BatchSize",
-        "Number of primitives to upload in one batch", 1024
+    "r.PrimitiveUpload.BatchSize",
+    "Number of primitives to upload in one batch", 1024
 };
 
 template <typename DataType>
@@ -22,7 +23,7 @@ public:
 
     void add_data(uint32_t destination_index, DataType data);
 
-    void flush_to_buffer(CommandBuffer& commands, BufferHandle destination_buffer);
+    void flush_to_buffer(RenderGraph& graph, BufferHandle destination_buffer);
 
     uint32_t get_size() const;
 
@@ -62,8 +63,8 @@ void ScatterUploadBuffer<DataType>::add_data(uint32_t destination_index, DataTyp
 
     if (scatter_indices == BufferHandle::None) {
         scatter_indices = allocator.create_buffer(
-                "Primitive scatter indices", cvar_scatter_buffer_size.Get(),
-                BufferUsage::StagingBuffer
+            "Primitive scatter indices", cvar_scatter_buffer_size.Get(),
+            BufferUsage::StagingBuffer
         );
     }
 
@@ -73,9 +74,9 @@ void ScatterUploadBuffer<DataType>::add_data(uint32_t destination_index, DataTyp
 
     if (scatter_data == BufferHandle::None) {
         scatter_data = allocator.create_buffer(
-                "Primitive scatter data",
-                cvar_scatter_buffer_size.Get() * sizeof(DataType),
-                BufferUsage::StagingBuffer
+            "Primitive scatter data",
+            cvar_scatter_buffer_size.Get() * sizeof(DataType),
+            BufferUsage::StagingBuffer
         );
     }
 
@@ -96,7 +97,7 @@ bool ScatterUploadBuffer<DataType>::is_full() const {
 }
 
 template <typename DataType>
-void ScatterUploadBuffer<DataType>::flush_to_buffer(CommandBuffer& commands, BufferHandle destination_buffer) {
+void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHandle destination_buffer) {
     if (scatter_indices == BufferHandle::None ||
         scatter_data == BufferHandle::None) {
         return;
@@ -104,35 +105,51 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(CommandBuffer& commands, Buf
 
     auto& resources = backend->get_global_allocator();
 
-    commands.flush_buffer(scatter_indices);
-    commands.flush_buffer(scatter_data);
+    graph.add_compute_pass(
+        ComputePass{
+            .name = "Flush scatter buffer",
+            .buffers = {
+                {scatter_indices, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+                {scatter_data, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+                {destination_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
+            },
+            .execute = [&](CommandBuffer& commands) {
+                commands.flush_buffer(scatter_indices);
+                commands.flush_buffer(scatter_data);
 
-    auto set = *backend->create_frame_descriptor_builder()
-                      .bind_buffer(0, {.buffer = scatter_indices}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                   VK_SHADER_STAGE_COMPUTE_BIT)
-                      .bind_buffer(1, {.buffer = scatter_data}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                   VK_SHADER_STAGE_COMPUTE_BIT)
-                      .bind_buffer(2, {.buffer = destination_buffer}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                   VK_SHADER_STAGE_COMPUTE_BIT)
-                      .build();
+                auto set = *backend->create_frame_descriptor_builder()
+                                   .bind_buffer(
+                                       0, {.buffer = scatter_indices}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                       VK_SHADER_STAGE_COMPUTE_BIT
+                                   )
+                                   .bind_buffer(
+                                       1, {.buffer = scatter_data}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                       VK_SHADER_STAGE_COMPUTE_BIT
+                                   )
+                                   .bind_buffer(
+                                       2, {.buffer = destination_buffer}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                       VK_SHADER_STAGE_COMPUTE_BIT
+                                   )
+                                   .build();
+                
+                commands.bind_descriptor_set(0, set);
 
-    commands.set_resource_usage(destination_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
+                commands.set_push_constant(0, scatter_buffer_count);
 
-    commands.bind_descriptor_set(0, set);
+                commands.bind_shader(scatter_shader);
 
-    commands.set_push_constant(0, scatter_buffer_count);
+                // Add 1 because integer division is fun
+                commands.dispatch(scatter_buffer_count / 32 + 1, 1, 1);
 
-    commands.bind_shader(scatter_shader);
+                commands.clear_descriptor_set(0);
 
-    // Add 1 because integer division is fun
-    commands.dispatch(scatter_buffer_count / 32 + 1, 1, 1);
+                // Free the existing scatter upload buffers. We'll allocate new ones when/if we need them
 
-    commands.clear_descriptor_set(0);
-
-    // Free the existing scatter upload buffers. We'll allocate new ones when/if we need them
-
-    resources.destroy_buffer(scatter_indices);
-    resources.destroy_buffer(scatter_data);
+                resources.destroy_buffer(scatter_indices);
+                resources.destroy_buffer(scatter_data);
+            }
+        }
+    );
 
     scatter_indices = BufferHandle::None;
     scatter_data = BufferHandle::None;

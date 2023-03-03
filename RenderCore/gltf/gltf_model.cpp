@@ -84,7 +84,7 @@ glm::vec4 GltfModel::get_bounding_sphere() const { return bounding_sphere; }
 const tinygltf::Model& GltfModel::get_gltf_data() const { return model; }
 
 void GltfModel::add_primitives(RenderScene& scene, RenderBackend& backend) {
-    auto commands = backend.create_command_buffer();
+    auto graph = RenderGraph{backend};
     traverse_nodes(
         [&](const tinygltf::Node& node, const glm::mat4& node_to_world) {
             if (node.mesh != -1) {
@@ -98,7 +98,7 @@ void GltfModel::add_primitives(RenderScene& scene, RenderBackend& backend) {
                         gltf_primitive.material
                     );
                     const auto handle = scene.add_primitive(
-                        commands, {
+                        graph, {
                             .data = PrimitiveData{.model_matrix = node_to_world},
                             .mesh = imported_mesh,
                             .material = imported_material,

@@ -6,6 +6,7 @@
 
 #include "render_backend.hpp"
 
+#include "buffer_usage_token.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 #include "render/backend/resource_upload_queue.hpp"
@@ -132,7 +133,7 @@ RenderBackend::RenderBackend() {
 }
 
 void RenderBackend::create_instance_and_device() {
-    // vk-bs enables the surface extensions for us
+    // vkb enables the surface extensions for us
     auto instance_builder = vkb::InstanceBuilder{vkGetInstanceProcAddr}
                             .set_app_name("Renderer")
                             .set_engine_name("Sarah")
@@ -168,12 +169,15 @@ void RenderBackend::create_instance_and_device() {
         }
     } else {
         instance_builder.enable_validation_layers(false)
-            .request_validation_layers(false);
+                        .request_validation_layers(false);
     }
 
     auto instance_ret = instance_builder.build();
     if (!instance_ret) {
-        const auto error_message = fmt::format("Could not initialize Vulkan: {} (VK_RESULT {})", instance_ret.error().message(), magic_enum::enum_name(instance_ret.vk_result()));
+        const auto error_message = fmt::format(
+            "Could not initialize Vulkan: {} (VK_RESULT {})", instance_ret.error().message(),
+            magic_enum::enum_name(instance_ret.vk_result())
+        );
         throw std::runtime_error{error_message};
     }
     instance = instance_ret.value();
@@ -187,9 +191,9 @@ void RenderBackend::create_instance_and_device() {
     };
 
     auto vk_result = vkCreateAndroidSurfaceKHR(instance.instance, &surface_create_info, nullptr,
-                                               &surface);
+        &surface);
     if (vk_result != VK_SUCCESS) {
-        throw std::runtime_error{"Could not create rendering surface"};
+        throw std::runtime_error{ "Could not create rendering surface" };
     }
 
 #elif defined(_WIN32)
@@ -223,6 +227,7 @@ void RenderBackend::create_instance_and_device() {
                            .set_surface(surface)
                            .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
                            .add_required_extension(VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME)
+                           .add_required_extension(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME)
 #if defined(_WIN32)
         .add_desired_extension(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME)
         .add_desired_extension(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME)
@@ -250,7 +255,17 @@ void RenderBackend::create_instance_and_device() {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES
     };
 
-#if defined(_WIN32)
+    auto sync_2_features = VkPhysicalDeviceSynchronization2FeaturesKHR{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
+        .synchronization2 = VK_TRUE,
+    };
+
+    auto device_builder = vkb::DeviceBuilder{physical_device}
+                          .add_pNext(&shader16_features)
+                          .add_pNext(&multiview_features)
+                          .add_pNext(&descriptor_indexing_features)
+                          .add_pNext(&sync_2_features);
+
     // Set up device creation info for Aftermath feature flag configuration.
     auto aftermath_flags = static_cast<VkDeviceDiagnosticsConfigFlagsNV>(
         VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_RESOURCE_TRACKING_BIT_NV |
@@ -258,20 +273,19 @@ void RenderBackend::create_instance_and_device() {
         VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_DEBUG_INFO_BIT_NV |
         VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_ERROR_REPORTING_BIT_NV
     );
-    auto aftermath_info = VkDeviceDiagnosticsConfigCreateInfoNV{
+    auto device_diagnostics_info = VkDeviceDiagnosticsConfigCreateInfoNV{
         .sType = VK_STRUCTURE_TYPE_DEVICE_DIAGNOSTICS_CONFIG_CREATE_INFO_NV,
         .flags = aftermath_flags
     };
-#endif
 
-    auto device_ret = vkb::DeviceBuilder{physical_device}
-                      .add_pNext(&shader16_features)
-                      .add_pNext(&multiview_features)
-                      .add_pNext(&descriptor_indexing_features)
-#if defined(_WIN32)
-        .add_pNext(&aftermath_info)
-#endif
-        .build();
+    const auto& extensions = physical_device.get_extensions();
+    if (std::find(
+        extensions.begin(), extensions.end(), VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME
+    ) != extensions.end()) {
+        device_builder.add_pNext(&device_diagnostics_info);
+    }
+
+    auto device_ret = device_builder.build();
     if (!device_ret) {
         throw std::runtime_error{"Could not build logical device"};
     }
@@ -302,8 +316,7 @@ void RenderBackend::create_swapchain() {
     swapchain = *swapchain_ret;
 }
 
-RenderBackend::~RenderBackend() {
-}
+RenderBackend::~RenderBackend() {}
 
 VkInstance RenderBackend::get_instance() const {
     return instance.instance;
@@ -394,19 +407,7 @@ void RenderBackend::end_frame() {
         command_buffers.reserve(queued_command_buffers.size() * 2);
 
         for (const auto& queued_commands : queued_command_buffers) {
-            const auto initial_buffer_usages = queued_commands.get_initial_buffer_usages();
-
-            const auto barrier_command_list = create_barrier_command_list(initial_buffer_usages);
-            if (barrier_command_list != VK_NULL_HANDLE) {
-                command_buffers.emplace_back(barrier_command_list);
-                command_allocators[cur_frame_idx].return_command_buffer(barrier_command_list);
-            }
-
             command_buffers.emplace_back(queued_commands.get_vk_commands());
-
-            const auto& buffer_usages = queued_commands.get_final_buffer_usages();
-            update_buffer_usages(buffer_usages);
-
             command_allocators[cur_frame_idx].return_command_buffer(queued_commands.get_vk_commands());
         }
 
@@ -443,7 +444,7 @@ void RenderBackend::end_frame() {
             }
         }
     }
-    
+
     const auto present_info = VkPresentInfoKHR{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = last_submission_semaphore == VK_NULL_HANDLE ? 0u : 1u,
@@ -543,89 +544,6 @@ vkutil::DescriptorBuilder RenderBackend::create_persistent_descriptor_builder() 
 
 vkutil::DescriptorBuilder RenderBackend::create_frame_descriptor_builder() {
     return vkutil::DescriptorBuilder::begin(*this, frame_descriptor_allocators[cur_frame_idx]);
-}
-
-VkCommandBuffer RenderBackend::create_barrier_command_list(const BufferUsageMap& buffer_usages) {
-    if (buffer_usages.empty()) {
-        return VK_NULL_HANDLE;
-    }
-
-    // First key: Source stage
-    // Second key: Destination stage
-    // Vector: Barriers for that combination of source and destination stages
-    // This is horribly cursed because Vulkan's barriers are really fucking stupid
-    auto cursed_data_structure = std::unordered_map<
-        VkPipelineStageFlags, std::unordered_map<VkPipelineStageFlags, std::vector<VkBufferMemoryBarrier>>>{};
-
-    for (const auto& [buffer_handle, usage] : buffer_usages) {
-        if (const auto& itr = last_buffer_usages.find(buffer_handle); itr != last_buffer_usages.end()) {
-            const auto source_stage = itr->second.first;
-            const auto source_access = itr->second.second;
-            const auto dest_stage = usage.first;
-            const auto dest_access = usage.second;
-
-            if (!cursed_data_structure.contains(source_stage)) {
-                cursed_data_structure.emplace(
-                    source_stage,
-                    std::unordered_map<VkPipelineStageFlags, std::vector<VkBufferMemoryBarrier>>{}
-                );
-            }
-
-            auto& map = cursed_data_structure.at(source_stage);
-            if (!map.contains(dest_stage)) {
-                map.emplace(dest_stage, std::vector<VkBufferMemoryBarrier>{});
-            }
-
-            auto& buffer_list = map.at(dest_stage);
-
-            const auto& buffer_actual = allocator->get_buffer(buffer_handle);
-
-            buffer_list.emplace_back(
-                VkBufferMemoryBarrier{
-                    .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-                    .srcAccessMask = source_access,
-                    .dstAccessMask = dest_access,
-                    .buffer = buffer_actual.buffer,
-                    .offset = 0,
-                    .size = buffer_actual.create_info.size
-                }
-            );
-        }
-    }
-
-    if (!cursed_data_structure.empty()) {
-        auto commands = command_allocators[cur_frame_idx].allocate_command_buffer();
-
-        const auto begin_info = VkCommandBufferBeginInfo{
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
-        };
-        vkBeginCommandBuffer(commands, &begin_info);
-
-        for (const auto& [source_stage, map] : cursed_data_structure) {
-            for (const auto& [dest_stage, barriers] : map) {
-                vkCmdPipelineBarrier(
-                    commands,
-                    source_stage, dest_stage,
-                    0,
-                    0, nullptr,
-                    static_cast<uint32_t>(barriers.size()), barriers.data(),
-                    0, nullptr
-                );
-            }
-        }
-
-        vkEndCommandBuffer(commands);
-
-        return commands;
-    }
-
-    return VK_NULL_HANDLE;
-}
-
-void RenderBackend::update_buffer_usages(const BufferUsageMap& new_usages) {
-    for (const auto& [buffer_handle, usage] : new_usages) {
-        last_buffer_usages.insert_or_assign(buffer_handle, usage);
-    }
 }
 
 VkSemaphore RenderBackend::create_transient_semaphore() {

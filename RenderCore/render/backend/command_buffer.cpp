@@ -43,50 +43,6 @@ CommandBuffer::update_buffer(
     flush_buffer(buffer);
 }
 
-void
-CommandBuffer::set_resource_usage(
-    const BufferHandle buffer, const VkPipelineStageFlags pipeline_stage,
-    const VkAccessFlags access
-) {
-    if (!initial_buffer_usages.contains(buffer)) {
-        initial_buffer_usages.emplace(buffer, std::make_pair(pipeline_stage, access));
-    }
-
-    if (const auto& itr = last_buffer_usages.find(buffer); itr != last_buffer_usages.end()) {
-        if (itr->second.first != pipeline_stage || itr->second.second != access) {
-            barrier(buffer, itr->second.first, itr->second.second, pipeline_stage, access);
-        }
-    }
-
-    last_buffer_usages.insert_or_assign(buffer, std::make_pair(pipeline_stage, access));
-}
-
-void CommandBuffer::set_resource_usage(
-    TextureHandle texture, VkPipelineStageFlags pipeline_stage, VkAccessFlags access, VkImageLayout layout
-) {
-    const auto current_usage = std::make_tuple(pipeline_stage, access, layout);
-
-    if (!initial_texture_usages.contains(texture)) {
-        initial_texture_usages.emplace(texture, current_usage);
-        barrier(
-            texture,
-            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-            pipeline_stage, access, layout
-        );
-    }
-
-    // Always issue a barrier between usages, even if they're the same
-    if (const auto& itr = last_texture_usages.find(texture); itr != last_texture_usages.end()) {
-        barrier(
-            texture,
-            std::get<0>(itr->second), std::get<1>(itr->second), std::get<2>(itr->second),
-            pipeline_stage, access, layout
-        );
-    }
-
-    last_texture_usages.insert_or_assign(texture, current_usage);
-}
-
 void CommandBuffer::flush_buffer(const BufferHandle buffer) {
     auto& resources = backend->get_global_allocator();
     const auto& buffer_actual = resources.get_buffer(buffer);
@@ -164,6 +120,22 @@ void CommandBuffer::barrier(
     // V1: Batch the barriers. We'll need lists grouped by source stage and dest stage, because Vulkan is strange
 }
 
+void CommandBuffer::barrier(
+    const std::vector<VkMemoryBarrier2KHR>& memory_barriers, const std::vector<VkBufferMemoryBarrier2>& buffer_barriers,
+    const std::vector<VkImageMemoryBarrier2>& image_barriers
+) const {
+    const auto dependency_info = VkDependencyInfoKHR{
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+        .memoryBarrierCount = static_cast<uint32_t>(memory_barriers.size()),
+        .pMemoryBarriers = memory_barriers.data(),
+        .bufferMemoryBarrierCount = static_cast<uint32_t>(buffer_barriers.size()),
+        .pBufferMemoryBarriers = buffer_barriers.data(),
+        .imageMemoryBarrierCount = static_cast<uint32_t>(image_barriers.size()),
+        .pImageMemoryBarriers = image_barriers.data()
+    };
+    vkCmdPipelineBarrier2KHR(commands, &dependency_info);
+}
+
 void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_value) {
     auto& allocator = backend->get_global_allocator();
     const auto& buffer_actual = allocator.get_buffer(buffer);
@@ -218,7 +190,7 @@ void CommandBuffer::end_render_pass() {
     vkCmdEndRenderPass(commands);
 }
 
-void CommandBuffer::bind_vertex_buffer(const uint32_t binding_index, const BufferHandle buffer) {
+void CommandBuffer::bind_vertex_buffer(const uint32_t binding_index, const BufferHandle buffer) const {
     const auto& allocator = backend->get_global_allocator();
     const auto& buffer_actual = allocator.get_buffer(buffer);
 
@@ -227,7 +199,7 @@ void CommandBuffer::bind_vertex_buffer(const uint32_t binding_index, const Buffe
     vkCmdBindVertexBuffers(commands, binding_index, 1, &buffer_actual.buffer, &offset);
 }
 
-void CommandBuffer::bind_index_buffer(const BufferHandle buffer) {
+void CommandBuffer::bind_index_buffer(const BufferHandle buffer) const {
     const auto& allocator = backend->get_global_allocator();
     const auto& buffer_actual = allocator.get_buffer(buffer);
 
@@ -239,10 +211,8 @@ void CommandBuffer::draw_indexed(
     const uint32_t first_index,
     const uint32_t first_vertex, const uint32_t first_instance
 ) {
-    // commit bindings
     commit_bindings();
 
-    // issue draw
     vkCmdDrawIndexed(
         commands, num_indices, num_instances, first_index,
         static_cast<int32_t>(first_vertex),
@@ -261,10 +231,10 @@ void CommandBuffer::draw_indirect(const BufferHandle indirect_buffer) {
 
 void CommandBuffer::draw_indexed_indirect(const BufferHandle indirect_buffer) {
     commit_bindings();
-    
+
     const auto& allocator = backend->get_global_allocator();
     const auto& buffer_actual = allocator.get_buffer(indirect_buffer);
-    
+
     vkCmdDrawIndexedIndirect(commands, buffer_actual.buffer, 0, 1, 0);
 }
 
@@ -319,7 +289,7 @@ void CommandBuffer::dispatch(const uint32_t width, const uint32_t height, const 
 }
 
 void CommandBuffer::begin_label(const std::string& event_name) const {
-    if(vkCmdBeginDebugUtilsLabelEXT == nullptr) {
+    if (vkCmdBeginDebugUtilsLabelEXT == nullptr) {
         return;
     }
 
@@ -332,7 +302,7 @@ void CommandBuffer::begin_label(const std::string& event_name) const {
 }
 
 void CommandBuffer::end_label() const {
-    if(vkCmdEndDebugUtilsLabelEXT == nullptr) {
+    if (vkCmdEndDebugUtilsLabelEXT == nullptr) {
         return;
     }
 
@@ -376,20 +346,12 @@ VkCommandBuffer CommandBuffer::get_vk_commands() const {
     return commands;
 }
 
-const BufferUsageMap& CommandBuffer::get_final_buffer_usages() const {
-    return last_buffer_usages;
-}
-
 VkRenderPass CommandBuffer::get_current_renderpass() const {
     return current_render_pass;
 }
 
 uint32_t CommandBuffer::get_current_subpass() const {
     return current_subpass;
-}
-
-const BufferUsageMap& CommandBuffer::get_initial_buffer_usages() const {
-    return initial_buffer_usages;
 }
 
 RenderBackend& CommandBuffer::get_backend() const {
