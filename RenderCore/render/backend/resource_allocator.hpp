@@ -14,7 +14,8 @@
 #include "core/object_pool.hpp"
 #include "render/backend/buffer.hpp"
 #include "render/backend/constants.hpp"
-#include "framebuffer.hpp"
+#include "render/backend/framebuffer.hpp"
+#include "render/backend/texture_usage_token.hpp"
 
 struct RenderPass;
 class RenderBackend;
@@ -72,7 +73,6 @@ enum class BufferUsage {
      * Storage buffer. Can be copied to, written to by a shader, or read from by a shader
      */
     StorageBuffer,
-
 };
 
 /**
@@ -97,10 +97,14 @@ public:
      * @param usage How the texture will be used
      * @return A handle to the texture
      */
-    TextureHandle create_texture(const std::string& name, VkFormat format, glm::uvec2 resolution, uint32_t num_mips,
-                                 TextureUsage usage, uint32_t num_layers = 1, VkFormat view_format = VK_FORMAT_UNDEFINED);
+    TextureHandle create_texture(
+        const std::string& name, VkFormat format, glm::uvec2 resolution, uint32_t num_mips,
+        TextureUsage usage, uint32_t num_layers = 1, VkFormat view_format = VK_FORMAT_UNDEFINED
+    );
 
-    TextureHandle create_volume_texture(const std::string& name, VkFormat format, glm::uvec3 resolution, uint32_t num_mips, TextureUsage usage);
+    TextureHandle create_volume_texture(
+        const std::string& name, VkFormat format, glm::uvec3 resolution, uint32_t num_mips, TextureUsage usage
+    );
 
     TextureHandle emplace_texture(const std::string& name, Texture&& new_texture);
 
@@ -157,10 +161,8 @@ private:
     std::array<std::vector<TextureHandle>, num_in_flight_frames> texture_zombie_lists;
     std::array<std::vector<Framebuffer>, num_in_flight_frames> framebuffer_zombie_lists;
 
-    struct SamplerCreateInfoHasher
-    {
-        std::size_t operator()(const VkSamplerCreateInfo& k) const
-        {
+    struct SamplerCreateInfoHasher {
+        std::size_t operator()(const VkSamplerCreateInfo& k) const {
             // Pretend that the create info is a byte array. That's basically all a struct is, no?
             // This hasher doesn't care about extensions. It's probably (not) fine
             return CityHash64(reinterpret_cast<const char*>(&k), sizeof(VkSamplerCreateInfo));
@@ -171,6 +173,3 @@ private:
     // I do the hashing myself
     std::unordered_map<std::size_t, VkSampler> sampler_cache;
 };
-
-
-

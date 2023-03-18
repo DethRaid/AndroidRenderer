@@ -1,0 +1,101 @@
+#version 460
+
+/**
+ * Test NDC triangles against the min/max of each bin
+ */
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "shared/vertex_data.hpp"
+#include "voxelizer/triangle.glsl"
+
+layout(set = 0, binding = 0, std430) readonly buffer VertexOutputPositionBuffer {
+    Triangle triangles[];
+}; 
+
+layout(set = 0, binding = 1, rgba16f) uniform image3D voxels;
+
+layout(push_constant) uniform Constants {
+    uint num_indices;
+    uint padding1;
+    uint padding2;
+    uint padding3;
+    uint padding4;
+    uint padding5;
+    uint padding6;
+    uint padding7;
+};
+
+layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
+
+shared vec3 bin_min;
+shared vec3 bin_max;
+shared uint bin_bits[512];
+
+bool is_triangle_in_bin(Triangle triangle) {
+    // If the triangle is not in the bin's AABB, return false
+    if((triangle.max.x - bin_min.x) * (triangle.min.x - bin_max.x) >= 0.0  ||
+        (triangle.max.y - bin_min.y) * (triangle.min.y - bin_max.y) >= 0.0 ||
+        (triangle.max.z - bin_min.z) * (triangle.min.z - bin_max.z) >= 0.0) {
+        return false;
+    }
+    return false;
+}
+
+void main() {
+    // Setup phase - set 1/32 of the bin bits to 0
+
+    uint range_idx = gl_LocalInvocationIndex;    
+    uint uints_per_thread = 512 / 32;
+    uint first_index = range_idx * uints_per_thread;
+    for(uint i = first_index; i < first_index + uints_per_thread; i++) {
+        bin_bits[i] = 0;
+    }
+
+    if(gl_LocalInvocationIndex == 0) {
+        // Each bin is 4x4x4 pixels
+        uvec3 bin_idx = gl_WorkGroupID;
+        // 4x4x4 bins in a 32x32x32 image - 8 bins in all directions
+        bin_min = vec3(bin_idx) / 8.f;
+        bin_max = bin_min + (1.f / 8.f);
+        // Bin -> NDC
+        bin_min = bin_min * 2.f - 1.f;
+        bin_max = bin_max * 2.f - 1.f;
+    }
+
+    memoryBarrierShared();
+    barrier();
+
+    // First phase: Each thread tests 1/32 of the post-transform triangles to determine which are in this bin
+
+    uint total_num_triangles = num_indices / 3;
+    uint triangles_per_thread = total_num_triangles / 32;
+    uint first_triangle = range_idx * triangles_per_thread;
+
+    for(uint triangle_idx = first_triangle; triangle_idx < first_triangle + triangles_per_thread; triangle_idx++) {
+        Triangle triangle = triangles[triangle_idx];
+
+        bool in_bin = is_triangle_in_bin(triangle);
+        if(in_bin) {
+            uint int_idx = triangle_idx / 32;
+            uint bit_idx = triangle_idx % 32;
+            uint bitmask = 1 << bit_idx;
+            atomicOr(bin_bits[int_idx], bitmask);
+        }
+    }
+
+    memoryBarrierShared();
+    barrier();
+
+    // Second phase: Each thread takes all the triangles in this bin, tests them against its current pixel, and adds 
+    // their SHes to an accumulator. We flush the accumulator to the image at the end - each thread only reads and 
+    // writes to its pixel, so no atomic operations are needed (yayyyyyyyy)
+
+    vec4 sh = imageLoad(voxels, ivec3(gl_GlobalInvocationID));
+
+    // Add triangles as needed
+
+    sh = normalize(sh);
+
+    imageStore(voxels, ivec3(gl_GlobalInvocationID), sh);
+}

@@ -76,5 +76,7 @@ struct RenderPass {
 
     std::vector<VkClearValue> clear_values;
 
+    tl::optional<uint32_t> view_mask;
+
     std::vector<Subpass> subpasses;
 };

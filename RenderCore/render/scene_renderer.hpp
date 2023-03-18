@@ -60,15 +60,7 @@ private:
     glm::uvec2 scene_render_resolution = glm::uvec2{};
 
     LightPropagationVolume lpv;
-
-    LpvGvVoxelizer voxelizer;
-
-    VkRenderPass shadow_render_pass = VK_NULL_HANDLE;
-
-    VkRenderPass scene_render_pass = VK_NULL_HANDLE;
-
-    VkRenderPass ui_render_pass = VK_NULL_HANDLE;
-
+        
     TextureHandle shadowmap_handle = TextureHandle::None;
 
     TextureHandle gbuffer_color_handle = TextureHandle::None;
@@ -94,8 +86,6 @@ private:
     UiPhase ui_phase;
 
     void create_shadow_render_targets();
-
-    void create_render_passes();
-
-    void create_scene_render_targets_and_framebuffers();
+    
+    void create_scene_render_targets();
 };

@@ -42,6 +42,8 @@ struct PipelineData {
  * set the other members
  */
 struct BasicPbrMaterial {
+    std::string name;
+
     TransparencyMode transparency_mode;
 
     bool double_sided;
@@ -62,7 +64,7 @@ struct BasicPbrMaterial {
 
     BasicPbrMaterialGpu gpu_data;
 
-    std::unordered_map<ScenePassType, Pipeline> pipelines;
+    VkPipelineColorBlendAttachmentState blend_state;
 };
 
 #endif //SAHRENDERER_BASIC_PBR_MATERIAL_HPP

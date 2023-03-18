@@ -1,9 +1,4 @@
-//
-// Created by gold1 on 9/10/2022.
-//
-
-#ifndef SAHRENDERER_MESH_HPP
-#define SAHRENDERER_MESH_HPP
+#pragma once
 
 #include <cstdint>
 
@@ -22,5 +17,3 @@ struct Mesh {
 
     uint32_t num_vertices;
 };
-
-#endif //SAHRENDERER_MESH_HPP

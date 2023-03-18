@@ -71,7 +71,7 @@ GltfModel::GltfModel(
     ZoneScoped;
 
     logger->info("Beginning load of model {}", filepath.string());
-    
+
     import_resources_for_model(renderer);
 
     calculate_bounding_sphere_and_footprint();
@@ -150,60 +150,26 @@ GltfModel::import_materials(
                                        : "Unnamed material";
         logger->info("Importing material {}", material_name);
 
-        // MASSIVE TODO: Material builder
-
         // Naive implementation creates a separate material for each glTF material
         // A better implementation would have a few pipeline objects that can be shared - e.g. we'd save the
         // pipeline create info and descriptor set layout info, and copy it down as needed
-
-        auto builder = backend.begin_building_pipeline(material_name)
-                              .set_vertex_shader("shaders/deferred/basic.vert.spv")
-                              .set_fragment_shader("shaders/deferred/standard_pbr.frag.spv")
-                              .set_blend_state(
-                                  0,
-                                  {
-                                      .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                                      VK_COLOR_COMPONENT_G_BIT |
-                                      VK_COLOR_COMPONENT_B_BIT |
-                                      VK_COLOR_COMPONENT_A_BIT
-                                  }
-                              )
-                              .set_blend_state(
-                                  1,
-                                  {
-                                      .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                                      VK_COLOR_COMPONENT_G_BIT |
-                                      VK_COLOR_COMPONENT_B_BIT |
-                                      VK_COLOR_COMPONENT_A_BIT
-                                  }
-                              )
-                              .set_blend_state(
-                                  2,
-                                  {
-                                      .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                                      VK_COLOR_COMPONENT_G_BIT |
-                                      VK_COLOR_COMPONENT_B_BIT |
-                                      VK_COLOR_COMPONENT_A_BIT
-                                  }
-                              )
-                              .set_blend_state(
-                                  3,
-                                  {
-                                      .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                                      VK_COLOR_COMPONENT_G_BIT |
-                                      VK_COLOR_COMPONENT_B_BIT |
-                                      VK_COLOR_COMPONENT_A_BIT
-                                  }
-                              );
-
+        
         auto material = BasicPbrMaterial{};
+        material.name = material_name;
 
         if (gltf_material.alphaMode == "OPAQUE") {
             material.transparency_mode = TransparencyMode::Solid;
+            material.blend_state = {
+                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                VK_COLOR_COMPONENT_A_BIT
+            };
         } else if (gltf_material.alphaMode == "MASK") {
-            material.transparency_mode = TransparencyMode::Cutout;
+            material.transparency_mode = TransparencyMode::Cutout; material.blend_state = {
+                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                VK_COLOR_COMPONENT_A_BIT
+            };
         } else if (gltf_material.alphaMode == "BLEND") {
-            const auto blend_state = VkPipelineColorBlendAttachmentState{
+            material.blend_state = VkPipelineColorBlendAttachmentState{
                 .blendEnable = VK_TRUE,
                 .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
                 .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
@@ -214,61 +180,10 @@ GltfModel::import_materials(
                 .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                 VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
             };
-            builder.set_blend_state(0, blend_state);
-            builder.set_blend_state(1, blend_state);
-            builder.set_blend_state(2, blend_state);
 
             material.transparency_mode = TransparencyMode::Translucent;
         }
-
-        auto shadow_pipeline = backend.begin_building_pipeline(fmt::format("{} SHADOW", material_name))
-                                          .set_vertex_shader("shaders/lighting/shadow.vert.spv")
-                                          .set_depth_state(
-                                              DepthStencilState{
-                                                  .compare_op = VK_COMPARE_OP_LESS
-                                              }
-                                          )
-                                          .set_raster_state(
-                                              {
-                                                  .depth_clamp_enable = true
-                                              }
-                                          )
-                                          .build();
-
-        auto rsm_pipeline = backend.begin_building_pipeline(fmt::format("{} RSM", material_name))
-                                       .set_vertex_shader("shaders/lpv/rsm.vert.spv")
-                                       .set_fragment_shader("shaders/lpv/rsm.frag.spv")
-                                       .set_depth_state(
-                                           DepthStencilState{
-                                               .compare_op = VK_COMPARE_OP_LESS
-                                           }
-                                       )
-                                       .set_blend_state(
-                                           0,
-                                           {
-                                               .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                                               VK_COLOR_COMPONENT_G_BIT |
-                                               VK_COLOR_COMPONENT_B_BIT |
-                                               VK_COLOR_COMPONENT_A_BIT
-                                           }
-                                       )
-                                       .set_blend_state(
-                                           1,
-                                           {
-                                               .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                                               VK_COLOR_COMPONENT_G_BIT |
-                                               VK_COLOR_COMPONENT_B_BIT |
-                                               VK_COLOR_COMPONENT_A_BIT
-                                           }
-                                       )
-                                       .build();
-
-        auto gbuffer_pipeline = builder.build();
-
-        material.pipelines.emplace(ScenePassType::Gbuffer, gbuffer_pipeline);
-        material.pipelines.emplace(ScenePassType::RSM, rsm_pipeline);
-        material.pipelines.emplace(ScenePassType::Shadow, shadow_pipeline);
-
+        
         material.double_sided = gltf_material.doubleSided;
 
         material.gpu_data.base_color_tint = glm::vec4(

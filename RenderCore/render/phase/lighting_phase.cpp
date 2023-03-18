@@ -9,9 +9,7 @@ void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, 
     if (scene == nullptr) {
         return;
     }
-
-    ZoneScopedN("LightingPhase::render");
-
+    
     GpuZoneScopedN(commands, "LightingPhase::render");
     
     auto gbuffers_descriptor_set = VkDescriptorSet{};

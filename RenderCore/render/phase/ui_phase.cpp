@@ -13,7 +13,6 @@ void UiPhase::set_resources(TextureHandle scene_color_in) {
 }
 
 void UiPhase::render(CommandBuffer& commands, SceneTransform& view) {
-    ZoneScopedN("UiPhase::render");
     GpuZoneScopedN(commands, "UiPhase::render");
 
     commands.begin_label(__func__);

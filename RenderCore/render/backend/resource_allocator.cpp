@@ -1,14 +1,23 @@
 #include "resource_allocator.hpp"
 
+#include <magic_enum.hpp>
+
 #include "render/backend/utils.hpp"
 #include "render/backend/render_backend.hpp"
 
 #include <spdlog/fmt/bundled/format.h>
 
+#include "render_graph.hpp"
 #include "render_pass.hpp"
+#include "core/system_interface.hpp"
+
+static std::shared_ptr<spdlog::logger> logger;
 
 ResourceAllocator::ResourceAllocator(RenderBackend& backend_in) :
     backend{backend_in} {
+    if (logger == nullptr) {
+        logger = SystemInterface::get().get_logger("ResourceAllocator");
+    }
     const auto functions = VmaVulkanFunctions{
         .vkGetInstanceProcAddr = vkGetInstanceProcAddr,
         .vkGetDeviceProcAddr = vkGetDeviceProcAddr,
@@ -28,11 +37,10 @@ ResourceAllocator::ResourceAllocator(RenderBackend& backend_in) :
 
 ResourceAllocator::~ResourceAllocator() {
     const auto device = backend.get_device().device;
-    for (const auto&[info, sampler]: sampler_cache) {
+    for (const auto& [info, sampler] : sampler_cache) {
         vkDestroySampler(device, sampler, nullptr);
     }
 }
-
 
 TextureHandle ResourceAllocator::create_texture(
     const std::string& name, VkFormat format, glm::uvec2 resolution,
@@ -46,23 +54,23 @@ TextureHandle ResourceAllocator::create_texture(
     VkImageAspectFlags view_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
 
     switch (usage) {
-        case TextureUsage::RenderTarget:
-            if (is_depth_format(format)) {
-                vk_usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-                view_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-            } else {
-                vk_usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-            }
-            vma_flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
-            break;
+    case TextureUsage::RenderTarget:
+        if (is_depth_format(format)) {
+            vk_usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+            view_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+        } else {
+            vk_usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+        }
+        vma_flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+        break;
 
-        case TextureUsage::StaticImage:
-            vk_usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-            break;
+    case TextureUsage::StaticImage:
+        vk_usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        break;
 
-        case TextureUsage::StorageImage:
-            vk_usage |= VK_IMAGE_USAGE_STORAGE_BIT;
-            break;
+    case TextureUsage::StorageImage:
+        vk_usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+        break;
     }
 
     const auto image_create_info = VkImageCreateInfo{
@@ -155,25 +163,25 @@ TextureHandle ResourceAllocator::create_volume_texture(
     VkImageCreateFlags image_create_flags = {};
 
     switch (usage) {
-        case TextureUsage::RenderTarget:
-            if (is_depth_format(format)) {
-                vk_usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-                view_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-            } else {
-                vk_usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-            }
-            image_create_flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
-            vma_flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
-            break;
+    case TextureUsage::RenderTarget:
+        if (is_depth_format(format)) {
+            vk_usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+            view_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+        } else {
+            vk_usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+        }
+        image_create_flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
+        vma_flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+        break;
 
-        case TextureUsage::StaticImage:
-            vk_usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-            break;
+    case TextureUsage::StaticImage:
+        vk_usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        break;
 
-        case TextureUsage::StorageImage:
-            vk_usage |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-            image_create_flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
-            break;
+    case TextureUsage::StorageImage:
+        vk_usage |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        image_create_flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
+        break;
     }
 
     const auto image_create_info = VkImageCreateInfo{
@@ -358,38 +366,38 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, size_t si
     VmaMemoryUsage memory_usage = {};
 
     switch (usage) {
-        case BufferUsage::StagingBuffer:
-            vk_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-            vma_flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-            memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-            break;
+    case BufferUsage::StagingBuffer:
+        vk_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        vma_flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+        break;
 
-        case BufferUsage::VertexBuffer:
-            vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-            memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-            break;
+    case BufferUsage::VertexBuffer:
+        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        break;
 
-        case BufferUsage::IndexBuffer:
-            vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-            memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-            break;
+    case BufferUsage::IndexBuffer:
+        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        break;
 
-        case BufferUsage::IndirectBuffer:
-            vk_usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-                       VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-            memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-            break;
+    case BufferUsage::IndirectBuffer:
+        vk_usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        break;
 
-        case BufferUsage::UniformBuffer:
-            vk_usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-            vma_flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-            memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-            break;
+    case BufferUsage::UniformBuffer:
+        vk_usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        vma_flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        break;
 
-        case BufferUsage::StorageBuffer:
-            vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-            memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-            break;
+    case BufferUsage::StorageBuffer:
+        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        break;
     }
     const auto create_info = VkBufferCreateInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -472,7 +480,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
     auto attachments = std::vector<VkAttachmentDescription>{};
     attachments.reserve(total_num_attachments);
 
-    for (const auto& render_target: pass.render_targets) {
+    for (const auto& render_target : pass.render_targets) {
         const auto& render_target_actual = get_texture(render_target);
 
         auto load_action = VK_ATTACHMENT_LOAD_OP_LOAD;
@@ -484,7 +492,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         if (!pass.clear_values.empty()) {
             load_action = VK_ATTACHMENT_LOAD_OP_CLEAR;
         }
-
+        
         auto layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         if (is_depth_format(render_target_actual.create_info.format)) {
             layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -508,9 +516,9 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
 
     attachment_references.reserve(pass.subpasses.size() * 3);
     subpasses.reserve(pass.subpasses.size());
-    dependencies.reserve(pass.subpasses.size() - 1);
-
-    for (auto subpass_index = 0u ; subpass_index < pass.subpasses.size() ; subpass_index++) {
+    dependencies.reserve(pass.subpasses.size());
+    
+    for (auto subpass_index = 0u; subpass_index < pass.subpasses.size(); subpass_index++) {
         const auto& subpass = pass.subpasses[subpass_index];
         auto description = VkSubpassDescription{
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -524,16 +532,21 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         if (!subpass.input_attachments.empty()) {
             auto& input_attachment_references = attachment_references.emplace_back();
             input_attachment_references.reserve(subpass.input_attachments.size());
-            for (const auto& input_attachment_index: subpass.input_attachments) {
+            for (const auto& input_attachment_index : subpass.input_attachments) {
                 const auto input_attachment_handle = pass.render_targets[input_attachment_index];
                 const auto& input_attachment_actual = get_texture(input_attachment_handle);
                 if (is_depth_format(input_attachment_actual.create_info.format)) {
                     input_attachment_references.emplace_back(
-                        VkAttachmentReference{.attachment = input_attachment_index, .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL}
+                        VkAttachmentReference{
+                            .attachment = input_attachment_index,
+                            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+                        }
                     );
                 } else {
                     input_attachment_references.emplace_back(
-                        VkAttachmentReference{.attachment = input_attachment_index, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}
+                        VkAttachmentReference{
+                            .attachment = input_attachment_index, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        }
                     );
                 }
             }
@@ -544,9 +557,11 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         if (!subpass.color_attachments.empty()) {
             auto& color_attachment_references = attachment_references.emplace_back();
             color_attachment_references.reserve(subpass.color_attachments.size());
-            for (const auto& color_attachment_index: subpass.color_attachments) {
+            for (const auto& color_attachment_index : subpass.color_attachments) {
                 color_attachment_references.emplace_back(
-                    VkAttachmentReference{.attachment = color_attachment_index, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}
+                    VkAttachmentReference{
+                        .attachment = color_attachment_index, .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                    }
                 );
             }
             description.colorAttachmentCount = static_cast<uint32_t>(color_attachment_references.size());
@@ -558,7 +573,9 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             depth_attachment_references.reserve(1);
 
             depth_attachment_references.emplace_back(
-                VkAttachmentReference{.attachment = *subpass.depth_attachment, .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL}
+                VkAttachmentReference{
+                    .attachment = *subpass.depth_attachment, .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                }
             );
 
             description.pDepthStencilAttachment = depth_attachment_references.data();
@@ -572,8 +589,8 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             // Copy the input attachments to a new array so we can remove from the new array
             auto input_attachments_unproduced = subpass.input_attachments;
 
-            for (auto producer_index = static_cast<int32_t>(subpass_index - 1) ;
-                 producer_index >= 0 ; producer_index--) {
+            for (auto producer_index = static_cast<int32_t>(subpass_index - 1);
+                 producer_index >= 0; producer_index--) {
                 const auto& previous_subpass = pass.subpasses[producer_index];
 
                 // If the previous subpass produces any of the input attachments, add a dependency between the passes
@@ -619,6 +636,22 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         }
     }
 
+
+    auto view_masks = std::vector<uint32_t>{};
+    if (pass.view_mask) {
+        view_masks.reserve(subpasses.size());
+
+        for (uint32_t i = 0; i < subpasses.size(); i++) {
+            view_masks.push_back(*pass.view_mask);
+        }
+    }
+
+    auto multiview_info = VkRenderPassMultiviewCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO,
+        .subpassCount = static_cast<uint32_t>(view_masks.size()),
+        .pViewMasks = view_masks.data()
+    };
+
     auto create_info = VkRenderPassCreateInfo{
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
         .attachmentCount = static_cast<uint32_t>(attachments.size()),
@@ -628,6 +661,10 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         .dependencyCount = static_cast<uint32_t>(dependencies.size()),
         .pDependencies = dependencies.data(),
     };
+
+    if(pass.view_mask) {
+        create_info.pNext = &multiview_info;
+    }
 
     VkRenderPass render_pass;
     {
@@ -644,7 +681,7 @@ void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
     ZoneScoped;
 
     auto& zombie_buffers = buffer_zombie_lists[frame_idx];
-    for (auto handle: zombie_buffers) {
+    for (auto handle : zombie_buffers) {
         auto& buffer = buffers[static_cast<uint32_t>(handle)];
         vmaDestroyBuffer(vma, buffer.buffer, buffer.allocation);
         buffers.free_object(static_cast<uint32_t>(handle));
@@ -654,33 +691,33 @@ void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
 
     auto& zombie_textures = texture_zombie_lists[frame_idx];
     const auto device = backend.get_device().device;
-    for (auto handle: zombie_textures) {
+    for (auto handle : zombie_textures) {
         auto& texture = textures[static_cast<uint32_t>(handle)];
         vkDestroyImageView(device, texture.image_view, nullptr);
 
         switch (texture.type) {
-            case TextureAllocationType::Vma:
-                vmaDestroyImage(vma, texture.image, texture.vma.allocation);
-                break;
+        case TextureAllocationType::Vma:
+            vmaDestroyImage(vma, texture.image, texture.vma.allocation);
+            break;
 
-            case TextureAllocationType::Ktx:
-                ktxVulkanTexture_Destruct(&texture.ktx.ktx_vk_tex, device, nullptr);
-                break;
+        case TextureAllocationType::Ktx:
+            ktxVulkanTexture_Destruct(&texture.ktx.ktx_vk_tex, device, nullptr);
+            break;
 
-            case TextureAllocationType::Swapchain:
-                // We just need to destroy the image view
-                vkDestroyImageView(device, texture.image_view, nullptr);
-                break;
+        case TextureAllocationType::Swapchain:
+            // We just need to destroy the image view
+            vkDestroyImageView(device, texture.image_view, nullptr);
+            break;
 
-            default:
-                throw std::runtime_error{"Unknown texture allocation type"};
+        default:
+            throw std::runtime_error{"Unknown texture allocation type"};
         }
     }
 
     zombie_textures.clear();
 
     auto& zombie_framebuffers = framebuffer_zombie_lists[frame_idx];
-    for (const auto& framebuffer: zombie_framebuffers) {
+    for (const auto& framebuffer : zombie_framebuffers) {
         vkDestroyFramebuffer(device, framebuffer.framebuffer, nullptr);
     }
     zombie_framebuffers.clear();

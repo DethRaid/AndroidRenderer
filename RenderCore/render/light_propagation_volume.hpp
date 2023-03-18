@@ -8,6 +8,7 @@
 #include "backend/pipeline.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/compute_shader.hpp"
+#include "render/sdf/lpv_gv_voxelizer.hpp"
 
 class RenderGraph;
 class RenderBackend;
@@ -43,7 +44,12 @@ struct CascadeData {
      * VPLs in this cascade
      */
     BufferHandle vpl_buffer = BufferHandle::None;
-    
+
+    LpvGvVoxelizer voxels;
+
+    glm::vec3 min_bounds;
+    glm::vec3 max_bounds;
+
     void create_render_targets(ResourceAllocator& allocator);
 };
 
@@ -61,8 +67,8 @@ public:
     explicit LightPropagationVolume(RenderBackend& backend_in);
 
     void init_resources(ResourceAllocator& allocator);
-
-    void set_rsm_view(SceneDrawer&& mesh_drawer);
+    
+    void set_scene(RenderScene& scene_in, MeshStorage& meshes_in);
 
     /**
      * Updates the transform of this LPV to match the scene view

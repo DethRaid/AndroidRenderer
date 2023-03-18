@@ -1,5 +1,6 @@
 #include "render_graph.hpp"
 
+#include <magic_enum.hpp>
 #include <spdlog/sinks/android_sink.h>
 #include <spdlog/logger.h>
 
@@ -14,6 +15,7 @@ static std::shared_ptr<spdlog::logger> logger;
 RenderGraph::RenderGraph(RenderBackend& backend_in) : backend{backend_in}, cmds{backend.create_command_buffer()} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("RenderGraph");
+        logger->set_level(spdlog::level::info);
     }
 
     cmds.begin();
@@ -29,6 +31,8 @@ void RenderGraph::add_transition_pass(TransitionPass&& pass) {
 }
 
 void RenderGraph::add_compute_pass(ComputePass&& pass) {
+    logger->debug("Adding compute pass {}", pass.name);
+
     cmds.begin_label(pass.name);
 
     for (const auto& buffer_token : pass.buffers) {
@@ -49,11 +53,13 @@ void RenderGraph::add_compute_pass(ComputePass&& pass) {
 }
 
 void RenderGraph::add_render_pass(RenderPass&& pass) {
+    logger->debug("Adding render pass {}", pass.name);
+
     auto& allocator = backend.get_global_allocator();
+    
     const auto render_pass = allocator.get_render_pass(pass);
 
-    cmds.begin_label(pass.name);
-
+    // Update state tracking, accumulating barrier for buffers and non-attachment images
     for (const auto& buffer_token : pass.buffers) {
         set_resource_usage(buffer_token.first, buffer_token.second.stage, buffer_token.second.access);
     }
@@ -64,6 +70,7 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
         );
     }
 
+    // Update state tracking for attachment images, and collect attachments for the framebuffer
     auto render_targets = std::vector<TextureHandle>{};
     render_targets.reserve(pass.render_targets.size());
     auto depth_target = tl::optional<TextureHandle>{};
@@ -88,9 +95,14 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
         }
     }
 
-    issue_barriers(cmds);
-
+    // Create framebuffer
     auto framebuffer = Framebuffer::create(backend, render_targets, depth_target, render_pass);
+
+    // Begin label, issue and clear barriers, begin render pass proper
+
+    cmds.begin_label(pass.name);
+
+    issue_barriers(cmds);
 
     cmds.begin_render_pass(render_pass, framebuffer, pass.clear_values);
 
@@ -124,7 +136,7 @@ void RenderGraph::finish() {
 }
 
 void RenderGraph::set_resource_usage(
-    BufferHandle buffer, VkPipelineStageFlags2KHR pipeline_stage, VkAccessFlags2KHR access
+    const BufferHandle buffer, const VkPipelineStageFlags2KHR pipeline_stage, const VkAccessFlags2KHR access
 ) {
     if (!initial_buffer_usages.contains(buffer)) {
         initial_buffer_usages.emplace(buffer, BufferUsageToken{pipeline_stage, access});
@@ -153,7 +165,8 @@ void RenderGraph::set_resource_usage(
 }
 
 void RenderGraph::set_resource_usage(
-    TextureHandle texture, VkPipelineStageFlags2KHR pipeline_stage, VkAccessFlags2KHR access, VkImageLayout layout
+    const TextureHandle texture, const VkPipelineStageFlags2KHR pipeline_stage, const VkAccessFlags2KHR access,
+    const VkImageLayout layout
 ) {
     auto& allocator = backend.get_global_allocator();
     const auto& texture_actual = allocator.get_texture(texture);
@@ -165,6 +178,10 @@ void RenderGraph::set_resource_usage(
     if (!initial_texture_usages.contains(texture)) {
         initial_texture_usages.emplace(texture, TextureUsageToken{pipeline_stage, access, layout});
 
+        logger->trace(
+            "Transitioning image {} from {} to {}", texture_actual.name,
+            magic_enum::enum_name(VK_IMAGE_LAYOUT_UNDEFINED), magic_enum::enum_name(layout)
+        );
         image_barriers.emplace_back(
             VkImageMemoryBarrier2KHR{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
@@ -186,8 +203,13 @@ void RenderGraph::set_resource_usage(
         );
     }
 
+
     // Always issue a barrier between usages, even if they're the same
     if (const auto& itr = last_texture_usages.find(texture); itr != last_texture_usages.end()) {
+        logger->trace(
+            "Transitioning image {} from {} to {}", texture_actual.name,
+            magic_enum::enum_name(itr->second.layout), magic_enum::enum_name(layout)
+        );
         image_barriers.emplace_back(
             VkImageMemoryBarrier2KHR{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,

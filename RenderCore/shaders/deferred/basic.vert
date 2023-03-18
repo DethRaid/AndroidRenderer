@@ -9,7 +9,7 @@ layout(set = 0, binding = 0) uniform CameraData {
     mat4 projection;
 } camera_data;
 
-layout(std430, set = 0, binding = 1) readonly buffer PrimitiveDataBuffer {
+layout(std430, set = 1, binding = 0) readonly buffer PrimitiveDataBuffer {
     PrimitiveDataGPU primitive_datas[];
 } primitive_data_buffer;
 

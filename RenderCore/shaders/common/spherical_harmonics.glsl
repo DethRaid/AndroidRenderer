@@ -15,6 +15,7 @@ vec4 sh_rotate(const in vec3 vec, const in vec2 zh_coeffs) {
     // beware of singularity when both x and y are 0 (no need to rotate at all)
     vec2 theta12_cs = normalize(vec.xy);
 
+	// Is this what they meant? lol
 	if(length(vec.xy) == 0.0) {
 		theta12_cs = vec.xy;
 	}

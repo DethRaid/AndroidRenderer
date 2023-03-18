@@ -2,6 +2,7 @@
 
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/resource_upload_queue.hpp"
+#include "shared/vertex_data.hpp"
 
 constexpr const uint32_t max_num_vertices = 1000000;
 constexpr const uint32_t max_num_indices = 1000000;

@@ -3,8 +3,10 @@
 #include <glm/vec3.hpp>
 
 #include "render/mesh_drawer.hpp"
+#include "render/backend/compute_shader.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/pipeline.hpp"
+#include "render/backend/resource_allocator.hpp"
 
 class MeshStorage;
 class RenderBackend;
@@ -23,22 +25,39 @@ class RenderScene;
  */
 class LpvGvVoxelizer {
 public:
-    explicit LpvGvVoxelizer(RenderBackend& backend_in, glm::uvec3 voxel_texture_resolution);
+    explicit LpvGvVoxelizer() = default;
 
     ~LpvGvVoxelizer();
 
-    void set_view(SceneDrawer&& view);
+    void init_resources(RenderBackend& backend_in, uint32_t voxel_texture_resolution);
 
-    void voxelize_scene(RenderGraph& graph);
+    void deinit_resources(ResourceAllocator& allocator);
+
+    void set_scene(RenderScene& scene_in, MeshStorage& meshes_in);
+
+    void voxelize_scene(RenderGraph& graph, const glm::vec3& voxel_bounds_min, const glm::vec3& voxel_bounds_max) const;
 
     TextureHandle get_texture() const;
 
 private:
-    TextureHandle volume_handle = TextureHandle::None;
+    uint32_t resolution = 0;
+    
+    TextureHandle voxel_texture = TextureHandle::None;
+        
+    BufferHandle volume_uniform_buffer = BufferHandle::None;
 
-    RenderBackend& backend;
+    BufferHandle transformed_primitive_cache = BufferHandle::None;
 
-    SceneDrawer drawer;
+    ComputeShader texture_clear_shader;
 
-    Pipeline pipeline;
+    ComputeShader transform_verts_shader;
+
+    ComputeShader rasterize_primitives_shader;
+
+    ComputeShader normalize_gv_shader;
+
+    RenderBackend* backend;
+
+    RenderScene* scene;
+    MeshStorage* meshes;
 };

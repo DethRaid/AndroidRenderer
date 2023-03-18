@@ -101,10 +101,12 @@ public:
 
     PipelineBuilder& set_raster_state(const RasterState& raster_state_in);
 
+    PipelineBuilder& add_blend_flag(VkPipelineColorBlendStateCreateFlagBits flag);
+
     PipelineBuilder& set_blend_state(uint32_t color_target_index, const VkPipelineColorBlendAttachmentState& blend);
 
     Pipeline build();
-
+    
 private:
     VkDevice device;
 
@@ -141,6 +143,7 @@ private:
     
     VkPipelineRasterizationStateCreateInfo raster_state = {};
 
+    VkPipelineColorBlendStateCreateFlags blend_flags = {};
     std::vector<VkPipelineColorBlendAttachmentState> blends = {};
 
     std::vector<VkVertexInputBindingDescription> vertex_inputs;
@@ -196,6 +199,8 @@ private:
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
 
     VkPipelineRasterizationStateCreateInfo raster_state = {};
+
+    VkPipelineColorBlendStateCreateFlags blend_flags = {};
 
     std::vector<VkPipelineColorBlendAttachmentState> blends = {};
 

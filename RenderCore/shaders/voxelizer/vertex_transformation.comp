@@ -1,0 +1,103 @@
+#version 460
+
+/**
+ * Transform triangles
+ */
+ 
+#extension GL_GOOGLE_include_directive : enable
+
+#include "shared/vertex_data.hpp"
+#include "voxelizer/triangle.glsl"
+
+struct PrimitiveDataGPU {
+    mat4 model;
+};
+
+layout(set = 0, binding = 0, std430) readonly buffer VertexPositionBuffer {
+    vec3 positions[];
+};
+
+layout(set = 0, binding = 1, std430) readonly buffer VertexDataBuffer {
+    StandardVertexData vertex_data[];
+};
+
+layout(set = 0, binding = 2, std430) readonly buffer IndexBuffer {
+    uint indices[];
+};
+
+layout(set = 0, binding = 3, std140) uniform VoxelBoundsBuffer {
+    mat4 world_to_bounds;
+};
+
+layout(set = 0, binding = 4, std430) readonly buffer PrimitiveDataBuffer {
+    PrimitiveDataGPU primitive_datas[];
+};
+
+layout(set = 0, binding = 5, std430) writeonly buffer VertexOutputPositionBuffer {
+    Triangle triangles[];
+};
+
+layout(push_constant) uniform Constants {
+    uint primitive_id;
+    uint first_vertex;
+    uint first_index;
+    uint num_indices;
+    uint padding4;
+    uint padding5;
+    uint padding6;
+    uint padding7;
+};
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+shared mat4 mvp;
+shared mat3 normal_matrix;
+
+void main() {
+    if(gl_GlobalInvocationID.x >= num_indices / 3) {
+        return;
+    }
+
+    if(gl_LocalInvocationIndex == 0) {
+        // Load the primitive data, calcualte the MVP matrix
+
+        PrimitiveDataGPU primitive_data = primitive_datas[primitive_id];
+        mvp = world_to_bounds * primitive_data.model;
+
+        // TODO: Upload normal matrix in primitive data so we can support non-uniform scaling
+        normal_matrix = mat3(primitive_data.model);
+    }
+
+    memoryBarrierShared();
+    barrier();
+
+    uint triangle_id = gl_GlobalInvocationID.x;
+    uint provoking_index = triangle_id * 3;
+
+    // Pull this triangle and transform it
+    uint index0 = first_vertex + indices[first_index + provoking_index];
+    uint index1 = first_vertex + indices[first_index + provoking_index + 1];
+    uint index2 = first_vertex + indices[first_index + provoking_index + 2];
+
+    vec4 position0 = vec4(positions[index0], 1.f);
+    vec4 position1 = vec4(positions[index1], 1.f);
+    vec4 position2 = vec4(positions[index2], 1.f);
+
+    // TODO: Programmable vertex shader?
+
+    position0 = mvp * position0;
+    position0 /= position0.w;
+    position1 = mvp * position1;
+    position1 /= position1.w;
+    position2 = mvp * position2;
+    position2 /= position2.w;
+
+    triangles[triangle_id].min = min(position0.xyz, min(position1.xyz, position2.xyz));
+    triangles[triangle_id].max = max(position0.xyz, max(position1.xyz, position2.xyz));
+    
+    vec3 normal = normal_matrix * vertex_data[index0].normal;
+    normal += normal_matrix * vertex_data[index1].normal;
+    normal += normal_matrix * vertex_data[index2].normal;
+
+    triangles[triangle_id].normal = normalize(normal);
+}   

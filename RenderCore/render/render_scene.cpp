@@ -59,7 +59,7 @@ const std::vector<PooledObject<MeshPrimitive>>& RenderScene::get_solid_primitive
     return solid_primitives;
 }
 
-BufferHandle RenderScene::get_primitive_buffer() {
+BufferHandle RenderScene::get_primitive_buffer() const {
     return primitive_data_buffer;
 }
 

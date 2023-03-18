@@ -194,6 +194,6 @@ void CommandBuffer::update_buffer(BufferHandle buffer, const DataType& data, con
 }
 
 
-#define GpuZoneScopedN(commands, name) TracyVkZone(commands.get_tracy_context(), commands.get_vk_commands(), name)
+#define GpuZoneScopedN(commands, name) ZoneScopedN(name); TracyVkZone((commands).get_tracy_context(), (commands).get_vk_commands(), name)
 
 #define GpuZoneScoped(commands) GpuZoneScopedN(commands, __func__)

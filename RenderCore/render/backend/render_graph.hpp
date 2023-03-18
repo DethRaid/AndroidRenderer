@@ -5,8 +5,6 @@
 
 class RenderBackend;
 
-using TextureUsageMap = std::unordered_map<TextureHandle, TextureUsageToken>;
-
 /**
  * Basic render graph
  *
@@ -58,8 +56,9 @@ private:
 
     void set_resource_usage(BufferHandle buffer, VkPipelineStageFlags2KHR pipeline_stage, VkAccessFlags2KHR access);
 
-    void set_resource_usage(TextureHandle texture, VkPipelineStageFlags2KHR pipeline_stage, VkAccessFlags2KHR access, VkImageLayout layout);
+    void set_resource_usage(
+        TextureHandle texture, VkPipelineStageFlags2KHR pipeline_stage, VkAccessFlags2KHR access, VkImageLayout layout
+    );
 
     void issue_barriers(const CommandBuffer& cmds);
 };
-

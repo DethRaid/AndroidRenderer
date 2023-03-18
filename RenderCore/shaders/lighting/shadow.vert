@@ -13,7 +13,7 @@ layout(set = 0, binding = 0, std140) uniform ShadowCascadesBuffer {
     SunLightConstants sun_light;
 };
 
-layout(std430, set = 0, binding = 1) readonly buffer PrimitiveDataBuffer {
+layout(std430, set = 1, binding = 0) readonly buffer PrimitiveDataBuffer {
     PrimitiveDataGPU primitive_datas[];
 } primitive_data_buffer;
 

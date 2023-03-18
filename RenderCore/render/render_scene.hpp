@@ -28,7 +28,7 @@ public:
 
     const std::vector<PooledObject<MeshPrimitive>>& get_solid_primitives() const;
 
-    BufferHandle get_primitive_buffer();
+    BufferHandle get_primitive_buffer() const;
 
     SunLight &get_sun_light();
 

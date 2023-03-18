@@ -28,6 +28,8 @@ layout(set = 0, binding = 3, rgba16f) uniform writeonly image3D write_lpv_red;
 layout(set = 0, binding = 4, rgba16f) uniform writeonly image3D write_lpv_green;
 layout(set = 0, binding = 5, rgba16f) uniform writeonly image3D write_lpv_blue;
 
+layout(set = 0, binding = 6, rgba16f) uniform readonly image3D geo_volume;
+
 layout(push_constant) uniform Constants {
     int cascade_index;
     uint padding1;
@@ -98,6 +100,8 @@ void main() {
 
         ivec3 neighbor_cell = cell - ivec3(directions[neighbor]);
 
+        vec4 gv_sh = imageLoad(geo_volume, neighbor_cell);
+
         vec4 red_coefficients = imageLoad(read_lpv_red, neighbor_cell + cascade_offset);
         vec4 green_coefficients = imageLoad(read_lpv_green, neighbor_cell + cascade_offset);
         vec4 blue_coefficients = imageLoad(read_lpv_blue, neighbor_cell + cascade_offset);
@@ -112,18 +116,22 @@ void main() {
             vec4 eval_direction_sh = dir_to_sh(eval_direction);
             vec4 reproj_direction_cosine_lobs_sh = dir_to_cosine_lobe(reproj_direction);
 
-            red_data += side_face_subtended_solid_angle * dot(red_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh;
-            green_data += side_face_subtended_solid_angle * dot(green_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh;
-            blue_data += side_face_subtended_solid_angle * dot(blue_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh;
+            float geo_volume_factor = 1.0 - clamp(gv_sh.x * eval_direction_sh.x + abs(dot(gv_sh.yzw, eval_direction_sh.yzw)), 0.0, 1.0);
+
+            red_data += side_face_subtended_solid_angle * dot(red_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh * geo_volume_factor;
+            green_data += side_face_subtended_solid_angle * dot(green_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh * geo_volume_factor;
+            blue_data += side_face_subtended_solid_angle * dot(blue_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh * geo_volume_factor;
         }
 
         vec3 cur_direction = directions[neighbor];
         vec4 cur_cosine_lobe = dir_to_cosine_lobe(cur_direction);
         vec4 cur_direction_sh = dir_to_sh(cur_direction);
 
-        red_data += direct_face_subtended_solid_angle * dot(red_coefficients, cur_direction_sh) * cur_cosine_lobe;
-        green_data += direct_face_subtended_solid_angle * dot(green_coefficients, cur_direction_sh) * cur_cosine_lobe;
-        blue_data += direct_face_subtended_solid_angle * dot(blue_coefficients, cur_direction_sh) * cur_cosine_lobe;
+        float geo_volume_factor = 1.0 - clamp(gv_sh.x * cur_direction_sh.x + abs(dot(gv_sh.yzw, cur_direction_sh.yzw)), 0.0, 1.0);
+
+        red_data += direct_face_subtended_solid_angle * dot(red_coefficients, cur_direction_sh) * cur_cosine_lobe * geo_volume_factor;
+        green_data += direct_face_subtended_solid_angle * dot(green_coefficients, cur_direction_sh) * cur_cosine_lobe * geo_volume_factor;
+        blue_data += direct_face_subtended_solid_angle * dot(blue_coefficients, cur_direction_sh) * cur_cosine_lobe * geo_volume_factor;
     }
 
     red_data += imageLoad(read_lpv_red, cell + cascade_offset);

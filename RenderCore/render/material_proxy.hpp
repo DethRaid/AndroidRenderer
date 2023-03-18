@@ -1,8 +1,12 @@
 #pragma once
 
+#include <unordered_map>
 #include <utility>
 
 #include <volk.h>
+
+#include "render/scene_pass_type.hpp"
+#include "render/backend/pipeline.hpp"
 
 struct BasicPbrMaterial;
 
@@ -14,8 +18,7 @@ class RenderBackend;
  * Immutable once created. To bind new resources, destroy this proxy and make a new one
  */
 struct MaterialProxy {
-public:
-    static MaterialProxy create(const BasicPbrMaterial& material, RenderBackend& backend);
+    std::unordered_map<ScenePassType, Pipeline> pipelines;
 
     VkDescriptorSet descriptor_set;
 };

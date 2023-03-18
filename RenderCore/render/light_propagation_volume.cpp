@@ -129,202 +129,6 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                    }
                                )
                                .build();
-
-    // RSM + VPL
-    {
-        const auto attachments = std::array{
-            // RSM flux
-            VkAttachmentDescription{
-                .format = VK_FORMAT_R8G8B8A8_SRGB,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-            },
-
-            // RSM normals
-            VkAttachmentDescription{
-                .format = VK_FORMAT_R8G8B8A8_UNORM,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-            },
-
-            // Depth buffer
-            VkAttachmentDescription{
-                .format = VK_FORMAT_D16_UNORM,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-            }
-        };
-
-        const auto rsm_attachments = std::array{
-            // Flux
-            VkAttachmentReference{
-                .attachment = 0,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            },
-            // Normals
-            VkAttachmentReference{
-                .attachment = 1,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            }
-        };
-        const auto depth_attachment = VkAttachmentReference{
-            .attachment = 2,
-            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        };
-
-        const auto vpl_input_attachments = std::array{
-            // Flux
-            VkAttachmentReference{
-                .attachment = 0,
-                .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            },
-            // Normals
-            VkAttachmentReference{
-                .attachment = 1,
-                .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            },
-            // Depth
-            VkAttachmentReference{
-                .attachment = 2,
-                .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-            }
-        };
-
-        const auto subpasses = std::array{
-            // Shadow + RSM
-            VkSubpassDescription{
-                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                .colorAttachmentCount = static_cast<uint32_t>(rsm_attachments.size()),
-                .pColorAttachments = rsm_attachments.data(),
-                .pDepthStencilAttachment = &depth_attachment,
-            },
-
-            // VPL list extraction
-            VkSubpassDescription{
-                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                .inputAttachmentCount = static_cast<uint32_t>(vpl_input_attachments.size()),
-                .pInputAttachments = vpl_input_attachments.data(),
-            }
-        };
-
-        const auto dependencies = std::array{
-            // VPL depends on RSM
-            VkSubpassDependency{
-                .srcSubpass = 0,
-                .dstSubpass = 1,
-                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-            }
-        };
-
-        const auto create_info = VkRenderPassCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-            .attachmentCount = static_cast<uint32_t>(attachments.size()),
-            .pAttachments = attachments.data(),
-            .subpassCount = static_cast<uint32_t>(subpasses.size()),
-            .pSubpasses = subpasses.data(),
-            .dependencyCount = static_cast<uint32_t>(dependencies.size()),
-            .pDependencies = dependencies.data()
-        };
-
-        const auto result = vkCreateRenderPass(backend.get_device().device, &create_info, nullptr, &rsm_render_pass);
-        if (result != VK_SUCCESS) {
-            logger->error("Could not create RSM renderpass. Vulkan error {}", result);
-        } else {
-            logger->info("RSM renderpass created!");
-        }
-    }
-
-    // VPL injection
-    {
-        const auto attachments = std::array{
-            // LPV Red
-            VkAttachmentDescription{
-                .format = VK_FORMAT_R16G16B16A16_SFLOAT,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-            },
-
-            // LPV Green
-            VkAttachmentDescription{
-                .format = VK_FORMAT_R16G16B16A16_SFLOAT,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-            },
-
-            // LPV Blue
-            VkAttachmentDescription{
-                .format = VK_FORMAT_R16G16B16A16_SFLOAT,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-            }
-        };
-
-        const auto subpass_attachments = std::array{
-            // LPV Red
-            VkAttachmentReference{
-                .attachment = 0,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            },
-            // LPV Green
-            VkAttachmentReference{
-                .attachment = 1,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            },
-            // LPV Blue
-            VkAttachmentReference{
-                .attachment = 2,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            }
-        };
-
-        const auto subpasses = std::array{
-            // VPL Injection
-            VkSubpassDescription{
-                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                .colorAttachmentCount = static_cast<uint32_t>(subpass_attachments.size()),
-                .pColorAttachments = subpass_attachments.data(),
-            },
-        };
-
-        const auto create_info = VkRenderPassCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-            .attachmentCount = static_cast<uint32_t>(attachments.size()),
-            .pAttachments = attachments.data(),
-            .subpassCount = static_cast<uint32_t>(subpasses.size()),
-            .pSubpasses = subpasses.data()
-        };
-
-        const auto result = vkCreateRenderPass(
-            backend.get_device().device, &create_info, nullptr, &vpl_injection_render_pass
-        );
-        if (result != VK_SUCCESS) {
-            logger->error("Could not create LPV injection renderpass. Vulkan error {}", magic_enum::enum_name(result));
-        } else {
-            logger->info("LPV injection renderpass created!");
-        }
-    }
 }
 
 void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
@@ -384,12 +188,17 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
             fmt::format("Cascade {} VPL List", cascade_index),
             sizeof(PackedVPL) * 65536, BufferUsage::StorageBuffer
         );
+        cascade.voxels.init_resources(backend, size);
         cascade_index++;
     }
 }
 
-void LightPropagationVolume::set_rsm_view(SceneDrawer&& mesh_drawer) {
-    rsm_drawer = std::move(mesh_drawer);
+void LightPropagationVolume::set_scene(RenderScene& scene_in, MeshStorage& meshes_in) {
+    rsm_drawer = scene_in.create_view(ScenePassType::RSM, meshes_in);
+
+    for (auto& cascade : cascades) {
+        cascade.voxels.set_scene(scene_in, meshes_in);
+    }
 }
 
 void LightPropagationVolume::update_cascade_transforms(const SceneTransform& view, const SunLight& light) {
@@ -444,6 +253,9 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
             rsm_pullback_distance * 2.f
         );
         cascade.rsm_vp = rsm_projection_matrix * rsm_view_matrix;
+
+        cascade.min_bounds = offset - glm::vec3{half_cascade_size};
+        cascade.max_bounds = offset + glm::vec3{half_cascade_size};
     }
 }
 
@@ -526,12 +338,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                                           VK_SHADER_STAGE_VERTEX_BIT
                                                       )
                                                       .bind_buffer(
-                                                          1, {.buffer = scene.get_primitive_buffer(),},
-                                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                          VK_SHADER_STAGE_VERTEX_BIT
-                                                      )
-                                                      .bind_buffer(
-                                                          2, {.buffer = scene.get_sun_light().get_constant_buffer()},
+                                                          1, {.buffer = scene.get_sun_light().get_constant_buffer()},
                                                           VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                                           VK_SHADER_STAGE_FRAGMENT_BIT
                                                       )
@@ -617,32 +424,6 @@ void LightPropagationVolume::inject_indirect_sun_light(
         graph.add_render_pass(
             {
                 .name = "VPL Injection",
-                .textures = {
-                    {
-                        lpv_a_red,
-                        {
-                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                            VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                        }
-                    },
-                    {
-                        lpv_a_green,
-                        {
-                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                            VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                        }
-                    },
-                    {
-                        lpv_a_blue,
-                        {
-                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                            VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                        }
-                    },
-                },
                 .buffers = {
                     {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
@@ -682,6 +463,8 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 }
             }
         );
+
+        cascade.voxels.voxelize_scene(graph, cascade.min_bounds, cascade.max_bounds);
 
         cascade_index++;
     }
@@ -793,7 +576,6 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
 void LightPropagationVolume::add_lighting_to_scene(
     CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor, const BufferHandle scene_view_buffer
 ) {
-    ZoneScoped;
     GpuZoneScoped(commands);
 
     commands.begin_label("LightPropagationVolume::add_lighting_to_scene");
@@ -909,6 +691,13 @@ void LightPropagationVolume::perform_propagation_step(
                         VK_IMAGE_LAYOUT_GENERAL
                     }
                 },
+                {
+                    cascades[0].voxels.get_texture(),
+                    {
+                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
+                        VK_IMAGE_LAYOUT_GENERAL
+                    }
+                },
             },
             .execute = [&](CommandBuffer& commands) {
                 GpuZoneScopedN(commands, "Perform propagation step");
@@ -956,6 +745,14 @@ void LightPropagationVolume::perform_propagation_step(
                                                     .bind_image(
                                                         5, {
                                                             .image = write_blue,
+                                                            .image_layout = VK_IMAGE_LAYOUT_GENERAL
+                                                        },
+                                                        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                                        VK_SHADER_STAGE_COMPUTE_BIT
+                                                    )
+                                                    .bind_image(
+                                                        6, {
+                                                            .image = cascades[0].voxels.get_texture(),
                                                             .image_layout = VK_IMAGE_LAYOUT_GENERAL
                                                         },
                                                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,

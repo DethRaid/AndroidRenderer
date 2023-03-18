@@ -22,3 +22,19 @@ enum class ScenePassType {
      */
     Vozelization
 };
+
+inline bool is_color_pass(const ScenePassType pass_type) {
+    switch(pass_type) {
+    case ScenePassType::RSM:
+        [[fallthrough]];
+    case ScenePassType::Gbuffer:
+        return true;
+
+    case ScenePassType::Shadow:
+        [[fallthrough]];
+    case ScenePassType::Vozelization:
+        return false;
+    }
+
+    return false;
+}

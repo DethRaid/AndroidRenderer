@@ -5,8 +5,6 @@
 #include <magic_enum.hpp>
 
 #include "render_backend.hpp"
-
-#include "buffer_usage_token.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 #include "render/backend/resource_upload_queue.hpp"
@@ -157,7 +155,7 @@ void RenderBackend::create_instance_and_device() {
 #endif
         instance_builder.enable_validation_layers(true)
                         .request_validation_layers(true)
-                        .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
+                        // .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
                         .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT)
                         .set_debug_callback(debug_callback);
 
@@ -267,13 +265,12 @@ void RenderBackend::create_instance_and_device() {
                           .add_pNext(&sync_2_features);
 
     // Set up device creation info for Aftermath feature flag configuration.
+#if defined(_WIN32)
     auto aftermath_flags = static_cast<VkDeviceDiagnosticsConfigFlagsNV>(
         VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_RESOURCE_TRACKING_BIT_NV |
         VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_AUTOMATIC_CHECKPOINTS_BIT_NV |
-        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_DEBUG_INFO_BIT_NV
-        #if defined(_WIN32)
-        | VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_ERROR_REPORTING_BIT_NV
-        #endif
+        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_DEBUG_INFO_BIT_NV | 
+        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_ERROR_REPORTING_BIT_NV
     );
     auto device_diagnostics_info = VkDeviceDiagnosticsConfigCreateInfoNV{
         .sType = VK_STRUCTURE_TYPE_DEVICE_DIAGNOSTICS_CONFIG_CREATE_INFO_NV,
@@ -286,6 +283,7 @@ void RenderBackend::create_instance_and_device() {
     ) != extensions.end()) {
         device_builder.add_pNext(&device_diagnostics_info);
     }
+#endif
 
     auto device_ret = device_builder.build();
     if (!device_ret) {

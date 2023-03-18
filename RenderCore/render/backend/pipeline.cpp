@@ -13,6 +13,7 @@
 #include "render/backend/render_backend.hpp"
 #include "magic_enum.hpp"
 #include "core/system_interface.hpp"
+#include "shared/vertex_data.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
@@ -104,6 +105,7 @@ bool collect_vertex_attributes(
 PipelineBuilder::PipelineBuilder(VkDevice device_in) : device{device_in} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("PipelineBuilder");
+        logger->set_level(spdlog::level::debug);
     }
 
     set_depth_state({});
@@ -303,6 +305,12 @@ PipelineBuilder& PipelineBuilder::set_raster_state(const RasterState& raster_sta
     return *this;
 }
 
+PipelineBuilder& PipelineBuilder::add_blend_flag(VkPipelineColorBlendStateCreateFlagBits flag) {
+    blend_flags |= flag;
+
+    return *this;
+}
+
 PipelineBuilder&
 PipelineBuilder::set_blend_state(
     uint32_t color_target_index,
@@ -426,6 +434,7 @@ Pipeline PipelineBuilder::build() {
 
     pipeline.depth_stencil_state = depth_stencil_state;
     pipeline.raster_state = raster_state;
+    pipeline.blend_flags = blend_flags;
     pipeline.blends = blends;
 
     pipeline.topology = topology;
@@ -784,6 +793,7 @@ void Pipeline::create_vk_pipeline(
 
         const auto color_blend_state = VkPipelineColorBlendStateCreateInfo{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+            .flags = blend_flags,
             .attachmentCount = static_cast<uint32_t>(blends.size()),
             .pAttachments = blends.data(),
         };
