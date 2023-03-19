@@ -5,6 +5,7 @@
 - Install [libKTX](https://github.com/KhronosGroup/KTX-Software). Find the latest release in the Releases tab and install it to `D:/Program Files/KTX-Software`. If your system does not have a D drive, you'll have to modify `RenderCore/extern/extern.cmake` to set `KTX_DIR` to the directory you installed libKTX to
 - This could be avoided if `libKTX` didn't have a hard dependency on Bash... which isn't installed on Windows....
 - You'll also need to install the Vulkan SDK and add it's `bin` directory to your PATH
+- Download "the glTF Sponza" from https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/Sponza. You'll need to manually copy it to your working directory before running
 
 ## Android build
 

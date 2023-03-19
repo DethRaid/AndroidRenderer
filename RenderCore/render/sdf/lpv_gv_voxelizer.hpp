@@ -45,6 +45,7 @@ private:
     TextureHandle voxel_texture = TextureHandle::None;
         
     BufferHandle volume_uniform_buffer = BufferHandle::None;
+    
 
     BufferHandle transformed_primitive_cache = BufferHandle::None;
 

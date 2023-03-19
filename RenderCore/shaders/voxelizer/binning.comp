@@ -16,7 +16,7 @@ layout(set = 0, binding = 0, std430) readonly buffer VertexOutputPositionBuffer 
 layout(set = 0, binding = 1, rgba16f) uniform image3D voxels;
 
 layout(push_constant) uniform Constants {
-    uint num_indices;
+    uint num_triangles;
     uint padding1;
     uint padding2;
     uint padding3;
@@ -28,13 +28,15 @@ layout(push_constant) uniform Constants {
 
 layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
 
+#define UINTS_PER_BIN (32768 / 32)
+
 // Note: We should plan for a max of 16384 bytes of shared memory
 shared vec3 bin_min;
 shared vec3 bin_max;
-shared uint bin_bits[512];
+shared uint bin_bits[UINTS_PER_BIN];
 
 bool is_triangle_in_bin(Triangle triangle) {
-    // If the triangle is not in the bin's AABB, return false
+    // If the triangle's AABB doesn't overlap the bin's AABB, return false
     if(all(greaterThan(triangle.min, bin_max)) || all(lessThan(triangle.max, bin_min))) {
         return false;
     }
@@ -47,7 +49,7 @@ void main() {
     // Setup phase - set 1/32 of the bin bits to 0
 
     uint range_idx = gl_LocalInvocationIndex;    
-    uint uints_per_thread = 512 / 32;
+    uint uints_per_thread = UINTS_PER_BIN / 32;
     uint first_index = range_idx * uints_per_thread;
     for(uint i = first_index; i < first_index + uints_per_thread; i++) {
         bin_bits[i] = 0;
@@ -64,10 +66,11 @@ void main() {
     memoryBarrierShared();
     barrier();
 
+    // First phase: Each thread tests 
+
     // First phase: Each thread tests 1/32 of the post-transform triangles to determine which are in this bin
 
-    uint total_num_triangles = num_indices / 3;
-    uint triangles_per_thread = total_num_triangles / 32;
+    uint triangles_per_thread = num_triangles / 32;
     uint first_triangle = range_idx * triangles_per_thread;
 
     for(uint triangle_idx = first_triangle; triangle_idx < first_triangle + triangles_per_thread; triangle_idx++) {
@@ -89,7 +92,13 @@ void main() {
     // their SHes to an accumulator. We flush the accumulator to the image at the end - each thread only reads and 
     // writes to its pixel, so no atomic operations are needed (yayyyyyyyy)
 
+    // Load into shared memory or something
     vec4 sh = imageLoad(voxels, ivec3(gl_GlobalInvocationID));
+
+    // TODO: Each thread should only load one triangle. It should test it against each cell in the bin, and push its SH
+    // to any cell that it intersects
+
+    // TODO: Store the triangle's bounding box and SH projection separately
 
     // Add triangles as needed
     for(uint i = 0; i < bin_bits.length(); i++) {

@@ -14,7 +14,7 @@ static std::shared_ptr<spdlog::logger> logger;
 
 static AutoCVar_Int cvar_enable_validation_layers{
     "r.vulkan.EnableValidationLayers",
-    "Whether to enable Vulkan validation layers", 1
+    "Whether to enable Vulkan validation layers", 0
 };
 
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
@@ -224,7 +224,6 @@ void RenderBackend::create_instance_and_device() {
     auto phys_device_ret = vkb::PhysicalDeviceSelector{instance}
                            .set_surface(surface)
                            .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
-                           .add_required_extension(VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME)
                            .add_required_extension(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME)
                            .add_required_extension(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME)
 #if defined(_WIN32)
@@ -239,11 +238,7 @@ void RenderBackend::create_instance_and_device() {
         throw std::runtime_error{error_message};
     }
     physical_device = phys_device_ret.value();
-
-    auto shader16_features = VkPhysicalDeviceShaderFloat16Int8FeaturesKHR{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES_KHR,
-        .shaderFloat16 = VK_TRUE,
-    };
+    
 
     auto multiview_features = VkPhysicalDeviceMultiviewFeatures{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
@@ -265,7 +260,6 @@ void RenderBackend::create_instance_and_device() {
     };
 
     auto device_builder = vkb::DeviceBuilder{physical_device}
-                          .add_pNext(&shader16_features)
                           .add_pNext(&multiview_features)
                           .add_pNext(&descriptor_indexing_features)
                           .add_pNext(&sync_2_features)

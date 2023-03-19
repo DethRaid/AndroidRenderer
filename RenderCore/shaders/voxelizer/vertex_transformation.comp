@@ -45,7 +45,7 @@ layout(push_constant) uniform Constants {
     uint first_vertex;
     uint first_index;
     uint num_indices;
-    uint padding4;
+    uint triangle_cache_offset;
     uint padding5;
     uint padding6;
     uint padding7;
@@ -102,5 +102,5 @@ void main() {
     normal += normal_matrix * vertex_data[index1].normal;
     normal += normal_matrix * vertex_data[index2].normal;
 
-    triangles[triangle_id].normal_sh = sh_project_cone(normalize(normal));
+    triangles[triangle_cache_offset + triangle_id].normal_sh = sh_project_cone(normalize(normal));
 }   
