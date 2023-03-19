@@ -35,12 +35,12 @@ shared uint bin_bits[512];
 
 bool is_triangle_in_bin(Triangle triangle) {
     // If the triangle is not in the bin's AABB, return false
-    if((triangle.max.x - bin_min.x) * (triangle.min.x - bin_max.x) >= 0.0  ||
-        (triangle.max.y - bin_min.y) * (triangle.min.y - bin_max.y) >= 0.0 ||
-        (triangle.max.z - bin_min.z) * (triangle.min.z - bin_max.z) >= 0.0) {
+    if(all(greaterThan(triangle.min, bin_max)) || all(lessThan(triangle.max, bin_min))) {
         return false;
     }
-    return false;
+
+    // Otherwise return true (for now)
+    return true;
 }
 
 void main() {
@@ -59,9 +59,6 @@ void main() {
         // 4x4x4 bins in a 32x32x32 image - 8 bins in all directions
         bin_min = vec3(bin_idx) / 8.f;
         bin_max = bin_min + (1.f / 8.f);
-        // Bin -> NDC
-        bin_min = bin_min * 2.f - 1.f;
-        bin_max = bin_max * 2.f - 1.f;
     }
 
     memoryBarrierShared();
