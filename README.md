@@ -1,5 +1,10 @@
 # Render thing
 
+## Build Prerequisites
+
+- Install [libKTX](https://github.com/KhronosGroup/KTX-Software). Find the latest release in the Releases tab and install it to `D:/Program Files/KTX-Software/lib/cmake/ktx`. If your system does not have a D drive, you'll have to modify `RenderCore/extern/extern.cmake` to set `KTX_DIR` to the directory you installed libKTX to
+- This could be avoided if `libKTX` didn't ahve a hard dependency on Bash... which isn't installed on Windows....
+
 ## Android build
 
 - Symlink or copy the folder `RenderCore/Shaders/` to `app/src/main/shaders/`
