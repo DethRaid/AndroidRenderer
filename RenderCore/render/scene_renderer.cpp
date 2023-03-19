@@ -111,7 +111,7 @@ void SceneRenderer::render() {
             .buffers = {
                 {
                     scene->get_primitive_buffer(),
-                    {.stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, .access = VK_ACCESS_SHADER_READ_BIT}
+                    {.stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, .access = VK_ACCESS_SHADER_READ_BIT}
                 }
             }
         }

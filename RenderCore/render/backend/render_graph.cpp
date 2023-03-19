@@ -12,6 +12,22 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
+bool is_write_access(const VkAccessFlagBits2KHR access) {
+    constexpr auto write_mask =
+        VK_ACCESS_2_SHADER_WRITE_BIT_KHR |
+        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR |
+        VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR |
+        VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR |
+        VK_ACCESS_2_HOST_WRITE_BIT_KHR |
+        VK_ACCESS_2_MEMORY_WRITE_BIT_KHR |
+        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT_KHR |
+        VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT |
+        VK_ACCESS_2_COMMAND_PREPROCESS_WRITE_BIT_NV |
+        VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
+        VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_NV;
+    return (access & write_mask) != 0;
+}
+
 RenderGraph::RenderGraph(RenderBackend& backend_in) : backend{backend_in}, cmds{backend.create_command_buffer()} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("RenderGraph");
@@ -56,7 +72,7 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     logger->debug("Adding render pass {}", pass.name);
 
     auto& allocator = backend.get_global_allocator();
-    
+
     const auto render_pass = allocator.get_render_pass(pass);
 
     // Update state tracking, accumulating barrier for buffers and non-attachment images
@@ -143,9 +159,15 @@ void RenderGraph::set_resource_usage(
     }
 
     if (const auto& itr = last_buffer_usages.find(buffer); itr != last_buffer_usages.end()) {
-        if (itr->second.stage != pipeline_stage || itr->second.access != access) {
+        // Issue a barrier if either (or both) of the accesses require writing
+        if (is_write_access(access) || is_write_access(itr->second.access)) {
             auto& allocator = backend.get_global_allocator();
             const auto& buffer_actual = allocator.get_buffer(buffer);
+
+            logger->trace(
+                "Issuing a barrier from access {:x} to access {:x} for buffer {}", itr->second.access, access,
+                buffer_actual.name
+            );
 
             buffer_barriers.emplace_back(
                 VkBufferMemoryBarrier2KHR{
@@ -203,32 +225,33 @@ void RenderGraph::set_resource_usage(
         );
     }
 
-
-    // Always issue a barrier between usages, even if they're the same
     if (const auto& itr = last_texture_usages.find(texture); itr != last_texture_usages.end()) {
-        logger->trace(
-            "Transitioning image {} from {} to {}", texture_actual.name,
-            magic_enum::enum_name(itr->second.layout), magic_enum::enum_name(layout)
-        );
-        image_barriers.emplace_back(
-            VkImageMemoryBarrier2KHR{
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
-                .srcStageMask = itr->second.stage,
-                .srcAccessMask = itr->second.access,
-                .dstStageMask = pipeline_stage,
-                .dstAccessMask = access,
-                .oldLayout = itr->second.layout,
-                .newLayout = layout,
-                .image = texture_actual.image,
-                .subresourceRange = {
-                    .aspectMask = static_cast<VkImageAspectFlags>(aspect),
-                    .baseMipLevel = 0,
-                    .levelCount = texture_actual.create_info.mipLevels,
-                    .baseArrayLayer = 0,
-                    .layerCount = texture_actual.create_info.arrayLayers,
+        // Issue a barrier if either (or both) of the accesses require writing
+        if (is_write_access(access) || is_write_access(itr->second.access)) {
+            logger->trace(
+                "Transitioning image {} from {} to {}", texture_actual.name,
+                magic_enum::enum_name(itr->second.layout), magic_enum::enum_name(layout)
+            );
+            image_barriers.emplace_back(
+                VkImageMemoryBarrier2KHR{
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+                    .srcStageMask = itr->second.stage,
+                    .srcAccessMask = itr->second.access,
+                    .dstStageMask = pipeline_stage,
+                    .dstAccessMask = access,
+                    .oldLayout = itr->second.layout,
+                    .newLayout = layout,
+                    .image = texture_actual.image,
+                    .subresourceRange = {
+                        .aspectMask = static_cast<VkImageAspectFlags>(aspect),
+                        .baseMipLevel = 0,
+                        .levelCount = texture_actual.create_info.mipLevels,
+                        .baseArrayLayer = 0,
+                        .layerCount = texture_actual.create_info.arrayLayers,
+                    }
                 }
-            }
-        );
+            );
+        }
     }
 
     last_texture_usages.insert_or_assign(texture, TextureUsageToken{pipeline_stage, access, layout});

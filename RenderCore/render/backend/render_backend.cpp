@@ -155,7 +155,7 @@ void RenderBackend::create_instance_and_device() {
 #endif
         instance_builder.enable_validation_layers(true)
                         .request_validation_layers(true)
-                        // .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
+                        .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
                         .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT)
                         .set_debug_callback(debug_callback);
 
@@ -226,6 +226,7 @@ void RenderBackend::create_instance_and_device() {
                            .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
                            .add_required_extension(VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME)
                            .add_required_extension(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME)
+                           .add_required_extension(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME)
 #if defined(_WIN32)
         .add_desired_extension(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME)
         .add_desired_extension(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME)
@@ -258,18 +259,24 @@ void RenderBackend::create_instance_and_device() {
         .synchronization2 = VK_TRUE,
     };
 
+    auto scalar_features = VkPhysicalDeviceScalarBlockLayoutFeaturesEXT{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT,
+        .scalarBlockLayout = VK_TRUE,
+    };
+
     auto device_builder = vkb::DeviceBuilder{physical_device}
                           .add_pNext(&shader16_features)
                           .add_pNext(&multiview_features)
                           .add_pNext(&descriptor_indexing_features)
-                          .add_pNext(&sync_2_features);
+                          .add_pNext(&sync_2_features)
+                          .add_pNext(&scalar_features);
 
     // Set up device creation info for Aftermath feature flag configuration.
 #if defined(_WIN32)
     auto aftermath_flags = static_cast<VkDeviceDiagnosticsConfigFlagsNV>(
         VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_RESOURCE_TRACKING_BIT_NV |
         VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_AUTOMATIC_CHECKPOINTS_BIT_NV |
-        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_DEBUG_INFO_BIT_NV | 
+        VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_DEBUG_INFO_BIT_NV |
         VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_ERROR_REPORTING_BIT_NV
     );
     auto device_diagnostics_info = VkDeviceDiagnosticsConfigCreateInfoNV{

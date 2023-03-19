@@ -235,7 +235,7 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
             0.5f, 0.0f, 0.0f, 0.0f,
             0.0f, 0.5f, 0.0f, 0.0f,
             0.0f, 0.0f, 0.5f, 0.0f,
-            0.5f, 0.5f, 0.5f, 0.0f
+            0.5f, 0.5f, 0.5f, 1.0f
         };
 
         auto& cascade = cascades[cascade_index];

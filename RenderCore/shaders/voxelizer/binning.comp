@@ -7,7 +7,7 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "shared/vertex_data.hpp"
-#include "voxelizer/triangle.glsl"
+#include "shared/triangle.hpp"
 
 layout(set = 0, binding = 0, std430) readonly buffer VertexOutputPositionBuffer {
     Triangle triangles[];
@@ -28,6 +28,7 @@ layout(push_constant) uniform Constants {
 
 layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
 
+// Note: We should plan for a max of 16384 bytes of shared memory
 shared vec3 bin_min;
 shared vec3 bin_max;
 shared uint bin_bits[512];
@@ -94,8 +95,26 @@ void main() {
     vec4 sh = imageLoad(voxels, ivec3(gl_GlobalInvocationID));
 
     // Add triangles as needed
+    for(uint i = 0; i < bin_bits.length(); i++) {
+        uint current_bin_bits = bin_bits[i];
 
-    sh = normalize(sh);
+        for(uint bit = 0; bit < 32; bit++) {
+            if((current_bin_bits & (1 << bit)) != 0) {
+                // The triangle is in this bin
+                // We _should_ test it against our current cell... but I don't wanna
+                // Might be more efficient for each thread in the workgroup to pull a different triangle, test it 
+                // against all cells in the bin, then broadcast it to the threads for any cells it's in?
+                uint triangle_index = i * 32 + bit;
+                Triangle triangle = triangles[triangle_index];
+                sh += triangle.normal_sh;
+            }
+        }
+    }
+
+    float sh_length = length(sh);
+    if(sh_length > 0) {
+        sh /= sh_length;
+    }
 
     imageStore(voxels, ivec3(gl_GlobalInvocationID), sh);
 }

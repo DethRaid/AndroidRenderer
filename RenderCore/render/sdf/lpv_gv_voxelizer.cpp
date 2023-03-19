@@ -7,6 +7,7 @@
 #include "render/render_scene.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/render_graph.hpp"
+#include "shared/triangle.hpp"
 
 LpvGvVoxelizer::~LpvGvVoxelizer() {
     auto& allocator = backend->get_global_allocator();
@@ -19,17 +20,17 @@ void LpvGvVoxelizer::init_resources(RenderBackend& backend_in, const uint32_t vo
     backend = &backend_in;
     auto& allocator = backend->get_global_allocator();
     deinit_resources(allocator);
-    
+
     voxel_texture = allocator.create_volume_texture(
         "Voxels", VK_FORMAT_R16G16B16A16_SFLOAT, glm::uvec3{voxel_texture_resolution}, 1, TextureUsage::StorageImage
     );
-    
+
     volume_uniform_buffer = allocator.create_buffer(
         "Voxel transform buffer", sizeof(glm::mat4), BufferUsage::UniformBuffer
     );
 
     transformed_primitive_cache = allocator.create_buffer(
-        "Post-transform vertices", sizeof(glm::vec3) * 16384 * 3, BufferUsage::StorageBuffer
+        "Transformed triangles", sizeof(Triangle) * 16384, BufferUsage::StorageBuffer
     );
 
     {
@@ -77,10 +78,18 @@ void LpvGvVoxelizer::voxelize_scene(
 ) const {
     const auto scale = voxel_bounds_max - voxel_bounds_min;
     const auto center = voxel_bounds_min + (scale * 0.5f);
+    
+    const auto bias_mat = glm::mat4{
+        0.5f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.5f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.5f, 0.0f,
+        0.5f, 0.5f, 0.5f, 1.0f
+    };
 
     auto world_to_voxel = glm::mat4{1.f};
     world_to_voxel = glm::scale(world_to_voxel, glm::vec3{1.f} / scale);
     world_to_voxel = glm::translate(world_to_voxel, -center);
+    world_to_voxel = bias_mat * world_to_voxel;
 
     graph.add_compute_pass(
         {
@@ -90,10 +99,16 @@ void LpvGvVoxelizer::voxelize_scene(
                     voxel_texture,
                     {
                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    }                    
                 }
             },
-            .execute = [&](CommandBuffer& commands) {
+            .buffers = {
+                {
+                    volume_uniform_buffer,
+                    {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT}
+                }
+            },
+            .execute = [&, world_to_voxel](CommandBuffer& commands) {
                 const auto set = *backend->create_frame_descriptor_builder()
                                          .bind_image(
                                              0, {.image = voxel_texture, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
@@ -108,6 +123,8 @@ void LpvGvVoxelizer::voxelize_scene(
                 commands.dispatch(resolution / 4, resolution / 4, resolution / 4);
 
                 commands.clear_descriptor_set(0);
+
+                commands.update_buffer(volume_uniform_buffer, world_to_voxel);
             }
         }
     );
@@ -145,7 +162,7 @@ void LpvGvVoxelizer::voxelize_scene(
                     },
                 },
                 .execute = [&](CommandBuffer& commands) {
-                    GpuZoneScopedN(commands, "Transform primitive");
+                    GpuZoneScopedN(commands, "Transform primitive")
                     const auto set = *backend->create_frame_descriptor_builder()
                                              .bind_buffer(
                                                  0, {.buffer = meshes->get_vertex_position_buffer()},
@@ -208,7 +225,7 @@ void LpvGvVoxelizer::voxelize_scene(
                     }
                 },
                 .execute = [&](CommandBuffer& commands) {
-                    GpuZoneScopedN(commands, "Rasterize primitive");
+                    GpuZoneScopedN(commands, "Rasterize primitive")
                     const auto set = *backend->create_frame_descriptor_builder()
                                              .bind_buffer(
                                                  0, {.buffer = transformed_primitive_cache},
