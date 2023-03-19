@@ -4,6 +4,7 @@
 
 - Install [libKTX](https://github.com/KhronosGroup/KTX-Software). Find the latest release in the Releases tab and install it to `D:/Program Files/KTX-Software`. If your system does not have a D drive, you'll have to modify `RenderCore/extern/extern.cmake` to set `KTX_DIR` to the directory you installed libKTX to
 - This could be avoided if `libKTX` didn't have a hard dependency on Bash... which isn't installed on Windows....
+- You'll also need to install the Vulkan SDK and add it's `bin` directory to your PATH
 
 ## Android build
 
@@ -22,3 +23,7 @@
 ## Other OSs
 
 Unsupported. You could probably modify the Windows build to also run on Linux, but I've had no reason to
+
+## Known-good configurations
+
+- This program definitely works on a Nvidia RTX 2080 Super GPU, and a Mali G710 GPU. Other Vulkan implementations may or may not support all the required features
