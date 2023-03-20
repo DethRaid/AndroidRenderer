@@ -35,9 +35,6 @@ layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
 
 #define UINTS_PER_BIN (32768 / 32)
 
-// Note: We should plan for a max of 16384 bytes of shared memory
-shared vec4 cell_sh[64];
-
 bool is_triangle_in_bin(Triangle triangle, vec3 voxel_min, vec3 voxel_max) {
     // Adapted from https://developer.nvidia.com/content/basics-gpu-voxelization
 

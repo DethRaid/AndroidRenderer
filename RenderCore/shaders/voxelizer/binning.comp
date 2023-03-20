@@ -29,7 +29,9 @@ layout(push_constant) uniform Constants {
     uint padding7;
 };
 
-layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
+#define NUM_THREADS 96
+
+layout(local_size_x = NUM_THREADS, local_size_y = 1, local_size_z = 1) in;
 
 #define UINTS_PER_BIN (32768 / 32)
 
@@ -167,10 +169,10 @@ bool is_triangle_in_bin(Triangle triangle, vec3 voxel_min, vec3 voxel_max) {
 }
 
 void main() {
-    // Setup phase - set 1/32 of the bin bits to 0
+    // Setup phase - set 1/NUM_THREADS of the bin bits to 0
 
     uint local_index = gl_SubgroupInvocationID + gl_SubgroupID * gl_SubgroupSize;
-    uint uints_per_thread = UINTS_PER_BIN / 32;
+    uint uints_per_thread = UINTS_PER_BIN / NUM_THREADS;
     uint first_index = local_index * uints_per_thread;
     for(uint i = first_index; i < first_index + uints_per_thread; i++) {
         bin_bits[i] = 0;
@@ -185,10 +187,12 @@ void main() {
     vec3 bin_min = vec3(bin_idx) / 8.f;
     vec3 bin_max = bin_min + (1.f / 8.f);
 
-    uint triangles_per_thread = num_triangles / 32;
-    uint first_triangle = local_index * triangles_per_thread;
+    for(uint triangle_base_idx = 0; triangle_base_idx < num_triangles + NUM_THREADS; triangle_base_idx += NUM_THREADS) {
+        uint triangle_idx = triangle_base_idx + local_index;
+        if(triangle_idx > num_triangles) {
+            continue;
+        }
 
-    for(uint triangle_idx = first_triangle; triangle_idx < first_triangle + triangles_per_thread; triangle_idx++) {
         Triangle triangle = triangles[triangle_idx];
 
         bool in_bin = is_triangle_in_bin(triangle, bin_min, bin_max);
@@ -206,16 +210,15 @@ void main() {
 
             } else if(gl_SubgroupSize == 32) {
                 // Nvidia
-                atomicOr(bin_bits[int_idx], in_bin_mask);
+                bin_bits[int_idx] = in_bin_mask;
             }
             // TODO: Support a subgroup size of 64 for AyyyyyMD
         }
     }
 
     memoryBarrierShared();
-    barrier();
 
-    // Now that the bins are in shared memory, each thread can push 1/32 of them to the bin buffer
+    // Now that the bins are in shared memory, each thread can push 1/NUM_THREADS of them to the bin buffer
 
     uint bin_range_start = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.z * gl_NumWorkGroups.x * gl_NumWorkGroups.y;
 
