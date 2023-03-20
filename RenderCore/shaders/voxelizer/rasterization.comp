@@ -5,7 +5,7 @@
  */
 
 #extension GL_GOOGLE_include_directive : enable
-#extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_KHR_shader_subgroup_basic : enable
 
 #include "shared/vertex_data.hpp"
 #include "shared/triangle.hpp"
@@ -14,9 +14,11 @@ layout(set = 0, binding = 0, std430) readonly buffer VertexOutputPositionBuffer 
     Triangle triangles[];
 }; 
 
-layout(set = 0, binding = 1, std430) writeonly buffer TriangleBinsBuffer {
+layout(set = 0, binding = 1, std430) readonly buffer TriangleBinsBuffer {
     uint bins[];
 };
+
+layout(set = 0, binding = 2, rgba16f) uniform image3D voxels;
 
 layout(push_constant) uniform Constants {
     uint num_triangles;
@@ -34,7 +36,7 @@ layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
 #define UINTS_PER_BIN (32768 / 32)
 
 // Note: We should plan for a max of 16384 bytes of shared memory
-shared uint bin_bits[UINTS_PER_BIN];
+shared vec4 cell_sh[64];
 
 bool is_triangle_in_bin(Triangle triangle, vec3 voxel_min, vec3 voxel_max) {
     // Adapted from https://developer.nvidia.com/content/basics-gpu-voxelization
@@ -170,14 +172,6 @@ void main() {
     // Setup phase - set 1/32 of the bin bits to 0
 
     uint local_index = gl_SubgroupInvocationID + gl_SubgroupID * gl_SubgroupSize;
-    uint uints_per_thread = UINTS_PER_BIN / 32;
-    uint first_index = local_index * uints_per_thread;
-    for(uint i = first_index; i < first_index + uints_per_thread; i++) {
-        bin_bits[i] = 0;
-    }
-   
-    memoryBarrierShared();
-    barrier();
 
     // Each bin is 4x4x4 pixels
     uvec3 bin_idx = gl_WorkGroupID;
@@ -185,41 +179,48 @@ void main() {
     vec3 bin_min = vec3(bin_idx) / 8.f;
     vec3 bin_max = bin_min + (1.f / 8.f);
 
-    uint triangles_per_thread = num_triangles / 32;
-    uint first_triangle = local_index * triangles_per_thread;
+    // Each thread takes all the triangles in this bin, tests them against its current pixel, and adds their SHes to an
+    // accumulator. We flush the accumulator to the image at the end - each thread only reads and writes to its pixel, 
+    // so no atomic operations are needed (yayyyyyyyy)
 
-    for(uint triangle_idx = first_triangle; triangle_idx < first_triangle + triangles_per_thread; triangle_idx++) {
-        Triangle triangle = triangles[triangle_idx];
+    // Load into shared memory or something
+    vec4 sh = imageLoad(voxels, ivec3(gl_GlobalInvocationID));
 
-        bool in_bin = is_triangle_in_bin(triangle, bin_min, bin_max);
-        uint in_bin_mask = subgroupBallot(in_bin).x;
+    // TODO: Each thread should only load one triangle. It should test it against each cell in the bin, and push its SH
+    // to any cell that it intersects
 
-        uint int_idx = triangle_idx / 32;
+    // TODO: Store the triangle's bounding box and SH projection separately
 
-        if(subgroupElect()) {
-            if(gl_SubgroupSize == 16) {
-                // Mali
-                if(gl_SubgroupInvocationID % 2 == 1) {
-                    in_bin_mask = in_bin_mask << 16;
-                }
-                atomicOr(bin_bits[int_idx], in_bin_mask);
-
-            } else if(gl_SubgroupSize == 32) {
-                // Nvidia
-                atomicOr(bin_bits[int_idx], in_bin_mask);
-            }
-            // TODO: Support a subgroup size of 64 for AyyyyyMD
-        }
-    }
-
-    memoryBarrierShared();
-    barrier();
-
-    // Now that the bins are in shared memory, each thread can push 1/32 of them to the bin buffer
+    vec3 cell_min = bin_min + vec3(gl_LocalInvocationID) * 0.25f;
+    vec3 cell_max = bin_max + vec3(gl_LocalInvocationID) * 0.25f;
 
     uint bin_range_start = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.z * gl_NumWorkGroups.x * gl_NumWorkGroups.y;
 
-    for(uint i = first_index; i < first_index + uints_per_thread; i++) {
-        bins[bin_range_start + i] = bin_bits[i];
+    // Add triangles as needed
+    // Each thread is gonna have to load every triangle that's in the bin... maybe we could share them better?
+    for(uint i = 0; i < UINTS_PER_BIN; i++) {
+        uint current_bin_bits = bins[bin_range_start + i];
+
+        while(current_bin_bits > 0) {
+            int bit = findLSB(current_bin_bits);
+            current_bin_bits &= ~uint(1 << bit);
+           
+            // The triangle is in this bin
+            // Might be more efficient for each thread in the workgroup to pull a different triangle, test it 
+            // against all cells in the bin, then broadcast it to the threads for any cells it's in?
+            // If each thread tests every triangle against every bin, we run in about 20 ms per frame
+            uint triangle_index = i * 32 + bit;
+            Triangle triangle = triangles[triangle_index];
+            if(is_triangle_in_bin(triangle, cell_min, cell_max)) {
+                sh += triangle.normal_sh;
+            }
+        }
     }
+
+    float sh_length = length(sh);
+    if(sh_length > 0) {
+        sh /= sh_length;
+    }
+
+    imageStore(voxels, ivec3(gl_GlobalInvocationID), sh);
 }

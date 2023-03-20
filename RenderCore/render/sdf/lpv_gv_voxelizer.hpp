@@ -45,13 +45,18 @@ private:
     TextureHandle voxel_texture = TextureHandle::None;
         
     BufferHandle volume_uniform_buffer = BufferHandle::None;
-    
 
-    BufferHandle transformed_primitive_cache = BufferHandle::None;
+    BufferHandle transformed_primitive_cache_a = BufferHandle::None;
+
+    BufferHandle transformed_primitive_cache_b = BufferHandle::None;
+
+    BufferHandle bins = BufferHandle::None;
 
     ComputeShader texture_clear_shader;
 
     ComputeShader transform_verts_shader;
+
+    ComputeShader bin_triangles_shader;
 
     ComputeShader rasterize_primitives_shader;
 

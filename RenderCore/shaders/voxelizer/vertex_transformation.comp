@@ -95,8 +95,9 @@ void main() {
     position2 = mvp * position2;
     position2 /= position2.w;
 
-    triangles[triangle_id].min = min(position0.xyz, min(position1.xyz, position2.xyz));
-    triangles[triangle_id].max = max(position0.xyz, max(position1.xyz, position2.xyz));
+    triangles[triangle_id].v0 = position0.xyz;
+    triangles[triangle_id].v1 = position1.xyz;
+    triangles[triangle_id].v2 = position2.xyz;
     
     vec3 normal = normal_matrix * vertex_data[index0].normal;
     normal += normal_matrix * vertex_data[index1].normal;

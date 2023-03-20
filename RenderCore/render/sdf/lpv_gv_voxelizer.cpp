@@ -47,8 +47,16 @@ void LpvGvVoxelizer::init_resources(RenderBackend& backend_in, const uint32_t vo
         "Voxel transform buffer", sizeof(glm::mat4), BufferUsage::UniformBuffer
     );
 
-    transformed_primitive_cache = allocator.create_buffer(
-        "Transformed triangles", sizeof(Triangle) * max_batched_triangles, BufferUsage::StorageBuffer
+    transformed_primitive_cache_a = allocator.create_buffer(
+        "Transformed triangles A", sizeof(Triangle) * max_batched_triangles, BufferUsage::StorageBuffer
+    );
+
+    transformed_primitive_cache_b = allocator.create_buffer(
+        "Transformed triangles B", sizeof(Triangle) * max_batched_triangles, BufferUsage::StorageBuffer
+    );
+
+    bins = allocator.create_buffer(
+        "Triangle bins", max_batched_triangles / 32 * 8 * 8 * 8, BufferUsage::StorageBuffer
     );
 
     {
@@ -63,6 +71,10 @@ void LpvGvVoxelizer::init_resources(RenderBackend& backend_in, const uint32_t vo
 
     {
         const auto bytes = *SystemInterface::get().load_file("shaders/voxelizer/binning.comp.spv");
+        bin_triangles_shader = *backend->create_compute_shader("Bin triangles", bytes);
+    }
+    {
+        const auto bytes = *SystemInterface::get().load_file("shaders/voxelizer/rasterization.comp.spv");
         rasterize_primitives_shader = *backend->create_compute_shader("Rasterize to volume", bytes);
     }
     {
@@ -72,9 +84,17 @@ void LpvGvVoxelizer::init_resources(RenderBackend& backend_in, const uint32_t vo
 }
 
 void LpvGvVoxelizer::deinit_resources(ResourceAllocator& allocator) {
-    if (transformed_primitive_cache != BufferHandle::None) {
-        allocator.destroy_buffer(transformed_primitive_cache);
-        transformed_primitive_cache = BufferHandle::None;
+    if (transformed_primitive_cache_a != BufferHandle::None) {
+        allocator.destroy_buffer(transformed_primitive_cache_a);
+        transformed_primitive_cache_a = BufferHandle::None;
+    }
+    if (transformed_primitive_cache_b != BufferHandle::None) {
+        allocator.destroy_buffer(transformed_primitive_cache_b);
+        transformed_primitive_cache_b = BufferHandle::None;
+    }
+    if (bins != BufferHandle::None) {
+        allocator.destroy_buffer(bins);
+        bins = BufferHandle::None;
     }
     if (voxel_texture != TextureHandle::None) {
         allocator.destroy_texture(voxel_texture);
@@ -96,7 +116,7 @@ void LpvGvVoxelizer::voxelize_scene(
 ) const {
     const auto scale = voxel_bounds_max - voxel_bounds_min;
     const auto center = voxel_bounds_min + (scale * 0.5f);
-    
+
     const auto bias_mat = glm::mat4{
         0.5f, 0.0f, 0.0f, 0.0f,
         0.0f, 0.5f, 0.0f, 0.0f,
@@ -117,7 +137,7 @@ void LpvGvVoxelizer::voxelize_scene(
                     voxel_texture,
                     {
                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL
-                    }                    
+                    }
                 }
             },
             .buffers = {
@@ -147,42 +167,46 @@ void LpvGvVoxelizer::voxelize_scene(
         }
     );
 
-    const auto triangle_shader_set = *backend->create_frame_descriptor_builder()
-        .bind_buffer(
-            0, { .buffer = meshes->get_vertex_position_buffer() },
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
-        )
-        .bind_buffer(
-            1, { .buffer = meshes->get_vertex_data_buffer() },
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
-        )
-        .bind_buffer(
-            2, { .buffer = meshes->get_index_buffer() },
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
-        )
-        .bind_buffer(
-            3, { .buffer = volume_uniform_buffer },
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
-        )
-        .bind_buffer(
-            4, { .buffer = scene->get_primitive_buffer() },
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
-        )
-        .bind_buffer(
-            5, { .buffer = transformed_primitive_cache },
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
-        )
-        .build();
+    auto transformed_triangles_write = transformed_primitive_cache_a;
+    auto transformed_triangles_read = transformed_primitive_cache_b;
 
     const auto& primitives = scene->get_solid_primitives();
     uint32_t primitive_index = 0;
 
     // Transform vertices until we fill up the triangle cache, then dispatch the binning and rasterization shaders
-    while(primitive_index < primitives.size()) {
+    while (primitive_index < primitives.size()) {
         auto triangle_cache_offset = 0u;
         auto last_primitive_size = 0u;
-        
-        while(triangle_cache_offset + last_primitive_size < max_batched_triangles && primitive_index < primitives.size()) {
+
+        const auto triangle_shader_set = *backend->create_frame_descriptor_builder()
+                                                 .bind_buffer(
+                                                     0, {.buffer = meshes->get_vertex_position_buffer()},
+                                                     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                                 )
+                                                 .bind_buffer(
+                                                     1, {.buffer = meshes->get_vertex_data_buffer()},
+                                                     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                                 )
+                                                 .bind_buffer(
+                                                     2, {.buffer = meshes->get_index_buffer()},
+                                                     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                                 )
+                                                 .bind_buffer(
+                                                     3, {.buffer = volume_uniform_buffer},
+                                                     VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                                 )
+                                                 .bind_buffer(
+                                                     4, {.buffer = scene->get_primitive_buffer()},
+                                                     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                                 )
+                                                 .bind_buffer(
+                                                     5, {.buffer = transformed_triangles_write},
+                                                     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                                 )
+                                                 .build();
+
+        while (triangle_cache_offset + last_primitive_size < max_batched_triangles && primitive_index < primitives.
+            size()) {
             triangle_cache_offset += last_primitive_size;
 
             auto& primitive = primitives[primitive_index];
@@ -215,7 +239,7 @@ void LpvGvVoxelizer::voxelize_scene(
                             {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
                         },
                         {
-                            transformed_primitive_cache,
+                            transformed_triangles_write,
                             {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_WRITE_BIT_KHR}
                         },
                     },
@@ -232,6 +256,7 @@ void LpvGvVoxelizer::voxelize_scene(
                         commands.set_push_constant(3, primitive->mesh.num_indices);
                         commands.set_push_constant(4, triangle_cache_offset);
 
+                        // / 3 because we have one thread per triangle, / 32 because we have 32 threads per workgroup
                         commands.dispatch(primitive->mesh.num_indices / 96 + 1, 1, 1);
 
                         commands.clear_descriptor_set(0);
@@ -243,7 +268,49 @@ void LpvGvVoxelizer::voxelize_scene(
             primitive_index++;
         }
 
-        // Now that the triangle buffer is full, bin and rasterize them
+        transformed_triangles_read = transformed_triangles_write;
+        transformed_triangles_write = transformed_primitive_cache_b;
+
+        // Now that the triangle buffer is full, bin and rasterize the triangles
+        graph.add_compute_pass(
+            {
+                .name = "Bin triangles",
+                .buffers = {
+                    {
+                        transformed_triangles_read,
+                        {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
+                    },
+                    {
+                        bins,
+                        {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_WRITE_BIT_KHR}
+                    }
+                },
+                .execute = [&, triangle_cache_offset=triangle_cache_offset](CommandBuffer& commands) {
+                    GpuZoneScopedN(commands, "Bin Triangles")
+                    const auto set = *backend->create_frame_descriptor_builder()
+                                             .bind_buffer(
+                                                 0, {.buffer = transformed_triangles_read},
+                                                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                             )
+                                             .bind_buffer(
+                                                 2, {.buffer = bins},
+                                                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                             )
+                                             .build();
+
+                    commands.bind_descriptor_set(0, set);
+
+                    commands.set_push_constant(0, triangle_cache_offset);
+
+                    commands.bind_shader(bin_triangles_shader);
+
+                    commands.dispatch(8, 8, 8);
+
+                    commands.clear_descriptor_set(0);
+                }
+            }
+        );
+
         graph.add_compute_pass(
             {
                 .name = "Rasterize triangles",
@@ -258,7 +325,11 @@ void LpvGvVoxelizer::voxelize_scene(
                 },
                 .buffers = {
                     {
-                        transformed_primitive_cache,
+                        transformed_triangles_read,
+                        {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
+                    },
+                    {
+                        bins,
                         {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
                     }
                 },
@@ -266,18 +337,20 @@ void LpvGvVoxelizer::voxelize_scene(
                     GpuZoneScopedN(commands, "Rasterize triangles")
                     const auto set = *backend->create_frame_descriptor_builder()
                                              .bind_buffer(
-                                                 0, {.buffer = transformed_primitive_cache},
+                                                 0, {.buffer = transformed_triangles_read},
+                                                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                             )
+                                             .bind_buffer(
+                                                 1, {.buffer = bins},
                                                  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
                                              )
                                              .bind_image(
-                                                 1, {.image = voxel_texture, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                                                 2, {.image = voxel_texture, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
                                                  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
                                              )
                                              .build();
 
                     commands.bind_descriptor_set(0, set);
-
-                    commands.set_push_constant(0, triangle_cache_offset);
 
                     commands.bind_shader(rasterize_primitives_shader);
 
