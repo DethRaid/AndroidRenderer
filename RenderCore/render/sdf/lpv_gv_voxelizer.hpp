@@ -48,15 +48,27 @@ private:
 
     BufferHandle transformed_primitive_cache_a = BufferHandle::None;
 
+    BufferHandle triangle_sh_cache_a = BufferHandle::None;
+
     BufferHandle transformed_primitive_cache_b = BufferHandle::None;
 
-    BufferHandle bins = BufferHandle::None;
+    BufferHandle triangle_sh_cache_b = BufferHandle::None;
+
+    BufferHandle bins_a = BufferHandle::None;
+
+    BufferHandle bins_b = BufferHandle::None;
+
+    BufferHandle cell_bitmask_coarse = BufferHandle::None;
+
+    BufferHandle cell_bitmask = BufferHandle::None;
 
     ComputeShader texture_clear_shader;
 
     ComputeShader transform_verts_shader;
 
-    ComputeShader bin_triangles_shader;
+    ComputeShader coarse_binning_shader;
+
+    ComputeShader fine_binning_shader;
 
     ComputeShader rasterize_primitives_shader;
 

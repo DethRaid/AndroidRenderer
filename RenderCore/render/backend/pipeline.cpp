@@ -105,7 +105,7 @@ bool collect_vertex_attributes(
 PipelineBuilder::PipelineBuilder(VkDevice device_in) : device{device_in} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("PipelineBuilder");
-        logger->set_level(spdlog::level::debug);
+        logger->set_level(spdlog::level::info);
     }
 
     set_depth_state({});

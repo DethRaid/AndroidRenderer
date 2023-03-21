@@ -2,6 +2,8 @@
 
 /**
  * Test NDC triangles against the min/max of each bin
+ *
+ * The dispatch size is very specific. The y and z map to the y and z of the current cell. However, the x must be divided by 1024 to get the current cell
  */
 
 #extension GL_GOOGLE_include_directive : enable
@@ -14,8 +16,25 @@ layout(set = 0, binding = 0, std430) readonly buffer VertexOutputPositionBuffer 
     Triangle triangles[];
 }; 
 
-layout(set = 0, binding = 1, std430) writeonly buffer TriangleBinsBuffer {
-    uint bins[];
+/**
+ * Bitmask of if a triangle is in a bin
+ */
+layout(set = 0, binding = 1, std430) readonly buffer TriangleBinsBitmaskBuffer {
+    uint bins_bitmask[];
+};
+
+/**
+ * Bitmask of if a uint in the cell bitmask has any data
+ */
+layout(set = 0, binding = 2, std430) writeonly buffer TriangleCellCoarseBitmaskBuffer {
+    uint cell_bitmask_coarse[];
+};
+
+/**
+ * Bitmask of if a triangle is in the cell
+ */
+layout(set = 0, binding = 3, std430) writeonly buffer TriangleCellBitmaskBuffer {
+    uint cell_bitmask[];
 };
 
 layout(push_constant) uniform Constants {
@@ -29,14 +48,9 @@ layout(push_constant) uniform Constants {
     uint padding7;
 };
 
-#define NUM_THREADS 96
-
-layout(local_size_x = NUM_THREADS, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
 #define UINTS_PER_BIN (32768 / 32)
-
-// Note: We should plan for a max of 16384 bytes of shared memory
-shared uint bin_bits[UINTS_PER_BIN];
 
 bool is_triangle_in_bin(Triangle triangle, vec3 voxel_min, vec3 voxel_max) {
     // Adapted from https://developer.nvidia.com/content/basics-gpu-voxelization
@@ -169,60 +183,72 @@ bool is_triangle_in_bin(Triangle triangle, vec3 voxel_min, vec3 voxel_max) {
 }
 
 void main() {
-    // Setup phase - set 1/NUM_THREADS of the bin bits to 0
+    /**
+     * Here's how it works:
+     *
+     * First, we determine which cell we're testing triangles for. The threads are laid out such that multiple cells 
+     * are along the X. There's a max of 32k triangles per bin. The bins are represented with 1k uints, each uint is a
+     * mask for 32 triangles. Each subgroup is 32 threads wide, and we have a constraint of one workgroup is the size 
+     * of one subgroup. This all adds up to mean that one workgroup has 32 threads which process 32 triangles each - 
+     * each workgroup processes 1024 triangles. We need 32 workgroups to process one bin's worth of triangles. We 
+     * dispatch NumCells * 32 workgroups in the X direction
+     *
+     * Each thread reads the uint corresponding to its place in the mask
+     */
 
-    uint local_index = gl_SubgroupInvocationID + gl_SubgroupID * gl_SubgroupSize;
-    uint uints_per_thread = UINTS_PER_BIN / NUM_THREADS;
-    uint first_index = local_index * uints_per_thread;
-    for(uint i = first_index; i < first_index + uints_per_thread; i++) {
-        bin_bits[i] = 0;
-    }
-   
-    memoryBarrierShared();
-    barrier();
+    uvec3 cell_id = uvec3(gl_WorkGroupID) / uvec3(32, 1, 1);
+    uint cell_index = cell_id.x + cell_id.y * 32 + cell_id.x * 32 * 32;
+    uint cell_offset_in_mask = cell_index * UINTS_PER_BIN;
+    
+    vec3 cell_min = vec3(cell_id) / 32.f;
+    vec3 cell_max = cell_min + (1.f / 32.f);
 
-    // Each bin is 4x4x4 pixels
-    uvec3 bin_idx = gl_WorkGroupID;
-    // 4x4x4 bins in a 32x32x32 image - 8 bins in all directions
-    vec3 bin_min = vec3(bin_idx) / 8.f;
-    vec3 bin_max = bin_min + (1.f / 8.f);
+    uvec3 bin_id = cell_id / 4;
+    uint bin_index = bin_id.x + bin_id.y * 8 + bin_id.z * 8 * 8;
+    uint bin_offset_in_mask = bin_index * UINTS_PER_BIN;
 
-    for(uint triangle_base_idx = 0; triangle_base_idx < num_triangles + NUM_THREADS; triangle_base_idx += NUM_THREADS) {
-        uint triangle_idx = triangle_base_idx + local_index;
-        if(triangle_idx > num_triangles) {
-            continue;
+    uint group_offset_in_bin = gl_WorkGroupID.x % 32;
+
+    // Local index of this thread within the subgroup
+    uint local_index = gl_SubgroupInvocationID;
+    // Index of the mask in the bin that this thread should look at
+    uint mask_offset = group_offset_in_bin + local_index;
+
+    uint current_bin_bits = bins_bitmask[bin_offset_in_mask + mask_offset];
+    bool group_bin_to_tile = false;
+    uint cell_mask = 0; // Mask of triangles in this cell
+    while(current_bin_bits > 0) {
+        int bit = findLSB(current_bin_bits);
+        current_bin_bits &= ~uint(1 << bit);
+           
+        uint triangle_index = mask_offset * 32 + bit;
+        Triangle triangle = triangles[triangle_index];
+        if(is_triangle_in_bin(triangle, cell_min, cell_max)) {
+            cell_mask |= (1 << bit);
         }
+    }
 
-        Triangle triangle = triangles[triangle_idx];
+    cell_bitmask[cell_offset_in_mask + mask_offset] = cell_mask;
+    group_bin_to_tile = cell_mask != 0u;
 
-        bool in_bin = is_triangle_in_bin(triangle, bin_min, bin_max);
-        uint in_bin_mask = subgroupBallot(in_bin).x;
+    // High level mask of which uints in the bin have at least one bit in ths cell
+    uvec4 subgroup_bin_result = subgroupBallot(group_bin_to_tile);
+    uint in_bin_mask = subgroup_bin_result.x;
+    if(subgroupElect()) {
+        // Store the high level mask to the coarse bins
+        uint cell_offset_in_coarse_mask = cell_offset_in_mask / 32;
 
-        uint int_idx = triangle_idx / 32;
-
-        if(subgroupElect()) {
-            if(gl_SubgroupSize == 16) {
-                // Mali
-                if(gl_SubgroupInvocationID % 2 == 1) {
-                    in_bin_mask = in_bin_mask << 16;
-                }
-                atomicOr(bin_bits[int_idx], in_bin_mask);
-
-            } else if(gl_SubgroupSize == 32) {
-                // Nvidia
-                bin_bits[int_idx] = in_bin_mask;
+        if(gl_SubgroupSize == 16) {
+            // Mali
+            if(gl_SubgroupInvocationID % 2 == 1) {
+                in_bin_mask = in_bin_mask << 16;
             }
-            // TODO: Support a subgroup size of 64 for AyyyyyMD
+            atomicOr(cell_bitmask_coarse[cell_offset_in_coarse_mask], in_bin_mask);
+
+        } else if(gl_SubgroupSize == 32) {
+            // Nvidia
+            cell_bitmask_coarse[cell_offset_in_coarse_mask] = in_bin_mask;
         }
-    }
-
-    memoryBarrierShared();
-
-    // Now that the bins are in shared memory, each thread can push 1/NUM_THREADS of them to the bin buffer
-
-    uint bin_range_start = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.z * gl_NumWorkGroups.x * gl_NumWorkGroups.y;
-
-    for(uint i = first_index; i < first_index + uints_per_thread; i++) {
-        bins[bin_range_start + i] = bin_bits[i];
+        // TODO: Support a subgroup size of 64 for AyyyyyMD
     }
 }

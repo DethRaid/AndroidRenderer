@@ -40,6 +40,10 @@ layout(set = 0, binding = 5, std430) writeonly buffer VertexOutputPositionBuffer
     Triangle triangles[];
 };
 
+layout(set = 0, binding = 6, std430) writeonly buffer VertexOutputSHBuffer {
+    vec4 triangle_sh[];
+};
+
 layout(push_constant) uniform Constants {
     uint primitive_id;
     uint first_vertex;
@@ -103,5 +107,5 @@ void main() {
     normal += normal_matrix * vertex_data[index1].normal;
     normal += normal_matrix * vertex_data[index2].normal;
 
-    triangles[triangle_cache_offset + triangle_id].normal_sh = sh_project_cone(normalize(normal));
+    triangle_sh[triangle_cache_offset + triangle_id] = sh_project_cone(normalize(normal));
 }   
