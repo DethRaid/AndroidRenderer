@@ -1,7 +1,8 @@
 #version 460
 
 #extension GL_GOOGLE_include_directive : enable
-#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
 
 #include "shared/vertex_data.hpp"
 #include "shared/triangle.hpp"
@@ -31,24 +32,30 @@ layout(push_constant) uniform Constants {
     uint padding7;
 };
 
-layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
 #define UINTS_PER_BIN (32768 / 32)
 #define COARSE_UINTS_PER_BIN (UINTS_PER_BIN / 32)
 
 void main() {
-    vec4 sh = imageLoad(voxels, ivec3(gl_GlobalInvocationID));
+    vec4 sh = vec4(0, 0, 0, 0);
+    if(subgroupElect()) {
+        sh = imageLoad(voxels, ivec3(gl_WorkGroupID));
+    }
+    sh = subgroupBroadcastFirst(sh);
 
-    uint cell_index = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * 32 + gl_GlobalInvocationID.z * 32 * 32;
+    uint cell_index = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.z * gl_NumWorkGroups.x * gl_NumWorkGroups.y;
+    uint local_index = gl_SubgroupInvocationID + gl_SubgroupID * gl_SubgroupSize;
 
-    for(uint i = 0; i < COARSE_UINTS_PER_BIN; i++) {
-        uint coarse_bitmask = coarse_cell_bitmask[cell_index * COARSE_UINTS_PER_BIN + i];
+    for(uint i = 0; i < COARSE_UINTS_PER_BIN; i += 32) {
+        uint coarse_mask_offset = i + local_index;
+        uint coarse_bitmask = coarse_cell_bitmask[cell_index * COARSE_UINTS_PER_BIN + coarse_mask_offset];
 
         while(coarse_bitmask > 0) {
             int coarse_bit = findLSB(coarse_bitmask);
             coarse_bitmask &= ~uint(1 << coarse_bit);
 
-            uint fine_mask_index = i * 32 + coarse_bit;
+            uint fine_mask_index = coarse_mask_offset * 32 + coarse_bit;
             uint bitmask = cell_bitmask[cell_index * UINTS_PER_BIN + fine_mask_index];
             while(bitmask > 0) {
                 int fine_bit = findLSB(bitmask);
@@ -64,6 +71,13 @@ void main() {
     if(sh_length > 0) {
         sh /= sh_length;
     }
-
-    imageStore(voxels, ivec3(gl_GlobalInvocationID), sh);
+    
+    sh = subgroupAdd(sh);
+    if(subgroupElect()) {
+        sh_length = length(sh);
+        if(sh_length > 0) {
+            sh /= sh_length;
+        }
+        imageStore(voxels, ivec3(gl_WorkGroupID), sh);
+    }
 }

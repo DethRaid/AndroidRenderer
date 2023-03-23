@@ -495,7 +495,7 @@ void LpvGvVoxelizer::voxelize_scene(
                     // TODO: Each thread should read one mask in the coarse bitmask - aka 32 masks in the fine bitmask
                     // Might also split up the work using events... same as above? Merge these passes?
 
-                    commands.dispatch(8, 8, 8);
+                    commands.dispatch(32, 32, 32);
 
                     commands.clear_descriptor_set(0);
                 }

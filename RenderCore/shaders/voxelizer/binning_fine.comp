@@ -48,7 +48,7 @@ layout(push_constant) uniform Constants {
     uint padding7;
 };
 
-#define NUM_THREADS 96
+#define NUM_THREADS 128
 
 layout(local_size_x = NUM_THREADS, local_size_y = 1, local_size_z = 1) in;
 
@@ -204,6 +204,13 @@ void main() {
      * cell bitmask has any bits set. This lets the rasterization shaders quickly skip empty parts of the cell bitmask
      */
 
+    uint group_offset_in_bin = gl_WorkGroupID.x % 11;
+
+    // Local index of this thread within the subgroup
+    uint local_index = gl_SubgroupInvocationID + gl_SubgroupID * gl_SubgroupSize;
+    // Index of the mask in the bin that this thread should look at
+    uint mask_offset = group_offset_in_bin * NUM_THREADS + local_index;
+
     uvec3 cell_id = uvec3(gl_WorkGroupID) / uvec3(11, 1, 1);
     uint cell_index = cell_id.x + cell_id.y * 32 + cell_id.z * 32 * 32;
     uint cell_offset_in_mask = cell_index * UINTS_PER_BIN;
@@ -214,13 +221,6 @@ void main() {
     uvec3 bin_id = cell_id / 4;
     uint bin_index = bin_id.x + bin_id.y * 8 + bin_id.z * 8 * 8;
     uint bin_offset_in_mask = bin_index * UINTS_PER_BIN;
-
-    uint group_offset_in_bin = gl_WorkGroupID.x % 11;
-
-    // Local index of this thread within the subgroup
-    uint local_index = gl_SubgroupInvocationID + gl_SubgroupID * gl_SubgroupSize;
-    // Index of the mask in the bin that this thread should look at
-    uint mask_offset = group_offset_in_bin * NUM_THREADS + local_index;
 
     bool group_bin_to_tile = false;
 

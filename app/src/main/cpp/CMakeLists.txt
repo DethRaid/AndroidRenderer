@@ -20,6 +20,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(sah_renderer)
 
+# Oh whoops the internet died
+execute_process(
+        COMMAND ping www.google.com -n 2
+        ERROR_QUIET
+        RESULT_VARIABLE NO_CONNECTION
+)
+
+if(NOT NO_CONNECTION EQUAL 0)
+    set(FETCHCONTENT_FULLY_DISCONNECTED ON)
+    message(WARNING "FetchContent offline mode: requires an already populated _deps")
+else()
+    set(FETCHCONTENT_FULLY_DISCONNECTED OFF)
+endif()
+
 # Dependencies
 
 # Add a static library called “playcore” built with the c++_static STL.
