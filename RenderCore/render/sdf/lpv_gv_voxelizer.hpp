@@ -74,6 +74,12 @@ private:
 
     ComputeShader normalize_gv_shader;
 
+    /**
+     * Events that let us split up the binning workload to achieve greater occupancy
+     */
+    VkEvent top_half_event = VK_NULL_HANDLE;
+    VkEvent bottom_half_event = VK_NULL_HANDLE;
+
     RenderBackend* backend;
 
     RenderScene* scene;

@@ -16,7 +16,11 @@ ForEach-Object {
 
     Write-Host "Converting file $OriginalFilename to $KtxFilename"
 
-    toktx --genmipmap --t2 --encode $CompressionFormat $KtxFilename $OriginalFilename
+    if($CompressionFormat -eq '') {
+        toktx --genmipmap --t2 --target_type RGBA $KtxFilename $OriginalFilename
+    } else {
+        toktx --genmipmap --t2 --target_type RGBA --encode $CompressionFormat $KtxFilename $OriginalFilename
+    }
 }
 
 Get-ChildItem $DirectoryToCompress -Filter *.jpg |
@@ -26,5 +30,9 @@ ForEach-Object {
 
     Write-Host "Converting file $OriginalFilename to $KtxFilename"
 
-    toktx --genmipmap --t2 --encode $CompressionFormat $KtxFilename $OriginalFilename
+    if($CompressionFormat -eq '') {
+        toktx --genmipmap --t2 --target_type RGBA $KtxFilename $OriginalFilename
+    } else {
+        toktx --genmipmap --t2 --target_type RGBA --encode $CompressionFormat $KtxFilename $OriginalFilename
+    }
 }

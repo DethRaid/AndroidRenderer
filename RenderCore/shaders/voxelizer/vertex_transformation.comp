@@ -55,7 +55,7 @@ layout(push_constant) uniform Constants {
     uint padding7;
 };
 
-layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 96, local_size_y = 1, local_size_z = 1) in;
 
 shared mat4 mvp;
 shared mat3 normal_matrix;

@@ -187,7 +187,7 @@ void main() {
     vec3 bin_min = vec3(bin_idx) / 8.f;
     vec3 bin_max = bin_min + (1.f / 8.f);
 
-    for(uint triangle_base_idx = 0; triangle_base_idx < num_triangles + NUM_THREADS; triangle_base_idx += NUM_THREADS) {
+    for(uint triangle_base_idx = 0; triangle_base_idx < num_triangles; triangle_base_idx += NUM_THREADS) {
         uint triangle_idx = triangle_base_idx + local_index;
         if(triangle_idx > num_triangles) {
             continue;
@@ -198,7 +198,7 @@ void main() {
         bool in_bin = is_triangle_in_bin(triangle, bin_min, bin_max);
         uint in_bin_mask = subgroupBallot(in_bin).x;
 
-        uint int_idx = triangle_idx / 32;
+        uint int_idx = (triangle_idx) / 32;
 
         if(subgroupElect()) {
             if(gl_SubgroupSize == 16) {

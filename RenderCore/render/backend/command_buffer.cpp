@@ -288,6 +288,53 @@ void CommandBuffer::dispatch(const uint32_t width, const uint32_t height, const 
     vkCmdDispatch(commands, width, height, depth);
 }
 
+void CommandBuffer::reset_event(const VkEvent event, const VkPipelineStageFlags stages) const {
+    vkCmdResetEvent2KHR(commands, event, stages);
+}
+
+void CommandBuffer::set_event(const VkEvent event, const std::vector<BufferBarrier>& buffers) {
+    auto& allocator = backend->get_global_allocator();
+
+    auto buffer_barriers = std::vector<VkBufferMemoryBarrier2KHR>{};
+    buffer_barriers.reserve(buffers.size());
+    for (const auto& buffer_barrier : buffers) {
+        const auto& buffer_actual = allocator.get_buffer(buffer_barrier.buffer);
+        const auto barrier = VkBufferMemoryBarrier2{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR,
+            .srcStageMask = buffer_barrier.src.stage,
+            .srcAccessMask = buffer_barrier.src.access,
+            .dstStageMask = buffer_barrier.dst.stage,
+            .dstAccessMask = buffer_barrier.dst.access,
+            .buffer = buffer_actual.buffer,
+            .offset = buffer_barrier.offset,
+            .size = buffer_barrier.size
+        };
+        buffer_barriers.emplace_back(barrier);
+    }
+
+    const auto dependency = VkDependencyInfoKHR{
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+        .bufferMemoryBarrierCount = static_cast<uint32_t>(buffer_barriers.size()),
+        .pBufferMemoryBarriers = buffer_barriers.data()
+    };
+    vkCmdSetEvent2KHR(commands, event, &dependency);
+
+    event_buffer_barriers.emplace(event, std::move(buffer_barriers));
+}
+
+void CommandBuffer::wait_event(const VkEvent event) {
+    const auto& buffer_barriers = event_buffer_barriers.at(event);
+
+    const auto dependency = VkDependencyInfoKHR{
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+        .bufferMemoryBarrierCount = static_cast<uint32_t>(buffer_barriers.size()),
+        .pBufferMemoryBarriers = buffer_barriers.data()
+    };
+    vkCmdWaitEvents2KHR(commands, 1, &event, &dependency);
+
+    event_buffer_barriers.erase(event);
+}
+
 void CommandBuffer::begin_label(const std::string& event_name) const {
     if (vkCmdBeginDebugUtilsLabelEXT == nullptr) {
         return;

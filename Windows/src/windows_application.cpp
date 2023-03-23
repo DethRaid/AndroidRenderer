@@ -17,10 +17,15 @@ int main(const int argc, const char** argv) {
     SystemInterface::initialize(window);
 
     Application application;
-    application.load_scene("Sponza/Sponza.gltf");
-    application.update_resolution();
+    {
+        ZoneScopedN("Init application");
+        application.load_scene("Sponza/Sponza.gltf");
+        application.update_resolution();
+    }
     
     while (!glfwWindowShouldClose(window)) {
+        ZoneScopedN("Frame");
+
         application.tick();
 
         glfwPollEvents();

@@ -48,6 +48,8 @@ SceneRenderer::SceneRenderer() :
 }
 
 void SceneRenderer::set_render_resolution(const glm::uvec2& resolution) {
+    ZoneScoped;
+
     if (resolution == scene_render_resolution) {
         return;
     }

@@ -1,9 +1,5 @@
 #version 460
 
-/**
- * Test NDC triangles against the min/max of each bin
- */
-
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_KHR_shader_subgroup_basic : enable
 
@@ -43,10 +39,8 @@ layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
 void main() {
     vec4 sh = imageLoad(voxels, ivec3(gl_GlobalInvocationID));
 
-    uint cell_index = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.z * gl_NumWorkGroups.x * gl_NumWorkGroups.y;
+    uint cell_index = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * 32 + gl_GlobalInvocationID.z * 32 * 32;
 
-    // Add triangles as needed
-    // Each thread is gonna have to load every triangle that's in the bin... maybe we could share them better?
     for(uint i = 0; i < COARSE_UINTS_PER_BIN; i++) {
         uint coarse_bitmask = coarse_cell_bitmask[cell_index * COARSE_UINTS_PER_BIN + i];
 

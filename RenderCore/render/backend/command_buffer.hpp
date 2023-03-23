@@ -7,6 +7,7 @@
 #include <volk.h>
 #include <tracy/TracyVulkan.hpp>
 
+#include "buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/pipeline.hpp"
 #include "render/backend/framebuffer.hpp"
@@ -68,7 +69,8 @@ public:
      * Issues a batch of pipeline barriers
      */
     void barrier(
-        const std::vector<VkMemoryBarrier2KHR>& memory_barriers, const std::vector<VkBufferMemoryBarrier2>& buffer_barriers,
+        const std::vector<VkMemoryBarrier2KHR>& memory_barriers,
+        const std::vector<VkBufferMemoryBarrier2>& buffer_barriers,
         const std::vector<VkImageMemoryBarrier2>& image_barriers
     ) const;
 
@@ -148,6 +150,12 @@ public:
 
     void dispatch(uint32_t width, uint32_t height, uint32_t depth);
 
+    void reset_event(VkEvent event, VkPipelineStageFlags stages) const;
+
+    void set_event(VkEvent event, const std::vector<BufferBarrier>& buffers);
+    
+    void wait_event(VkEvent);
+
     void begin_label(const std::string& event_name) const;
 
     void end_label() const;
@@ -157,7 +165,7 @@ public:
     tracy::VkCtx* const get_tracy_context() const;
 
     VkCommandBuffer get_vk_commands() const;
-    
+
     VkRenderPass get_current_renderpass() const;
 
     uint32_t get_current_subpass() const;
@@ -184,6 +192,14 @@ private:
     VkPipelineLayout current_pipeline_layout = VK_NULL_HANDLE;
 
     bool are_bindings_dirty = false;
+
+    /**
+     * Cache of buffer barriers for events
+     *
+     * The spec states that the dependency info for each set/wait event call for the same event must match. The backend
+     * should handle that noise
+     */
+    std::unordered_map<VkEvent, std::vector<VkBufferMemoryBarrier2KHR>> event_buffer_barriers;
 
     void commit_bindings();
 };

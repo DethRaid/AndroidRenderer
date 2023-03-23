@@ -48,9 +48,12 @@ layout(push_constant) uniform Constants {
     uint padding7;
 };
 
-layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+#define NUM_THREADS 96
 
-#define UINTS_PER_BIN (32768 / 32)
+layout(local_size_x = NUM_THREADS, local_size_y = 1, local_size_z = 1) in;
+
+#define TRIANGLES_PER_BIN 32768
+#define UINTS_PER_BIN (TRIANGLES_PER_BIN / 32)
 
 bool is_triangle_in_bin(Triangle triangle, vec3 voxel_min, vec3 voxel_max) {
     // Adapted from https://developer.nvidia.com/content/basics-gpu-voxelization
@@ -188,16 +191,21 @@ void main() {
      *
      * First, we determine which cell we're testing triangles for. The threads are laid out such that multiple cells 
      * are along the X. There's a max of 32k triangles per bin. The bins are represented with 1k uints, each uint is a
-     * mask for 32 triangles. Each subgroup is 32 threads wide, and we have a constraint of one workgroup is the size 
-     * of one subgroup. This all adds up to mean that one workgroup has 32 threads which process 32 triangles each - 
-     * each workgroup processes 1024 triangles. We need 32 workgroups to process one bin's worth of triangles. We 
-     * dispatch NumCells * 32 workgroups in the X direction
+     * mask for 32 triangles. Each subgroup is 32 threads wide, and we have 3 subgroups in our workgroups. This all 
+     * adds up to mean that one workgroup has 96 threads which process 32 triangles each - each workgroup processes 
+     * 3072 triangles. We need 10.9 workgroups to process one bin's worth of triangles. We dispatch NumCells * 11 
+     * workgroups in the X direction
      *
-     * Each thread reads the uint corresponding to its place in the mask
+     * Each thread reads the uint corresponding to its place in the bin's mask. If any of those 32 triangles are in the
+     * bin, it tests them against its cell. If the triangle is in the cell, it marks the tirangle's bit in a new 
+     * bitmask
+     *
+     * We also build a coarse cell bitmask from the threads in the subgroup. This has one bit marking if a uint in the
+     * cell bitmask has any bits set. This lets the rasterization shaders quickly skip empty parts of the cell bitmask
      */
 
-    uvec3 cell_id = uvec3(gl_WorkGroupID) / uvec3(32, 1, 1);
-    uint cell_index = cell_id.x + cell_id.y * 32 + cell_id.x * 32 * 32;
+    uvec3 cell_id = uvec3(gl_WorkGroupID) / uvec3(11, 1, 1);
+    uint cell_index = cell_id.x + cell_id.y * 32 + cell_id.z * 32 * 32;
     uint cell_offset_in_mask = cell_index * UINTS_PER_BIN;
     
     vec3 cell_min = vec3(cell_id) / 32.f;
@@ -207,29 +215,33 @@ void main() {
     uint bin_index = bin_id.x + bin_id.y * 8 + bin_id.z * 8 * 8;
     uint bin_offset_in_mask = bin_index * UINTS_PER_BIN;
 
-    uint group_offset_in_bin = gl_WorkGroupID.x % 32;
+    uint group_offset_in_bin = gl_WorkGroupID.x % 11;
 
     // Local index of this thread within the subgroup
-    uint local_index = gl_SubgroupInvocationID;
+    uint local_index = gl_SubgroupInvocationID + gl_SubgroupID * gl_SubgroupSize;
     // Index of the mask in the bin that this thread should look at
-    uint mask_offset = group_offset_in_bin + local_index;
+    uint mask_offset = group_offset_in_bin * NUM_THREADS + local_index;
 
-    uint current_bin_bits = bins_bitmask[bin_offset_in_mask + mask_offset];
     bool group_bin_to_tile = false;
-    uint cell_mask = 0; // Mask of triangles in this cell
-    while(current_bin_bits > 0) {
-        int bit = findLSB(current_bin_bits);
-        current_bin_bits &= ~uint(1 << bit);
-           
-        uint triangle_index = mask_offset * 32 + bit;
-        Triangle triangle = triangles[triangle_index];
-        if(is_triangle_in_bin(triangle, cell_min, cell_max)) {
-            cell_mask |= (1 << bit);
-        }
-    }
 
-    cell_bitmask[cell_offset_in_mask + mask_offset] = cell_mask;
-    group_bin_to_tile = cell_mask != 0u;
+    if(mask_offset < UINTS_PER_BIN) {
+        uint current_bin_bits = bins_bitmask[bin_offset_in_mask + mask_offset];
+
+        uint cell_mask = 0; // Mask of triangles in this cell
+        while(current_bin_bits > 0) {
+            int bit = findLSB(current_bin_bits);
+            current_bin_bits &= ~uint(1 << bit);
+            
+            uint triangle_index = mask_offset * 32 + bit;
+            Triangle triangle = triangles[triangle_index];
+            if(is_triangle_in_bin(triangle, cell_min, cell_max)) {
+                cell_mask |= (1 << bit);
+            }
+        }
+
+        cell_bitmask[cell_offset_in_mask + mask_offset] = cell_mask;
+        group_bin_to_tile = cell_mask != 0u;
+    }
 
     // High level mask of which uints in the bin have at least one bit in ths cell
     uvec4 subgroup_bin_result = subgroupBallot(group_bin_to_tile);
@@ -237,17 +249,18 @@ void main() {
     if(subgroupElect()) {
         // Store the high level mask to the coarse bins
         uint cell_offset_in_coarse_mask = cell_offset_in_mask / 32;
+        uint local_offset_in_coarse_mask = mask_offset / 32;
 
         if(gl_SubgroupSize == 16) {
             // Mali
             if(gl_SubgroupInvocationID % 2 == 1) {
                 in_bin_mask = in_bin_mask << 16;
             }
-            atomicOr(cell_bitmask_coarse[cell_offset_in_coarse_mask], in_bin_mask);
+            atomicOr(cell_bitmask_coarse[cell_offset_in_coarse_mask + local_offset_in_coarse_mask], in_bin_mask);
 
         } else if(gl_SubgroupSize == 32) {
             // Nvidia
-            cell_bitmask_coarse[cell_offset_in_coarse_mask] = in_bin_mask;
+            cell_bitmask_coarse[cell_offset_in_coarse_mask + local_offset_in_coarse_mask] = in_bin_mask;
         }
         // TODO: Support a subgroup size of 64 for AyyyyyMD
     }

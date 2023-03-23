@@ -1,5 +1,8 @@
 #pragma once
 
+// Un-comment if you use the debug library
+// #define KHRONOS_STATIC
+
 #include <filesystem>
 #include <unordered_map>
 
@@ -35,10 +38,7 @@ private:
 
     std::unordered_map<std::string, TextureHandle> loaded_textures;
 
-    tl::optional<TextureHandle> load_texture_ktx(const std::filesystem::path& ktx_texture, TextureType type);
+    tl::optional<TextureHandle> load_texture_ktx(const std::filesystem::path& filepath, TextureType type);
 
     tl::optional<TextureHandle> load_texture_png(const std::filesystem::path& filepath, TextureType type);
 };
-
-
-

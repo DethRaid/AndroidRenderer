@@ -5,6 +5,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(sah_renderer)
 
+# Oh whoops the internet died
+execute_process(
+        COMMAND ping www.google.com -n 2
+        ERROR_QUIET
+        RESULT_VARIABLE NO_CONNECTION
+)
+
+if(NOT NO_CONNECTION EQUAL 0)
+        set(FETCHCONTENT_FULLY_DISCONNECTED ON)
+        message(WARNING "FetchContent offline mode: requires an already populated _deps")
+else()
+        set(FETCHCONTENT_FULLY_DISCONNECTED OFF)
+endif()
+
 # Include the shared renderer
 
 include(${CMAKE_CURRENT_LIST_DIR}/../RenderCore/SahCore.cmake)
@@ -52,3 +66,4 @@ foreach(source IN LISTS SOURCES)
     string(REPLACE "/" "\\" source_path_msvc "${source_path_relative}")
     source_group("${source_path_msvc}" FILES "${source}")
 endforeach()
+
