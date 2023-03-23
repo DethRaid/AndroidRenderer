@@ -45,6 +45,12 @@ struct CascadeData {
      */
     BufferHandle vpl_buffer = BufferHandle::None;
 
+    /**
+     * 3D Compute shader voxelizer, allegedly useful
+     *
+     * However, it takes about 7 ms to rasterize Sponza on my RTX 2080 Super. I'm sure there's some things I could do
+     * to speed it up - but should I?
+     */
     LpvGvVoxelizer voxels;
 
     glm::vec3 min_bounds;

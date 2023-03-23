@@ -223,6 +223,7 @@ app/src/main/res
 
 # Others
 intermediate/
+Saved/
 
 *.jpg
 *.png

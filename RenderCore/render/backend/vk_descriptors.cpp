@@ -105,7 +105,7 @@ namespace vkutil {
             freePools.pop_back();
             return pool;
         } else {
-            return createPool(device, descriptorSizes, 1000, 0);
+            return createPool(device, descriptorSizes, 100000, 0);
         }
     }
 
