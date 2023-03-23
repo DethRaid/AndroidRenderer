@@ -46,17 +46,11 @@ private:
         
     BufferHandle volume_uniform_buffer = BufferHandle::None;
 
-    BufferHandle transformed_primitive_cache_a = BufferHandle::None;
+    BufferHandle transformed_triangle_cache = BufferHandle::None;
 
-    BufferHandle triangle_sh_cache_a = BufferHandle::None;
+    BufferHandle triangle_sh_cache = BufferHandle::None;
 
-    BufferHandle transformed_primitive_cache_b = BufferHandle::None;
-
-    BufferHandle triangle_sh_cache_b = BufferHandle::None;
-
-    BufferHandle bins_a = BufferHandle::None;
-
-    BufferHandle bins_b = BufferHandle::None;
+    BufferHandle bins = BufferHandle::None;
 
     BufferHandle cell_bitmask_coarse = BufferHandle::None;
 

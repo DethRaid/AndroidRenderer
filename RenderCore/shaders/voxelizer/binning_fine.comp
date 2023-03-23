@@ -48,7 +48,7 @@ layout(push_constant) uniform Constants {
     uint padding7;
 };
 
-#define NUM_THREADS 128
+#define NUM_THREADS 96
 
 layout(local_size_x = NUM_THREADS, local_size_y = 1, local_size_z = 1) in;
 
@@ -246,7 +246,7 @@ void main() {
     // High level mask of which uints in the bin have at least one bit in ths cell
     uvec4 subgroup_bin_result = subgroupBallot(group_bin_to_tile);
     uint in_bin_mask = subgroup_bin_result.x;
-    if(subgroupElect()) {
+    if(subgroupElect() && mask_offset < UINTS_PER_BIN) {
         // Store the high level mask to the coarse bins
         uint cell_offset_in_coarse_mask = cell_offset_in_mask / 32;
         uint local_offset_in_coarse_mask = mask_offset / 32;

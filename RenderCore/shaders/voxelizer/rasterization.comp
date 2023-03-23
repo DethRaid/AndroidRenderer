@@ -47,6 +47,8 @@ void main() {
     uint cell_index = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.z * gl_NumWorkGroups.x * gl_NumWorkGroups.y;
     uint local_index = gl_SubgroupInvocationID + gl_SubgroupID * gl_SubgroupSize;
 
+    // TODO: Instead of each thread looking at one item in the coarse mask, it might be better for each thread to look 
+    // at one bit in the coarse mask? Subgroup ops can help of course
     for(uint i = 0; i < COARSE_UINTS_PER_BIN; i += 32) {
         uint coarse_mask_offset = i + local_index;
         uint coarse_bitmask = coarse_cell_bitmask[cell_index * COARSE_UINTS_PER_BIN + coarse_mask_offset];

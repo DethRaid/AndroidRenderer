@@ -48,9 +48,9 @@ layout(push_constant) uniform Constants {
     uint primitive_id;
     uint first_vertex;
     uint first_index;
-    uint num_indices;
+    uint num_triangles;
     uint triangle_cache_offset;
-    uint padding5;
+    uint first_triangle;
     uint padding6;
     uint padding7;
 };
@@ -61,7 +61,7 @@ shared mat4 mvp;
 shared mat3 normal_matrix;
 
 void main() {
-    if(gl_GlobalInvocationID.x >= num_indices / 3) {
+    if(gl_GlobalInvocationID.x >= num_triangles) {
         return;
     }
 
@@ -78,7 +78,7 @@ void main() {
     memoryBarrierShared();
     barrier();
 
-    uint triangle_id = gl_GlobalInvocationID.x;
+    uint triangle_id = gl_GlobalInvocationID.x + first_triangle;
     uint provoking_index = triangle_id * 3;
 
     // Pull this triangle and transform it
