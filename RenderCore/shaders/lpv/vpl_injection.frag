@@ -14,7 +14,7 @@ layout(location = 2) out vec4 blue;
 void main() {
     vec3 scaled_color = color_in * (32 * 32) / (1024 * 1024);
 
-    red = sh_project_cone(normal_in * scaled_color.r);
-    blue = sh_project_cone(normal_in * scaled_color.g);
-    green = sh_project_cone(normal_in * scaled_color.b);
+    red = dir_to_sh(normal_in * scaled_color.r);
+    blue = dir_to_sh(normal_in * scaled_color.g);
+    green = dir_to_sh(normal_in * scaled_color.b);
 }

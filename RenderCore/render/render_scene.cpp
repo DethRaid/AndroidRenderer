@@ -3,6 +3,7 @@
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/render_backend.hpp"
 #include "console/cvars.hpp"
+#include "gltf/gltf_model.hpp"
 
 constexpr const uint32_t max_num_primitives = 65536;
 

@@ -7,6 +7,7 @@
 #include <GLFW/glfw3native.h>
 
 #include <core/application.hpp>
+#include <tracy/Tracy.hpp>
 
 int main(const int argc, const char** argv) {
     glfwInit();

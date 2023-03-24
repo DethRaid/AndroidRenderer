@@ -107,5 +107,5 @@ void main() {
     normal += normal_matrix * vertex_data[index1].normal;
     normal += normal_matrix * vertex_data[index2].normal;
 
-    triangle_sh[triangle_cache_offset + triangle_id] = sh_project_cone(normalize(normal));
+    triangle_sh[triangle_cache_offset + triangle_id] = dir_to_sh(normalize(normal));
 }   

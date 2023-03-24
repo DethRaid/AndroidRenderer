@@ -6,9 +6,9 @@
 #include "render/backend/handles.hpp"
 #include "render/scene_primitive.hpp"
 #include "render/backend/scatter_upload_buffer.hpp"
-#include "gltf/gltf_model.hpp"
 #include "render/sun_light.hpp"
 
+class GltfModel;
 class RenderBackend;
 
 /**

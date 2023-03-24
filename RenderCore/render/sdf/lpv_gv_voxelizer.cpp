@@ -1,6 +1,7 @@
 #include "lpv_gv_voxelizer.hpp"
 
 #include <glm/mat4x4.hpp>
+#include <glm/ext/matrix_transform.hpp>
 #include <tl/optional.hpp>
 
 #include "render/mesh_storage.hpp"

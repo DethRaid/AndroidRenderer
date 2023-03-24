@@ -5,10 +5,9 @@
 
 #include <volk.h>
 
+#include "render/basic_pbr_material.hpp"
 #include "render/scene_pass_type.hpp"
 #include "render/backend/pipeline.hpp"
-
-struct BasicPbrMaterial;
 
 class RenderBackend;
 

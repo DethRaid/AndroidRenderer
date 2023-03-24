@@ -3,6 +3,7 @@
 #include <tiny_gltf.h>
 #include <filesystem>
 
+#include "input/input_manager.hpp"
 #include "render/scene_renderer.hpp"
 #include "render/render_scene.hpp"
 
@@ -21,10 +22,22 @@ public:
 
     void tick();
 
+    void update_player_location(const glm::vec3& movement_axis);
+
 private:
+    const float player_movement_speed = 1.f;
+
+    double delta_time = 0.0;
+
+    std::chrono::high_resolution_clock::time_point last_frame_start_time;
+
     std::unique_ptr<SceneRenderer> scene_renderer;
 
     std::unique_ptr<RenderScene> scene;
 
+    InputManager input;
+
     tinygltf::TinyGLTF loader;
+
+    void update_delta_time();
 };

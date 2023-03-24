@@ -108,7 +108,7 @@ void GltfModel::add_primitives(RenderScene& scene, RenderBackend& backend) {
                 }
                 const auto node_itr = std::find(model.nodes.begin(), model.nodes.end(), node);
                 const auto node_index = node_itr - model.nodes.begin();
-                gltf_primitive_to_scene_primitive.emplace(node_index, scene_primitives);
+                gltf_primitive_to_scene_primitive.emplace(static_cast<unsigned long>(node_index), scene_primitives);
             }
         }
     );

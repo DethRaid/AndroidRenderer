@@ -18,14 +18,16 @@ public:
     explicit SceneTransform(RenderBackend& backend_in);
 
     void set_render_resolution(const glm::uvec2 render_resolution);
+    
+    void translate(glm::vec3 localspace_movement);
 
     /**
      * Sets the position and forward direction of this scene view
      *
-     * @param position Worldspace position
-     * @param direction Worldspace forward direction
+     * @param position_in Worldspace position
+     * @param direction_in Worldspace forward direction
      */
-    void set_position_and_direction(const glm::vec3& position, const glm::vec3& direction);
+    void set_position_and_direction(const glm::vec3& position_in, const glm::vec3& direction_in);
 
     void set_perspective_projection(float fov_in, float aspect_in, float near_value_in);
 
@@ -57,6 +59,11 @@ private:
     float near_value = 0.05f;
 
     /**
+     * Worldspace location of the camera
+     */
+    glm::vec3 position = glm::vec3{};
+
+    /**
      * Worldspace forward vector of the camera
      */
     glm::vec3  direction = {};
@@ -66,6 +73,8 @@ private:
     BufferHandle buffer = BufferHandle::None;
 
     bool is_dirty = true;
+
+    void refresh_view_matrices();
 };
 
 

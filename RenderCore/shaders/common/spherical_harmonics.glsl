@@ -1,3 +1,6 @@
+#ifndef SPHERICAL_HARMONICS_GLSL
+#define SPHERICAL_HARMONICS_GLSL
+
 /**
  * Library of SH functions
  */
@@ -8,44 +11,26 @@
 #define PI 3.1415927
 #endif
 
-// Vector to SH - from Crytek's LPV paper
+// Vector to SH - from https://ericpolman.com/2016/06/28/light-propagation-volumes/
 
-vec4 sh_rotate(const in vec3 vec, const in vec2 zh_coeffs) {
-    // compute sine and cosine of thetta angle
-    // beware of singularity when both x and y are 0 (no need to rotate at all)
-    vec2 theta12_cs = normalize(vec.xy);
+/*Spherical harmonics coefficients – precomputed*/
+// 1 / 2sqrt(pi)
+#define SH_c0 0.282094792f 
+// sqrt(3/pi) / 2
+#define SH_c1 0.488602512f 
 
-	// Is this what they meant? lol
-	if(length(vec.xy) == 0.0) {
-		theta12_cs = vec.xy;
-	}
+/*Cosine lobe coeff*/
+// sqrt(pi)/2
+#define SH_cosLobe_c0 0.886226925f
+// sqrt(pi/3) 
+#define SH_cosLobe_c1 1.02332671f 
 
-    // compute sine and cosine of phi angle
-    vec2 phi12_cs;
-    phi12_cs.x = sqrt(1.0 - vec.z * vec.z);
-    phi12_cs.y = vec.z;
-
-    vec4 result;
-    // The first band is rotation-independent
-    result.x = zh_coeffs.x;
-    // rotating the second band of SH
-    result.y = zh_coeffs.y * phi12_cs.x * theta12_cs.y;
-    result.z = -zh_coeffs.y * phi12_cs.y;
-    result.w = zh_coeffs.y * phi12_cs.x * theta12_cs.x;
-    return result;
+vec4 dir_to_cosine_lobe(vec3 dir) {
+    return vec4(SH_cosLobe_c0, -SH_cosLobe_c1 * -dir.y, SH_cosLobe_c1 * dir.z, -SH_cosLobe_c1 * dir.x);
 }
 
-vec4 sh_project_cone(const in vec3 vcDir, float angle)
-{
-	const vec2 vZHCoeffs = vec2(0.5 * (1.0 - cos(angle)), // 1/2 (1 - Cos[\[Alpha]])
-								0.75 * sin(angle) * sin(angle)); // 3/4 Sin[\[Alpha]]^2
-	return sh_rotate(vcDir, vZHCoeffs);
-}
-
-vec4 sh_project_cone(const in vec3 vector) {
-    const vec2 zh_coeffs = vec2(0.25, 0.5);
-
-    return sh_rotate(vector, zh_coeffs);
+vec4 dir_to_sh(vec3 dir) {
+    return vec4(SH_c0, -SH_c1 * -dir.y, SH_c1 * dir.z, -SH_c1 * dir.x);
 }
 
 // SH to vector - from https://zvxryb.github.io/blog/2015/08/20/sh-lighting-part1/
@@ -94,7 +79,9 @@ float sh_lookup_band2(float x[9], vec3 n) {
 // Adapted from the above
 
 float sh_lookup_band1(vec4 coefficients, vec3 direction) {
-	vec4 projected_direction = sh_project_cone(direction);
+	vec4 projected_direction = dir_to_sh(direction);
 
 	return dot(projected_direction, coefficients);
 }
+
+#endif 

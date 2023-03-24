@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 #include <spdlog/logger.h>
 #include <tl/optional.hpp>
 
@@ -20,9 +21,10 @@
 #ifdef near
 #undef near
 #endif
+#endif
 
 struct GLFWwindow;
-#endif
+class InputManager;
 
 /**
  * Interface to the system
@@ -59,6 +61,11 @@ public:
      * Writes some data to a file
      */
     virtual void write_file(const std::filesystem::path& filepath, const void* data, uint32_t data_size) = 0;
+
+    /**
+     * Polls the platform's input state and pushes it to the input manager
+     */
+    virtual void poll_input(InputManager& input) = 0;
 
     virtual glm::uvec2 get_resolution() = 0;
 };
@@ -100,11 +107,19 @@ public:
 
     void write_file(const std::filesystem::path& filepath, const void* data, uint32_t data_size) override;
 
+    void poll_input(InputManager& input) override;
+
     glm::uvec2 get_resolution() override;
 
     HWND get_hwnd() const;
 
     HINSTANCE get_hinstance() const;
+
+    void set_forward_axis(float value);
+
+    void set_right_axis(float value);
+
+    void set_up_axis(float value);
 
 private:
     GLFWwindow* window = nullptr;
@@ -112,5 +127,7 @@ private:
     HWND hwnd = nullptr;
 
     HINSTANCE hinstance = nullptr;
+
+    glm::vec3 raw_player_movement_axis = glm::vec3{0};
 };
 #endif

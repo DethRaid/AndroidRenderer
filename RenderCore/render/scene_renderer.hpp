@@ -44,6 +44,11 @@ public:
 
     MeshStorage& get_mesh_storage();
 
+    /**
+     * Translates the player's location
+     */
+    void translate_player(const glm::vec3& movement);
+
 private:
     RenderBackend backend;
 
@@ -72,6 +77,8 @@ private:
     TextureHandle gbuffer_emission_handle = TextureHandle::None;
     
     TextureHandle gbuffer_depth_handle = TextureHandle::None;
+
+    TextureHandle last_frame_depth_buffer = TextureHandle::None;
 
     TextureHandle lit_scene_handle = TextureHandle::None;
 

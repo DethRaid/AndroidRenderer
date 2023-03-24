@@ -9,6 +9,7 @@ layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 layout(set = 0, binding = 0, rgba16f) uniform writeonly image3D lpv_red;
 layout(set = 0, binding = 1, rgba16f) uniform writeonly image3D lpv_green;
 layout(set = 0, binding = 2, rgba16f) uniform writeonly image3D lpv_blue;
+layout(set = 0, binding = 3, rgba16f) uniform writeonly image3D geometry_volume;
 
 // Dummy push constants because I'm dummy
 layout(push_constant) uniform Constants {
@@ -28,4 +29,5 @@ void main() {
     imageStore(lpv_red, texel, vec4(0));
     imageStore(lpv_green, texel, vec4(0));
     imageStore(lpv_blue, texel, vec4(0));
+    imageStore(geometry_volume, texel, vec4(0));
 }

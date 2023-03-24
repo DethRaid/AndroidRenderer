@@ -29,7 +29,7 @@ SceneRenderer::SceneRenderer() :
     ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
-    player_view.set_position_and_direction(glm::vec3{7.f, 1.f, -0.25f}, glm::vec3{-1.f, 0.0f, 0.f});
+    player_view.set_position_and_direction(glm::vec3{7.f, 1.f, 0.0f}, glm::vec3{-1.f, 0.0f, 0.f});
 
     const auto render_resolution = SystemInterface::get().get_resolution();
 
@@ -106,7 +106,7 @@ void SceneRenderer::render() {
 
     scene->flush_primitive_upload(render_graph);
 
-    lpv.add_clear_volume_pass(render_graph);
+    lpv.clear_volume(render_graph);
 
     render_graph.add_transition_pass(
         {
@@ -279,14 +279,14 @@ void SceneRenderer::render() {
             .textures = {
                 {
                     swapchain_image,
-                    {VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR}
+                    {VK_PIPELINE_STAGE_2_NONE_KHR, VK_ACCESS_2_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR}
                 }
             }
         }
     );
 
     render_graph.finish();
-
+    
     backend.end_frame();
 }
 
@@ -348,6 +348,10 @@ void SceneRenderer::create_scene_render_targets() {
         allocator.destroy_texture(gbuffer_depth_handle);
     }
 
+    if (last_frame_depth_buffer != TextureHandle::None) {
+        allocator.destroy_texture(last_frame_depth_buffer);
+    }
+
     if (lit_scene_handle != TextureHandle::None) {
         allocator.destroy_texture(lit_scene_handle);
     }
@@ -379,7 +383,13 @@ void SceneRenderer::create_scene_render_targets() {
     );
 
     gbuffer_depth_handle = allocator.create_texture(
-        "gbuffer_depth", VK_FORMAT_D32_SFLOAT,
+        "gbuffer_depth A", VK_FORMAT_D32_SFLOAT,
+        scene_render_resolution, 1,
+        TextureUsage::RenderTarget
+    );
+
+    last_frame_depth_buffer = allocator.create_texture(
+        "gbuffer_depth B", VK_FORMAT_D32_SFLOAT,
         scene_render_resolution, 1,
         TextureUsage::RenderTarget
     );
@@ -434,4 +444,8 @@ MaterialStorage& SceneRenderer::get_material_storage() {
 
 MeshStorage& SceneRenderer::get_mesh_storage() {
     return meshes;
+}
+
+void SceneRenderer::translate_player(const glm::vec3& movement) {
+    player_view.translate(movement);
 }

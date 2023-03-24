@@ -86,8 +86,6 @@ void main() {
     uint first_max_thread = subgroupBallotFindLSB(result);
 
     if(first_max_thread == gl_SubgroupInvocationID) {
-        // TODO: Store this light in the cascade's VPL linked list. Then there's no need to store
-        // the VPL position, and we can SMASH that data usage!!!!
         store_light(light);
 
         vpl_count_buffer.instance_count = 1; 

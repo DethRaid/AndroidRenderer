@@ -1,6 +1,7 @@
 #include "light_propagation_volume.hpp"
 
 #include <magic_enum.hpp>
+#include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 
 #include "backend/render_graph.hpp"
@@ -188,17 +189,12 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
             fmt::format("Cascade {} VPL List", cascade_index),
             sizeof(PackedVPL) * 65536, BufferUsage::StorageBuffer
         );
-        cascade.voxels.init_resources(backend, size);
         cascade_index++;
     }
 }
 
 void LightPropagationVolume::set_scene(RenderScene& scene_in, MeshStorage& meshes_in) {
     rsm_drawer = scene_in.create_view(ScenePassType::RSM, meshes_in);
-
-    for (auto& cascade : cascades) {
-        cascade.voxels.set_scene(scene_in, meshes_in);
-    }
 }
 
 void LightPropagationVolume::update_cascade_transforms(const SceneTransform& view, const SunLight& light) {
@@ -464,13 +460,41 @@ void LightPropagationVolume::inject_indirect_sun_light(
             }
         );
 
-        cascade.voxels.voxelize_scene(graph, cascade.min_bounds, cascade.max_bounds);
+        // graph.add_render_pass(
+        //     RenderPass{
+        //         .name = "Inject RSM geometry",
+        //         .textures = {
+        //             {
+        //                 cascade.normals_target,
+        //                 {
+        //                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT_KHR,
+        //                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        //                 }
+        //             },
+        //             {
+        //                 cascade.depth_target,
+        //                 {
+        //                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT_KHR,
+        //                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        //                 }
+        //             }
+        //         },
+        //         .render_targets = {geometry_volume_handle},
+        //         .subpasses = {
+        //             {
+        //                 .name = "Inject RSM geometry into GV",
+        //                 .color_attachments = {0},
+        //                 .execute = [&](CommandBuffer& commands) {}
+        //             }
+        //         }
+        //     }
+        // );
 
         cascade_index++;
     }
 }
 
-void LightPropagationVolume::add_clear_volume_pass(RenderGraph& render_graph) {
+void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
     render_graph.add_compute_pass(
         {
             .name = "LightPropagationVolume::clear_volume",
@@ -495,6 +519,13 @@ void LightPropagationVolume::add_clear_volume_pass(RenderGraph& render_graph) {
                         .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, .access = VK_ACCESS_SHADER_WRITE_BIT,
                         .layout = VK_IMAGE_LAYOUT_GENERAL
                     }
+                },
+                {
+                    geometry_volume_handle,
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, .access = VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
+                        .layout = VK_IMAGE_LAYOUT_GENERAL,
+                    }
                 }
             },
             .execute = [&](CommandBuffer& commands) {
@@ -518,6 +549,14 @@ void LightPropagationVolume::add_clear_volume_pass(RenderGraph& render_graph) {
                                               .bind_image(
                                                   2, {
                                                       .image = lpv_a_blue,
+                                                      .image_layout = VK_IMAGE_LAYOUT_GENERAL
+                                                  },
+                                                  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                                  VK_SHADER_STAGE_COMPUTE_BIT
+                                              )
+                                              .bind_image(
+                                                  3, {
+                                                      .image = geometry_volume_handle,
                                                       .image_layout = VK_IMAGE_LAYOUT_GENERAL
                                                   },
                                                   VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -692,7 +731,7 @@ void LightPropagationVolume::perform_propagation_step(
                     }
                 },
                 {
-                    cascades[0].voxels.get_texture(),
+                    geometry_volume_handle,
                     {
                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
                         VK_IMAGE_LAYOUT_GENERAL
@@ -752,7 +791,7 @@ void LightPropagationVolume::perform_propagation_step(
                                                     )
                                                     .bind_image(
                                                         6, {
-                                                            .image = cascades[0].voxels.get_texture(),
+                                                            .image = geometry_volume_handle,
                                                             .image_layout = VK_IMAGE_LAYOUT_GENERAL
                                                         },
                                                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,

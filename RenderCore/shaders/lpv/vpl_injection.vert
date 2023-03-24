@@ -38,6 +38,9 @@ void main() {
     VPL vpl = unpack_vpl(packed_vpl);
 
     position = vec3(cascade_matrices[push_constants.cascade_index].world_to_cascade * vec4(vpl.position, 1.f));
+    // Add a half-texel offset 
+    // position -= vec3(1.f / 32.f);
+    // position.x = 1.f - position.x;
     color = vpl.color;
     normal = vpl.normal;
 

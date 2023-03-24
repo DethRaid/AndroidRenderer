@@ -31,7 +31,7 @@ void main() {
     ivec3 texel = ivec3(round(voxel_position));
     
     // We want the SH of the surface - the surface is solid in the opposite direction of the normal
-    vec4 sh = sh_project_cone(-normal_in);
+    vec4 sh = dir_to_sh(-normal_in);
 
     uint xy = packHalf2x16(sh.xy);
     uint zw = packHalf2x16(sh.zw);

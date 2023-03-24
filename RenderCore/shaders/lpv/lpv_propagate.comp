@@ -7,18 +7,6 @@
 
 // Propagation scheme from https://ericpolman.com/2016/06/28/light-propagation-volumes/
 
-/*Spherical harmonics coefficients – precomputed*/
-// 1 / 2sqrt(pi)
-#define SH_c0 0.282094792f 
-// sqrt(3/pi) / 2
-#define SH_c1 0.488602512f 
-
-/*Cosine lobe coeff*/
-// sqrt(pi)/2
-#define SH_cosLobe_c0 0.886226925f
-// sqrt(pi/3) 
-#define SH_cosLobe_c1 1.02332671f 
-
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
 layout(set = 0, binding = 0, rgba16f) uniform readonly image3D read_lpv_red;
@@ -74,14 +62,6 @@ vec3 get_eval_side_direction(uint index, mat3 orientation) {
 vec3 get_reproj_side_direction(uint index, mat3 orientation) {
     const vec2 s = side[index];
     return orientation * vec3(s.x, s.y, 0);
-}
-
-vec4 dir_to_cosine_lobe(vec3 dir) {
-    return vec4(SH_cosLobe_c0, -SH_cosLobe_c1 * dir.y, SH_cosLobe_c1 * dir.z, -SH_cosLobe_c1 * dir.x);
-}
-
-vec4 dir_to_sh(vec3 dir) {
-    return vec4(SH_c0, -SH_c1 * dir.y, SH_c1 * dir.z, -SH_c1 * dir.x);
 }
 
 void main() {

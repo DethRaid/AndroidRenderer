@@ -83,6 +83,7 @@ void main() {
     // }
 
     vec4 cascade_position = cascade_matrices[0].world_to_cascade * worldspace_position;
+    cascade_position.xyz -= vec3(0.5f / 32.f);
 
     vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
     vec4 green_coefficients = texture(lpv_green, cascade_position.xyz);
@@ -90,7 +91,7 @@ void main() {
 
     vec3 indirect_light = vec3(0);
     {
-        vec4 normal_coefficients = sh_project_cone(-surface.normal);
+        vec4 normal_coefficients = dir_to_sh(-surface.normal);
 
         float red_strength = dot(red_coefficients, normal_coefficients);
         float green_strength = dot(green_coefficients, normal_coefficients);

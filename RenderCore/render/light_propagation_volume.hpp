@@ -51,7 +51,7 @@ struct CascadeData {
      * However, it takes about 7 ms to rasterize Sponza on my RTX 2080 Super. I'm sure there's some things I could do
      * to speed it up - but should I?
      */
-    LpvGvVoxelizer voxels;
+    // LpvGvVoxelizer voxels;
 
     glm::vec3 min_bounds;
     glm::vec3 max_bounds;
@@ -85,12 +85,12 @@ public:
 
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene, const MeshStorage& meshes);
 
-    void add_clear_volume_pass(RenderGraph& render_graph);
+    void clear_volume(RenderGraph& render_graph);
     
     void propagate_lighting(RenderGraph& render_graph);
 
     /**
-     * Addatively renders the LPV onto the bound framebuffer
+     * Additively renders the LPV onto the bound framebuffer
      *
      * @param commands The command buffer to render with. Should already have a framebuffer bound
      * @param gbuffers_descriptor The descriptor set that contains the gbuffer attachments as input attachments
