@@ -11,8 +11,10 @@ layout(location = 0) out vec3 color_out;
 layout(location = 1) out vec3 normal_out;
 
 void main() {
-    gl_Layer = int(position_in[0].z * 32.f);
-    gl_Position = vec4(position_in[0].xy * 2.f - 1.f, 0.5f, 1.f);
+    vec3 position = position_in[0];
+    position.x = 1.f - position.x;
+    gl_Layer = int(position.z * 32.f);
+    gl_Position = vec4(position.xy * 2.f - 1.f, 0.f, 1.f);
     color_out = color_in[0];
     normal_out = normal_in[0];
 

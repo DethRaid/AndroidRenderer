@@ -25,7 +25,7 @@ public:
     void update_player_location(const glm::vec3& movement_axis);
 
 private:
-    const float player_movement_speed = 1.f;
+    const float player_movement_speed = 2.f;
 
     double delta_time = 0.0;
 

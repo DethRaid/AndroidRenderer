@@ -29,13 +29,13 @@ void on_glfw_key(GLFWwindow* window, const int key, const int scancode, const in
         }
     }
 
-    if (key == GLFW_KEY_D) {
+    if (key == GLFW_KEY_A) {
         if (action == GLFW_PRESS) {
             win32_system_interface->set_right_axis(1.f);
         } else if (action == GLFW_RELEASE) {
             win32_system_interface->set_right_axis(0.f);
         }
-    } else if (key == GLFW_KEY_A) {
+    } else if (key == GLFW_KEY_D) {
         if (action == GLFW_PRESS) {
             win32_system_interface->set_right_axis(-1.f);
         } else if (action == GLFW_RELEASE) {
