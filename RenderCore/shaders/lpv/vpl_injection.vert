@@ -25,10 +25,12 @@ layout(location = 2) out vec3 normal;
 VPL unpack_vpl(PackedVPL packed_vpl) {
     VPL vpl;
 
+    vec2 unpacked_y = unpackHalf2x16(packed_vpl.data.y);
+
     vpl.position.xy = unpackHalf2x16(packed_vpl.data.x);
-    vpl.position.z = unpackHalf2x16(packed_vpl.data.y).x;
+    vpl.position.z = unpacked_y.y;
     vpl.color = unpackUnorm4x8(packed_vpl.data.z).rgb;
-    vpl.normal = normalize(unpackSnorm4x8(packed_vpl.data.w).xyz);
+    vpl.normal = normalize(vec3(unpackHalf2x16(packed_vpl.data.w), unpacked_y.y));
 
     return vpl;
 }
@@ -38,9 +40,6 @@ void main() {
     VPL vpl = unpack_vpl(packed_vpl);
 
     position = vec3(cascade_matrices[push_constants.cascade_index].world_to_cascade * vec4(vpl.position, 1.f));
-    // Add a half-texel offset 
-    // position -= vec3(1.f / 32.f);
-    // position.x = 1.f - position.x;
     color = vpl.color;
     normal = vpl.normal;
 

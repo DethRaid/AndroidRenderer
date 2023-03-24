@@ -14,7 +14,10 @@ layout(location = 2) out vec4 blue;
 void main() {
     vec3 scaled_color = color_in * (32 * 32) / (1024 * 1024);
 
-    red = dir_to_sh(normal_in * scaled_color.r);
-    blue = dir_to_sh(normal_in * scaled_color.g);
-    green = dir_to_sh(normal_in * scaled_color.b);
+    vec3 normal = normal_in;
+    normal *= -1;
+
+    red = dir_to_sh(normal) * color_in.r;
+    green = dir_to_sh(normal) * color_in.g;
+    blue = dir_to_sh(normal) * color_in.b;
 }

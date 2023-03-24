@@ -26,11 +26,11 @@
 #define SH_cosLobe_c1 1.02332671f 
 
 vec4 dir_to_cosine_lobe(vec3 dir) {
-    return vec4(SH_cosLobe_c0, -SH_cosLobe_c1 * -dir.y, SH_cosLobe_c1 * dir.z, -SH_cosLobe_c1 * dir.x);
+    return vec4(SH_cosLobe_c0, -SH_cosLobe_c1 * dir.y, SH_cosLobe_c1 * dir.z, -SH_cosLobe_c1 * dir.x);
 }
 
 vec4 dir_to_sh(vec3 dir) {
-    return vec4(SH_c0, -SH_c1 * -dir.y, SH_c1 * dir.z, -SH_c1 * dir.x);
+    return vec4(SH_c0, -SH_c1 * dir.y, SH_c1 * dir.z, -SH_c1 * dir.x);
 }
 
 // SH to vector - from https://zvxryb.github.io/blog/2015/08/20/sh-lighting-part1/
