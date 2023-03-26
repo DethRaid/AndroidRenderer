@@ -66,7 +66,7 @@ target_link_libraries(SahCore PUBLIC
         spdlog
         spirv-reflect-static
         stb
-        tinygltf
+        fastgltf::fastgltf
         tl::optional
         Tracy::TracyClient
         vk-bootstrap

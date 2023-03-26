@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 #include <glm/gtc/type_ptr.hpp>
-#include <tiny_gltf.h>
+#include <fastgltf_types.hpp>
 
 #include "render/scene_primitive.hpp"
 #include "render/texture_type.hpp"
@@ -19,7 +19,7 @@ class RenderScene;
 
 class TextureLoader;
 
-glm::mat4 get_node_to_parent_matrix(const tinygltf::Node& node);
+glm::mat4 get_node_to_parent_matrix(const fastgltf::Node& node);
 
 /**
  * Class for a glTF model
@@ -29,11 +29,11 @@ glm::mat4 get_node_to_parent_matrix(const tinygltf::Node& node);
  */
 class GltfModel {
 public:
-    GltfModel(std::filesystem::path filepath_in, tinygltf::Model model, SceneRenderer& renderer);
+    GltfModel(std::filesystem::path filepath_in, std::unique_ptr<fastgltf::Asset>&& model, SceneRenderer& renderer);
 
     glm::vec4 get_bounding_sphere() const;
 
-    const tinygltf::Model& get_gltf_data() const;
+    const fastgltf::Asset& get_gltf_data() const;
 
     /**
      * Depth-first traversal of the node hierarchy
@@ -53,7 +53,7 @@ public:
 private:
     std::filesystem::path filepath;
 
-    tinygltf::Model model;
+    std::unique_ptr<fastgltf::Asset> model;
 
     std::unordered_map<int, TextureHandle> gltf_texture_to_texture_handle;
 
@@ -62,7 +62,10 @@ private:
     // Outer vector is the mesh, inner vector is the primitives within that mesh
     std::vector<std::vector<Mesh>> gltf_primitive_to_mesh_primitive;
 
-    std::unordered_map<unsigned long, std::vector<PooledObject<MeshPrimitive>>> gltf_primitive_to_scene_primitive;
+    /**
+     * All the MeshPrimitives that came from this glTF model
+     */
+    std::vector<PooledObject<MeshPrimitive>> scene_primitives;
 
     glm::vec4 bounding_sphere = {};
 
@@ -80,25 +83,25 @@ private:
 
     template <typename TraversalFunction>
     void
-    visit_node(TraversalFunction&& traversal_function, const tinygltf::Node& node, glm::mat4 parent_to_world) const;
+    visit_node(TraversalFunction&& traversal_function, const fastgltf::Node& node, glm::mat4 parent_to_world) const;
 
     TextureHandle get_texture(int gltf_texture_index, TextureType type, TextureLoader& texture_storage);
 
     void import_single_texture(int gltf_texture_index, TextureType type, TextureLoader& texture_storage);
 
-    static VkSampler to_vk_sampler(const tinygltf::Sampler& sampler, RenderBackend& backend);
+    static VkSampler to_vk_sampler(const fastgltf::Sampler& sampler, RenderBackend& backend);
 };
 
 template <typename TraversalFunction>
 void GltfModel::traverse_nodes(TraversalFunction&& traversal_function) const {
-    const auto& scene = model.scenes[model.defaultScene];
-    for (const auto& node : scene.nodes) {
-        visit_node(traversal_function, model.nodes[node], glm::mat4{1.f});
+    const auto& scene = model->scenes[*model->defaultScene];
+    for (const auto& node : scene.nodeIndices) {
+        visit_node(traversal_function, model->nodes[node], glm::mat4{1.f});
     }
 }
 
 template <typename TraversalFunction>
-void GltfModel::visit_node(TraversalFunction&& traversal_function, const tinygltf::Node& node,
+void GltfModel::visit_node(TraversalFunction&& traversal_function, const fastgltf::Node& node,
                            const glm::mat4 parent_to_world) const {
     const auto local_to_parent = get_node_to_parent_matrix(node);
     const auto local_to_world = parent_to_world * local_to_parent;
@@ -106,6 +109,6 @@ void GltfModel::visit_node(TraversalFunction&& traversal_function, const tinyglt
     traversal_function(node, local_to_world);
 
     for (const auto& child_node : node.children) {
-        visit_node(traversal_function, model.nodes[child_node], local_to_world);
+        visit_node(traversal_function, model->nodes[child_node], local_to_world);
     }
 }

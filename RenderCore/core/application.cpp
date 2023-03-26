@@ -4,12 +4,14 @@
 
 #include "application.hpp"
 
+#include <magic_enum.hpp>
+
 #include "system_interface.hpp"
 #include "gltf/gltf_model.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
-Application::Application() {
+Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
     logger = SystemInterface::get().get_logger("Application");
     spdlog::set_level(spdlog::level::trace);
     spdlog::flush_on(spdlog::level::warn);
@@ -29,27 +31,30 @@ Application::Application() {
 void Application::load_scene(const std::filesystem::path& scene_path) {
     logger->info("Beginning load of scene {}", scene_path.string());
 
-    tinygltf::Model model;
-    std::string err;
-    std::string warn;
-    auto success = false;
+    fastgltf::GltfDataBuffer data;
+    std::unique_ptr<fastgltf::glTF> gltf;
     {
         ZoneScopedN("Parse glTF");
-        success = loader.LoadASCIIFromFile(&model, &err, &warn, scene_path.string());
-        if (!warn.empty()) {
-            logger->warn("Warnings generated when loading {}: {}", scene_path.string(), warn);
-        }
+        data.loadFromFile(scene_path);
+        gltf = parser.loadGLTF(&data, scene_path.parent_path(), fastgltf::Options::LoadGLBBuffers | fastgltf::Options::LoadExternalBuffers);
     }
-    if (success) {
-        logger->info("Beginning import of scene {}", scene_path.string());
-
-        auto imported_model = GltfModel{scene_path, model, *scene_renderer};
-        scene->add_model(imported_model);
-
-        logger->info("Loaded scene {}", scene_path.string());
-    } else {
-        logger->error("Could not load scene {}: {}", scene_path.string(), err);
+    if (parser.getError() != fastgltf::Error::None) {
+        logger->error("Could not load scene {}: {}", scene_path.string(), magic_enum::enum_name(parser.getError()));
+        return;
     }
+
+    const auto parse_error = gltf->parse(fastgltf::Category::All & ~(fastgltf::Category::Images));
+    if (parse_error != fastgltf::Error::None) {
+        logger->error("Could not parse glTF file {}: {}", scene_path.string(), magic_enum::enum_name(parse_error));
+        return;
+    }
+
+    logger->info("Beginning import of scene {}", scene_path.string());
+
+    auto imported_model = GltfModel{scene_path, gltf->getParsedAsset(), *scene_renderer};
+    scene->add_model(imported_model);
+
+    logger->info("Loaded scene {}", scene_path.string());
 }
 
 void Application::update_resolution() {
@@ -76,6 +81,7 @@ void Application::update_player_location(const glm::vec3& movement_axis) {
 void Application::update_delta_time() {
     const auto frame_start_time = std::chrono::high_resolution_clock::now();
     const auto last_frame_duration = frame_start_time - last_frame_start_time;
-    delta_time = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(last_frame_duration).count()) / 1000000.0;
+    delta_time = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(last_frame_duration).count())
+        / 1000000.0;
     last_frame_start_time = frame_start_time;
 }

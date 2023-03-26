@@ -26,7 +26,34 @@ public:
 
     ~TextureLoader();
 
+    /**
+     * Loads a texture from disk
+     *
+     * @param filepath The path to the texture
+     * @param type The type of the texture
+     */
     tl::optional<TextureHandle> load_texture(const std::filesystem::path& filepath, TextureType type);
+
+    /**
+     * Uploads a KTX texture from memory
+     *
+     * @param filepath The filepath the texture data came from. Useful for logging and naming
+     * @param data The raw data for the texture
+     */
+    tl::optional<TextureHandle> upload_texture_ktx(
+        const std::filesystem::path& filepath, const std::vector<uint8_t>& data
+    );
+
+    /**
+     * Uploads a PNG file from memory
+     *
+     * @param filepath The filepath the texture data came from. Useful for logging and naming
+     * @param data The raw data for the PNG image
+     * @param type The type of the texture
+     */
+    tl::optional<TextureHandle> upload_texture_stbi(
+        const std::filesystem::path& filepath, const std::vector<uint8_t>& data, TextureType type
+    );
 
 private:
     RenderBackend& backend;
@@ -40,5 +67,5 @@ private:
 
     tl::optional<TextureHandle> load_texture_ktx(const std::filesystem::path& filepath, TextureType type);
 
-    tl::optional<TextureHandle> load_texture_png(const std::filesystem::path& filepath, TextureType type);
+    tl::optional<TextureHandle> load_texture_stbi(const std::filesystem::path& filepath, TextureType type);
 };

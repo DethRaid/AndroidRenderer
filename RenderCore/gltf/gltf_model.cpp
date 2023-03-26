@@ -13,7 +13,9 @@
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyVulkan.hpp>
 
+#include "fastgltf_parser.hpp"
 #include "core/percent_encoding.hpp"
+#include "core/visitor.hpp"
 #include "render/basic_pbr_material.hpp"
 #include "render/scene_renderer.hpp"
 #include "render/standard_vertex.hpp"
@@ -24,43 +26,44 @@
 static std::shared_ptr<spdlog::logger> logger;
 
 static std::vector<StandardVertex>
-read_vertex_data(const tinygltf::Primitive& primitive, const tinygltf::Model& model);
+read_vertex_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& model);
 
 static std::vector<uint32_t>
-read_index_data(const tinygltf::Primitive& primitive, const tinygltf::Model& model);
+read_index_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& model);
 
 static void copy_vertex_data_to_vector(
-    const std::map<std::string, int>& attributes,
-    const tinygltf::Model& model,
+    const std::unordered_map<std::string, std::size_t>& attributes,
+    const fastgltf::Asset& model,
     StandardVertex* vertices
 );
 
-glm::mat4 get_node_to_parent_matrix(const tinygltf::Node& node) {
-    if (!node.matrix.empty()) {
-        return glm::make_mat4(node.matrix.data());
-    } else {
-        glm::mat4 local_matrix(1.0);
+glm::mat4 get_node_to_parent_matrix(const fastgltf::Node& node) {
+    auto matrix = glm::mat4{1.f};
 
-        if (!node.translation.empty()) {
-            const auto translation = glm::vec3{glm::make_vec3(node.translation.data())};
-            local_matrix = glm::translate(local_matrix, translation);
-        }
-        if (!node.rotation.empty()) {
-            auto rotation = glm::make_quat(node.rotation.data());
-            local_matrix *= glm::mat4{glm::toMat4(rotation)};
-        }
-        if (!node.scale.empty()) {
-            const auto scale_factors = glm::vec3{glm::make_vec3(node.scale.data())};
-            local_matrix = glm::scale(local_matrix, scale_factors);
-        }
+    std::visit(
+        Visitor{
+            [&](const fastgltf::Node::TransformMatrix& node_matrix) {
+                matrix = glm::make_mat4(node_matrix.data());
+            },
+            [&](const fastgltf::Node::TRS& trs) {
+                const auto translation = glm::make_vec3(trs.translation.data());
+                auto rotation = glm::make_quat(trs.rotation.data());
+                const auto scale_factors = glm::make_vec3(trs.scale.data());
 
-        return local_matrix;
-    }
+                matrix = glm::translate(matrix, translation);
+                // matrix *= glm::mat4{glm::toMat4(rotation)};
+                matrix = glm::scale(matrix, scale_factors);
+            }
+        },
+        node.transform
+    );
+
+    return matrix;
 }
 
 GltfModel::GltfModel(
     std::filesystem::path filepath_in,
-    tinygltf::Model model,
+    std::unique_ptr<fastgltf::Asset>&& model,
     SceneRenderer& renderer
 )
     : filepath{std::move(filepath_in)}, model{std::move(model)} {
@@ -81,21 +84,22 @@ GltfModel::GltfModel(
 
 glm::vec4 GltfModel::get_bounding_sphere() const { return bounding_sphere; }
 
-const tinygltf::Model& GltfModel::get_gltf_data() const { return model; }
+const fastgltf::Asset& GltfModel::get_gltf_data() const { return *model; }
 
 void GltfModel::add_primitives(RenderScene& scene, RenderBackend& backend) {
     auto graph = RenderGraph{backend};
     traverse_nodes(
-        [&](const tinygltf::Node& node, const glm::mat4& node_to_world) {
-            if (node.mesh != -1) {
-                const auto& mesh = model.meshes[node.mesh];
-                auto scene_primitives = std::vector<PooledObject<MeshPrimitive>>{};
-                scene_primitives.reserve(mesh.primitives.size());
+        [&](const fastgltf::Node& node, const glm::mat4& node_to_world) {
+            if (node.meshIndex) {
+                const auto mesh_index = *node.meshIndex;
+                const auto& mesh = model->meshes[mesh_index];
+                auto node_primitives = std::vector<PooledObject<MeshPrimitive>>{};
+                node_primitives.reserve(mesh.primitives.size());
                 for (auto i = 0u; i < mesh.primitives.size(); i++) {
                     const auto gltf_primitive = mesh.primitives.at(i);
-                    const auto& imported_mesh = gltf_primitive_to_mesh_primitive.at(node.mesh).at(i);
+                    const auto& imported_mesh = gltf_primitive_to_mesh_primitive.at(mesh_index).at(i);
                     const auto& imported_material = gltf_material_to_material_handle.at(
-                        gltf_primitive.material
+                        *gltf_primitive.materialIndex
                     );
                     const auto handle = scene.add_primitive(
                         graph, {
@@ -104,11 +108,9 @@ void GltfModel::add_primitives(RenderScene& scene, RenderBackend& backend) {
                             .material = imported_material,
                         }
                     );
-                    scene_primitives.emplace_back(handle);
+                    node_primitives.emplace_back(handle);
                 }
-                const auto node_itr = std::find(model.nodes.begin(), model.nodes.end(), node);
-                const auto node_index = node_itr - model.nodes.begin();
-                gltf_primitive_to_scene_primitive.emplace(static_cast<unsigned long>(node_index), scene_primitives);
+                scene_primitives.insert(scene_primitives.end(), node_primitives.begin(), node_primitives.end());
             }
         }
     );
@@ -141,10 +143,10 @@ GltfModel::import_materials(
     ZoneScoped;
 
     gltf_material_to_material_handle.clear();
-    gltf_material_to_material_handle.reserve(model.materials.size());
+    gltf_material_to_material_handle.reserve(model->materials.size());
 
     int gltf_idx = 0;
-    for (const auto& gltf_material : model.materials) {
+    for (const auto& gltf_material : model->materials) {
         const auto material_name = !gltf_material.name.empty()
                                        ? gltf_material.name
                                        : "Unnamed material";
@@ -153,22 +155,23 @@ GltfModel::import_materials(
         // Naive implementation creates a separate material for each glTF material
         // A better implementation would have a few pipeline objects that can be shared - e.g. we'd save the
         // pipeline create info and descriptor set layout info, and copy it down as needed
-        
+
         auto material = BasicPbrMaterial{};
         material.name = material_name;
 
-        if (gltf_material.alphaMode == "OPAQUE") {
+        if (gltf_material.alphaMode == fastgltf::AlphaMode::Opaque) {
             material.transparency_mode = TransparencyMode::Solid;
             material.blend_state = {
                 .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                 VK_COLOR_COMPONENT_A_BIT
             };
-        } else if (gltf_material.alphaMode == "MASK") {
-            material.transparency_mode = TransparencyMode::Cutout; material.blend_state = {
+        } else if (gltf_material.alphaMode == fastgltf::AlphaMode::Mask) {
+            material.transparency_mode = TransparencyMode::Cutout;
+            material.blend_state = {
                 .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                 VK_COLOR_COMPONENT_A_BIT
             };
-        } else if (gltf_material.alphaMode == "BLEND") {
+        } else if (gltf_material.alphaMode == fastgltf::AlphaMode::Blend) {
             material.blend_state = VkPipelineColorBlendAttachmentState{
                 .blendEnable = VK_TRUE,
                 .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
@@ -183,23 +186,23 @@ GltfModel::import_materials(
 
             material.transparency_mode = TransparencyMode::Translucent;
         }
-        
+
         material.double_sided = gltf_material.doubleSided;
 
         material.gpu_data.base_color_tint = glm::vec4(
-            glm::make_vec4(gltf_material.pbrMetallicRoughness.baseColorFactor.data())
+            glm::make_vec4(gltf_material.pbrData->baseColorFactor.data())
         );
-        material.gpu_data.metalness_factor = static_cast<float>(gltf_material.pbrMetallicRoughness.metallicFactor);
-        material.gpu_data.roughness_factor = static_cast<float>(gltf_material.pbrMetallicRoughness.roughnessFactor);
+        material.gpu_data.metalness_factor = static_cast<float>(gltf_material.pbrData->metallicFactor);
+        material.gpu_data.roughness_factor = static_cast<float>(gltf_material.pbrData->roughnessFactor);
 
-        if (gltf_material.pbrMetallicRoughness.baseColorTexture.index != -1) {
+        if (gltf_material.pbrData->baseColorTexture) {
             material.base_color_texture = get_texture(
-                gltf_material.pbrMetallicRoughness.baseColorTexture.index,
+                gltf_material.pbrData->baseColorTexture->textureIndex,
                 TextureType::Color, texture_loader
             );
 
-            const auto& texture = model.textures[gltf_material.pbrMetallicRoughness.baseColorTexture.index];
-            const auto& sampler = model.samplers[texture.sampler];
+            const auto& texture = model->textures[gltf_material.pbrData->baseColorTexture->textureIndex];
+            const auto& sampler = model->samplers[*texture.samplerIndex];
 
             material.base_color_sampler = to_vk_sampler(sampler, backend);
         } else {
@@ -207,15 +210,15 @@ GltfModel::import_materials(
             material.base_color_sampler = backend.get_default_sampler();
         }
 
-        if (gltf_material.normalTexture.index != -1) {
+        if (gltf_material.normalTexture) {
             material.normal_texture = get_texture(
-                gltf_material.normalTexture.index,
+                gltf_material.normalTexture->textureIndex,
                 TextureType::Data,
                 texture_loader
             );
 
-            const auto& texture = model.textures[gltf_material.normalTexture.index];
-            const auto& sampler = model.samplers[texture.sampler];
+            const auto& texture = model->textures[gltf_material.normalTexture->textureIndex];
+            const auto& sampler = model->samplers[*texture.samplerIndex];
 
             material.normal_sampler = to_vk_sampler(sampler, backend);
         } else {
@@ -223,15 +226,15 @@ GltfModel::import_materials(
             material.normal_sampler = backend.get_default_sampler();
         }
 
-        if (gltf_material.pbrMetallicRoughness.metallicRoughnessTexture.index != -1) {
+        if (gltf_material.pbrData->metallicRoughnessTexture) {
             material.metallic_roughness_texture = get_texture(
-                gltf_material.pbrMetallicRoughness.metallicRoughnessTexture.index,
+                gltf_material.pbrData->metallicRoughnessTexture->textureIndex,
                 TextureType::Data,
                 texture_loader
             );
 
-            const auto& texture = model.textures[gltf_material.pbrMetallicRoughness.metallicRoughnessTexture.index];
-            const auto& sampler = model.samplers[texture.sampler];
+            const auto& texture = model->textures[gltf_material.pbrData->metallicRoughnessTexture->textureIndex];
+            const auto& sampler = model->samplers[*texture.samplerIndex];
 
             material.metallic_roughness_sampler = to_vk_sampler(sampler, backend);
         } else {
@@ -239,15 +242,15 @@ GltfModel::import_materials(
             material.metallic_roughness_sampler = backend.get_default_sampler();
         }
 
-        if (gltf_material.emissiveTexture.index != -1) {
+        if (gltf_material.emissiveTexture) {
             material.emission_texture = get_texture(
-                gltf_material.emissiveTexture.index,
+                gltf_material.emissiveTexture->textureIndex,
                 TextureType::Data,
                 texture_loader
             );
 
-            const auto& texture = model.textures[gltf_material.emissiveTexture.index];
-            const auto& sampler = model.samplers[texture.sampler];
+            const auto& texture = model->textures[gltf_material.emissiveTexture->textureIndex];
+            const auto& sampler = model->samplers[*texture.samplerIndex];
 
             material.emission_sampler = to_vk_sampler(sampler, backend);
         } else {
@@ -271,7 +274,7 @@ void GltfModel::import_meshes(SceneRenderer& renderer) {
 
     gltf_primitive_to_mesh_primitive.reserve(512);
 
-    for (const auto& mesh : model.meshes) {
+    for (const auto& mesh : model->meshes) {
         // Copy the vertex and index data into the appropriate buffers
         // Interleave the vertex data, because it's easier for me to handle conceptually
         // Maybe eventually profile splitting out positions for separate use
@@ -281,8 +284,8 @@ void GltfModel::import_meshes(SceneRenderer& renderer) {
 
         auto primitive_idx = 0u;
         for (const auto& primitive : mesh.primitives) {
-            const auto vertices = read_vertex_data(primitive, model);
-            const auto indices = read_index_data(primitive, model);
+            const auto vertices = read_vertex_data(primitive, *model);
+            const auto indices = read_index_data(primitive, *model);
 
             const auto mesh_maybe = mesh_storage.add_mesh(vertices, indices);
 
@@ -307,28 +310,28 @@ void GltfModel::calculate_bounding_sphere_and_footprint() {
     auto max_extents = glm::vec3{0.f};
 
     traverse_nodes(
-        [&](const tinygltf::Node& node, const glm::mat4& local_to_world) {
-            if (node.mesh != -1) {
-                const auto& mesh = model.meshes[node.mesh];
+        [&](const fastgltf::Node& node, const glm::mat4& local_to_world) {
+            if (node.meshIndex) {
+                const auto& mesh = model->meshes[*node.meshIndex];
                 for (const auto& primitive : mesh.primitives) {
                     const auto position_accessor_index = primitive.attributes.at("POSITION");
-                    const auto& position_accessor = model.accessors[position_accessor_index];
+                    const auto& position_accessor = model->accessors[position_accessor_index];
                     // Position accessor. It's min and max values are the min and max bounding box of the primitive
                     // This probably breaks for animated meshes
                     // Better solution: Save the glTF model's bounding sphere and footprint radius into an extension in the glTF
                     // file
-
-                    const auto primitive_min = glm::make_vec3(position_accessor.minValues.data());
-                    const auto primitive_max = glm::make_vec3(position_accessor.maxValues.data());
-
+                    
+                    const auto primitive_min = glm::make_vec3(std::get_if<std::vector<double>>(&position_accessor.min)->data());
+                    const auto primitive_max = glm::make_vec3(std::get_if<std::vector<double>>(&position_accessor.max)->data());
+                    
                     const auto primitive_min_modelspace =
                         local_to_world * glm::vec4{primitive_min, 1.f};
                     const auto primitive_max_modelspace =
                         local_to_world * glm::vec4{primitive_max, 1.f};
-
+                    
                     min_extents = glm::min(min_extents, glm::vec3{primitive_min_modelspace});
                     max_extents = glm::max(max_extents, glm::vec3{primitive_max_modelspace});
-
+                    
                     logger->info(
                         "New min: ({}, {}, {}) new max: ({}, {}, {})",
                         min_extents.x,
@@ -396,42 +399,82 @@ void GltfModel::import_single_texture(
     const int gltf_texture_index, const TextureType type,
     TextureLoader& texture_storage
 ) {
-    const auto& gltf_texture = model.textures[gltf_texture_index];
+    ZoneScoped;
 
-    std::string uri;
+    const auto& gltf_texture = model->textures[gltf_texture_index];    
+    const auto& image = model->images[*gltf_texture.imageIndex];
 
-    const auto& image = model.images[gltf_texture.source];
+    auto image_data = std::vector<uint8_t>{};
+    auto image_name = std::filesystem::path{image.name};
+    auto mime_type = fastgltf::MimeType::None;
 
-    if (!image.uri.empty()) {
-        uri = decode_percent_encoding(std::string_view{image.uri});
-    } else {
-        throw std::runtime_error{"Image has no URI! Embedded images are not supported"};
-    }
+    std::visit(
+        Visitor {
+            [&](const auto&) {/* I'm just here so I don't get a compiler error */},
+            [&](const fastgltf::sources::BufferView& buffer_view) {
+                const auto& real_buffer_view = model->bufferViews[buffer_view.bufferViewIndex];
+                const auto& buffer = model->buffers[real_buffer_view.bufferIndex];
+                const auto* buffer_vector = std::get_if<fastgltf::sources::Vector>(&buffer.data);
+                auto* data_pointer = buffer_vector->bytes.data();
+                data_pointer += real_buffer_view.byteOffset;
+                image_data = { data_pointer, data_pointer + real_buffer_view.byteLength };
+                mime_type = buffer_view.mimeType;
+            },
+            [&](const fastgltf::sources::FilePath& file_path) {
+                const auto uri = decode_percent_encoding(std::string_view{file_path.path.string()});
 
-    logger->info("Loading texture {}", uri);
+                logger->info("Loading texture {}", uri);
 
+                // Try to load a KTX version of the texture
+                const auto texture_filepath = filepath.parent_path() / uri;
+                auto ktx_texture_filepath = texture_filepath;
+                ktx_texture_filepath.replace_extension("ktx2");
+                auto data_maybe = SystemInterface::get().load_file(ktx_texture_filepath);
+                if(data_maybe) {
+                    image_data = std::move(*data_maybe);
+                    image_name = ktx_texture_filepath;
+                    mime_type = fastgltf::MimeType::KTX2;
+                    return;
+                }
 
-    // Try to load a kTX version of the texture
-    const auto texture_filepath = filepath.parent_path() / uri;
-    auto ktx_texture_filepath = texture_filepath;
-    ktx_texture_filepath.replace_extension("ktx2");
-    auto handle = texture_storage.load_texture(ktx_texture_filepath, type);
-    if (!handle) {
-        logger->info(
-            "Could not find KTX texture {}, trying regular texture {}", ktx_texture_filepath.string(),
-            texture_filepath.string()
-        );
-        handle = texture_storage.load_texture(texture_filepath, type);
+                data_maybe = SystemInterface::get().load_file(texture_filepath);
+                if (data_maybe) {
+                    image_data = std::move(*data_maybe);
+                    image_name = texture_filepath;
+                    const auto& extension = texture_filepath.extension();
+                    if(extension == "png") {
+                        mime_type = fastgltf::MimeType::PNG;
+                    } else if(extension == "jpg" || extension == "jpeg") {
+                        mime_type = fastgltf::MimeType::JPEG;
+                    }
+                    return;
+                }
+
+                throw std::runtime_error{ fmt::format("Could not load image {}", texture_filepath.string()) };
+            },
+            [&](const fastgltf::sources::Vector& vector_data) {
+                image_data = {vector_data.bytes.begin(), vector_data.bytes.end()};
+                mime_type = vector_data.mimeType;
+            }
+        },
+        image.data
+    );
+
+    auto handle = tl::optional<TextureHandle>{};
+    if(mime_type == fastgltf::MimeType::KTX2) {
+        handle = texture_storage.upload_texture_ktx(image_name, image_data);
+    } else if(mime_type == fastgltf::MimeType::PNG || mime_type == fastgltf::MimeType::JPEG) {
+        handle = texture_storage.upload_texture_stbi(image_name, image_data, type);
     }
 
     if (handle) {
         gltf_texture_to_texture_handle.emplace(gltf_texture_index, *handle);
     } else {
-        throw std::runtime_error{fmt::format("Could not load image with URI {}", uri)};
+        throw std::runtime_error{ fmt::format("Could not load image {}", image_name.string()) };
     }
 }
 
-VkSampler GltfModel::to_vk_sampler(const tinygltf::Sampler& sampler, RenderBackend& backend) {
+VkSampler GltfModel::to_vk_sampler(const fastgltf::Sampler& sampler, RenderBackend& backend) {
     auto create_info = VkSamplerCreateInfo{
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .magFilter = VK_FILTER_LINEAR,
@@ -440,69 +483,69 @@ VkSampler GltfModel::to_vk_sampler(const tinygltf::Sampler& sampler, RenderBacke
         .maxLod = 16,
     };
 
-    switch (sampler.minFilter) {
-    case TINYGLTF_TEXTURE_FILTER_NEAREST:
+    switch (*sampler.minFilter) {
+    case fastgltf::Filter::Nearest:
         create_info.minFilter = VK_FILTER_NEAREST;
         break;
 
-    case TINYGLTF_TEXTURE_FILTER_LINEAR:
+    case fastgltf::Filter::Linear:
         create_info.minFilter = VK_FILTER_LINEAR;
         break;
 
-    case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
+    case fastgltf::Filter::NearestMipMapNearest:
         create_info.minFilter = VK_FILTER_NEAREST;
         create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
         break;
 
-    case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
+    case fastgltf::Filter::LinearMipMapNearest:
         create_info.minFilter = VK_FILTER_LINEAR;
         create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
         break;
 
-    case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
+    case fastgltf::Filter::NearestMipMapLinear:
         create_info.minFilter = VK_FILTER_NEAREST;
         create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         break;
 
-    case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
+    case fastgltf::Filter::LinearMipMapLinear:
         create_info.minFilter = VK_FILTER_LINEAR;
         create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     }
 
-    switch (sampler.magFilter) {
-    case TINYGLTF_TEXTURE_FILTER_NEAREST:
+    switch (*sampler.magFilter) {
+    case fastgltf::Filter::Nearest:
         create_info.magFilter = VK_FILTER_NEAREST;
         break;
 
-    case TINYGLTF_TEXTURE_FILTER_LINEAR:
+    case fastgltf::Filter::Linear:
         create_info.magFilter = VK_FILTER_LINEAR;
         break;
     }
 
     switch (sampler.wrapS) {
-    case TINYGLTF_TEXTURE_WRAP_REPEAT:
+    case fastgltf::Wrap::Repeat:
         create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         break;
 
-    case TINYGLTF_TEXTURE_WRAP_CLAMP_TO_EDGE:
+    case fastgltf::Wrap::ClampToEdge:
         create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         break;
 
-    case TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT:
+    case fastgltf::Wrap::MirroredRepeat:
         create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
         break;
     }
 
     switch (sampler.wrapT) {
-    case TINYGLTF_TEXTURE_WRAP_REPEAT:
+    case fastgltf::Wrap::Repeat:
         create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         break;
 
-    case TINYGLTF_TEXTURE_WRAP_CLAMP_TO_EDGE:
+    case fastgltf::Wrap::ClampToEdge:
         create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         break;
 
-    case TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT:
+    case fastgltf::Wrap::MirroredRepeat:
         create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
         break;
     }
@@ -516,7 +559,7 @@ VkSampler GltfModel::to_vk_sampler(const tinygltf::Sampler& sampler, RenderBacke
 }
 
 std::vector<StandardVertex>
-read_vertex_data(const tinygltf::Primitive& primitive, const tinygltf::Model& model) {
+read_vertex_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& model) {
     // Get the first attribute's index_count. All the attributes must have the same number of elements, no need to get all their counts
     const auto positions_index = primitive.attributes.at("POSITION");
     const auto positions_accessor = model.accessors[positions_index];
@@ -531,8 +574,8 @@ read_vertex_data(const tinygltf::Primitive& primitive, const tinygltf::Model& mo
 }
 
 std::vector<uint32_t>
-read_index_data(const tinygltf::Primitive& primitive, const tinygltf::Model& model) {
-    const auto& index_accessor = model.accessors[primitive.indices];
+read_index_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& model) {
+    const auto& index_accessor = model.accessors[*primitive.indicesAccessor];
     const auto num_indices = index_accessor.count;
 
     auto indices = std::vector<uint32_t>{};
@@ -540,12 +583,13 @@ read_index_data(const tinygltf::Primitive& primitive, const tinygltf::Model& mod
 
     auto* const index_write_ptr = indices.data();
 
-    const auto& index_buffer_view = model.bufferViews[index_accessor.bufferView];
-    const auto& index_buffer = model.buffers[index_buffer_view.buffer];
-    const auto* index_ptr_u8 =
-        index_buffer.data.data() + index_buffer_view.byteOffset + index_accessor.byteOffset;
+    const auto& index_buffer_view = model.bufferViews[*index_accessor.bufferViewIndex];
+    const auto& index_buffer = model.buffers[index_buffer_view.bufferIndex];
+    const auto* index_buffer_data = std::get_if<fastgltf::sources::Vector>(&index_buffer.data);
+    const auto* index_ptr_u8 = index_buffer_data->bytes.data() + index_buffer_view.byteOffset + index_accessor.
+        byteOffset;
 
-    if (index_accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+    if (index_accessor.componentType == fastgltf::ComponentType::UnsignedShort) {
         const auto* index_read_ptr = reinterpret_cast<const uint16_t*>(index_ptr_u8);
 
         for (auto i = 0u; i < index_accessor.count; i++) {
@@ -559,8 +603,8 @@ read_index_data(const tinygltf::Primitive& primitive, const tinygltf::Model& mod
 }
 
 void copy_vertex_data_to_vector(
-    const std::map<std::string, int>& attributes,
-    const tinygltf::Model& model,
+    const std::unordered_map<std::string, std::size_t>& attributes,
+    const fastgltf::Asset& model,
     StandardVertex* vertices
 ) {
     ZoneScoped;
@@ -568,12 +612,12 @@ void copy_vertex_data_to_vector(
     for (const auto& [attribute_name, attribute_index] : attributes) {
         ZoneScopedN("Attribute read");
         const auto& attribute_accessor = model.accessors[attribute_index];
-        const auto& attribute_buffer_view = model.bufferViews[attribute_accessor.bufferView];
-        const auto& attribute_buffer = model.buffers[attribute_buffer_view.buffer];
+        const auto& attribute_buffer_view = model.bufferViews[*attribute_accessor.bufferViewIndex];
+        const auto& attribute_buffer = model.buffers[attribute_buffer_view.bufferIndex];
+        const auto* attribute_data = std::get_if<fastgltf::sources::Vector>(&attribute_buffer.data);
 
-        auto* read_ptr_u8 =
-            attribute_buffer.data.data() + attribute_buffer_view.byteOffset +
-            attribute_accessor.byteOffset;
+        auto* read_ptr_u8 = attribute_data->bytes.data() + attribute_buffer_view.byteOffset + attribute_accessor.
+            byteOffset;
         auto* write_ptr = vertices;
 
         write_ptr->color = glm::packUnorm4x8(glm::vec4{1.f});

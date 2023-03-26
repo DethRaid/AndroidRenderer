@@ -1,8 +1,8 @@
 #pragma once
 
-#include <tiny_gltf.h>
 #include <filesystem>
 
+#include <fastgltf_parser.hpp>
 #include "input/input_manager.hpp"
 #include "render/scene_renderer.hpp"
 #include "render/render_scene.hpp"
@@ -37,7 +37,7 @@ private:
 
     InputManager input;
 
-    tinygltf::TinyGLTF loader;
+    fastgltf::Parser parser;
 
     void update_delta_time();
 };

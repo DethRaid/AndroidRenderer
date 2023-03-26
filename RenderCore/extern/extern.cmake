@@ -21,6 +21,9 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE) 
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 
+set(FASTGLTF_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+set(FASTGLTF_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
+
 FetchContent_Declare(
         glm
         GIT_REPOSITORY  https://github.com/g-truc/glm.git
@@ -42,9 +45,9 @@ FetchContent_Declare(
         GIT_TAG         sdk-1.3.224.1
 )
 FetchContent_Declare(
-        tinygltf
-        GIT_REPOSITORY  https://github.com/syoyo/tinygltf.git
-        GIT_TAG         091a1fcc1abcef17c58bbbf400e85f5b87952491
+        fetch_fastgltf
+        GIT_REPOSITORY  https://github.com/spnda/fastgltf.git
+        GIT_TAG         5040c22
 )
 FetchContent_Declare(
         tl_optional
@@ -73,7 +76,7 @@ FetchContent_Declare(
 )
 
 
-FetchContent_MakeAvailable(glm spdlog tinygltf tl_optional fetch_magic_enum fetch_spirv_reflect
+FetchContent_MakeAvailable(glm spdlog fetch_fastgltf tl_optional fetch_magic_enum fetch_spirv_reflect
         fetch_tracy fetch_vma vk-bootstrap fetch_volk)
 
 FetchContent_Declare(
