@@ -78,9 +78,9 @@ public:
      */
     void end_frame();
 
-    void collect_tracy_data(CommandBuffer& commands);
+    void collect_tracy_data(const CommandBuffer& commands) const;
 
-    TracyVkCtx get_tracy_context();
+    TracyVkCtx get_tracy_context() const;
 
     ResourceAllocator& get_global_allocator();
 

@@ -35,6 +35,10 @@ public:
 
     void add_render_pass(RenderPass&& pass);
 
+    void begin_label(const std::string& label);
+
+    void end_label();
+
     void finish();
 
 private:

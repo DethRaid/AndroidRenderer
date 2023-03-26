@@ -85,6 +85,13 @@ void SceneRenderer::render() {
     auto render_graph = RenderGraph{backend};
 
     render_graph.add_compute_pass(
+        {
+            .name = "Tracy Collect",
+            .execute = [&](CommandBuffer& commands) { backend.collect_tracy_data(commands); }
+        }
+    );
+
+    render_graph.add_compute_pass(
         ComputePass{
             .name = "Begin Frame",
             .execute = [&](CommandBuffer& commands) {
@@ -264,13 +271,6 @@ void SceneRenderer::render() {
                     }
                 }
             }
-        }
-    );
-
-    render_graph.add_compute_pass(
-        {
-            .name = "Tracy Collect",
-            .execute = [&](CommandBuffer& commands) { backend.collect_tracy_data(commands); }
         }
     );
 

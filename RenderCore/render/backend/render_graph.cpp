@@ -47,9 +47,11 @@ void RenderGraph::add_transition_pass(TransitionPass&& pass) {
 }
 
 void RenderGraph::add_compute_pass(ComputePass&& pass) {
-    logger->debug("Adding compute pass {}", pass.name);
+    if (!pass.name.empty()) {
+        logger->debug("Adding compute pass {}", pass.name);
 
-    cmds.begin_label(pass.name);
+        cmds.begin_label(pass.name);
+    }
 
     for (const auto& buffer_token : pass.buffers) {
         set_resource_usage(buffer_token.first, buffer_token.second.stage, buffer_token.second.access);
@@ -65,7 +67,9 @@ void RenderGraph::add_compute_pass(ComputePass&& pass) {
 
     pass.execute(cmds);
 
-    cmds.end_label();
+    if (!pass.name.empty()) {
+        cmds.end_label();
+    }
 }
 
 void RenderGraph::add_render_pass(RenderPass&& pass) {
@@ -143,6 +147,22 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     cmds.end_label();
 
     backend.get_global_allocator().destroy_framebuffer(std::move(framebuffer));
+}
+
+void RenderGraph::begin_label(const std::string& label) {
+    add_compute_pass({
+        .execute = [label = std::move(label)](CommandBuffer& commands) {
+            commands.begin_label(label);
+        }
+    });
+}
+
+void RenderGraph::end_label() {
+    add_compute_pass({
+        .execute = [](CommandBuffer& commands) {
+            commands.end_label();
+        }
+        });
 }
 
 void RenderGraph::finish() {

@@ -464,11 +464,11 @@ void RenderBackend::end_frame() {
     }
 }
 
-void RenderBackend::collect_tracy_data(CommandBuffer& commands) {
-    TracyVkCollect(tracy_context, commands.get_vk_commands());
+void RenderBackend::collect_tracy_data(const CommandBuffer& commands) const {
+    TracyVkCollect(tracy_context, commands.get_vk_commands())
 }
 
-TracyVkCtx RenderBackend::get_tracy_context() {
+TracyVkCtx RenderBackend::get_tracy_context() const {
     return tracy_context;
 }
 

@@ -56,6 +56,11 @@ target_glsl_shaders(SahWindows
 
 target_link_libraries(SahWindows PUBLIC
         SahCore)
+
+add_custom_target(gltf_compression
+        python ${CMAKE_CURRENT_LIST_DIR}/../Tools/optimize_gltf.py ${CMAKE_CURRENT_LIST_DIR}/../Windows/build/Debug
+)
+add_dependencies(SahWindows gltf_compression)
     
 #######################
 # Generate VS filters #

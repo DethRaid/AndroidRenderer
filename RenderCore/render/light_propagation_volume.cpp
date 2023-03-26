@@ -288,6 +288,8 @@ void LightPropagationVolume::inject_indirect_sun_light(
     // Unfortunately there's a sync point between the VPL generation FS and the VPL injection pass. Not sure I can get
     // rid of that
 
+    graph.begin_label("LPV indirect sun light injection");
+
     auto cascade_index = 0;
     for (const auto& cascade : cascades) {
         graph.add_compute_pass(
@@ -326,7 +328,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         .color_attachments = {0, 1},
                         .depth_attachment = 2,
                         .execute = [&](CommandBuffer& commands) {
-                            GpuZoneScopedN(commands, "Render RSM");
+                            GpuZoneScopedN(commands, "Render RSM")
                             auto global_set = *backend.create_frame_descriptor_builder()
                                                       .bind_buffer(
                                                           0, {.buffer = cascade_data_buffer},
@@ -353,7 +355,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         .name = "VPL Generation",
                         .input_attachments = {0, 1, 2},
                         .execute = [&](CommandBuffer& commands) {
-                            GpuZoneScopedN(commands, "VPL Generation");
+                            GpuZoneScopedN(commands, "VPL Generation")
                             const auto sampler = backend.get_default_sampler();
 
                             const auto set = backend.create_frame_descriptor_builder()
@@ -431,7 +433,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         .name = "VPL Injection",
                         .color_attachments = {0, 1, 2},
                         .execute = [&](CommandBuffer& commands) {
-                            GpuZoneScopedN(commands, "VPL Injection");
+                            GpuZoneScopedN(commands, "VPL Injection")
 
                             const auto set = *backend.create_frame_descriptor_builder()
                                                      .bind_buffer(
@@ -492,6 +494,8 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
         cascade_index++;
     }
+
+    graph.end_label();
 }
 
 void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
@@ -568,7 +572,7 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
 
                 commands.bind_shader(clear_lpv_shader);
 
-                commands.dispatch(4, 32, 32);
+                commands.dispatch(cvar_lpv_num_cascades.Get(), 32, 32);
 
                 commands.clear_descriptor_set(0);
             }
@@ -577,6 +581,8 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
 }
 
 void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
+    render_graph.begin_label("LPV Propagation");
+
     for (auto step_index = 0; step_index < cvar_lpv_num_propagation_steps.Get(); step_index += 2) {
         perform_propagation_step(
             render_graph, lpv_a_red, lpv_a_green, lpv_a_blue, lpv_b_red, lpv_b_green, lpv_b_blue
@@ -610,12 +616,14 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
             }
         }
     );
+
+    render_graph.end_label();
 }
 
 void LightPropagationVolume::add_lighting_to_scene(
     CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor, const BufferHandle scene_view_buffer
 ) {
-    GpuZoneScoped(commands);
+    GpuZoneScoped(commands)
 
     commands.begin_label("LightPropagationVolume::add_lighting_to_scene");
 
@@ -739,7 +747,6 @@ void LightPropagationVolume::perform_propagation_step(
                 },
             },
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Perform propagation step");
                 const auto descriptor_set = *backend.create_frame_descriptor_builder()
                                                     .bind_image(
                                                         0, {
@@ -803,8 +810,7 @@ void LightPropagationVolume::perform_propagation_step(
 
                 commands.bind_shader(propagation_shader);
 
-                for (uint32_t cascade_index = 0; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index
-                     ++) {
+                for (uint32_t cascade_index = 0; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
                     commands.set_push_constant(0, cascade_index);
 
                     commands.dispatch(1, 32, 32);

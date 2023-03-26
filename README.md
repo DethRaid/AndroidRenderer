@@ -3,7 +3,6 @@
 ## Build Prerequisites
 
 - Install [libKTX](https://github.com/KhronosGroup/KTX-Software). Find the latest release in the Releases tab and install it to `D:/Program Files/KTX-Software`. If your system does not have a D drive, you'll have to modify `RenderCore/extern/extern.cmake` to set `KTX_DIR` to the directory you installed libKTX to
-- This could be avoided if `libKTX` didn't have a hard dependency on Bash... which isn't installed on Windows....
 - You'll also need to install the Vulkan SDK and add it's `bin` directory to your PATH
 - Download "the glTF Sponza" from https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/Sponza. You'll need to manually copy it to your working directory before running
 
@@ -15,11 +14,12 @@
 - Run the APK
 
 ## Windows build
-
+- Download `gltfpack` from https://github.com/zeux/meshoptimizer and place it in your PATH
+- Copy the [glTF Sponza](https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/Sponza) to `Windows/build/Sponza/`
+- Symlink (or copy) the folder `RenderCore/shaders/` to `Windows/build/shaders/`
 - Build the cmake project in `Windows`
-- Symlink (or copy) the folder `RenderCore/shaders/` to `Windows/build/Debug/shaders/` (or wherever the working directory for your build is)
-- Copy the glTF Sponza to `Windows/build/Debug/Sponza/`
-- Run the SahWindows executable
+- Run the SahWindows Visual Studio project
+- If you want to run from outside Visual Studio, either copy Sponza and the shaders to `Windows/build/Debug` or copy the SahWindows executable to `Windows/build`
 
 ## Other OSs
 
