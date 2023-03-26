@@ -47,11 +47,11 @@ glm::mat4 get_node_to_parent_matrix(const fastgltf::Node& node) {
             },
             [&](const fastgltf::Node::TRS& trs) {
                 const auto translation = glm::make_vec3(trs.translation.data());
-                auto rotation = glm::make_quat(trs.rotation.data());
+                const auto rotation = glm::quat{ trs.rotation[3], trs.rotation[0], trs.rotation[1], trs.rotation[2]};
                 const auto scale_factors = glm::make_vec3(trs.scale.data());
-
+                
                 matrix = glm::translate(matrix, translation);
-                // matrix *= glm::mat4{glm::toMat4(rotation)};
+                matrix *= glm::toMat4(rotation);
                 matrix = glm::scale(matrix, scale_factors);
             }
         },
@@ -426,7 +426,7 @@ void GltfModel::import_single_texture(
                 logger->info("Loading texture {}", uri);
 
                 // Try to load a KTX version of the texture
-                const auto texture_filepath = filepath.parent_path() / uri;
+                const auto texture_filepath = std::filesystem::path{ uri };
                 auto ktx_texture_filepath = texture_filepath;
                 ktx_texture_filepath.replace_extension("ktx2");
                 auto data_maybe = SystemInterface::get().load_file(ktx_texture_filepath);
