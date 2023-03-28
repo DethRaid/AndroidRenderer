@@ -15,7 +15,7 @@ void main() {
     vec3 scaled_color = color_in * (32 * 32) / (1024 * 1024);
 
     vec3 normal = normal_in;
-    normal *= -1;
+    // normal.z *= -1;
 
     red = dir_to_sh(normal) * color_in.r;
     green = dir_to_sh(normal) * color_in.g;

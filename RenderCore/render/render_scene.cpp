@@ -18,7 +18,8 @@ RenderScene::RenderScene(RenderBackend& backend_in) : backend{backend_in},
     );
 
     // Defaults
-    sun.set_direction({0.1f, -1.f, 0.33f});
+    // sun.set_direction({0.1f, -1.f, 0.33f});
+    sun.set_direction({ 0.1f, -1.f, -0.33f });
     sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 80000.f);
 }
 

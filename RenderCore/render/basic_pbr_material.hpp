@@ -48,6 +48,8 @@ struct BasicPbrMaterial {
 
     bool double_sided;
 
+    bool front_face_ccw;
+
     TextureHandle base_color_texture;
     VkSampler base_color_sampler;
 

@@ -36,7 +36,11 @@ void Application::load_scene(const std::filesystem::path& scene_path) {
     {
         ZoneScopedN("Parse glTF");
         data.loadFromFile(scene_path);
-        gltf = parser.loadGLTF(&data, scene_path.parent_path(), fastgltf::Options::LoadGLBBuffers | fastgltf::Options::LoadExternalBuffers);
+        if (scene_path.extension() == ".gltf") {
+            gltf = parser.loadGLTF(&data, scene_path.parent_path(), fastgltf::Options::LoadExternalBuffers);
+        } else if (scene_path.extension() == ".glb") {
+            gltf = parser.loadBinaryGLTF(&data, scene_path.parent_path(), fastgltf::Options::LoadGLBBuffers);
+        }
     }
     if (parser.getError() != fastgltf::Error::None) {
         logger->error("Could not load scene {}: {}", scene_path.string(), magic_enum::enum_name(parser.getError()));

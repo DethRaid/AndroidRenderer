@@ -85,7 +85,7 @@ private:
     void
     visit_node(TraversalFunction&& traversal_function, const fastgltf::Node& node, glm::mat4 parent_to_world) const;
 
-    TextureHandle get_texture(int gltf_texture_index, TextureType type, TextureLoader& texture_storage);
+    TextureHandle get_texture(size_t gltf_texture_index, TextureType type, TextureLoader& texture_storage);
 
     void import_single_texture(int gltf_texture_index, TextureType type, TextureLoader& texture_storage);
 

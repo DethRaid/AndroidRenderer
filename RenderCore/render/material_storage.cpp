@@ -84,6 +84,13 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
     // Animations wil be handled with a compute shader that runs before the other passes and which writes skinned
     // meshes to a new vertex buffer. Skinned objects will therefore need their own vertex buffers
 
+    const auto cull_mode = static_cast<VkCullModeFlags>(new_material.double_sided
+                                                            ? VK_CULL_MODE_NONE
+                                                            : VK_CULL_MODE_BACK_BIT);
+    const auto front_face = static_cast<VkFrontFace>(new_material.front_face_ccw
+                                                         ? VK_FRONT_FACE_COUNTER_CLOCKWISE
+                                                         : VK_FRONT_FACE_CLOCKWISE);
+
     // gbuffer
     const auto gbuffer_pipeline = backend.begin_building_pipeline(new_material.name)
                                          .set_vertex_shader("shaders/deferred/basic.vert.spv")
@@ -94,11 +101,8 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                          .set_blend_state(3, new_material.blend_state)
                                          .set_raster_state(
                                              {
-                                                 .cull_mode = static_cast<VkCullModeFlags>(
-                                                     new_material.double_sided
-                                                         ? VK_CULL_MODE_NONE
-                                                         : VK_CULL_MODE_BACK_BIT
-                                                 )
+                                                 .cull_mode = cull_mode,
+                                                 .front_face = front_face
                                              }
                                          )
                                          .build();
@@ -112,11 +116,8 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                      .set_blend_state(1, new_material.blend_state)
                                      .set_raster_state(
                                          {
-                                             .cull_mode = static_cast<VkCullModeFlags>(
-                                                 new_material.double_sided
-                                                     ? VK_CULL_MODE_NONE
-                                                     : VK_CULL_MODE_BACK_BIT
-                                             )
+                                             .cull_mode = cull_mode,
+                                             .front_face = front_face
                                          }
                                      )
                                      .build();
@@ -127,11 +128,8 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                         .set_vertex_shader("shaders/lighting/shadow.vert.spv")
                                         .set_raster_state(
                                             {
-                                                .cull_mode = static_cast<VkCullModeFlags>(
-                                                    new_material.double_sided
-                                                        ? VK_CULL_MODE_NONE
-                                                        : VK_CULL_MODE_BACK_BIT
-                                                ),
+                                                .cull_mode = cull_mode,
+                                                .front_face = front_face,
                                                 .depth_clamp_enable = true
                                             }
                                         )

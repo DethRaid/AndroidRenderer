@@ -20,7 +20,9 @@ int main(const int argc, const char** argv) {
     Application application;
     {
         ZoneScopedN("Init application");
-        application.load_scene("Sponza/Sponza.compressed.gltf");
+        // application.load_scene("Sponza/Sponza.compressed.gltf");
+        application.load_scene("path_tracing_nightmare.glb");
+        // application.load_scene("deccercube/SM_Deccer_Cubes_Textured.gltf");
         application.update_resolution();
     }
     

@@ -6,9 +6,9 @@
 /**
  * A Virtual Point Light, packed into a single vec4
  *
- * x = xy of the position, stored as halfs
- * y = zw of the position, stored as halfs
- * z = color, stored as unorm4
+ * x = xy of the position, halfs packed into a uint
+ * y = b of the color and z of the position, halfs packed into a uint
+ * z = rg color, hafls packed into a uint
  * w = normal, stored as snorm4
  *
  * Note that we have a space half, a spare unorm, and a spare snorm

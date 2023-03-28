@@ -25,6 +25,8 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
+static bool front_face_ccw = true;
+
 static std::vector<StandardVertex>
 read_vertex_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& model);
 
@@ -124,13 +126,13 @@ void GltfModel::import_resources_for_model(SceneRenderer& renderer) {
     // Traverse the glTF scene. For each node with a mesh, create a `PlacesMeshPrimitive` with the mesh -> world
     // transformation matrix already calculated
     // Create a mapping from glTF scene to the `PlacesMeshPrimitive` objects it owns, so we can unload the scene
+    
+    import_meshes(renderer);
 
     import_materials(
         renderer.get_material_storage(), renderer.get_texture_loader(),
         renderer.get_backend()
     );
-
-    import_meshes(renderer);
 
     logger->info("Imported resources");
 }
@@ -188,6 +190,7 @@ GltfModel::import_materials(
         }
 
         material.double_sided = gltf_material.doubleSided;
+        material.front_face_ccw = front_face_ccw;
 
         material.gpu_data.base_color_tint = glm::vec4(
             glm::make_vec4(gltf_material.pbrData->baseColorFactor.data())
@@ -385,7 +388,7 @@ void GltfModel::calculate_bounding_sphere_and_footprint() {
 }
 
 TextureHandle GltfModel::get_texture(
-    const int gltf_texture_index, const TextureType type,
+    const size_t gltf_texture_index, const TextureType type,
     TextureLoader& texture_storage
 ) {
     if (!gltf_texture_to_texture_handle.contains(gltf_texture_index)) {
@@ -626,9 +629,8 @@ void copy_vertex_data_to_vector(
             const auto* read_ptr_vec3 = reinterpret_cast<const glm::vec3*>(read_ptr_u8);
 
             for (auto i = 0u; i < attribute_accessor.count; i++) {
-                auto position = *read_ptr_vec3;
-                position.x *= -1;
-                write_ptr->position = position;
+                //position.x *= -1;
+                write_ptr->position = *read_ptr_vec3;
 
                 write_ptr++;
                 read_ptr_vec3++;
@@ -643,13 +645,20 @@ void copy_vertex_data_to_vector(
                 read_ptr_vec3++;
             }
         } else if (attribute_name == "TANGENT") {
-            const auto* read_ptr_vec3 = reinterpret_cast<const glm::vec3*>(read_ptr_u8);
+            const auto* read_ptr_vec4 = reinterpret_cast<const glm::vec4*>(read_ptr_u8);
+
+            // Massive hack! This code assums that all primitives in a model will have the same handedness
+            // This is not guraunteed by the glTF spec. The only thing it seems to garuantee is that all vertices in a
+            // given triangle will have the same handedness
+            if(read_ptr_vec4->w < 0) {
+                front_face_ccw = false;
+            }
 
             for (auto i = 0u; i < attribute_accessor.count; i++) {
-                write_ptr->tangent = *read_ptr_vec3;
+                write_ptr->tangent = *read_ptr_vec4;
 
                 write_ptr++;
-                read_ptr_vec3++;
+                read_ptr_vec4++;
             }
         } else if (attribute_name == "TEXCOORD_0") {
             const auto* read_ptr_vec2 = reinterpret_cast<const glm::vec2*>(read_ptr_u8);

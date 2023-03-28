@@ -29,8 +29,9 @@ VPL unpack_vpl(PackedVPL packed_vpl) {
 
     vpl.position.xy = unpackHalf2x16(packed_vpl.data.x);
     vpl.position.z = unpacked_y.y;
-    vpl.color = unpackUnorm4x8(packed_vpl.data.z).rgb;
-    vpl.normal = normalize(vec3(unpackHalf2x16(packed_vpl.data.w), unpacked_y.y));
+    vpl.color.rg = unpackHalf2x16(packed_vpl.data.z);
+    vpl.color.b = unpacked_y.x;
+    vpl.normal = normalize(unpackUnorm4x8(packed_vpl.data.w).xyz);
 
     return vpl;
 }

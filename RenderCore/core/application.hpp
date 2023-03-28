@@ -13,7 +13,7 @@ class Application {
 public:
     explicit Application();
 
-    void load_scene(const std::filesystem::path& path);
+    void load_scene(const std::filesystem::path& scene_path);
 
     /**
      * Reads the window resolution from the system interface, and updates the renderer for the new resolution

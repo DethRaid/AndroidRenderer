@@ -38,6 +38,7 @@ layout(std430, set = 0, binding = 4) buffer CountBuffer {
      uint    first_vertex;
      uint    first_instance;
 } vpl_count_buffer;
+
 layout(std430, set = 0, binding = 5) writeonly buffer VplListBuffer {
     PackedVPL lights[];
 };
@@ -63,9 +64,9 @@ void store_light(in VPL light) {
 
     PackedVPL packed_light;
     packed_light.data.x = packHalf2x16(light.position.xy);
-    packed_light.data.y = packHalf2x16(vec2(light.normal.z, light.position.z));
-    packed_light.data.z = packUnorm4x8(vec4(light.color, 0));
-    packed_light.data.w = packHalf2x16(light.normal.xy);
+    packed_light.data.y = packHalf2x16(vec2(light.color.b, light.position.z));
+    packed_light.data.z = packHalf2x16(light.color.rg);
+    packed_light.data.w = packSnorm4x8(vec4(light.normal, 0));
 
     lights[light_index] = packed_light;
 }
