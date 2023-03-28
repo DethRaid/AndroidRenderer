@@ -43,8 +43,16 @@ void main() {
     gbuffer_base_color = tinted_base_color;
 
     // Normals
-    // TODO: Normalmapping
-    gbuffer_normal = vec4(vertex_normal * 0.5f + 0.5f, 0.f);
+    vec3 bitangent = cross(vertex_tangent, vertex_normal);
+    mat3 tbn = transpose(mat3(
+        vertex_tangent,
+        bitangent,
+        vertex_normal
+    ));
+    vec3 normal_sample = texture(normal_texture, vertex_texcoord).xyz * 2.0 - 1.0;
+    vec3 normal = tbn * normal_sample;
+    // gbuffer_normal = vec4(normal, 0.f);
+    gbuffer_normal = vec4(vertex_normal, 0.f);
 
     // Data
     vec4 data_sample = texture(data_texture, vertex_texcoord);

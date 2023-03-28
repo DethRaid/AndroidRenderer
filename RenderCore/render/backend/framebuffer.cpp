@@ -3,6 +3,7 @@
 #include <vector>
 
 #include <glm/vec2.hpp>
+#include <tracy/Tracy.hpp>
 
 #include "render/backend/render_backend.hpp"
 

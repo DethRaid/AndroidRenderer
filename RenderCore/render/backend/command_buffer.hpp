@@ -5,6 +5,7 @@
 #include <span>
 
 #include <volk.h>
+#include <tracy/Tracy.hpp>
 #include <tracy/TracyVulkan.hpp>
 
 #include "buffer_usage_token.hpp"
@@ -162,7 +163,9 @@ public:
 
     void end() const;
 
+#if TRACY_ENABLE
     tracy::VkCtx* const get_tracy_context() const;
+#endif
 
     VkCommandBuffer get_vk_commands() const;
 

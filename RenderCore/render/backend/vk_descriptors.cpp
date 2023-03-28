@@ -1,5 +1,6 @@
 ﻿#include "render/backend/vk_descriptors.hpp"
 #include <algorithm>
+#include <tracy/Tracy.hpp>
 
 #include "render/backend/render_backend.hpp"
 

@@ -17,7 +17,7 @@ void main() {
     vec3 normal = normal_in;
     // normal.z *= -1;
 
-    red = dir_to_sh(normal) * color_in.r;
-    green = dir_to_sh(normal) * color_in.g;
-    blue = dir_to_sh(normal) * color_in.b;
+    red = dir_to_sh(normal) * color_in.r / PI;
+    green = dir_to_sh(normal) * color_in.g / PI;
+    blue = dir_to_sh(normal) * color_in.b / PI;
 }

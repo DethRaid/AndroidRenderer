@@ -5,6 +5,9 @@
 #include <magic_enum.hpp>
 
 #include "render_backend.hpp"
+
+#include <tracy/Tracy.hpp>
+
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 #include "render/backend/resource_upload_queue.hpp"
@@ -488,10 +491,7 @@ void RenderBackend::create_tracy_context() {
     };
     vkAllocateCommandBuffers(device.device, &command_buffer_allocate, &tracy_command_buffer);
 
-    tracy_context = TracyVkContext(
-        physical_device.physical_device, device.device, graphics_queue,
-        tracy_command_buffer
-    )
+    tracy_context = TracyVkContext(physical_device.physical_device, device.device, graphics_queue, tracy_command_buffer);
 }
 
 ResourceAllocator& RenderBackend::get_global_allocator() {

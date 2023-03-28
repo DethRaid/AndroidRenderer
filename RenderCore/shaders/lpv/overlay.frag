@@ -36,6 +36,8 @@ layout(set = 1, binding = 4) uniform ViewUniformBuffer {
     ViewInfo view_info;
 };
 
+#define NUM_CASCADES 4
+
 // Texcoord from the vertex shader
 layout(location = 0) in vec2 texcoord;
 
@@ -52,9 +54,26 @@ vec3 get_viewspace_position() {
     return viewspace_position.xyz;
 }
 
+vec3 sample_light_from_cascade(vec4 normal_coefficients, vec4 position_worldspace, uint cascade_index) {
+    vec4 cascade_position = cascade_matrices[cascade_index].world_to_cascade * position_worldspace;
+
+    cascade_position.x += float(cascade_index);
+    cascade_position.x /= NUM_CASCADES;
+
+    vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
+    vec4 green_coefficients = texture(lpv_green, cascade_position.xyz);
+    vec4 blue_coefficients = texture(lpv_blue, cascade_position.xyz);
+
+    float red_strength = dot(red_coefficients, normal_coefficients);
+    float green_strength = dot(green_coefficients, normal_coefficients);
+    float blue_strength = dot(blue_coefficients, normal_coefficients);
+
+    return vec3(red_strength, green_strength, blue_strength);
+}
+
 void main() {
     vec3 base_color_sample = subpassLoad(gbuffer_base_color).rgb;
-    vec3 normal_sample = normalize(subpassLoad(gbuffer_normal).xyz * 2.f - 1.f);
+    vec3 normal_sample = normalize(subpassLoad(gbuffer_normal).xyz);
     vec4 data_sample = subpassLoad(gbuffer_data);
     vec4 emission_sample = subpassLoad(gbuffer_emission);
 
@@ -72,67 +91,58 @@ void main() {
     surface.emission = emission_sample.rgb;
     surface.location = worldspace_position.xyz;
 
-    // uint cascade_index = 0;
-    // vec4 cascade_position = vec4(0);
-    // for(uint i = 0; i < 4; i++) {
-    //     cascade_position = world_to_cascade[i] * worldspace_position;
-    //     if(all(greaterThan(cascade_position.xyz, vec3(0))) && all(lessThan(cascade_position.xyz, vec3(1)))) {
-    //         cascade_index = i;
-    //         break;
-    //     }
-    // }
+    vec4 normal_coefficients = dir_to_sh(-surface.normal);
 
-    vec4 lpv_lookup_position = worldspace_position;
-    // lpv_lookup_position.xyz += surface.normal * 0.25;
-
-    vec4 cascade_position = cascade_matrices[0].world_to_cascade * lpv_lookup_position;
-    cascade_position.x = 1.f - cascade_position.x;
-    cascade_position.xyz -= vec3(0.5f / 32.f);
-
-    vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
-    vec4 green_coefficients = texture(lpv_green, cascade_position.xyz);
-    vec4 blue_coefficients = texture(lpv_blue, cascade_position.xyz);
-
+    float weights_total = 0;
+    float cascade_weights[NUM_CASCADES] = float[](0, 0, 0, 0);
+    for(uint i = 0; i < NUM_CASCADES; i++) {
+        vec4 cascade_position = cascade_matrices[i].world_to_cascade * worldspace_position;
+        if(all(greaterThan(cascade_position.xyz, vec3(0))) && all(lessThan(cascade_position.xyz, vec3(1)))) {
+            cascade_weights[i] = pow(2.0, float(NUM_CASCADES - i));
+            weights_total += cascade_weights[i];
+        }
+    }
+     
     vec3 indirect_light = vec3(0);
-    {
-        vec4 normal_coefficients = dir_to_sh(-surface.normal);
+    for(uint i = 0; i < NUM_CASCADES; i++) {
+        vec4 offset = vec4(0);
+        offset.xyz = surface.normal + float(i) * 0.01f;
+        indirect_light += sample_light_from_cascade(normal_coefficients, worldspace_position + offset, i) * cascade_weights[i];
+    }
 
-        float red_strength = dot(red_coefficients, normal_coefficients);
-        float green_strength = dot(green_coefficients, normal_coefficients);
-        float blue_strength = dot(blue_coefficients, normal_coefficients);
-
-        indirect_light = vec3(red_strength, green_strength, blue_strength);
+    if(weights_total > 0) {
+        indirect_light /= weights_total;
     }
 
     vec3 reflection_vector = reflect(-worldspace_view_vector, surface.normal);
     vec3 specular_light = vec3(0);
-    {
-        vec4 reflection_coefficients = dir_to_sh(reflection_vector);
-    
-        float red_strength = dot(red_coefficients, reflection_coefficients);
-        float green_strength = dot(green_coefficients, reflection_coefficients);
-        float blue_strength = dot(blue_coefficients, reflection_coefficients);
-    
-        specular_light = vec3(red_strength, green_strength, blue_strength);
-    
-        const uint num_additional_specular_samples = 1;
-        for(uint sample_index = 1; sample_index <= num_additional_specular_samples; sample_index++) {
-            vec3 sample_location = worldspace_position.xyz + reflection_vector * sample_index;
-            
-            cascade_position = cascade_matrices[0].world_to_cascade * vec4(sample_location, 1.f);
-            red_coefficients = texture(lpv_red, cascade_position.xyz);
-            green_coefficients = texture(lpv_green, cascade_position.xyz);
-            blue_coefficients = texture(lpv_blue, cascade_position.xyz);
-    
-            red_strength = dot(red_coefficients, reflection_coefficients);
-            green_strength = dot(green_coefficients, reflection_coefficients);
-            blue_strength = dot(blue_coefficients, reflection_coefficients);
-    
-            specular_light += vec3(red_strength, green_strength, blue_strength);
-        }
-    
-        specular_light /= vec3(num_additional_specular_samples + 1);
-    }
+    // {
+    //     vec4 reflection_coefficients = dir_to_sh(reflection_vector);
+    // 
+    //     float red_strength = dot(red_coefficients, reflection_coefficients);
+    //     float green_strength = dot(green_coefficients, reflection_coefficients);
+    //     float blue_strength = dot(blue_coefficients, reflection_coefficients);
+    // 
+    //     specular_light = vec3(red_strength, green_strength, blue_strength);
+    // 
+    //     const uint num_additional_specular_samples = 1;
+    //     for(uint sample_index = 1; sample_index <= num_additional_specular_samples; sample_index++) {
+    //         vec3 sample_location = worldspace_position.xyz + reflection_vector * sample_index;
+    //         
+    //         cascade_position = cascade_matrices[0].world_to_cascade * vec4(sample_location, 1.f);
+    //         red_coefficients = texture(lpv_red, cascade_position.xyz);
+    //         green_coefficients = texture(lpv_green, cascade_position.xyz);
+    //         blue_coefficients = texture(lpv_blue, cascade_position.xyz);
+    // 
+    //         red_strength = dot(red_coefficients, reflection_coefficients);
+    //         green_strength = dot(green_coefficients, reflection_coefficients);
+    //         blue_strength = dot(blue_coefficients, reflection_coefficients);
+    // 
+    //         specular_light += vec3(red_strength, green_strength, blue_strength);
+    //     }
+    // 
+    //     specular_light /= vec3(num_additional_specular_samples + 1);
+    // }
 
     const vec3 diffuse_factor = Fd(surface, surface.normal, surface.normal);
 
@@ -141,7 +151,7 @@ void main() {
     const vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
-    const float exposure_factor = 0.5f * PI;
+    const float exposure_factor = PI * PI;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 

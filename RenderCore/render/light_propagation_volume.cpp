@@ -27,12 +27,12 @@ static auto cvar_lpv_cell_size = AutoCVar_Float{
 
 static auto cvar_lpv_num_cascades = AutoCVar_Int{
     "r.LPV.NumCascades",
-    "Number of cascades in the light propagation volume", 1
+    "Number of cascades in the light propagation volume", 4
 };
 
 static auto cvar_lpv_num_propagation_steps = AutoCVar_Int{
     "r.LPV.NumPropagationSteps",
-    "Number of times to propagate lighting through the LPV", 16
+    "Number of times to propagate lighting through the LPV", 8
 };
 
 static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
@@ -250,8 +250,8 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
         );
         cascade.rsm_vp = rsm_projection_matrix * rsm_view_matrix;
 
-        cascade.min_bounds = offset - glm::vec3{half_cascade_size};
-        cascade.max_bounds = offset + glm::vec3{half_cascade_size};
+        cascade.min_bounds = rounded_offset - glm::vec3{half_cascade_size};
+        cascade.max_bounds = rounded_offset + glm::vec3{half_cascade_size};
     }
 }
 

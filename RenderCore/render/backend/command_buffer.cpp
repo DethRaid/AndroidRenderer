@@ -405,6 +405,8 @@ RenderBackend& CommandBuffer::get_backend() const {
     return *backend;
 }
 
+#if TRACY_ENABLE
 tracy::VkCtx* const CommandBuffer::get_tracy_context() const {
     return backend->get_tracy_context();
 }
+#endif

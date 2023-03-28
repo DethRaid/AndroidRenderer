@@ -5,6 +5,7 @@
 #include "application.hpp"
 
 #include <magic_enum.hpp>
+#include <tracy/Tracy.hpp>
 
 #include "system_interface.hpp"
 #include "gltf/gltf_model.hpp"

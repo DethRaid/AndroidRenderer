@@ -33,7 +33,9 @@ MeshStorage::~MeshStorage() {
     allocator->destroy_buffer(vertex_position_buffer);
     allocator->destroy_buffer(vertex_data_buffer);
     allocator->destroy_buffer(index_buffer);
-
+    
+    vmaClearVirtualBlock(vertex_block);
+    vmaClearVirtualBlock(index_block);
     vmaDestroyVirtualBlock(vertex_block);
     vmaDestroyVirtualBlock(index_block);
 }

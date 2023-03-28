@@ -34,7 +34,7 @@ void main() {
     gl_Position = camera_data.projection * camera_data.view * data.model * vec4(position_in, 1.f);
 
     normal_out = normalize(mat3(data.model) * normal_in);
-    tangent_out = tangent_in;
+    tangent_out = normalize(mat3(data.model) * tangent_in);
     texcoord_out = texcoord_in;
     color_out = color_in;
 }

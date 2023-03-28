@@ -127,6 +127,8 @@ void SunLight::update_shadow_cascades(SceneTransform& view) {
             radius = glm::max(radius, distance);
         }
 
+        radius *= 2;
+
         // Snap to 16 to avoid texel swimming
         radius = std::ceil(radius * 16.f) / 16.f;
 

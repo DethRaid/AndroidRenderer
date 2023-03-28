@@ -6,6 +6,7 @@
 #include "render/backend/render_backend.hpp"
 
 #include <spdlog/fmt/bundled/format.h>
+#include <tracy/Tracy.hpp>
 
 #include "render_graph.hpp"
 #include "render_pass.hpp"

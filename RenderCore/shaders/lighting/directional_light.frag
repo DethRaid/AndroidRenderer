@@ -78,7 +78,7 @@ float get_shadow_factor(vec3 worldspace_position, uint cascade_index, float bias
 
 void main() {
     vec3 base_color_sample = subpassLoad(gbuffer_base_color).rgb;
-    vec3 normal_sample = normalize(subpassLoad(gbuffer_normal).xyz * 2.f - 1.f);
+    vec3 normal_sample = normalize(subpassLoad(gbuffer_normal).xyz);
     vec4 data_sample = subpassLoad(gbuffer_data);
     vec4 emission_sample = subpassLoad(gbuffer_emission);
 
