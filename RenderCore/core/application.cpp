@@ -31,12 +31,23 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
 
 void Application::load_scene(const std::filesystem::path& scene_path) {
     logger->info("Beginning load of scene {}", scene_path.string());
+    if(scene_path.has_parent_path()) {
+        logger->info("Scene path {} has parent path {}", scene_path.string(), scene_path.parent_path().string());
+    } else {
+        logger->warn("Scene path {} has no parent path!", scene_path.string());
+    }
 
+#if defined(__ANDROID__)
+    auto& system_interface = reinterpret_cast<AndroidSystemInterface&>(SystemInterface::get());
+    auto data = fastgltf::AndroidGltfDataBuffer{system_interface.get_asset_manager()};
+    data.loadFromAndroidAsset(scene_path);
+#else
     fastgltf::GltfDataBuffer data;
+    data.loadFromFile(scene_path);
+#endif
     std::unique_ptr<fastgltf::glTF> gltf;
     {
         ZoneScopedN("Parse glTF");
-        data.loadFromFile(scene_path);
         if (scene_path.extension() == ".gltf") {
             gltf = parser.loadGLTF(&data, scene_path.parent_path(), fastgltf::Options::LoadExternalBuffers);
         } else if (scene_path.extension() == ".glb") {

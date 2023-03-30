@@ -46,7 +46,9 @@ public:
     VkInstance get_instance() const;
 
     VkPhysicalDevice get_physical_device() const;
-    
+
+    bool supports_astc() const;
+
     bool supports_etc2() const;
 
     bool supports_bc() const;

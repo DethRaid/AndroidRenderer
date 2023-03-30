@@ -9,15 +9,11 @@
 
 #include <spdlog/sinks/android_sink.h>
 
-#include "external/tinygltf_android.hpp"
-
 static bool begin_stdout_redirection(const char* app_name);
 
 AndroidSystemInterface::AndroidSystemInterface(android_app* app) :
         asset_manager{app->activity->assetManager}, window{app->window} {
     begin_stdout_redirection("SAH");
-
-    set_tinygltf_asset_manager(asset_manager);
 }
 
 std::shared_ptr<spdlog::logger> AndroidSystemInterface::get_logger(const std::string& name) {
@@ -53,6 +49,14 @@ glm::uvec2 AndroidSystemInterface::get_resolution() {
 
 void AndroidSystemInterface::write_file(const std::filesystem::path& filepath, const void* data, uint32_t data_size) {
     // TODO
+}
+
+void AndroidSystemInterface::poll_input(InputManager& input) {
+    // TODO
+}
+
+AAssetManager* AndroidSystemInterface::get_asset_manager() {
+    return asset_manager;
 }
 
 // from https://codelab.wordpress.com/2014/11/03/how-to-use-standard-output-streams-for-logging-in-android-apps/

@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 
+#include <glm/fwd.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <spdlog/logger.h>
@@ -11,7 +12,6 @@
 
 #if defined(__ANDROID__)
 #include <game-activity/native_app_glue/android_native_app_glue.h>
-#include "glm/fwd.hpp"
 
 #elif defined(_WIN32)
 #include <Windows.h>
@@ -85,9 +85,13 @@ public:
 
     void write_file(const std::filesystem::path& filepath, const void* data, uint32_t data_size) override;
 
-    ANativeWindow* get_window();
+    void poll_input(InputManager& input) override;
 
     glm::uvec2 get_resolution() override;
+
+    ANativeWindow* get_window();
+
+    AAssetManager* get_asset_manager();
 
 private:
     AAssetManager* asset_manager = nullptr;

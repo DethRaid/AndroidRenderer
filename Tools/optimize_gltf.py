@@ -23,7 +23,7 @@ def get_files_to_compress(directory):
                 # The file is a gltf file - but not a compressed one. Check if there's a .compressed file, and if this
                 # file is newer
                 splitted = os.path.splitext(filename)
-                compressed_file_name = f"{splitted[0]}.compressed{splitted[1]}"
+                compressed_file_name = f"{splitted[0]}.compressed.glb"
 
                 if not os.path.isfile(compressed_file_name):
                     files_to_compress.append((filename, compressed_file_name))

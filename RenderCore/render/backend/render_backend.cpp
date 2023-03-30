@@ -330,6 +330,8 @@ VkPhysicalDevice RenderBackend::get_physical_device() const {
     return physical_device.physical_device;
 }
 
+bool RenderBackend::supports_astc() const { return physical_device.features.textureCompressionASTC_LDR; }
+
 bool RenderBackend::supports_etc2() const { return physical_device.features.textureCompressionETC2; }
 
 bool RenderBackend::supports_bc() const { return physical_device.features.textureCompressionBC; }

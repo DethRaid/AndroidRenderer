@@ -96,8 +96,10 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_ktx(
     }
 
     if (ktxTexture2_NeedsTranscoding(ktx_texture)) {
-        auto format = KTX_TTF_BC7_RGBA;
-        if (backend.supports_etc2()) {
+        auto format = KTX_TTF_RGBA4444;
+        if (backend.supports_astc()) {
+            format = KTX_TTF_ASTC_4x4_RGBA;
+        } else if (backend.supports_etc2()) {
             format = KTX_TTF_ETC2_RGBA;
         } else if (backend.supports_bc()) {
             format = KTX_TTF_BC7_RGBA;

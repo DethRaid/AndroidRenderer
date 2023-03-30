@@ -3,6 +3,7 @@
 #include <filesystem>
 
 #include <fastgltf_parser.hpp>
+
 #include "input/input_manager.hpp"
 #include "render/scene_renderer.hpp"
 #include "render/render_scene.hpp"

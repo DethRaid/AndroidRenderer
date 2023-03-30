@@ -12,8 +12,8 @@
 #include <spdlog/sinks/android_sink.h>
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyVulkan.hpp>
+#include <fastgltf_parser.hpp>
 
-#include "fastgltf_parser.hpp"
 #include "core/percent_encoding.hpp"
 #include "core/visitor.hpp"
 #include "render/basic_pbr_material.hpp"
