@@ -224,6 +224,7 @@ app/src/main/res
 # Others
 intermediate/
 Saved/
+app/src/main/assets
 
 *.jpg
 *.png
