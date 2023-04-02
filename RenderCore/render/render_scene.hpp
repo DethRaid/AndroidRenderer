@@ -34,6 +34,11 @@ public:
 
     SceneDrawer create_view(ScenePassType type, const MeshStorage& meshes);
 
+    /**
+     * Retrieves a list of all solid primitives that lie within the given bounds
+     */
+    std::vector<PooledObject<MeshPrimitive>> get_primitives_in_bounds(const glm::vec3& min_bounds, const glm::vec3& max_bounds) const;
+
 private:
     RenderBackend& backend;
 

@@ -19,7 +19,9 @@ public:
     /**
      * Creates a voxel volume for the given mesh
      */
-    void build_voxels_for_mesh(MeshHandle mesh, MeshStorage& meshes);
+    void build_voxels_for_mesh(MeshHandle mesh, const MeshStorage& meshes);
+
+    const VoxelObject& get_voxel_for_mesh(MeshHandle mesh) const;
 
 private:
     RenderBackend& backend;

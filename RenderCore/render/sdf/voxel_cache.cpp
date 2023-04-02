@@ -20,7 +20,7 @@ VoxelCache::~VoxelCache() {
     voxels.clear();
 }
 
-void VoxelCache::build_voxels_for_mesh(const MeshHandle mesh, MeshStorage& meshes) {
+void VoxelCache::build_voxels_for_mesh(const MeshHandle mesh, const MeshStorage& meshes) {
     const auto num_voxels = glm::uvec3{ glm::ceil(mesh->bounds / cvar_voxel_size.GetFloat()) };
 
     const auto num_triangles = mesh->num_indices / 3;
@@ -36,4 +36,10 @@ void VoxelCache::build_voxels_for_mesh(const MeshHandle mesh, MeshStorage& meshe
     };
 
     voxels.emplace(mesh.index, obj);
+
+    voxelizer.deinit_resources(backend.get_global_allocator());
+}
+
+const VoxelObject& VoxelCache::get_voxel_for_mesh(const MeshHandle mesh) const {
+    return voxels.at(mesh.index);
 }

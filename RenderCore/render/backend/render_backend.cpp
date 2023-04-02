@@ -17,7 +17,7 @@ static std::shared_ptr<spdlog::logger> logger;
 
 static AutoCVar_Int cvar_enable_validation_layers{
     "r.vulkan.EnableValidationLayers",
-    "Whether to enable Vulkan validation layers", 1
+    "Whether to enable Vulkan validation layers", 0
 };
 
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
@@ -517,7 +517,7 @@ void RenderBackend::create_tracy_context() {
     );
 }
 
-ResourceAllocator& RenderBackend::get_global_allocator() {
+ResourceAllocator& RenderBackend::get_global_allocator() const {
     return *allocator;
 }
 

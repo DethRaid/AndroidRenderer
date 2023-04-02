@@ -89,7 +89,7 @@ public:
 
     TracyVkCtx get_tracy_context() const;
 
-    ResourceAllocator& get_global_allocator();
+    ResourceAllocator& get_global_allocator() const;
 
     ResourceUploadQueue& get_upload_queue();
 
@@ -194,8 +194,7 @@ private:
     /**
      * Semaphore that the last command buffer submission signals
      *
-     * Gets reset to VK_NULL_HANDLE after presenting. The validation layers think that it has no way to be signaled,
-     * even though it's clearly in the pSignalSemaphores list
+     * Set to VK_NULL_HANDLE after presenting - vkQueuePresentKHR consumes the semaphore value and makes it unsignalled
      */
     VkSemaphore last_submission_semaphore = VK_NULL_HANDLE;
 

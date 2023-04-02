@@ -580,6 +580,21 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
     );
 }
 
+void LightPropagationVolume::build_geometry_volume(RenderGraph& render_graph, const RenderScene& scene) {
+    /*
+     * For each cascade:
+     * - Get the static mesh primitives in the cascade
+     * - Dispatch a compute shader to add them to the GV
+     */
+
+    const auto num_cascades = cvar_lpv_num_cascades.Get();
+    for(auto cascade_idx = 0; cascade_idx < num_cascades; cascade_idx++) {
+        const auto& cascade = cascades[cascade_idx];
+        const auto& primitives = scene.get_primitives_in_bounds(cascade.min_bounds, cascade.max_bounds);
+
+    }
+}
+
 void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
     render_graph.begin_label("LPV Propagation");
 
