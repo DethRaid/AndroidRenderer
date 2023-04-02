@@ -138,8 +138,8 @@ void RenderBackend::create_instance_and_device() {
     auto instance_builder = vkb::InstanceBuilder{vkGetInstanceProcAddr}
                             .set_app_name("Renderer")
                             .set_engine_name("Sarah")
-                            .set_app_version(0, 0, 1)
-                            .require_api_version(1, 1, 0)
+                            .set_app_version(0, 5, 0)
+                            .require_api_version(1, 3, 0)
 #if defined(_WIN32 )
             .enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
 #endif
