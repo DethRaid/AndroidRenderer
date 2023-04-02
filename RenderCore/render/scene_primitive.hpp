@@ -3,8 +3,8 @@
 
 #include <glm/glm.hpp>
 
+#include "render/mesh_handle.hpp"
 #include "core/object_pool.hpp"
-#include "render/mesh.hpp"
 #include "render/material_proxy.hpp"
 
 struct PrimitiveData {
@@ -14,7 +14,7 @@ struct PrimitiveData {
 struct MeshPrimitive {
     PrimitiveData data;
 
-    Mesh mesh;
+    MeshHandle mesh;
 
     PooledObject<BasicPbrMaterialProxy> material;
 };

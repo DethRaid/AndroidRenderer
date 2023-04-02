@@ -2,8 +2,6 @@
 
 #include <span>
 
-#include <volk.h>
-
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <magic_enum.hpp>
@@ -11,7 +9,6 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/android_sink.h>
 #include <tracy/Tracy.hpp>
-#include <tracy/TracyVulkan.hpp>
 #include <fastgltf_parser.hpp>
 
 #include "core/percent_encoding.hpp"
@@ -19,7 +16,6 @@
 #include "render/basic_pbr_material.hpp"
 #include "render/scene_renderer.hpp"
 #include "render/standard_vertex.hpp"
-#include "render/backend/pipeline.hpp"
 #include "render/render_scene.hpp"
 #include "render/texture_loader.hpp"
 
@@ -32,6 +28,8 @@ read_vertex_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& mo
 
 static std::vector<uint32_t>
 read_index_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& model);
+
+static glm::vec3 read_mesh_bounds(const fastgltf::Primitive& primitive, const fastgltf::Asset& model);
 
 static void copy_vertex_data_to_vector(
     const std::unordered_map<std::string, std::size_t>& attributes,
@@ -138,10 +136,7 @@ void GltfModel::import_resources_for_model(SceneRenderer& renderer) {
 }
 
 void
-GltfModel::import_materials(
-    MaterialStorage& material_storage, TextureLoader& texture_loader,
-    RenderBackend& backend
-) {
+GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& texture_loader, RenderBackend& backend) {
     ZoneScoped;
 
     gltf_material_to_material_handle.clear();
@@ -274,6 +269,7 @@ void GltfModel::import_meshes(SceneRenderer& renderer) {
     ZoneScoped;
 
     auto& mesh_storage = renderer.get_mesh_storage();
+    auto& voxel_cache = renderer.get_voxel_cache();
 
     gltf_primitive_to_mesh_primitive.reserve(512);
 
@@ -282,7 +278,7 @@ void GltfModel::import_meshes(SceneRenderer& renderer) {
         // Interleave the vertex data, because it's easier for me to handle conceptually
         // Maybe eventually profile splitting out positions for separate use
 
-        auto imported_primitives = std::vector<Mesh>{};
+        auto imported_primitives = std::vector<MeshHandle>{};
         imported_primitives.reserve(mesh.primitives.size());
 
         auto primitive_idx = 0u;
@@ -290,10 +286,14 @@ void GltfModel::import_meshes(SceneRenderer& renderer) {
             const auto vertices = read_vertex_data(primitive, *model);
             const auto indices = read_index_data(primitive, *model);
 
-            const auto mesh_maybe = mesh_storage.add_mesh(vertices, indices);
+            const auto mesh_bounds = read_mesh_bounds(primitive, *model);
+
+            const auto mesh_maybe = mesh_storage.add_mesh(vertices, indices, mesh_bounds);
 
             if (mesh_maybe) {
                 imported_primitives.emplace_back(*mesh_maybe);
+                voxel_cache.build_voxels_for_mesh(*mesh_maybe, mesh_storage);
+
             } else {
                 logger->error(
                     "Could not import mesh primitive {} in mesh {}", primitive_idx,
@@ -327,10 +327,8 @@ void GltfModel::calculate_bounding_sphere_and_footprint() {
                     const auto primitive_min = glm::make_vec3(std::get_if<std::vector<double>>(&position_accessor.min)->data());
                     const auto primitive_max = glm::make_vec3(std::get_if<std::vector<double>>(&position_accessor.max)->data());
                     
-                    const auto primitive_min_modelspace =
-                        local_to_world * glm::vec4{primitive_min, 1.f};
-                    const auto primitive_max_modelspace =
-                        local_to_world * glm::vec4{primitive_max, 1.f};
+                    const auto primitive_min_modelspace = local_to_world * glm::vec4{primitive_min, 1.f};
+                    const auto primitive_max_modelspace = local_to_world * glm::vec4{primitive_max, 1.f};
                     
                     min_extents = glm::min(min_extents, glm::vec3{primitive_min_modelspace});
                     max_extents = glm::max(max_extents, glm::vec3{primitive_max_modelspace});
@@ -344,8 +342,6 @@ void GltfModel::calculate_bounding_sphere_and_footprint() {
                         max_extents.y,
                         max_extents.z
                     );
-
-                    break;
                 }
             }
         }
@@ -399,7 +395,7 @@ TextureHandle GltfModel::get_texture(
 }
 
 void GltfModel::import_single_texture(
-    const int gltf_texture_index, const TextureType type,
+    const size_t gltf_texture_index, const TextureType type,
     TextureLoader& texture_storage
 ) {
     ZoneScoped;
@@ -486,43 +482,50 @@ VkSampler GltfModel::to_vk_sampler(const fastgltf::Sampler& sampler, RenderBacke
         .maxLod = 16,
     };
 
-    switch (*sampler.minFilter) {
-    case fastgltf::Filter::Nearest:
-        create_info.minFilter = VK_FILTER_NEAREST;
-        break;
+    if (sampler.minFilter) {
+        switch (*sampler.minFilter) {
+        case fastgltf::Filter::Nearest:
+            create_info.minFilter = VK_FILTER_NEAREST;
+            break;
 
-    case fastgltf::Filter::Linear:
-        create_info.minFilter = VK_FILTER_LINEAR;
-        break;
+        case fastgltf::Filter::Linear:
+            create_info.minFilter = VK_FILTER_LINEAR;
+            break;
 
-    case fastgltf::Filter::NearestMipMapNearest:
-        create_info.minFilter = VK_FILTER_NEAREST;
-        create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-        break;
+        case fastgltf::Filter::NearestMipMapNearest:
+            create_info.minFilter = VK_FILTER_NEAREST;
+            create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+            break;
 
-    case fastgltf::Filter::LinearMipMapNearest:
-        create_info.minFilter = VK_FILTER_LINEAR;
-        create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-        break;
+        case fastgltf::Filter::LinearMipMapNearest:
+            create_info.minFilter = VK_FILTER_LINEAR;
+            create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+            break;
 
-    case fastgltf::Filter::NearestMipMapLinear:
-        create_info.minFilter = VK_FILTER_NEAREST;
-        create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        break;
+        case fastgltf::Filter::NearestMipMapLinear:
+            create_info.minFilter = VK_FILTER_NEAREST;
+            create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            break;
 
-    case fastgltf::Filter::LinearMipMapLinear:
-        create_info.minFilter = VK_FILTER_LINEAR;
-        create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        case fastgltf::Filter::LinearMipMapLinear:
+            create_info.minFilter = VK_FILTER_LINEAR;
+            create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        }
     }
 
-    switch (*sampler.magFilter) {
-    case fastgltf::Filter::Nearest:
-        create_info.magFilter = VK_FILTER_NEAREST;
-        break;
+    if (sampler.magFilter) {
+        switch (*sampler.magFilter) {
+        case fastgltf::Filter::Nearest:
+            create_info.magFilter = VK_FILTER_NEAREST;
+            break;
 
-    case fastgltf::Filter::Linear:
-        create_info.magFilter = VK_FILTER_LINEAR;
-        break;
+        case fastgltf::Filter::Linear:
+            create_info.magFilter = VK_FILTER_LINEAR;
+            break;
+
+        default:
+            logger->error("Invalid texture mag filter");
+        }
     }
 
     switch (sampler.wrapS) {
@@ -605,6 +608,20 @@ read_index_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& mod
     return indices;
 }
 
+glm::vec3 read_mesh_bounds(const fastgltf::Primitive& primitive, const fastgltf::Asset& model) {
+    const auto position_attribute_idx = primitive.attributes.at("POSITION");
+    const auto& position_accessor = model.accessors[position_attribute_idx];
+    const auto* min = std::get_if<std::vector<double>>(&position_accessor.min);
+    const auto* max = std::get_if<std::vector<double>>(&position_accessor.max);
+
+    auto bounds = glm::vec3{};
+    bounds.x = static_cast<float>(max->at(0) - min->at(0));
+    bounds.y = static_cast<float>(max->at(1) - min->at(1));
+    bounds.z = static_cast<float>(max->at(2) - min->at(2));
+
+    return bounds;
+}
+
 void copy_vertex_data_to_vector(
     const std::unordered_map<std::string, std::size_t>& attributes,
     const fastgltf::Asset& model,
@@ -647,7 +664,7 @@ void copy_vertex_data_to_vector(
         } else if (attribute_name == "TANGENT") {
             const auto* read_ptr_vec4 = reinterpret_cast<const glm::vec4*>(read_ptr_u8);
 
-            // Massive hack! This code assums that all primitives in a model will have the same handedness
+            // Massive hack! This code assumes that all primitives in a model will have the same handedness
             // This is not guraunteed by the glTF spec. The only thing it seems to garuantee is that all vertices in a
             // given triangle will have the same handedness
             if(read_ptr_vec4->w < 0) {

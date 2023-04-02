@@ -19,11 +19,13 @@ public:
     /**
      * Reads the window resolution from the system interface, and updates the renderer for the new resolution
      */
-    void update_resolution();
+    void update_resolution() const;
 
     void tick();
 
-    void update_player_location(const glm::vec3& movement_axis);
+    void update_player_location(const glm::vec3& movement_axis) const;
+
+    SceneRenderer& get_renderer() const;
 
 private:
     const float player_movement_speed = 2.f;

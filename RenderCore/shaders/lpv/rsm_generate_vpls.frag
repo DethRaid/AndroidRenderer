@@ -87,6 +87,7 @@ void main() {
     uint first_max_thread = subgroupBallotFindLSB(result);
 
     if(first_max_thread == gl_SubgroupInvocationID) {
+        light.color *= float(gl_SubgroupSize) / 16.f;
         store_light(light);
 
         vpl_count_buffer.instance_count = 1; 

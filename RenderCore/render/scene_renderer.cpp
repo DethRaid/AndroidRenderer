@@ -25,8 +25,8 @@ static auto cvar_shadow_cascade_split_lambda = AutoCVar_Float{
 
 SceneRenderer::SceneRenderer() :
     backend{}, player_view{backend}, texture_loader{backend}, materials{backend},
-    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, lpv{backend}, lighting_pass{backend},
-    ui_phase{*this} {
+    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, voxel_cache{backend}, lpv{backend},
+    lighting_pass{backend}, ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
     player_view.set_position_and_direction(glm::vec3{7.f, 1.f, 0.0f}, glm::vec3{-1.f, 0.0f, 0.f});
@@ -120,7 +120,10 @@ void SceneRenderer::render() {
             .buffers = {
                 {
                     scene->get_primitive_buffer(),
-                    {.stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, .access = VK_ACCESS_SHADER_READ_BIT}
+                    {
+                        .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        .access = VK_ACCESS_SHADER_READ_BIT
+                    }
                 }
             }
         }
@@ -286,7 +289,7 @@ void SceneRenderer::render() {
     );
 
     render_graph.finish();
-    
+
     backend.end_frame();
 }
 
@@ -444,6 +447,10 @@ MaterialStorage& SceneRenderer::get_material_storage() {
 
 MeshStorage& SceneRenderer::get_mesh_storage() {
     return meshes;
+}
+
+VoxelCache& SceneRenderer::get_voxel_cache() {
+    return voxel_cache;
 }
 
 void SceneRenderer::translate_player(const glm::vec3& movement) {

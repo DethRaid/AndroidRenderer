@@ -44,10 +44,14 @@ FetchContent_Declare(
         GIT_REPOSITORY  https://github.com/KhronosGroup/SPIRV-Reflect.git
         GIT_TAG         sdk-1.3.224.1
 )
+# FetchContent_Declare(
+#         fetch_fastgltf
+#         GIT_REPOSITORY  https://github.com/dethraid/fastgltf.git
+#         GIT_TAG         84b9d5030869018dc7e3fc1ecb2cc63667cf5742
+# )
 FetchContent_Declare(
         fetch_fastgltf
-        GIT_REPOSITORY  https://github.com/dethraid/fastgltf.git
-        GIT_TAG         84b9d5030869018dc7e3fc1ecb2cc63667cf5742
+        URL D:/Source/fastgltf
 )
 FetchContent_Declare(
         tl_optional

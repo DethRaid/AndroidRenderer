@@ -32,53 +32,33 @@ layout(set = 0, binding = 3, std140) uniform VoxelBoundsBuffer {
     mat4 world_to_bounds;
 };
 
-layout(set = 0, binding = 4, std430) readonly buffer PrimitiveDataBuffer {
-    PrimitiveDataGPU primitive_datas[];
-};
-
-layout(set = 0, binding = 5, std430) writeonly buffer VertexOutputPositionBuffer {
+layout(set = 0, binding = 4, std430) writeonly buffer VertexOutputPositionBuffer {
     Triangle triangles[];
 };
 
-layout(set = 0, binding = 6, std430) writeonly buffer VertexOutputSHBuffer {
+layout(set = 0, binding = 5, std430) writeonly buffer VertexOutputSHBuffer {
     vec4 triangle_sh[];
 };
 
 layout(push_constant) uniform Constants {
-    uint primitive_id;
     uint first_vertex;
     uint first_index;
     uint num_triangles;
-    uint triangle_cache_offset;
-    uint first_triangle;
+    uint padding3;
+    uint padding4;
+    uint padding5;
     uint padding6;
     uint padding7;
 };
 
 layout(local_size_x = 96, local_size_y = 1, local_size_z = 1) in;
 
-shared mat4 mvp;
-shared mat3 normal_matrix;
-
 void main() {
     if(gl_GlobalInvocationID.x >= num_triangles) {
         return;
     }
 
-    if(gl_LocalInvocationIndex == 0) {
-        // Load the primitive data, calcualte the MVP matrix
-
-        PrimitiveDataGPU primitive_data = primitive_datas[primitive_id];
-        mvp = world_to_bounds * primitive_data.model;
-
-        // TODO: Upload normal matrix in primitive data so we can support non-uniform scaling
-        normal_matrix = mat3(primitive_data.model);
-    }
-
-    memoryBarrierShared();
-    barrier();
-
-    uint triangle_id = gl_GlobalInvocationID.x + first_triangle;
+    uint triangle_id = gl_GlobalInvocationID.x;
     uint provoking_index = triangle_id * 3;
 
     // Pull this triangle and transform it
@@ -92,20 +72,22 @@ void main() {
 
     // TODO: Programmable vertex shader?
 
-    position0 = mvp * position0;
+    position0 = world_to_bounds * position0;
     position0 /= position0.w;
-    position1 = mvp * position1;
+    position1 = world_to_bounds * position1;
     position1 /= position1.w;
-    position2 = mvp * position2;
+    position2 = world_to_bounds * position2;
     position2 /= position2.w;
 
     triangles[triangle_id].v0 = position0.xyz;
     triangles[triangle_id].v1 = position1.xyz;
     triangles[triangle_id].v2 = position2.xyz;
     
-    vec3 normal = normal_matrix * vertex_data[index0].normal;
-    normal += normal_matrix * vertex_data[index1].normal;
-    normal += normal_matrix * vertex_data[index2].normal;
+    // Average the triangle's normal
+    // Probably wrong, possibly useful
+    vec3 normal = vertex_data[index0].normal;
+    normal += vertex_data[index1].normal;
+    normal += vertex_data[index2].normal;
 
-    triangle_sh[triangle_cache_offset + triangle_id] = dir_to_sh(normalize(normal));
+    triangle_sh[triangle_id] = dir_to_sh(normalize(normal));
 }   

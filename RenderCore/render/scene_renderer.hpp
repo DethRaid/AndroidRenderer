@@ -8,6 +8,7 @@
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
+#include "sdf/voxel_cache.hpp"
 
 class GltfModel;
 
@@ -44,6 +45,8 @@ public:
 
     MeshStorage& get_mesh_storage();
 
+    VoxelCache& get_voxel_cache();
+
     /**
      * Translates the player's location
      */
@@ -59,6 +62,11 @@ private:
     MaterialStorage materials;
 
     MeshStorage meshes;
+
+    /**
+     * Cache of voxel representations of static meshes
+     */
+    VoxelCache voxel_cache;
 
     RenderScene* scene = nullptr;
 

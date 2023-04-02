@@ -1,7 +1,5 @@
 #pragma once
 
-#include <concepts>
-
 #include <filesystem>
 #include <span>
 #include <unordered_map>
@@ -55,12 +53,12 @@ private:
 
     std::unique_ptr<fastgltf::Asset> model;
 
-    std::unordered_map<int, TextureHandle> gltf_texture_to_texture_handle;
+    std::unordered_map<size_t, TextureHandle> gltf_texture_to_texture_handle;
 
     std::vector<PooledObject<BasicPbrMaterialProxy>> gltf_material_to_material_handle;
 
     // Outer vector is the mesh, inner vector is the primitives within that mesh
-    std::vector<std::vector<Mesh>> gltf_primitive_to_mesh_primitive;
+    std::vector<std::vector<MeshHandle>> gltf_primitive_to_mesh_primitive;
 
     /**
      * All the MeshPrimitives that came from this glTF model
@@ -87,7 +85,7 @@ private:
 
     TextureHandle get_texture(size_t gltf_texture_index, TextureType type, TextureLoader& texture_storage);
 
-    void import_single_texture(int gltf_texture_index, TextureType type, TextureLoader& texture_storage);
+    void import_single_texture(size_t gltf_texture_index, TextureType type, TextureLoader& texture_storage);
 
     static VkSampler to_vk_sampler(const fastgltf::Sampler& sampler, RenderBackend& backend);
 };

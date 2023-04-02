@@ -73,7 +73,7 @@ void Application::load_scene(const std::filesystem::path& scene_path) {
     logger->info("Loaded scene {}", scene_path.string());
 }
 
-void Application::update_resolution() {
+void Application::update_resolution() const {
     const auto& new_resolution = SystemInterface::get().get_resolution();
     scene_renderer->set_render_resolution(new_resolution);
 }
@@ -88,11 +88,13 @@ void Application::tick() {
     scene_renderer->render();
 }
 
-void Application::update_player_location(const glm::vec3& movement_axis) {
+void Application::update_player_location(const glm::vec3& movement_axis) const {
     const auto movement = movement_axis * player_movement_speed * static_cast<float>(delta_time);
 
     scene_renderer->translate_player(movement);
 }
+
+SceneRenderer& Application::get_renderer() const { return *scene_renderer; }
 
 void Application::update_delta_time() {
     const auto frame_start_time = std::chrono::high_resolution_clock::now();

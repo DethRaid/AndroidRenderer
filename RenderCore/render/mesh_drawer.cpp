@@ -39,7 +39,7 @@ void SceneDrawer::draw(CommandBuffer& commands) const {
         commands.bind_pipeline(primitive->material->second.pipelines[type]);
 
         const auto& mesh = primitive->mesh;
-        commands.draw_indexed(mesh.num_indices, 1, mesh.first_index, mesh.first_vertex, 0);
+        commands.draw_indexed(mesh->num_indices, 1, mesh->first_index, mesh->first_vertex, 0);
 
         if (is_color_pass(type)) {
             commands.clear_descriptor_set(2);

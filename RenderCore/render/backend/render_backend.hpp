@@ -76,6 +76,11 @@ public:
     void begin_frame();
 
     /**
+     * Flushes all batched command buffers to their respective queues
+     */
+    void flush_batched_command_buffers();
+
+    /**
      * Submits queued resource uploads, submits batched command buffers, presents the swapchain
      */
     void end_frame();
@@ -186,6 +191,14 @@ private:
      */
     VkSemaphore swapchain_semaphore = VK_NULL_HANDLE;
 
+    /**
+     * Semaphore that the last command buffer submission signals
+     *
+     * Gets reset to VK_NULL_HANDLE after presenting. The validation layers think that it has no way to be signaled,
+     * even though it's clearly in the pSignalSemaphores list
+     */
+    VkSemaphore last_submission_semaphore = VK_NULL_HANDLE;
+
     uint32_t cur_swapchain_image_idx = 0;
 
     std::array<VkFence, num_in_flight_frames> frame_fences = {};
@@ -209,7 +222,7 @@ private:
      *
      * @return A semaphore that's only valid until the start of the next frame with the current frame's index
      */
-    VkSemaphore create_transient_semaphore();
+    VkSemaphore create_transient_semaphore(const std::string& name );
 
     void destroy_semaphore(VkSemaphore semaphore);
 

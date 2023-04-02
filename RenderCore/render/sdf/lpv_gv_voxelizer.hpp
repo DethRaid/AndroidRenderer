@@ -3,6 +3,7 @@
 #include <glm/vec3.hpp>
 
 #include "render/mesh_drawer.hpp"
+#include "render/mesh_handle.hpp"
 #include "render/backend/compute_shader.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/pipeline.hpp"
@@ -14,7 +15,7 @@ class RenderGraph;
 class RenderScene;
 
 /**
- * Voxelizes a scene to a 3D texture using some parameters
+ * Rasterizes a scene to a 3D texture using some parameters
  *
  * First use case: Voxelize a geometry volume for the LPV. Seems like it's best to store the volume as SH
  *
@@ -23,27 +24,39 @@ class RenderScene;
  * Might be worth trying to make a shader template system, which might one day help the material system use different
  * vertex functions and material functions
  */
-class LpvGvVoxelizer {
+class ThreeDeeRasterizer {
 public:
-    explicit LpvGvVoxelizer() = default;
+    ThreeDeeRasterizer() = default;
 
-    ~LpvGvVoxelizer();
+    ~ThreeDeeRasterizer();
 
-    void init_resources(RenderBackend& backend_in, uint32_t voxel_texture_resolution);
+    /**
+     * Inits all intermediate resources needed to render num_triangles_ triangles at the given resolution
+     */
+    void init_resources(RenderBackend& backend_in, glm::uvec3 voxel_texture_resolution, uint32_t num_triangles);
 
     void deinit_resources(ResourceAllocator& allocator);
 
-    void set_scene(RenderScene& scene_in, MeshStorage& meshes_in);
+    void voxelize_mesh(RenderGraph& graph, MeshHandle mesh, const MeshStorage& meshes) const;
 
-    void voxelize_scene(RenderGraph& graph, const glm::vec3& voxel_bounds_min, const glm::vec3& voxel_bounds_max) const;
-
-    TextureHandle get_texture() const;
+    /**
+     * Extracts the rastered texture from the rasterizer, setting the internal texture to TextureHandle::None
+     */
+    TextureHandle extract_texture();
 
 private:
-    uint32_t resolution = 0;
-    
+    /**
+     * Resolution we're currently rasterizing at
+     */
+    glm::uvec3 resolution = {};
+
+    /**
+     * Number of triangles we're rasterizing
+     */
+    uint32_t max_num_triangles = 0;
+
     TextureHandle voxel_texture = TextureHandle::None;
-        
+
     BufferHandle volume_uniform_buffer = BufferHandle::None;
 
     BufferHandle transformed_triangle_cache = BufferHandle::None;
@@ -68,14 +81,5 @@ private:
 
     ComputeShader normalize_gv_shader;
 
-    /**
-     * Events that let us split up the binning workload to achieve greater occupancy
-     */
-    VkEvent top_half_event = VK_NULL_HANDLE;
-    VkEvent bottom_half_event = VK_NULL_HANDLE;
-
     RenderBackend* backend;
-
-    RenderScene* scene;
-    MeshStorage* meshes;
 };

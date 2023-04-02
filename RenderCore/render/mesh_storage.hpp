@@ -5,6 +5,8 @@
 #include <vk_mem_alloc.h>
 #include <tl/optional.hpp>
 
+#include "render/mesh_handle.hpp"
+#include "core/object_pool.hpp"
 #include "render/backend/handles.hpp"
 #include "render/mesh.hpp"
 #include "render/standard_vertex.hpp"
@@ -21,9 +23,11 @@ public:
 
     ~MeshStorage();
 
-    tl::optional<Mesh> add_mesh(std::span<const StandardVertex> vertices, std::span<const uint32_t> indices);
+    tl::optional<MeshHandle> add_mesh(
+        std::span<const StandardVertex> vertices, std::span<const uint32_t> indices, const glm::vec3& bounds
+    );
 
-    void free_mesh(Mesh mesh);
+    void free_mesh(MeshHandle mesh);
 
     BufferHandle get_vertex_position_buffer() const;
 
@@ -34,6 +38,8 @@ public:
 private:
     ResourceAllocator* allocator;
     ResourceUploadQueue* upload_queue;
+
+    ObjectPool<Mesh> meshes;
 
     // vertex_block and index_block measure vertices and indices, respectively
 

@@ -17,7 +17,7 @@ static std::shared_ptr<spdlog::logger> logger;
 
 static AutoCVar_Int cvar_enable_validation_layers{
     "r.vulkan.EnableValidationLayers",
-    "Whether to enable Vulkan validation layers", 0
+    "Whether to enable Vulkan validation layers", 1
 };
 
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
@@ -215,6 +215,11 @@ void RenderBackend::create_instance_and_device() {
         .geometryShader = VK_TRUE,
         .depthClamp = VK_TRUE,
         .samplerAnisotropy = VK_TRUE,
+#if defined(__ANDROID__)
+        .textureCompressionASTC_LDR = VK_TRUE,
+#else
+        .textureCompressionBC = VK_TRUE,
+#endif
         .fragmentStoresAndAtomics = VK_TRUE,
         .shaderSampledImageArrayDynamicIndexing = VK_TRUE,
         .shaderStorageBufferArrayDynamicIndexing = VK_TRUE,
@@ -372,7 +377,7 @@ void RenderBackend::begin_frame() {
 
     allocator->free_resources_for_frame(cur_frame_idx);
 
-    swapchain_semaphore = create_transient_semaphore();
+    swapchain_semaphore = create_transient_semaphore("Acquire swapchain semaphore");
     {
         ZoneScopedN("Acquire swapchain image");
         vkAcquireNextImageKHR(
@@ -384,32 +389,38 @@ void RenderBackend::begin_frame() {
     frame_descriptor_allocators[cur_frame_idx].reset_pools();
 }
 
-void RenderBackend::end_frame() {
+void RenderBackend::flush_batched_command_buffers() {
     ZoneScoped;
-
-    auto last_submission_semaphore = VkSemaphore{VK_NULL_HANDLE};
-
+    
     // Flushes pending uploads to our queued_transfer_command_buffers
     upload_queue->flush_pending_uploads();
-
+    
     if (!queued_transfer_command_buffers.empty()) {
-        last_submission_semaphore = create_transient_semaphore();
+        const auto submission_semaphore = create_transient_semaphore("Transfer commands submission");
+        const auto mask = static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
         const auto transfer_submit = VkSubmitInfo{
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount = last_submission_semaphore == VK_NULL_HANDLE ? 0u : 1u,
+            .pWaitSemaphores = &last_submission_semaphore,
+            .pWaitDstStageMask = &mask,
             .commandBufferCount = static_cast<uint32_t>(queued_transfer_command_buffers.size()),
             .pCommandBuffers = queued_transfer_command_buffers.data(),
             .signalSemaphoreCount = 1,
-            .pSignalSemaphores = &last_submission_semaphore,
+            .pSignalSemaphores = &submission_semaphore,
         };
 
-        // TODO: A fence or semaphore for the graphics submit to wait on
-        vkQueueSubmit(graphics_queue, 1, &transfer_submit, VK_NULL_HANDLE);
+        {
+            ZoneScopedN("vkQueueSubmit transfer");
+            vkQueueSubmit(graphics_queue, 1, &transfer_submit, VK_NULL_HANDLE);
+        }
 
         for (auto commands : queued_transfer_command_buffers) {
             command_allocators[cur_frame_idx].return_command_buffer(commands);
         }
 
         queued_transfer_command_buffers.clear();
+
+        last_submission_semaphore = submission_semaphore;
     }
 
     if (!queued_command_buffers.empty()) {
@@ -421,14 +432,14 @@ void RenderBackend::end_frame() {
             command_allocators[cur_frame_idx].return_command_buffer(queued_commands.get_vk_commands());
         }
 
-        auto wait_stages = std::vector<VkPipelineStageFlags>{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
-        auto wait_semaphores = std::vector{swapchain_semaphore};
+        auto wait_stages = std::vector<VkPipelineStageFlags>{ VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
+        auto wait_semaphores = std::vector{ swapchain_semaphore };
         if (last_submission_semaphore != VK_NULL_HANDLE) {
             wait_semaphores.emplace_back(last_submission_semaphore);
             wait_stages.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
         }
 
-        auto signal_semaphore = create_transient_semaphore();
+        auto signal_semaphore = create_transient_semaphore("Graphics submit semaphore");
 
         const auto submit = VkSubmitInfo{
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -444,7 +455,7 @@ void RenderBackend::end_frame() {
         last_submission_semaphore = signal_semaphore;
 
         {
-            ZoneScopedN("vkQueueSubmit");
+            ZoneScopedN("vkQueueSubmit graphics");
             const auto result = vkQueueSubmit(graphics_queue, 1, &submit, frame_fences[cur_frame_idx]);
 
             queued_command_buffers.clear();
@@ -454,6 +465,12 @@ void RenderBackend::end_frame() {
             }
         }
     }
+}
+
+void RenderBackend::end_frame() {
+    ZoneScoped;
+
+    flush_batched_command_buffers();
 
     const auto present_info = VkPresentInfoKHR{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -467,6 +484,8 @@ void RenderBackend::end_frame() {
         ZoneScopedN("vkQueuePresentKHR");
         vkQueuePresentKHR(graphics_queue, &present_info);
     }
+
+    last_submission_semaphore = VK_NULL_HANDLE;
 }
 
 void RenderBackend::collect_tracy_data(const CommandBuffer& commands) const {
@@ -493,7 +512,9 @@ void RenderBackend::create_tracy_context() {
     };
     vkAllocateCommandBuffers(device.device, &command_buffer_allocate, &tracy_command_buffer);
 
-    tracy_context = TracyVkContext(physical_device.physical_device, device.device, graphics_queue, tracy_command_buffer);
+    tracy_context = TracyVkContext(
+        physical_device.physical_device, device.device, graphics_queue, tracy_command_buffer
+    );
 }
 
 ResourceAllocator& RenderBackend::get_global_allocator() {
@@ -553,7 +574,7 @@ vkutil::DescriptorBuilder RenderBackend::create_frame_descriptor_builder() {
     return vkutil::DescriptorBuilder::begin(*this, frame_descriptor_allocators[cur_frame_idx]);
 }
 
-VkSemaphore RenderBackend::create_transient_semaphore() {
+VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
     auto semaphore = VkSemaphore{};
 
     if (!available_semaphores.empty()) {
@@ -565,6 +586,16 @@ VkSemaphore RenderBackend::create_transient_semaphore() {
         };
 
         vkCreateSemaphore(device, &create_info, nullptr, &semaphore);
+    }
+
+    if(!name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
+        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
+           .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+           .objectType = VK_OBJECT_TYPE_SEMAPHORE,
+           .objectHandle = reinterpret_cast<uint64_t>(semaphore),
+           .pObjectName = name.c_str(),
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &name_info);
     }
 
     destroy_semaphore(semaphore);
