@@ -469,14 +469,14 @@ void LightPropagationVolume::inject_indirect_sun_light(
         //             {
         //                 cascade.normals_target,
         //                 {
-        //                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT_KHR,
+        //                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
         //                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         //                 }
         //             },
         //             {
         //                 cascade.depth_target,
         //                 {
-        //                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT_KHR,
+        //                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
         //                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         //                 }
         //             }
@@ -506,28 +506,28 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
                 {
                     lpv_a_red,
                     {
-                        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, .access = VK_ACCESS_SHADER_WRITE_BIT,
+                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_WRITE_BIT,
                         .layout = VK_IMAGE_LAYOUT_GENERAL
                     }
                 },
                 {
                     lpv_a_green,
                     {
-                        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, .access = VK_ACCESS_SHADER_WRITE_BIT,
+                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_WRITE_BIT,
                         .layout = VK_IMAGE_LAYOUT_GENERAL
                     }
                 },
                 {
                     lpv_a_blue,
                     {
-                        .stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, .access = VK_ACCESS_SHADER_WRITE_BIT,
+                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_WRITE_BIT,
                         .layout = VK_IMAGE_LAYOUT_GENERAL
                     }
                 },
                 {
                     geometry_volume_handle,
                     {
-                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, .access = VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
+                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_WRITE_BIT,
                         .layout = VK_IMAGE_LAYOUT_GENERAL,
                     }
                 }

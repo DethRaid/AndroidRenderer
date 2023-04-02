@@ -54,14 +54,14 @@ private:
 
     TextureUsageMap last_texture_usages;
 
-    std::vector<VkBufferMemoryBarrier2KHR> buffer_barriers;
+    std::vector<VkBufferMemoryBarrier2> buffer_barriers;
 
-    std::vector<VkImageMemoryBarrier2KHR> image_barriers;
+    std::vector<VkImageMemoryBarrier2> image_barriers;
 
-    void set_resource_usage(BufferHandle buffer, VkPipelineStageFlags2KHR pipeline_stage, VkAccessFlags2KHR access);
+    void set_resource_usage(BufferHandle buffer, VkPipelineStageFlags2 pipeline_stage, VkAccessFlags2 access);
 
     void set_resource_usage(
-        TextureHandle texture, VkPipelineStageFlags2KHR pipeline_stage, VkAccessFlags2KHR access, VkImageLayout layout
+        TextureHandle texture, VkPipelineStageFlags2 pipeline_stage, VkAccessFlags2 access, VkImageLayout layout
     );
 
     void issue_barriers(const CommandBuffer& cmds);

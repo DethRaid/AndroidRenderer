@@ -70,7 +70,7 @@ public:
      * Issues a batch of pipeline barriers
      */
     void barrier(
-        const std::vector<VkMemoryBarrier2KHR>& memory_barriers,
+        const std::vector<VkMemoryBarrier2>& memory_barriers,
         const std::vector<VkBufferMemoryBarrier2>& buffer_barriers,
         const std::vector<VkImageMemoryBarrier2>& image_barriers
     ) const;
@@ -202,7 +202,7 @@ private:
      * The spec states that the dependency info for each set/wait event call for the same event must match. The backend
      * should handle that noise
      */
-    std::unordered_map<VkEvent, std::vector<VkBufferMemoryBarrier2KHR>> event_buffer_barriers;
+    std::unordered_map<VkEvent, std::vector<VkBufferMemoryBarrier2>> event_buffer_barriers;
 
     void commit_bindings();
 };

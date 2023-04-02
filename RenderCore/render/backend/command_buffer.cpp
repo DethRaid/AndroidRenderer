@@ -121,11 +121,11 @@ void CommandBuffer::barrier(
 }
 
 void CommandBuffer::barrier(
-    const std::vector<VkMemoryBarrier2KHR>& memory_barriers, const std::vector<VkBufferMemoryBarrier2>& buffer_barriers,
+    const std::vector<VkMemoryBarrier2>& memory_barriers, const std::vector<VkBufferMemoryBarrier2>& buffer_barriers,
     const std::vector<VkImageMemoryBarrier2>& image_barriers
 ) const {
-    const auto dependency_info = VkDependencyInfoKHR{
-        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+    const auto dependency_info = VkDependencyInfo{
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .memoryBarrierCount = static_cast<uint32_t>(memory_barriers.size()),
         .pMemoryBarriers = memory_barriers.data(),
         .bufferMemoryBarrierCount = static_cast<uint32_t>(buffer_barriers.size()),
@@ -133,7 +133,7 @@ void CommandBuffer::barrier(
         .imageMemoryBarrierCount = static_cast<uint32_t>(image_barriers.size()),
         .pImageMemoryBarriers = image_barriers.data()
     };
-    vkCmdPipelineBarrier2KHR(commands, &dependency_info);
+    vkCmdPipelineBarrier2(commands, &dependency_info);
 }
 
 void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_value) {
@@ -289,18 +289,18 @@ void CommandBuffer::dispatch(const uint32_t width, const uint32_t height, const 
 }
 
 void CommandBuffer::reset_event(const VkEvent event, const VkPipelineStageFlags stages) const {
-    vkCmdResetEvent2KHR(commands, event, stages);
+    vkCmdResetEvent2(commands, event, stages);
 }
 
 void CommandBuffer::set_event(const VkEvent event, const std::vector<BufferBarrier>& buffers) {
     auto& allocator = backend->get_global_allocator();
 
-    auto buffer_barriers = std::vector<VkBufferMemoryBarrier2KHR>{};
+    auto buffer_barriers = std::vector<VkBufferMemoryBarrier2>{};
     buffer_barriers.reserve(buffers.size());
     for (const auto& buffer_barrier : buffers) {
         const auto& buffer_actual = allocator.get_buffer(buffer_barrier.buffer);
         const auto barrier = VkBufferMemoryBarrier2{
-            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR,
+            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
             .srcStageMask = buffer_barrier.src.stage,
             .srcAccessMask = buffer_barrier.src.access,
             .dstStageMask = buffer_barrier.dst.stage,
@@ -312,12 +312,12 @@ void CommandBuffer::set_event(const VkEvent event, const std::vector<BufferBarri
         buffer_barriers.emplace_back(barrier);
     }
 
-    const auto dependency = VkDependencyInfoKHR{
-        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+    const auto dependency = VkDependencyInfo{
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .bufferMemoryBarrierCount = static_cast<uint32_t>(buffer_barriers.size()),
         .pBufferMemoryBarriers = buffer_barriers.data()
     };
-    vkCmdSetEvent2KHR(commands, event, &dependency);
+    vkCmdSetEvent2(commands, event, &dependency);
 
     event_buffer_barriers.emplace(event, std::move(buffer_barriers));
 }
@@ -325,12 +325,12 @@ void CommandBuffer::set_event(const VkEvent event, const std::vector<BufferBarri
 void CommandBuffer::wait_event(const VkEvent event) {
     const auto& buffer_barriers = event_buffer_barriers.at(event);
 
-    const auto dependency = VkDependencyInfoKHR{
-        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+    const auto dependency = VkDependencyInfo{
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .bufferMemoryBarrierCount = static_cast<uint32_t>(buffer_barriers.size()),
         .pBufferMemoryBarriers = buffer_barriers.data()
     };
-    vkCmdWaitEvents2KHR(commands, 1, &event, &dependency);
+    vkCmdWaitEvents2(commands, 1, &event, &dependency);
 
     event_buffer_barriers.erase(event);
 }

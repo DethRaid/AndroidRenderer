@@ -17,7 +17,7 @@ static std::shared_ptr<spdlog::logger> logger;
 
 static AutoCVar_Int cvar_enable_validation_layers{
     "r.vulkan.EnableValidationLayers",
-    "Whether to enable Vulkan validation layers", 0
+    "Whether to enable Vulkan validation layers", 1
 };
 
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
@@ -225,6 +225,24 @@ void RenderBackend::create_instance_and_device() {
         .shaderStorageBufferArrayDynamicIndexing = VK_TRUE,
     };
 
+    auto required_1_2_features = VkPhysicalDeviceVulkan12Features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .descriptorIndexing = VK_TRUE,
+        .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+        .descriptorBindingVariableDescriptorCount = VK_TRUE,
+        .runtimeDescriptorArray = VK_TRUE,
+        .scalarBlockLayout = VK_TRUE,
+        .imagelessFramebuffer = VK_TRUE,
+    };
+
+    auto required_1_3_features = VkPhysicalDeviceVulkan13Features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+        .synchronization2 = VK_TRUE,
+#if defined(__ANDROID__)
+        .textureCompressionASTC_HDR = VK_TRUE,
+#endif
+    };
+
     if (cvar_enable_gpu_assisted_validation.Get() != 0) {
         required_features.vertexPipelineStoresAndAtomics = VK_TRUE;
     }
@@ -232,13 +250,13 @@ void RenderBackend::create_instance_and_device() {
     auto phys_device_ret = vkb::PhysicalDeviceSelector{instance}
                            .set_surface(surface)
                            .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
-                           .add_required_extension(VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME)
-                           .add_required_extension(VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME)
 #if defined(_WIN32)
         .add_desired_extension(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME)
         .add_desired_extension(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME)
 #endif
         .set_required_features(required_features)
+        .set_required_features_12(required_1_2_features)
+        .set_required_features_13(required_1_3_features)
         .set_minimum_version(1, 1)
         .select();
     if (!phys_device_ret) {
@@ -253,25 +271,8 @@ void RenderBackend::create_instance_and_device() {
         .multiview = VK_TRUE,
     };
 
-    auto descriptor_indexing_features = VkPhysicalDeviceDescriptorIndexingFeatures{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES
-    };
-
-    auto sync_2_features = VkPhysicalDeviceSynchronization2FeaturesKHR{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
-        .synchronization2 = VK_TRUE,
-    };
-
-    auto scalar_features = VkPhysicalDeviceScalarBlockLayoutFeaturesEXT{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT,
-        .scalarBlockLayout = VK_TRUE,
-    };
-
     auto device_builder = vkb::DeviceBuilder{physical_device}
-                          .add_pNext(&multiview_features)
-                          .add_pNext(&descriptor_indexing_features)
-                          .add_pNext(&sync_2_features)
-                          .add_pNext(&scalar_features);
+        .add_pNext(&multiview_features);
 
     // Set up device creation info for Aftermath feature flag configuration.
 #if defined(_WIN32)
@@ -391,10 +392,10 @@ void RenderBackend::begin_frame() {
 
 void RenderBackend::flush_batched_command_buffers() {
     ZoneScoped;
-    
+
     // Flushes pending uploads to our queued_transfer_command_buffers
     upload_queue->flush_pending_uploads();
-    
+
     if (!queued_transfer_command_buffers.empty()) {
         const auto submission_semaphore = create_transient_semaphore("Transfer commands submission");
         const auto mask = static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
@@ -432,8 +433,8 @@ void RenderBackend::flush_batched_command_buffers() {
             command_allocators[cur_frame_idx].return_command_buffer(queued_commands.get_vk_commands());
         }
 
-        auto wait_stages = std::vector<VkPipelineStageFlags>{ VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
-        auto wait_semaphores = std::vector{ swapchain_semaphore };
+        auto wait_stages = std::vector<VkPipelineStageFlags>{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
+        auto wait_semaphores = std::vector{swapchain_semaphore};
         if (last_submission_semaphore != VK_NULL_HANDLE) {
             wait_semaphores.emplace_back(last_submission_semaphore);
             wait_stages.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
@@ -588,12 +589,12 @@ VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
         vkCreateSemaphore(device, &create_info, nullptr, &semaphore);
     }
 
-    if(!name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
+    if (!name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
         const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-           .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-           .objectType = VK_OBJECT_TYPE_SEMAPHORE,
-           .objectHandle = reinterpret_cast<uint64_t>(semaphore),
-           .pObjectName = name.c_str(),
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_SEMAPHORE,
+            .objectHandle = reinterpret_cast<uint64_t>(semaphore),
+            .pObjectName = name.c_str(),
         };
         vkSetDebugUtilsObjectNameEXT(device, &name_info);
     }

@@ -196,27 +196,27 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
             .buffers = {
                 {
                     meshes.get_vertex_position_buffer(),
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
                 },
                 {
                     meshes.get_vertex_data_buffer(),
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
                 },
                 {
                     meshes.get_index_buffer(),
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
                 },
                 {
                     volume_uniform_buffer,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_UNIFORM_READ_BIT_KHR}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT}
                 },
                 {
                     transformed_triangle_cache,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_WRITE_BIT_KHR}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}
                 },
                 {
                     triangle_sh_cache,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_WRITE_BIT_KHR}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}
                 },
             },
             .execute = [&, this](CommandBuffer& commands) {
@@ -247,13 +247,13 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
             .buffers = {
                 {
                     transformed_triangle_cache,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
                 },
                 {
                     bins,
                     {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
-                        VK_ACCESS_2_SHADER_READ_BIT_KHR | VK_ACCESS_2_SHADER_WRITE_BIT_KHR
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
                     }
                 }
             },
@@ -292,27 +292,27 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
             .buffers = {
                 {
                     transformed_triangle_cache,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
                 },
                 {
                     bins,
                     {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
-                        VK_ACCESS_2_SHADER_READ_BIT_KHR
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_2_SHADER_READ_BIT
                     }
                 },
                 {
                     cell_bitmask_coarse,
                     {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
-                        VK_ACCESS_2_SHADER_READ_BIT_KHR | VK_ACCESS_2_SHADER_WRITE_BIT_KHR
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
                     }
                 },
                 {
                     cell_bitmask,
                     {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
-                        VK_ACCESS_2_SHADER_READ_BIT_KHR | VK_ACCESS_2_SHADER_WRITE_BIT_KHR
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
                     }
                 }
             },
@@ -361,7 +361,7 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
                 {
                     voxel_texture,
                     {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT,
                         VK_IMAGE_LAYOUT_GENERAL
                     }
                 }
@@ -369,15 +369,15 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
             .buffers = {
                 {
                     triangle_sh_cache,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
                 },
                 {
                     cell_bitmask_coarse,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
                 },
                 {
                     cell_bitmask,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
                 }
             },
             .execute = [&](CommandBuffer& commands) {

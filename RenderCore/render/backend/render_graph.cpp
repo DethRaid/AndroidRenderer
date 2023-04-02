@@ -12,15 +12,15 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-bool is_write_access(const VkAccessFlagBits2KHR access) {
+bool is_write_access(const VkAccessFlagBits2 access) {
     constexpr auto write_mask =
-        VK_ACCESS_2_SHADER_WRITE_BIT_KHR |
-        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR |
-        VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR |
-        VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR |
-        VK_ACCESS_2_HOST_WRITE_BIT_KHR |
-        VK_ACCESS_2_MEMORY_WRITE_BIT_KHR |
-        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT_KHR |
+        VK_ACCESS_2_SHADER_WRITE_BIT |
+        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
+        VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+        VK_ACCESS_2_TRANSFER_WRITE_BIT |
+        VK_ACCESS_2_HOST_WRITE_BIT |
+        VK_ACCESS_2_MEMORY_WRITE_BIT |
+        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT |
         VK_ACCESS_2_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT |
         VK_ACCESS_2_COMMAND_PREPROCESS_WRITE_BIT_NV |
         VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR |
@@ -172,7 +172,7 @@ void RenderGraph::finish() {
 }
 
 void RenderGraph::set_resource_usage(
-    const BufferHandle buffer, const VkPipelineStageFlags2KHR pipeline_stage, const VkAccessFlags2KHR access
+    const BufferHandle buffer, const VkPipelineStageFlags2 pipeline_stage, const VkAccessFlags2 access
 ) {
     if (!initial_buffer_usages.contains(buffer)) {
         initial_buffer_usages.emplace(buffer, BufferUsageToken{pipeline_stage, access});
@@ -190,8 +190,8 @@ void RenderGraph::set_resource_usage(
             );
 
             buffer_barriers.emplace_back(
-                VkBufferMemoryBarrier2KHR{
-                    .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR,
+                VkBufferMemoryBarrier2{
+                    .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
                     .srcStageMask = itr->second.stage,
                     .srcAccessMask = itr->second.access,
                     .dstStageMask = pipeline_stage,
@@ -207,7 +207,7 @@ void RenderGraph::set_resource_usage(
 }
 
 void RenderGraph::set_resource_usage(
-    const TextureHandle texture, const VkPipelineStageFlags2KHR pipeline_stage, const VkAccessFlags2KHR access,
+    const TextureHandle texture, const VkPipelineStageFlags2 pipeline_stage, const VkAccessFlags2 access,
     const VkImageLayout layout
 ) {
     auto& allocator = backend.get_global_allocator();
@@ -225,8 +225,8 @@ void RenderGraph::set_resource_usage(
             magic_enum::enum_name(VK_IMAGE_LAYOUT_UNDEFINED), magic_enum::enum_name(layout)
         );
         image_barriers.emplace_back(
-            VkImageMemoryBarrier2KHR{
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+            VkImageMemoryBarrier2{
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                 .srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                 .srcAccessMask = VK_ACCESS_MEMORY_READ_BIT,
                 .dstStageMask = pipeline_stage,
@@ -253,8 +253,8 @@ void RenderGraph::set_resource_usage(
                 magic_enum::enum_name(itr->second.layout), magic_enum::enum_name(layout)
             );
             image_barriers.emplace_back(
-                VkImageMemoryBarrier2KHR{
-                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+                VkImageMemoryBarrier2{
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                     .srcStageMask = itr->second.stage,
                     .srcAccessMask = itr->second.access,
                     .dstStageMask = pipeline_stage,

@@ -282,7 +282,7 @@ void SceneRenderer::render() {
             .textures = {
                 {
                     swapchain_image,
-                    {VK_PIPELINE_STAGE_2_NONE_KHR, VK_ACCESS_2_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR}
+                    {VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR}
                 }
             }
         }

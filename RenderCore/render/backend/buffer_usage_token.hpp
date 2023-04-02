@@ -7,9 +7,9 @@
 #include "render/backend/handles.hpp"
 
 struct BufferUsageToken {
-    VkPipelineStageFlags2KHR stage;
+    VkPipelineStageFlags2 stage;
 
-    VkAccessFlags2KHR access;
+    VkAccessFlags2 access;
 };
 
 struct BufferBarrier {
