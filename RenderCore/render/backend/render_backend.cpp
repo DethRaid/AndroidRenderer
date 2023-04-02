@@ -326,7 +326,9 @@ void RenderBackend::create_swapchain() {
     swapchain = *swapchain_ret;
 }
 
-RenderBackend::~RenderBackend() {}
+RenderBackend::~RenderBackend() {
+    vkDeviceWaitIdle(device.device);
+}
 
 VkInstance RenderBackend::get_instance() const {
     return instance.instance;
