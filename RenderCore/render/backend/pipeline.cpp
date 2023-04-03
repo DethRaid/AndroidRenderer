@@ -1,6 +1,7 @@
 #include "pipeline.hpp"
 
 #include <cassert>
+#include <ranges>
 #include <span>
 
 #include <spirv_reflect.h>
@@ -16,6 +17,8 @@
 #include "shared/vertex_data.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
+
+constexpr uint32_t variable_size_array_max_size = 1024;
 
 constexpr const auto vertex_position_input_binding = VkVertexInputBindingDescription{
     .binding = 0,
@@ -196,13 +199,13 @@ PipelineBuilder& PipelineBuilder::set_vertex_shader(const std::filesystem::path&
 }
 
 PipelineBuilder& PipelineBuilder::set_geometry_shader(const std::filesystem::path& geometry_path) {
-    if(geometry_shader) {
-        throw std::runtime_error{ "Geometry shader already set!" };
+    if (geometry_shader) {
+        throw std::runtime_error{"Geometry shader already set!"};
     }
 
     const auto geometry_shader_maybe = SystemInterface::get().load_file(geometry_path);
-    if(!geometry_shader_maybe) {
-        throw std::runtime_error{ "Could not load geometry shader" };
+    if (!geometry_shader_maybe) {
+        throw std::runtime_error{"Could not load geometry shader"};
     }
 
     geometry_shader = *geometry_shader_maybe;
@@ -213,7 +216,7 @@ PipelineBuilder& PipelineBuilder::set_geometry_shader(const std::filesystem::pat
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
     if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
-        throw std::runtime_error{ "Could not perform reflection on geometry shader" };
+        throw std::runtime_error{"Could not perform reflection on geometry shader"};
     }
 
     bool has_error = false;
@@ -224,7 +227,7 @@ PipelineBuilder& PipelineBuilder::set_geometry_shader(const std::filesystem::pat
     uint32_t set_count;
     auto result = shader_module.EnumerateDescriptorSets(&set_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto sets = std::vector<SpvReflectDescriptorSet*>{ set_count };
+    auto sets = std::vector<SpvReflectDescriptorSet*>{set_count};
     result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -237,7 +240,7 @@ PipelineBuilder& PipelineBuilder::set_geometry_shader(const std::filesystem::pat
     uint32_t constant_count;
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{ constant_count };
+    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{constant_count};
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, spv_push_constants.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -294,12 +297,12 @@ PipelineBuilder& PipelineBuilder::set_depth_state(const DepthStencilState& depth
 
 PipelineBuilder& PipelineBuilder::set_raster_state(const RasterState& raster_state_in) {
     raster_state = VkPipelineRasterizationStateCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .depthClampEnable = raster_state_in.depth_clamp_enable,
-            .polygonMode = raster_state_in.polygon_mode,
-            .cullMode = raster_state_in.cull_mode,
-            .frontFace = raster_state_in.front_face,
-            .lineWidth = raster_state_in.line_width,
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable = raster_state_in.depth_clamp_enable,
+        .polygonMode = raster_state_in.polygon_mode,
+        .cullMode = raster_state_in.cull_mode,
+        .frontFace = raster_state_in.front_face,
+        .lineWidth = raster_state_in.line_width,
     };
 
     return *this;
@@ -350,7 +353,7 @@ Pipeline PipelineBuilder::build() {
 
         pipeline.vertex_shader_name = vertex_shader_name;
 
-        if(vkSetDebugUtilsObjectNameEXT != nullptr) {
+        if (vkSetDebugUtilsObjectNameEXT != nullptr) {
             const auto name_info = VkDebugUtilsObjectNameInfoEXT{
                 .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
                 .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
@@ -370,20 +373,20 @@ Pipeline PipelineBuilder::build() {
         throw std::runtime_error{"Missing vertex shader"};
     }
 
-    if(geometry_shader) {
+    if (geometry_shader) {
         ZoneScopedN("Compile geometry shader");
 
         const auto module_create_info = VkShaderModuleCreateInfo{
-           .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-           .codeSize = static_cast<uint32_t>(geometry_shader->size()),
-           .pCode = reinterpret_cast<const uint32_t*>(geometry_shader->data()),
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = static_cast<uint32_t>(geometry_shader->size()),
+            .pCode = reinterpret_cast<const uint32_t*>(geometry_shader->data()),
         };
         auto geometry_module = VkShaderModule{};
         vkCreateShaderModule(device, &module_create_info, nullptr, &geometry_module);
 
         pipeline.geometry_shader_name = geometry_shader_name;
 
-        if(vkSetDebugUtilsObjectNameEXT != nullptr) {
+        if (vkSetDebugUtilsObjectNameEXT != nullptr) {
             const auto name_info = VkDebugUtilsObjectNameInfoEXT{
                 .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
                 .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
@@ -414,7 +417,7 @@ Pipeline PipelineBuilder::build() {
 
         pipeline.fragment_shader_name = fragment_shader_name;
 
-        if(vkSetDebugUtilsObjectNameEXT != nullptr) {
+        if (vkSetDebugUtilsObjectNameEXT != nullptr) {
             const auto name_info = VkDebugUtilsObjectNameInfoEXT{
                 .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
                 .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
@@ -457,7 +460,8 @@ bool collect_descriptor_sets(
         if (auto itr = descriptor_sets.find(set->set); itr != descriptor_sets.end()) {
             // We saw this set in the previous shader. Validate that it's the same as the previous, and mark it with
             // the new shader stage
-            auto& known_bindings = itr->second;
+            auto& set_info = itr->second;
+            auto& known_bindings = set_info.bindings;
             for (auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
                 const auto vk_type = to_vk_type(binding->descriptor_type);
                 if (auto binding_itr = known_bindings.find(binding->binding); binding_itr !=
@@ -505,11 +509,15 @@ bool collect_descriptor_sets(
                         VkDescriptorSetLayoutBinding{
                             .binding = binding->binding,
                             .descriptorType = vk_type,
-                            .descriptorCount = binding->count,
+                            .descriptorCount = binding->count > 0 ? binding->count : variable_size_array_max_size,
                             .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
                             .pImmutableSamplers = nullptr
                         }
                     );
+
+                    if (binding->count == 0) {
+                        set_info.has_variable_count_binding = true;
+                    }
                 }
             }
         } else {
@@ -524,16 +532,20 @@ bool collect_descriptor_sets(
                     binding->count,
                     magic_enum::enum_name(shader_stage)
                 );
-                set_info.emplace(
+                set_info.bindings.emplace(
                     binding->binding,
                     VkDescriptorSetLayoutBinding{
                         .binding = binding->binding,
                         .descriptorType = to_vk_type(binding->descriptor_type),
-                        .descriptorCount = binding->count,
+                        .descriptorCount = binding->count > 0 ? binding->count : variable_size_array_max_size,
                         .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
                         .pImmutableSamplers = nullptr
                     }
                 );
+
+                if (binding->count == 0) {
+                    set_info.has_variable_count_binding = true;
+                }
             }
 
             descriptor_sets.emplace(set->set, set_info);
@@ -589,14 +601,13 @@ bool collect_push_constants(
     return has_error;
 }
 
-bool
-collect_bindings(
+bool collect_bindings(
     const std::vector<uint8_t>& shader_instructions, const std::string& shader_name,
     VkShaderStageFlagBits shader_stage,
     std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_sets,
     std::vector<VkPushConstantRange>& push_constants
 ) {
-    if(logger == nullptr) {
+    if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("PipelineBuilder");
     }
 
@@ -605,7 +616,7 @@ collect_bindings(
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
     if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
-        throw std::runtime_error{"Could not perform reflection on fragment shader"};
+        throw std::runtime_error{"Could not perform reflection on shader"};
     }
 
     bool has_error = false;
@@ -759,7 +770,7 @@ void Pipeline::create_vk_pipeline(
         }
 
         auto stages = std::vector{vertex_stage};
-        if(geometry_stage) {
+        if (geometry_stage) {
             stages.emplace_back(*geometry_stage);
         }
         if (fragment_stage) {
@@ -785,7 +796,7 @@ void Pipeline::create_vk_pipeline(
             .scissorCount = 1,
             // Dynamic viewport and scissor state
         };
-        
+
         const auto multisample_state = VkPipelineMultisampleStateCreateInfo{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
             .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
@@ -873,15 +884,29 @@ void Pipeline::create_pipeline_layout(
 
         auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
 
-        for (const auto& [binding_index, binding] : set_info) {
+        for (const auto& binding : set_info.bindings | std::views::values) {
             bindings.emplace_back(binding);
         }
 
-        const auto create_info = VkDescriptorSetLayoutCreateInfo{
+        auto create_info = VkDescriptorSetLayoutCreateInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
             .bindingCount = static_cast<uint32_t>(bindings.size()),
             .pBindings = bindings.data(),
         };
+
+        // If the last binding is un unsized texture array, tell Vulkan about it
+        auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
+        if (set_info.has_variable_count_binding) {
+            auto flags = std::vector<VkDescriptorBindingFlags>{};
+            flags.resize(bindings.size());
+            flags.back() = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+            flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+                .bindingCount = static_cast<uint32_t>(flags.size()),
+                .pBindingFlags = flags.data(),
+            };
+            create_info.pNext = &flags_create_info;
+        }
 
         auto layout = VkDescriptorSetLayout{};
         vkCreateDescriptorSetLayout(device, &create_info, nullptr, &layout);

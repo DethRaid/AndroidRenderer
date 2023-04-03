@@ -26,6 +26,7 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
         return tl::nullopt;
     }
 
+    logger->info("Beginning reflection on compute shader {}", name);
     std::unordered_map<uint32_t, DescriptorSetInfo> descriptor_sets;
     std::vector<VkPushConstantRange> push_constants;
     collect_bindings(instructions, name, VK_SHADER_STAGE_COMPUTE_BIT, descriptor_sets, push_constants);
@@ -33,11 +34,11 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
     auto layouts = std::vector<VkDescriptorSetLayout>{};
     layouts.reserve(descriptor_sets.size());
 
-    for (const auto&[set_index, info]: descriptor_sets) {
+    for (const auto&[set_index, set_info]: descriptor_sets) {
         auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
-        bindings.resize(info.size());
+        bindings.resize(set_info.bindings.size());
 
-        for (const auto&[binding_index, binding]: info) {
+        for (const auto& [binding_index, binding]: set_info.bindings) {
             bindings[binding_index] = binding;
         }
 
@@ -46,6 +47,21 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
                 .bindingCount = static_cast<uint32_t>(bindings.size()),
                 .pBindings = bindings.data(),
         };
+
+        // If the last binding is un unsized texture array, tell Vulkan about it
+        auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
+        auto flags = std::vector<VkDescriptorBindingFlags>{};
+        if (set_info.has_variable_count_binding) {
+            flags.resize(bindings.size());
+            flags.back() = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+            flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+                .bindingCount = static_cast<uint32_t>(flags.size()),
+                .pBindingFlags = flags.data(),
+            };
+            create_info.pNext = &flags_create_info;
+        }
+
         auto dsl = VkDescriptorSetLayout{};
         result = vkCreateDescriptorSetLayout(device, &create_info, nullptr, &dsl);
         if (result != VK_SUCCESS) {

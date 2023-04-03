@@ -192,7 +192,7 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
     // TODO: Add the ability to shade a subset of the triangles in a primitive
     graph.add_compute_pass(
         ComputePass{
-            .name = "Transform primitive",
+            .name = "Transform primitives",
             .buffers = {
                 {
                     meshes.get_vertex_position_buffer(),
@@ -233,7 +233,7 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
                 commands.set_push_constant(2, num_triangles_to_shade);
 
                 // / 96 because we have 96 threads per workgroup
-                commands.dispatch(num_triangles_to_shade / 96 + 1, 1, 1);
+                commands.dispatch((num_triangles_to_shade + 95) / 96, 1, 1);
                 
                 commands.clear_descriptor_set(0);
             }

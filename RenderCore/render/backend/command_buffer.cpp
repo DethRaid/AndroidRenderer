@@ -1,5 +1,7 @@
 #include "command_buffer.hpp"
 
+#include <glm/common.hpp>
+
 #include "render/backend/render_backend.hpp"
 #include "utils.hpp"
 #include "core/system_interface.hpp"
@@ -136,7 +138,7 @@ void CommandBuffer::barrier(
     vkCmdPipelineBarrier2(commands, &dependency_info);
 }
 
-void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_value) {
+void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_value) const {
     auto& allocator = backend->get_global_allocator();
     const auto& buffer_actual = allocator.get_buffer(buffer);
 
@@ -268,6 +270,10 @@ void CommandBuffer::set_push_constant(const uint32_t index, const uint32_t data)
     push_constants[index] = data;
 
     are_bindings_dirty = true;
+}
+
+void CommandBuffer::set_push_constant(const uint32_t index, const float data) {
+    set_push_constant(index, glm::floatBitsToUint(data));
 }
 
 void CommandBuffer::bind_descriptor_set(const uint32_t set_index, const VkDescriptorSet set) {

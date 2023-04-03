@@ -18,7 +18,11 @@ struct SpvReflectDescriptorSet;
 struct SpvReflectBlockVariable;
 struct SpvReflectInterfaceVariable;
 
-using DescriptorSetInfo = std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>;
+struct DescriptorSetInfo {
+    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
+
+    bool has_variable_count_binding = false;
+};
 
 bool collect_bindings(const std::vector<uint8_t>& shader_instructions, const std::string& shader_name,
                       VkShaderStageFlagBits shader_stage, std::unordered_map<uint32_t, DescriptorSetInfo>&

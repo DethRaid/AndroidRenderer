@@ -12,6 +12,7 @@
 #include "render/scene_view.hpp"
 #include "render/render_scene.hpp"
 #include "render/mesh_storage.hpp"
+#include "sdf/voxel_cache.hpp"
 #include "shared/vpl.hpp"
 #include "shared/lpv.hpp"
 
@@ -59,6 +60,10 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
     {
         const auto bytes = *SystemInterface::get().load_file("shaders/lpv/clear_lpv.comp.spv");
         clear_lpv_shader = *backend.create_compute_shader("Clear LPV", bytes);
+    }
+    {
+        const auto bytes = *SystemInterface::get().load_file("shaders/lpv/inject_into_gv.comp.spv");
+        inject_into_gv_shader = *backend.create_compute_shader("Inject into GV", bytes);
     }
     {
         vpl_injection_pipeline = backend.begin_building_pipeline("VPL Injection")
@@ -275,7 +280,7 @@ void LightPropagationVolume::update_buffers(CommandBuffer& commands) const {
 }
 
 void LightPropagationVolume::inject_indirect_sun_light(
-    RenderGraph& graph, RenderScene& scene, const MeshStorage& meshes
+    RenderGraph& graph, RenderScene& scene
 ) {
     // For each LPV cascade:
     // Rasterize RSM render targets for the cascade, then render a fullscreen triangle over them. That triangle's FS
@@ -290,7 +295,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
     graph.begin_label("LPV indirect sun light injection");
 
-    auto cascade_index = 0;
+    auto cascade_index = 0u;
     for (const auto& cascade : cascades) {
         graph.add_compute_pass(
             {
@@ -580,18 +585,109 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
     );
 }
 
-void LightPropagationVolume::build_geometry_volume(RenderGraph& render_graph, const RenderScene& scene) {
+void LightPropagationVolume::build_geometry_volume(
+    RenderGraph& render_graph, const RenderScene& scene, const VoxelCache& voxel_cache
+) {
     /*
      * For each cascade:
      * - Get the static mesh primitives in the cascade
      * - Dispatch a compute shader to add them to the GV
      */
 
+    auto& allocator = backend.get_global_allocator();
+
     const auto num_cascades = cvar_lpv_num_cascades.Get();
-    for(auto cascade_idx = 0; cascade_idx < num_cascades; cascade_idx++) {
+    for (auto cascade_idx = 0u; cascade_idx < num_cascades; cascade_idx++) {
         const auto& cascade = cascades[cascade_idx];
         const auto& primitives = scene.get_primitives_in_bounds(cascade.min_bounds, cascade.max_bounds);
 
+        if (primitives.empty()) {
+            continue;
+        }
+
+        // Two arrays: one for the voxels for each primitive, one that maps from thread ID to primitive ID
+        auto primitive_ids = std::vector<uint32_t>{};
+        auto textures = std::vector<vkutil::DescriptorBuilder::ImageInfo>{};
+        primitive_ids.reserve(primitives.size());
+        textures.reserve(primitives.size());
+
+        for (const auto& primitive : primitives) {
+            primitive_ids.push_back(primitive.index);
+            const auto& mesh = primitive->mesh;
+            const auto& voxel = voxel_cache.get_voxel_for_mesh(mesh);
+            textures.emplace_back(
+                vkutil::DescriptorBuilder::ImageInfo{
+                    .sampler = backend.get_default_sampler(),
+                    .image = voxel.sh_texture,
+                    .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                }
+            );
+        }
+
+        const auto primitive_id_buffer = allocator.create_buffer(
+            "Primitive ID buffer", primitive_ids.size() * sizeof(uint32_t), BufferUsage::UniformBuffer
+        );
+
+        render_graph.add_compute_pass(
+            {
+                .name = "Voxel injection",
+                .textures = {
+                    {
+                        geometry_volume_handle,
+                        {
+                            VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                            VK_IMAGE_LAYOUT_GENERAL
+                        },
+                    }
+                },
+                .buffers = {
+                    {primitive_id_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT}}
+                },
+                .execute = [&, primitive_ids = std::move(primitive_ids), textures = std::move(textures)](
+                CommandBuffer& commands
+            ) {
+                    commands.update_buffer(
+                        primitive_id_buffer, primitive_ids.data(), primitive_ids.size() * sizeof(uint32_t), 0
+                    );
+
+                    const auto set = *backend.create_frame_descriptor_builder()
+                                             .bind_buffer(
+                                                 0, {.buffer = cascade_data_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                 VK_SHADER_STAGE_COMPUTE_BIT
+                                             )
+                                             .bind_buffer(
+                                                 1, {.buffer = primitive_id_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                 VK_SHADER_STAGE_COMPUTE_BIT
+                                             )
+                                             .bind_buffer(
+                                                 2, {.buffer = scene.get_primitive_buffer()},
+                                                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                             )
+                                             .bind_image(
+                                                 3, {
+                                                     .image = geometry_volume_handle,
+                                                     .image_layout = VK_IMAGE_LAYOUT_GENERAL
+                                                 }, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                                             )
+                                             .bind_image_array(
+                                                 4, textures, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                                 VK_SHADER_STAGE_COMPUTE_BIT
+                                             )
+                                             .build();
+
+                    commands.bind_descriptor_set(0, set);
+                    commands.set_push_constant(0, static_cast<uint32_t>(textures.size()));
+                    commands.set_push_constant(1, cascade_idx);
+                    commands.bind_shader(inject_into_gv_shader);
+
+                    commands.dispatch(32, 32, 32);
+
+                    commands.clear_descriptor_set(0);
+                }
+            }
+        );
+
+        allocator.destroy_buffer(primitive_id_buffer);
     }
 }
 

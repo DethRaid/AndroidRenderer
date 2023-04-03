@@ -10,6 +10,7 @@
 #include "render/backend/compute_shader.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
 
+class VoxelCache;
 class RenderGraph;
 class RenderBackend;
 class ResourceAllocator;
@@ -77,9 +78,9 @@ public:
 
     void clear_volume(RenderGraph& render_graph);
 
-    void build_geometry_volume(RenderGraph& render_graph, const RenderScene& scene);
+    void build_geometry_volume(RenderGraph& render_graph, const RenderScene& scene, const VoxelCache& voxel_cache);
     
-    void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene, const MeshStorage& meshes);
+    void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
     
     void propagate_lighting(RenderGraph& render_graph);
 
@@ -113,6 +114,8 @@ private:
     Pipeline vpl_pipeline;
 
     ComputeShader clear_lpv_shader;
+
+    ComputeShader inject_into_gv_shader;
 
     Pipeline vpl_injection_pipeline;
 

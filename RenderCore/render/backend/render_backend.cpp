@@ -23,7 +23,7 @@ static AutoCVar_Int cvar_enable_validation_layers{
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
     "r.vulkan.EnableGpuAssistedValidation",
     "Whether to enable GPU-assisted validation. Helpful when using bindless techniques, but incurs a performance penalty",
-    0
+    1
 };
 
 static AutoCVar_Int cvar_break_on_validation_warning{
@@ -229,10 +229,12 @@ void RenderBackend::create_instance_and_device() {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .descriptorIndexing = VK_TRUE,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+        .descriptorBindingPartiallyBound = VK_TRUE,
         .descriptorBindingVariableDescriptorCount = VK_TRUE,
         .runtimeDescriptorArray = VK_TRUE,
         .scalarBlockLayout = VK_TRUE,
         .imagelessFramebuffer = VK_TRUE,
+        .shaderOutputLayer = VK_TRUE,
     };
 
     auto required_1_3_features = VkPhysicalDeviceVulkan13Features{
@@ -241,6 +243,7 @@ void RenderBackend::create_instance_and_device() {
 #if defined(__ANDROID__)
         .textureCompressionASTC_HDR = VK_TRUE,
 #endif
+        .maintenance4 = VK_TRUE,
     };
 
     if (cvar_enable_gpu_assisted_validation.Get() != 0) {
@@ -264,8 +267,7 @@ void RenderBackend::create_instance_and_device() {
         throw std::runtime_error{error_message};
     }
     physical_device = phys_device_ret.value();
-
-
+    
     auto multiview_features = VkPhysicalDeviceMultiviewFeatures{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
         .multiview = VK_TRUE,

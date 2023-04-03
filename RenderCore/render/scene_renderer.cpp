@@ -129,9 +129,11 @@ void SceneRenderer::render() {
         }
     );
 
+    lpv.build_geometry_volume(render_graph, *scene, voxel_cache);
+
     // VPL cloud generation
 
-    lpv.inject_indirect_sun_light(render_graph, *scene, meshes);
+    lpv.inject_indirect_sun_light(render_graph, *scene);
 
     // Shadows
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS

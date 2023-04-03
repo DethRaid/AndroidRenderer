@@ -81,7 +81,7 @@ public:
      * @param buffer Buffer to clear
      * @param fill_value  Value to clear the buffer to
      */
-    void fill_buffer(BufferHandle buffer, uint32_t fill_value = 0);
+    void fill_buffer(BufferHandle buffer, uint32_t fill_value = 0) const;
 
     /**
      * Begins a render pass, which implicitly begins the first subpass
@@ -144,6 +144,8 @@ public:
     void bind_pipeline(Pipeline& pipeline);
 
     void set_push_constant(uint32_t index, uint32_t data);
+
+    void set_push_constant(uint32_t index, float data);
 
     void bind_descriptor_set(uint32_t set_index, VkDescriptorSet set);
 

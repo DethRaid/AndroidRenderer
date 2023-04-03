@@ -52,7 +52,7 @@ set(SHADER_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../RenderCore)
 
 target_glsl_shaders(SahWindows
         PRIVATE ${SHADERS}
-        COMPILE_OPTIONS --target-env vulkan1.1 -g -Od -I${SHADER_INCLUDE_DIR} -I${SHADER_DIR})
+        COMPILE_OPTIONS --target-env vulkan1.3 -g -Od -I${SHADER_INCLUDE_DIR} -I${SHADER_DIR})
 
 target_link_libraries(SahWindows PUBLIC
         SahCore)

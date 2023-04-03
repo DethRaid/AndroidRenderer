@@ -7,6 +7,7 @@ struct LPVCascadeMatrices {
     mat4 rsm_vp;
     mat4 inverse_rsm_vp;
     mat4 world_to_cascade;
+    mat4 cascade_to_world;
 };
 
 #endif
