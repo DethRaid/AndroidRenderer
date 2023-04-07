@@ -1,8 +1,9 @@
 #pragma once
 
-#include "../backend/handles.hpp"
-#include "render/backend/pipeline.hpp"
+#include "render/backend/handles.hpp"
+#include "render/backend/graphics_pipeline.hpp"
 
+class CommandBuffer;
 class SceneTransform;
 class SceneRenderer;
 
@@ -25,5 +26,5 @@ private:
 
     void upscale_scene_color(CommandBuffer& commands);
 
-    Pipeline upsample_pipeline;
+    GraphicsPipelineHandle upsample_pipeline;
 };

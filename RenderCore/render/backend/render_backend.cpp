@@ -8,6 +8,7 @@
 
 #include <tracy/Tracy.hpp>
 
+#include "render/backend/pipeline_cache.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 #include "render/backend/resource_upload_queue.hpp"
@@ -82,10 +83,7 @@ VkBool32 VKAPI_ATTR debug_callback(
         spdlog::info("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
         break;
     }
-    if (std::string{callback_data->pMessage}.find("UNASSIGNED-BestPractices-ConcurrentUsageOfExclusiveImage") !=
-        std::string::npos) {
-        SAH_BREAKPOINT;
-    }
+
     return VK_FALSE;
 }
 
@@ -103,6 +101,8 @@ RenderBackend::RenderBackend() {
     upload_queue = std::make_unique<ResourceUploadQueue>(*this);
 
     allocator = std::make_unique<ResourceAllocator>(*this);
+
+    pipeline_cache = std::make_unique<PipelineCache>(*this);
 
     graphics_queue = *device.get_queue(vkb::QueueType::graphics);
     graphics_queue_family_index = *device.get_queue_index(vkb::QueueType::graphics);
@@ -150,15 +150,13 @@ RenderBackend::RenderBackend() {
     for (auto& fence : frame_fences) {
         vkCreateFence(device.device, &fence_create_info, nullptr, &fence);
     }
-
-    create_pipeline_cache();
-
+    
     create_default_resources();
 
     logger->info("Initialized backend");
 }
 
-void RenderBackend::add_transfer_barrier(const VkImageMemoryBarrier2 barrier) {
+void RenderBackend::add_transfer_barrier(const VkImageMemoryBarrier2& barrier) {
     transfer_barriers.push_back(barrier);
 }
 
@@ -375,8 +373,8 @@ VkInstance RenderBackend::get_instance() const {
     return instance.instance;
 }
 
-VkPhysicalDevice RenderBackend::get_physical_device() const {
-    return physical_device.physical_device;
+const vkb::PhysicalDevice& RenderBackend::get_physical_device() const {
+    return physical_device;
 }
 
 bool RenderBackend::supports_astc() const { return physical_device.features.textureCompressionASTC_LDR; }
@@ -634,8 +632,8 @@ ResourceAllocator& RenderBackend::get_global_allocator() const {
     return *allocator;
 }
 
-PipelineBuilder RenderBackend::begin_building_pipeline(std::string_view name) const {
-    return PipelineBuilder{device.device}.set_name(name).set_depth_state({});
+GraphicsPipelineBuilder RenderBackend::begin_building_pipeline(std::string_view name) const {
+    return GraphicsPipelineBuilder{*pipeline_cache}.set_name(name).set_depth_state({});
 }
 
 tl::optional<ComputeShader>
@@ -647,8 +645,12 @@ uint32_t RenderBackend::get_current_gpu_frame() const {
     return cur_frame_idx;
 }
 
-ResourceUploadQueue& RenderBackend::get_upload_queue() {
+ResourceUploadQueue& RenderBackend::get_upload_queue() const {
     return *upload_queue;
+}
+
+PipelineCache& RenderBackend::get_pipeline_cache() const {
+    return *pipeline_cache;
 }
 
 CommandBuffer RenderBackend::create_graphics_command_buffer() {
@@ -745,24 +747,6 @@ vkb::Swapchain& RenderBackend::get_swapchain() {
 
 uint32_t RenderBackend::get_current_swapchain_index() const {
     return cur_swapchain_image_idx;
-}
-
-VkPipelineCache RenderBackend::get_pipeline_cache() const {
-    return pipeline_cache;
-}
-
-void RenderBackend::create_pipeline_cache() {
-    const auto data = SystemInterface::get().load_file("cache/pipeline_cache");
-
-    const auto create_info = VkPipelineCacheCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
-        .initialDataSize = data ? data->size() : 0,
-        .pInitialData = data ? data->data() : nullptr,
-    };
-
-    vkCreatePipelineCache(device.device, &create_info, nullptr, &pipeline_cache);
-
-    // TODO: Save the pipeline cache in the destructor
 }
 
 vkutil::DescriptorLayoutCache& RenderBackend::get_descriptor_cache() {

@@ -3,8 +3,9 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/android_sink.h>
 
+#include "pipeline_builder.hpp"
 #include "core/system_interface.hpp"
-#include "render/backend/pipeline.hpp"
+#include "graphics_pipeline.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 

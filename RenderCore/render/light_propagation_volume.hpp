@@ -5,7 +5,7 @@
 #include <glm/mat4x4.hpp>
 
 #include "mesh_drawer.hpp"
-#include "backend/pipeline.hpp"
+#include "backend\graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/compute_shader.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
@@ -110,14 +110,14 @@ private:
     TextureHandle lpv_b_blue = TextureHandle::None;
 
     TextureHandle geometry_volume_handle = TextureHandle::None;
-    
-    Pipeline vpl_pipeline;
+
+    GraphicsPipelineHandle vpl_pipeline;
 
     ComputeShader clear_lpv_shader;
 
     ComputeShader inject_into_gv_shader;
 
-    Pipeline vpl_injection_pipeline;
+    GraphicsPipelineHandle vpl_injection_pipeline;
 
     ComputeShader propagation_shader;
 
@@ -127,7 +127,7 @@ private:
     /**
      * Renders the LPV into the lighting buffer
      */
-    Pipeline lpv_render_shader;
+    GraphicsPipelineHandle lpv_render_shader;
 
     SceneDrawer rsm_drawer;
 

@@ -1,17 +1,11 @@
-#include "pipeline.hpp"
+#include "pipeline_builder.hpp"
 
-#include <cassert>
+#include <magic_enum.hpp>
 #include <span>
-
 #include <spirv_reflect.h>
-#include <spdlog/logger.h>
 #include <tracy/Tracy.hpp>
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/android_sink.h>
 
-#include "render/standard_vertex.hpp"
-#include "render/backend/render_backend.hpp"
-#include "magic_enum.hpp"
+#include "pipeline_cache.hpp"
 #include "core/system_interface.hpp"
 #include "shared/vertex_data.hpp"
 
@@ -104,36 +98,36 @@ bool collect_vertex_attributes(
     std::vector<VkVertexInputAttributeDescription>& vertex_attributes
 );
 
-PipelineBuilder::PipelineBuilder(VkDevice device_in) : device{device_in} {
+GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cache{ cache_in } {
     if (logger == nullptr) {
-        logger = SystemInterface::get().get_logger("PipelineBuilder");
+        logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
         logger->set_level(spdlog::level::warn);
     }
-    
+
     set_depth_state({});
     set_raster_state({});
 }
 
-PipelineBuilder& PipelineBuilder::set_name(std::string_view name_in) {
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_name(std::string_view name_in) {
     name = name_in;
 
     return *this;
 }
 
-PipelineBuilder& PipelineBuilder::set_topology(VkPrimitiveTopology topology_in) {
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_topology(VkPrimitiveTopology topology_in) {
     topology = topology_in;
 
     return *this;
 }
 
-PipelineBuilder& PipelineBuilder::set_vertex_shader(const std::filesystem::path& vertex_path) {
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::filesystem::path& vertex_path) {
     if (vertex_shader) {
-        throw std::runtime_error{"Vertex shader already loaded set"};
+        throw std::runtime_error{ "Vertex shader already loaded set" };
     }
     const auto vertex_shader_maybe = SystemInterface::get().load_file(vertex_path);
 
     if (!vertex_shader_maybe) {
-        throw std::runtime_error{"Could not load vertex shader"};
+        throw std::runtime_error{ "Could not load vertex shader" };
     }
 
     vertex_shader = *vertex_shader_maybe;
@@ -144,7 +138,7 @@ PipelineBuilder& PipelineBuilder::set_vertex_shader(const std::filesystem::path&
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
     if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
-        throw std::runtime_error{"Could not perform reflection on vertex shader"};
+        throw std::runtime_error{ "Could not perform reflection on vertex shader" };
     }
 
     bool has_error = false;
@@ -155,7 +149,7 @@ PipelineBuilder& PipelineBuilder::set_vertex_shader(const std::filesystem::path&
     uint32_t set_count;
     auto result = shader_module.EnumerateDescriptorSets(&set_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto sets = std::vector<SpvReflectDescriptorSet*>{set_count};
+    auto sets = std::vector<SpvReflectDescriptorSet*>{ set_count };
     result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -168,7 +162,7 @@ PipelineBuilder& PipelineBuilder::set_vertex_shader(const std::filesystem::path&
     uint32_t constant_count;
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{constant_count};
+    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{ constant_count };
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, spv_push_constants.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -181,7 +175,7 @@ PipelineBuilder& PipelineBuilder::set_vertex_shader(const std::filesystem::path&
     uint32_t input_count;
     result = shader_module.EnumerateInputVariables(&input_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_vertex_inputs = std::vector<SpvReflectInterfaceVariable*>{input_count};
+    auto spv_vertex_inputs = std::vector<SpvReflectInterfaceVariable*>{ input_count };
     result = shader_module.EnumerateInputVariables(&input_count, spv_vertex_inputs.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -197,14 +191,14 @@ PipelineBuilder& PipelineBuilder::set_vertex_shader(const std::filesystem::path&
     return *this;
 }
 
-PipelineBuilder& PipelineBuilder::set_geometry_shader(const std::filesystem::path& geometry_path) {
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std::filesystem::path& geometry_path) {
     if (geometry_shader) {
-        throw std::runtime_error{"Geometry shader already set!"};
+        throw std::runtime_error{ "Geometry shader already set!" };
     }
 
     const auto geometry_shader_maybe = SystemInterface::get().load_file(geometry_path);
     if (!geometry_shader_maybe) {
-        throw std::runtime_error{"Could not load geometry shader"};
+        throw std::runtime_error{ "Could not load geometry shader" };
     }
 
     geometry_shader = *geometry_shader_maybe;
@@ -215,7 +209,7 @@ PipelineBuilder& PipelineBuilder::set_geometry_shader(const std::filesystem::pat
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
     if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
-        throw std::runtime_error{"Could not perform reflection on geometry shader"};
+        throw std::runtime_error{ "Could not perform reflection on geometry shader" };
     }
 
     bool has_error = false;
@@ -226,7 +220,7 @@ PipelineBuilder& PipelineBuilder::set_geometry_shader(const std::filesystem::pat
     uint32_t set_count;
     auto result = shader_module.EnumerateDescriptorSets(&set_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto sets = std::vector<SpvReflectDescriptorSet*>{set_count};
+    auto sets = std::vector<SpvReflectDescriptorSet*>{ set_count };
     result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -239,7 +233,7 @@ PipelineBuilder& PipelineBuilder::set_geometry_shader(const std::filesystem::pat
     uint32_t constant_count;
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{constant_count};
+    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{ constant_count };
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, spv_push_constants.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -251,15 +245,15 @@ PipelineBuilder& PipelineBuilder::set_geometry_shader(const std::filesystem::pat
     return *this;
 }
 
-PipelineBuilder& PipelineBuilder::set_fragment_shader(const std::filesystem::path& fragment_path) {
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_fragment_shader(const std::filesystem::path& fragment_path) {
     if (fragment_shader) {
-        throw std::runtime_error{"Fragment shader already set"};
+        throw std::runtime_error{ "Fragment shader already set" };
     }
 
     const auto fragment_shader_maybe = SystemInterface::get().load_file(fragment_path);
 
     if (!fragment_shader_maybe) {
-        throw std::runtime_error{"Could not load fragment shader"};
+        throw std::runtime_error{ "Could not load fragment shader" };
     }
 
     fragment_shader = *fragment_shader_maybe;
@@ -276,7 +270,7 @@ PipelineBuilder& PipelineBuilder::set_fragment_shader(const std::filesystem::pat
     return *this;
 }
 
-PipelineBuilder& PipelineBuilder::set_depth_state(const DepthStencilState& depth_stencil) {
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_depth_state(const DepthStencilState& depth_stencil) {
     depth_stencil_state = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
         // TODO: We might need flags
@@ -294,7 +288,7 @@ PipelineBuilder& PipelineBuilder::set_depth_state(const DepthStencilState& depth
     return *this;
 }
 
-PipelineBuilder& PipelineBuilder::set_raster_state(const RasterState& raster_state_in) {
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_raster_state(const RasterState& raster_state_in) {
     raster_state = VkPipelineRasterizationStateCreateInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .depthClampEnable = raster_state_in.depth_clamp_enable,
@@ -307,14 +301,14 @@ PipelineBuilder& PipelineBuilder::set_raster_state(const RasterState& raster_sta
     return *this;
 }
 
-PipelineBuilder& PipelineBuilder::add_blend_flag(VkPipelineColorBlendStateCreateFlagBits flag) {
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::add_blend_flag(VkPipelineColorBlendStateCreateFlagBits flag) {
     blend_flags |= flag;
 
     return *this;
 }
 
-PipelineBuilder&
-PipelineBuilder::set_blend_state(
+GraphicsPipelineBuilder&
+GraphicsPipelineBuilder::set_blend_state(
     uint32_t color_target_index,
     const VkPipelineColorBlendAttachmentState& blend
 ) {
@@ -327,125 +321,8 @@ PipelineBuilder::set_blend_state(
     return *this;
 }
 
-Pipeline PipelineBuilder::build() {
-    ZoneScoped;
-
-    auto pipeline = Pipeline{};
-    pipeline.pipeline_name = name;
-
-    if (vertex_shader) {
-        ZoneScopedN("Compile vertex shader");
-
-        const auto module_create_info = VkShaderModuleCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = static_cast<uint32_t>(vertex_shader->size()),
-            .pCode = reinterpret_cast<const uint32_t*>(vertex_shader->data()),
-        };
-        auto vertex_module = VkShaderModule{};
-        const auto result = vkCreateShaderModule(
-            device, &module_create_info, nullptr,
-            &vertex_module
-        );
-        if (result != VK_SUCCESS) {
-            throw std::runtime_error{"Could not create vertex module"};
-        }
-
-        pipeline.vertex_shader_name = vertex_shader_name;
-
-        if (vkSetDebugUtilsObjectNameEXT != nullptr) {
-            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
-                .objectHandle = reinterpret_cast<uint64_t>(vertex_module),
-                .pObjectName = vertex_shader_name.c_str()
-            };
-            vkSetDebugUtilsObjectNameEXT(device, &name_info);
-        }
-
-        pipeline.vertex_stage = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = vertex_module,
-            .pName = "main",
-        };
-    } else {
-        throw std::runtime_error{"Missing vertex shader"};
-    }
-
-    if (geometry_shader) {
-        ZoneScopedN("Compile geometry shader");
-
-        const auto module_create_info = VkShaderModuleCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = static_cast<uint32_t>(geometry_shader->size()),
-            .pCode = reinterpret_cast<const uint32_t*>(geometry_shader->data()),
-        };
-        auto geometry_module = VkShaderModule{};
-        vkCreateShaderModule(device, &module_create_info, nullptr, &geometry_module);
-
-        pipeline.geometry_shader_name = geometry_shader_name;
-
-        if (vkSetDebugUtilsObjectNameEXT != nullptr) {
-            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
-                .objectHandle = reinterpret_cast<uint64_t>(geometry_module),
-                .pObjectName = geometry_shader_name.c_str()
-            };
-            vkSetDebugUtilsObjectNameEXT(device, &name_info);
-        }
-
-        pipeline.geometry_stage = VkPipelineShaderStageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_GEOMETRY_BIT,
-            .module = geometry_module,
-            .pName = "main",
-        };
-    }
-
-    if (fragment_shader) {
-        ZoneScopedN("Compile fragment shader");
-
-        const auto module_create_info = VkShaderModuleCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = static_cast<uint32_t>(fragment_shader->size()),
-            .pCode = reinterpret_cast<const uint32_t*>(fragment_shader->data()),
-        };
-        auto fragment_module = VkShaderModule{};
-        vkCreateShaderModule(device, &module_create_info, nullptr, &fragment_module);
-
-        pipeline.fragment_shader_name = fragment_shader_name;
-
-        if (vkSetDebugUtilsObjectNameEXT != nullptr) {
-            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
-                .objectHandle = reinterpret_cast<uint64_t>(fragment_module),
-                .pObjectName = fragment_shader_name.c_str()
-            };
-            vkSetDebugUtilsObjectNameEXT(device, &name_info);
-        }
-
-        pipeline.fragment_stage = VkPipelineShaderStageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .module = fragment_module,
-            .pName = "main",
-        };
-    }
-
-    pipeline.depth_stencil_state = depth_stencil_state;
-    pipeline.raster_state = raster_state;
-    pipeline.blend_flags = blend_flags;
-    pipeline.blends = blends;
-
-    pipeline.topology = topology;
-    pipeline.vertex_inputs = vertex_inputs;
-    pipeline.vertex_attributes = vertex_attributes;
-
-    pipeline.create_pipeline_layout(device, descriptor_sets);
-
-    return pipeline;
+GraphicsPipelineHandle GraphicsPipelineBuilder::build() const {
+    return cache.create_pipeline(*this);
 }
 
 bool collect_descriptor_sets(
@@ -461,7 +338,7 @@ bool collect_descriptor_sets(
             // the new shader stage
             auto& set_info = itr->second;
             auto& known_bindings = set_info.bindings;
-            for (auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
+            for (auto* binding : std::span{ set->bindings, set->bindings + set->binding_count }) {
                 const auto vk_type = to_vk_type(binding->descriptor_type);
                 if (auto binding_itr = known_bindings.find(binding->binding); binding_itr !=
                     known_bindings.end()) {
@@ -523,7 +400,7 @@ bool collect_descriptor_sets(
             // The set is new. Construct new bindings for it and add them all
             auto set_info = DescriptorSetInfo{};
             logger->trace("Adding new descriptor set {}", set->set);
-            for (auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
+            for (auto* binding : std::span{ set->bindings, set->bindings + set->binding_count }) {
                 logger->trace(
                     "Adding new descriptor {}.{} with count {} for shader stage {}",
                     set->set,
@@ -607,7 +484,7 @@ bool collect_bindings(
     std::vector<VkPushConstantRange>& push_constants
 ) {
     if (logger == nullptr) {
-        logger = SystemInterface::get().get_logger("PipelineBuilder");
+        logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
         logger->set_level(spdlog::level::warn);
     }
 
@@ -616,7 +493,7 @@ bool collect_bindings(
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
     if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
-        throw std::runtime_error{"Could not perform reflection on shader"};
+        throw std::runtime_error{ "Could not perform reflection on shader" };
     }
 
     bool has_error = false;
@@ -625,7 +502,7 @@ bool collect_bindings(
     uint32_t set_count;
     auto result = shader_module.EnumerateDescriptorSets(&set_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto sets = std::vector<SpvReflectDescriptorSet*>{set_count};
+    auto sets = std::vector<SpvReflectDescriptorSet*>{ set_count };
     result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -635,7 +512,7 @@ bool collect_bindings(
     uint32_t constant_count;
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{constant_count};
+    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{ constant_count };
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, spv_push_constants.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -756,238 +633,4 @@ bool collect_vertex_attributes(
     }
 
     return has_error;
-}
-
-void Pipeline::create_vk_pipeline(
-    const RenderBackend& backend, VkRenderPass render_pass,
-    uint32_t subpass_index
-) {
-    ZoneScoped;
-
-    if (render_pass != last_renderpass || subpass_index != last_subpass_index) {
-        if (pipeline != VK_NULL_HANDLE) {
-            logger->warn("Recompiling pipeline. {} This is cringe", pipeline_name);
-        }
-
-        auto stages = std::vector{vertex_stage};
-        if (geometry_stage) {
-            stages.emplace_back(*geometry_stage);
-        }
-        if (fragment_stage) {
-            stages.emplace_back(*fragment_stage);
-        }
-
-        const auto vertex_input_stage = VkPipelineVertexInputStateCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-            .vertexBindingDescriptionCount = static_cast<uint32_t>(vertex_inputs.size()),
-            .pVertexBindingDescriptions = vertex_inputs.data(),
-            .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertex_attributes.size()),
-            .pVertexAttributeDescriptions = vertex_attributes.data(),
-        };
-
-        const auto input_assembly_state = VkPipelineInputAssemblyStateCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-            .topology = topology,
-        };
-
-        const auto viewport_state = VkPipelineViewportStateCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-            .viewportCount = 1,
-            .scissorCount = 1,
-            // Dynamic viewport and scissor state
-        };
-
-        const auto multisample_state = VkPipelineMultisampleStateCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-            .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
-        };
-
-        const auto color_blend_state = VkPipelineColorBlendStateCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-            .flags = blend_flags,
-            .attachmentCount = static_cast<uint32_t>(blends.size()),
-            .pAttachments = blends.data(),
-        };
-
-        const auto dynamic_states = std::array{
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR,
-        };
-
-        const auto dynamic_state = VkPipelineDynamicStateCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-            .dynamicStateCount = static_cast<uint32_t>(dynamic_states.size()),
-            .pDynamicStates = dynamic_states.data(),
-        };
-
-        auto create_info = VkGraphicsPipelineCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-
-            .stageCount = static_cast<uint32_t>(stages.size()),
-            .pStages = stages.data(),
-
-            .pVertexInputState = &vertex_input_stage,
-            .pInputAssemblyState = &input_assembly_state,
-
-            .pViewportState = &viewport_state,
-
-            .pRasterizationState = &raster_state,
-            .pMultisampleState = &multisample_state,
-
-            .pDepthStencilState = &depth_stencil_state,
-
-            .pColorBlendState = &color_blend_state,
-
-            .pDynamicState = &dynamic_state,
-
-            .layout = pipeline_layout,
-
-            .renderPass = render_pass,
-            .subpass = subpass_index,
-        };
-
-        const auto device = backend.get_device().device;
-        vkCreateGraphicsPipelines(
-            device, backend.get_pipeline_cache(), 1, &create_info, nullptr,
-            &pipeline
-        );
-
-        if (!pipeline_name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
-            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_PIPELINE,
-                .objectHandle = reinterpret_cast<uint64_t>(pipeline),
-                .pObjectName = pipeline_name.c_str()
-            };
-            vkSetDebugUtilsObjectNameEXT(device, &name_info);
-        }
-
-        last_renderpass = render_pass;
-        last_subpass_index = subpass_index;
-
-        logger->warn("Compiling pipeline {}", pipeline_name);
-    }
-}
-
-void Pipeline::create_pipeline_layout(
-    VkDevice device,
-    const std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos
-) {
-    // Create descriptor sets
-    auto descriptor_set_layouts = std::vector<VkDescriptorSetLayout>{};
-    descriptor_set_layouts.reserve(descriptor_set_infos.size());
-
-    for (const auto& [set_index, set_info] : descriptor_set_infos) {
-        if (descriptor_set_layouts.size() <= set_index) {
-            descriptor_set_layouts.resize(set_index + 1);
-        }
-
-        auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
-
-        for (const auto& [index, binding] : set_info.bindings) {
-            bindings.emplace_back(binding);
-        }
-
-        auto create_info = VkDescriptorSetLayoutCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = static_cast<uint32_t>(bindings.size()),
-            .pBindings = bindings.data(),
-        };
-
-        // If the last binding is un unsized texture array, tell Vulkan about it
-        auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
-        if (set_info.has_variable_count_binding) {
-            auto flags = std::vector<VkDescriptorBindingFlags>{};
-            flags.resize(bindings.size());
-            flags.back() = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
-            flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-                .bindingCount = static_cast<uint32_t>(flags.size()),
-                .pBindingFlags = flags.data(),
-            };
-            create_info.pNext = &flags_create_info;
-        }
-
-        auto layout = VkDescriptorSetLayout{};
-        vkCreateDescriptorSetLayout(device, &create_info, nullptr, &layout);
-        descriptor_set_layouts[set_index] = layout;
-    }
-
-    const auto push_constants = VkPushConstantRange{
-        .stageFlags = VK_SHADER_STAGE_ALL,
-        .offset = 0,
-        .size = 8 * sizeof(uint32_t)
-    };
-
-    const auto create_info = VkPipelineLayoutCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size()),
-        .pSetLayouts = descriptor_set_layouts.data(),
-        .pushConstantRangeCount = 1,
-        .pPushConstantRanges = &push_constants,
-    };
-
-    vkCreatePipelineLayout(device, &create_info, nullptr, &pipeline_layout);
-
-    if (!pipeline_name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-            .objectHandle = reinterpret_cast<uint64_t>(pipeline_layout),
-            .pObjectName = pipeline_name.c_str()
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
-    }
-}
-
-VkPipeline Pipeline::get_vk_pipeline() const {
-    return pipeline;
-}
-
-VkPipelineLayout Pipeline::get_layout() const {
-    return pipeline_layout;
-}
-
-VkDescriptorType to_vk_type(SpvReflectDescriptorType type) {
-    switch (type) {
-    case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER:
-        return VK_DESCRIPTOR_TYPE_SAMPLER;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
-        return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
-        return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE:
-        return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
-        return VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-        return VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-        return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:
-        return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
-        return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
-        return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
-        return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
-        return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-
-    default:
-        spdlog::error("Unknown descriptor type {}", type);
-        return VK_DESCRIPTOR_TYPE_MAX_ENUM;
-    }
 }

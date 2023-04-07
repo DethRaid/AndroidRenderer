@@ -10,7 +10,7 @@
 
 #include "buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
-#include "render/backend/pipeline.hpp"
+#include "graphics_pipeline.hpp"
 #include "render/backend/framebuffer.hpp"
 #include "render/backend/vk_descriptors.hpp"
 
@@ -141,7 +141,7 @@ public:
 
     void bind_shader(const ComputeShader& shader);
 
-    void bind_pipeline(Pipeline& pipeline);
+    void bind_pipeline(const GraphicsPipelineHandle& pipeline);
 
     void set_push_constant(uint32_t index, uint32_t data);
 

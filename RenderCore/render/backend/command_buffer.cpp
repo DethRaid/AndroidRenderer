@@ -2,6 +2,7 @@
 
 #include <glm/common.hpp>
 
+#include "pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
 #include "utils.hpp"
 #include "core/system_interface.hpp"
@@ -254,14 +255,14 @@ void CommandBuffer::bind_shader(const ComputeShader& shader) {
     are_bindings_dirty = true;
 }
 
-void CommandBuffer::bind_pipeline(Pipeline& pipeline) {
+void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
     current_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
-    current_pipeline_layout = pipeline.get_layout();
+    current_pipeline_layout = pipeline->get_layout();
 
-    pipeline.create_vk_pipeline(*backend, current_render_pass, current_subpass);
-
-    vkCmdBindPipeline(commands, current_bind_point, pipeline.get_vk_pipeline());
+    auto vk_pipeline = backend->get_pipeline_cache().get_pipeline(pipeline, current_render_pass, current_subpass);
+    
+    vkCmdBindPipeline(commands, current_bind_point, vk_pipeline);
 
     are_bindings_dirty = true;
 }

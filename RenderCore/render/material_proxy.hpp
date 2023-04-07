@@ -7,7 +7,7 @@
 
 #include "render/basic_pbr_material.hpp"
 #include "render/scene_pass_type.hpp"
-#include "render/backend/pipeline.hpp"
+#include "render/backend/graphics_pipeline.hpp"
 
 class RenderBackend;
 
@@ -17,7 +17,7 @@ class RenderBackend;
  * Immutable once created. To bind new resources, destroy this proxy and make a new one
  */
 struct MaterialProxy {
-    std::unordered_map<ScenePassType, Pipeline> pipelines;
+    std::unordered_map<ScenePassType, GraphicsPipelineHandle> pipelines;
 
     VkDescriptorSet descriptor_set;
 };

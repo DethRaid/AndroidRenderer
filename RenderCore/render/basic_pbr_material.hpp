@@ -6,7 +6,7 @@
 
 #include "scene_pass_type.hpp"
 #include "render/backend/handles.hpp"
-#include "render/backend/pipeline.hpp"
+#include "backend\graphics_pipeline.hpp"
 
 struct BasicPbrMaterialGpu {
     glm::vec4 base_color_tint;

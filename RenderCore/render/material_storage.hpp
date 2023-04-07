@@ -2,8 +2,9 @@
 
 #include "render/basic_pbr_material.hpp"
 #include "core/object_pool.hpp"
-#include "material_proxy.hpp"
+#include "render/material_proxy.hpp"
 
+class CommandBuffer;
 class RenderBackend;
 
 class MaterialStorage {

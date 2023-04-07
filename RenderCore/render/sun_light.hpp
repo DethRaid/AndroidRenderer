@@ -4,7 +4,7 @@
 #include <glm/vec4.hpp>
 
 #include "render/backend/handles.hpp"
-#include "render/backend/pipeline.hpp"
+#include "backend\graphics_pipeline.hpp"
 #include "render/scene_view_gpu.hpp"
 #include "shared/sun_light_constants.hpp"
 
@@ -19,9 +19,9 @@ class RenderBackend;
  */
 class SunLight {
 public:
-    explicit SunLight(RenderBackend& backend);
+    explicit SunLight(const RenderBackend& backend);
 
-    void update_shadow_cascades(SceneTransform& view);
+    void update_shadow_cascades(const SceneTransform& view);
 
     void set_direction(const glm::vec3& direction);
 
@@ -31,7 +31,7 @@ public:
 
     BufferHandle get_constant_buffer() const;
 
-    Pipeline& get_pipeline();
+    GraphicsPipelineHandle& get_pipeline();
 
     glm::vec3 get_direction() const;
 
@@ -44,5 +44,5 @@ private:
 
     BufferHandle sun_buffer = BufferHandle::None;
 
-    Pipeline pipeline = {};
+    GraphicsPipelineHandle pipeline = {};
 };

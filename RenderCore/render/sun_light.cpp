@@ -11,7 +11,7 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-SunLight::SunLight(RenderBackend& backend) : allocator{backend.get_global_allocator()} {
+SunLight::SunLight(const RenderBackend& backend) : allocator{backend.get_global_allocator()} {
     logger = SystemInterface::get().get_logger("SunLight");
 
     sun_buffer = allocator.create_buffer(
@@ -43,7 +43,7 @@ SunLight::SunLight(RenderBackend& backend) : allocator{backend.get_global_alloca
     
 }
 
-void SunLight::update_shadow_cascades(SceneTransform& view) {
+void SunLight::update_shadow_cascades(const SceneTransform& view) {
     const auto num_cascades = static_cast<uint32_t>(*CVarSystem::Get()->GetIntCVar("r.Shadow.NumCascades"));
     const auto max_shadow_distance = static_cast<float>(*CVarSystem::Get()->GetFloatCVar("r.Shadow.Distance"));
     const auto cascade_split_lambda = static_cast<float>(*CVarSystem::Get()->GetFloatCVar("r.Shadow.CascadeSplitLambda"));
@@ -184,7 +184,7 @@ BufferHandle SunLight::get_constant_buffer() const {
     return sun_buffer;
 }
 
-Pipeline& SunLight::get_pipeline() {
+GraphicsPipelineHandle& SunLight::get_pipeline() {
     return pipeline;
 }
 

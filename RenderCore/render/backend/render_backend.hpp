@@ -10,13 +10,14 @@
 #include "render_graph.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/texture_loader.hpp"
-#include "render/backend/pipeline.hpp"
 #include "render/backend/command_allocator.hpp"
+#include "render/backend/pipeline_builder.hpp"
 #include "render/backend/resource_upload_queue.hpp"
 #include "render/backend/command_buffer.hpp"
 #include "render/backend/constants.hpp"
 #include "render/backend/compute_shader.hpp"
 
+class PipelineCache;
 /**
  * Wraps a lot of low level Vulkan concerns
  *
@@ -49,7 +50,7 @@ public:
 
     VkInstance get_instance() const;
 
-    VkPhysicalDevice get_physical_device() const;
+    const vkb::PhysicalDevice& get_physical_device() const;
 
     bool supports_astc() const;
 
@@ -67,9 +68,9 @@ public:
 
     uint32_t get_transfer_queue_family_index() const;
 
-    void add_transfer_barrier(VkImageMemoryBarrier2 barrier);
+    void add_transfer_barrier(const VkImageMemoryBarrier2& barrier);
 
-    PipelineBuilder begin_building_pipeline(std::string_view name) const;
+    GraphicsPipelineBuilder begin_building_pipeline(std::string_view name) const;
 
     tl::optional<ComputeShader>
     create_compute_shader(const std::string& name, const std::vector<uint8_t>& instructions) const;
@@ -94,7 +95,9 @@ public:
 
     ResourceAllocator& get_global_allocator() const;
 
-    ResourceUploadQueue& get_upload_queue();
+    ResourceUploadQueue& get_upload_queue() const;
+
+    PipelineCache& get_pipeline_cache() const;
 
     /**
      * Creates a descriptor builder for descriptors that will persist for a while
@@ -145,9 +148,7 @@ public:
     vkb::Swapchain& get_swapchain();
 
     uint32_t get_current_swapchain_index() const;
-
-    VkPipelineCache get_pipeline_cache() const;
-
+    
     vkutil::DescriptorLayoutCache& get_descriptor_cache();
 
     TextureHandle get_white_texture_handle() const;
@@ -176,6 +177,8 @@ private:
 
     std::unique_ptr<ResourceUploadQueue> upload_queue = {};
 
+    std::unique_ptr<PipelineCache> pipeline_cache = {};
+
     VkCommandPool tracy_command_pool = VK_NULL_HANDLE;
     VkCommandBuffer tracy_command_buffer = VK_NULL_HANDLE;
     TracyVkCtx tracy_context = nullptr;
@@ -186,7 +189,7 @@ private:
 
     vkutil::DescriptorLayoutCache descriptor_layout_cache;
 
-    VkPipelineCache pipeline_cache = VK_NULL_HANDLE;
+    VkPipelineCache vk_pipeline_cache = VK_NULL_HANDLE;
 
     TextureHandle white_texture_handle = TextureHandle::None;
     TextureHandle default_normalmap_handle = TextureHandle::None;
@@ -242,9 +245,7 @@ private:
 
     std::array<std::vector<VkSemaphore>, num_in_flight_frames> zombie_semaphores;
     std::vector<VkSemaphore> available_semaphores;
-
-    void create_pipeline_cache();
-
+    
     void create_default_resources();
 };
 
