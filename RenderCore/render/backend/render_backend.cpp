@@ -20,6 +20,12 @@ static AutoCVar_Int cvar_enable_validation_layers{
     "Whether to enable Vulkan validation layers", 1
 };
 
+static AutoCVar_Int cvar_enable_best_practices_layer{
+    "r.vulkan.EnableBestPractices",
+    "Whether to enable the best practices validation layer. It can be useful, but it complains a lot about libktx",
+    1
+};
+
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
     "r.vulkan.EnableGpuAssistedValidation",
     "Whether to enable GPU-assisted validation. Helpful when using bindless techniques, but incurs a performance penalty",
@@ -76,6 +82,10 @@ VkBool32 VKAPI_ATTR debug_callback(
         spdlog::info("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
         break;
     }
+    if (std::string{callback_data->pMessage}.find("UNASSIGNED-BestPractices-ConcurrentUsageOfExclusiveImage") !=
+        std::string::npos) {
+        SAH_BREAKPOINT;
+    }
     return VK_FALSE;
 }
 
@@ -97,14 +107,29 @@ RenderBackend::RenderBackend() {
     graphics_queue = *device.get_queue(vkb::QueueType::graphics);
     graphics_queue_family_index = *device.get_queue_index(vkb::QueueType::graphics);
 
-    const auto transfer_queue_maybe = device.get_queue(vkb::QueueType::transfer);
-    if (transfer_queue_maybe) {
-        transfer_queue = *transfer_queue_maybe;
-    }
-    const auto transfer_queue_family_index_maybe = device.get_queue_index(vkb::QueueType::transfer);
-    if (transfer_queue_family_index_maybe) {
-        transfer_queue_family_index = *transfer_queue_family_index_maybe;
-    }
+    const auto graphics_queue_name = VkDebugUtilsObjectNameInfoEXT{
+        .sType =  VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType = VK_OBJECT_TYPE_QUEUE,
+        .objectHandle = reinterpret_cast<uint64_t>(graphics_queue),
+        .pObjectName = "Graphics queue"
+    };
+    vkSetDebugUtilsObjectNameEXT(device, &graphics_queue_name);
+
+    // Don't use a dedicated transfer queue, because my attempts at a queue ownership transfer have failed
+
+    // const auto transfer_queue_maybe = device.get_queue(vkb::QueueType::transfer);
+    // if (transfer_queue_maybe) {
+    //     transfer_queue = *transfer_queue_maybe;
+    // } else {
+        transfer_queue = graphics_queue;
+    // }
+
+    // const auto transfer_queue_family_index_maybe = device.get_queue_index(vkb::QueueType::transfer);
+    // if (transfer_queue_family_index_maybe) {
+    //     transfer_queue_family_index = *transfer_queue_family_index_maybe;
+    // } else {
+        transfer_queue_family_index = graphics_queue_family_index;
+    // }
 
     create_swapchain();
 
@@ -133,6 +158,10 @@ RenderBackend::RenderBackend() {
     logger->info("Initialized backend");
 }
 
+void RenderBackend::add_transfer_barrier(const VkImageMemoryBarrier2 barrier) {
+    transfer_barriers.push_back(barrier);
+}
+
 void RenderBackend::create_instance_and_device() {
     // vkb enables the surface extensions for us
     auto instance_builder = vkb::InstanceBuilder{vkGetInstanceProcAddr}
@@ -158,9 +187,12 @@ void RenderBackend::create_instance_and_device() {
 #endif
         instance_builder.enable_validation_layers(true)
                         .request_validation_layers(true)
-                        .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
                         .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT)
                         .set_debug_callback(debug_callback);
+
+        if(cvar_enable_best_practices_layer.Get()) {
+            instance_builder.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT);
+        }
 
         if (cvar_enable_gpu_assisted_validation.Get()) {
             instance_builder.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT)
@@ -219,6 +251,7 @@ void RenderBackend::create_instance_and_device() {
         .textureCompressionASTC_LDR = VK_TRUE,
 #else
         .textureCompressionBC = VK_TRUE,
+        .vertexPipelineStoresAndAtomics = VK_TRUE,
 #endif
         .fragmentStoresAndAtomics = VK_TRUE,
         .shaderSampledImageArrayDynamicIndexing = VK_TRUE,
@@ -246,10 +279,6 @@ void RenderBackend::create_instance_and_device() {
         .maintenance4 = VK_TRUE,
     };
 
-    if (cvar_enable_gpu_assisted_validation.Get() != 0) {
-        required_features.vertexPipelineStoresAndAtomics = VK_TRUE;
-    }
-
     auto phys_device_ret = vkb::PhysicalDeviceSelector{instance}
                            .set_surface(surface)
                            .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
@@ -267,7 +296,7 @@ void RenderBackend::create_instance_and_device() {
         throw std::runtime_error{error_message};
     }
     physical_device = phys_device_ret.value();
-    
+
     auto multiview_features = VkPhysicalDeviceMultiviewFeatures{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
         .multiview = VK_TRUE,
@@ -332,6 +361,16 @@ RenderBackend::~RenderBackend() {
     vkDeviceWaitIdle(device.device);
 }
 
+RenderGraph RenderBackend::create_render_graph() {
+    return RenderGraph{*this};
+}
+
+void RenderBackend::execute_graph(RenderGraph&& render_graph) {
+    submit_command_buffer(render_graph.extract_command_buffer());
+
+    render_graph.execute_post_submit_tasks();
+}
+
 VkInstance RenderBackend::get_instance() const {
     return instance.instance;
 }
@@ -350,19 +389,23 @@ vkb::Device RenderBackend::get_device() const {
     return device;
 }
 
-uint32_t RenderBackend::get_graphics_queue_index() const {
+bool RenderBackend::has_separate_transfer_queue() const {
+    return graphics_queue_family_index != transfer_queue_family_index;
+}
+
+uint32_t RenderBackend::get_graphics_queue_family_index() const {
     return graphics_queue_family_index;
 }
 
 VkQueue RenderBackend::get_transfer_queue() const {
-    return transfer_queue.value_or(graphics_queue);
+    return transfer_queue;
 }
 
 uint32_t RenderBackend::get_transfer_queue_family_index() const {
-    return transfer_queue_family_index.value_or(graphics_queue_family_index);
+    return transfer_queue_family_index;
 }
 
-void RenderBackend::begin_frame() {
+void RenderBackend::advance_frame() {
     ZoneScoped;
 
     cur_frame_idx++;
@@ -371,10 +414,9 @@ void RenderBackend::begin_frame() {
     {
         ZoneScopedN("Wait for previous frame");
         vkWaitForFences(device, 1, &frame_fences[cur_frame_idx], VK_TRUE, std::numeric_limits<uint64_t>::max());
-        vkResetFences(device, 1, &frame_fences[cur_frame_idx]);
     }
 
-    command_allocators[cur_frame_idx].reset();
+    graphics_command_allocators[cur_frame_idx].reset();
 
     auto& semaphores = zombie_semaphores[cur_frame_idx];
     available_semaphores.insert(available_semaphores.end(), semaphores.begin(), semaphores.end());
@@ -405,8 +447,8 @@ void RenderBackend::flush_batched_command_buffers() {
         const auto mask = static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
         const auto transfer_submit = VkSubmitInfo{
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .waitSemaphoreCount = last_submission_semaphore == VK_NULL_HANDLE ? 0u : 1u,
-            .pWaitSemaphores = &last_submission_semaphore,
+            .waitSemaphoreCount = static_cast<uint32_t>(last_submission_semaphores.size()),
+            .pWaitSemaphores = last_submission_semaphores.data(),
             .pWaitDstStageMask = &mask,
             .commandBufferCount = static_cast<uint32_t>(queued_transfer_command_buffers.size()),
             .pCommandBuffers = queued_transfer_command_buffers.data(),
@@ -416,16 +458,94 @@ void RenderBackend::flush_batched_command_buffers() {
 
         {
             ZoneScopedN("vkQueueSubmit transfer");
-            vkQueueSubmit(graphics_queue, 1, &transfer_submit, VK_NULL_HANDLE);
+            vkQueueSubmit(transfer_queue, 1, &transfer_submit, VK_NULL_HANDLE);
         }
-
+        
         for (auto commands : queued_transfer_command_buffers) {
-            command_allocators[cur_frame_idx].return_command_buffer(commands);
+            transfer_command_allocators[cur_frame_idx].return_command_buffer(commands);
         }
 
         queued_transfer_command_buffers.clear();
 
-        last_submission_semaphore = submission_semaphore;
+        last_submission_semaphores.clear();
+        last_submission_semaphores.emplace_back(submission_semaphore);
+    }
+
+    // Submit any transfer barriers
+    // Currently, the high-level code decides if we need a transfer barrier and the backend just does what it's told
+    // This is fine I guess 
+    if (!transfer_barriers.empty()) {
+        const auto transfer_semaphore = create_transient_semaphore("Queue transfer operation");
+
+        // Submit release barriers to transfer queue
+        {
+            const auto commands = create_transfer_command_buffer();
+
+            constexpr auto begin_info = VkCommandBufferBeginInfo{
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+            };
+            vkBeginCommandBuffer(commands, &begin_info);
+
+            const auto dependency = VkDependencyInfo{
+                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                .imageMemoryBarrierCount = static_cast<uint32_t>(transfer_barriers.size()),
+                .pImageMemoryBarriers = transfer_barriers.data()
+            };
+            vkCmdPipelineBarrier2(commands, &dependency);
+
+            vkEndCommandBuffer(commands);
+
+            const auto command_submit = VkCommandBufferSubmitInfo{
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+                .commandBuffer = commands,
+            };
+            const auto semaphore_signal = VkSemaphoreSubmitInfo{
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+                .semaphore = transfer_semaphore,
+                .stageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT
+            };
+            const auto submit = VkSubmitInfo2{
+                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+                .commandBufferInfoCount = 1,
+                .pCommandBufferInfos = &command_submit,
+                .signalSemaphoreInfoCount = 1,
+                .pSignalSemaphoreInfos = &semaphore_signal,
+            };
+            vkQueueSubmit2(transfer_queue, 1, &submit, VK_NULL_HANDLE);
+        }
+
+        // Submit acquire barriers to graphics queue
+        {
+            auto commands = create_graphics_command_buffer();
+
+            commands.begin();
+            
+            commands.barrier({}, {}, transfer_barriers);
+
+            commands.end();
+
+            const auto semaphore_wait = VkSemaphoreSubmitInfo{
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+                .semaphore = transfer_semaphore,
+                .stageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT
+            };
+            const auto command_submit = VkCommandBufferSubmitInfo{
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+                .commandBuffer = commands.get_vk_commands(),
+            };
+            const auto submit = VkSubmitInfo2{
+                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+                .waitSemaphoreInfoCount = 1,
+                .pWaitSemaphoreInfos = &semaphore_wait,
+                .commandBufferInfoCount = 1,
+                .pCommandBufferInfos = &command_submit
+                // No need for semaphores - the command buffer only contains barriers, those provide synchronization
+            };
+            vkQueueSubmit2(graphics_queue, 1, &submit, VK_NULL_HANDLE);
+        }
+        
+        transfer_barriers.clear();
     }
 
     if (!queued_command_buffers.empty()) {
@@ -434,14 +554,17 @@ void RenderBackend::flush_batched_command_buffers() {
 
         for (const auto& queued_commands : queued_command_buffers) {
             command_buffers.emplace_back(queued_commands.get_vk_commands());
-            command_allocators[cur_frame_idx].return_command_buffer(queued_commands.get_vk_commands());
         }
 
         auto wait_stages = std::vector<VkPipelineStageFlags>{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
         auto wait_semaphores = std::vector{swapchain_semaphore};
-        if (last_submission_semaphore != VK_NULL_HANDLE) {
-            wait_semaphores.emplace_back(last_submission_semaphore);
+        if (!last_submission_semaphores.empty()) {
+            wait_semaphores.insert(
+                wait_semaphores.end(), last_submission_semaphores.begin(), last_submission_semaphores.end()
+            );
             wait_stages.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+
+            last_submission_semaphores.clear();
         }
 
         auto signal_semaphore = create_transient_semaphore("Graphics submit semaphore");
@@ -457,40 +580,25 @@ void RenderBackend::flush_batched_command_buffers() {
             .pSignalSemaphores = &signal_semaphore,
         };
 
-        last_submission_semaphore = signal_semaphore;
-
         {
             ZoneScopedN("vkQueueSubmit graphics");
+
+            vkResetFences(device, 1, &frame_fences[cur_frame_idx]);
             const auto result = vkQueueSubmit(graphics_queue, 1, &submit, frame_fences[cur_frame_idx]);
-
-            queued_command_buffers.clear();
-
+            
             if (result == VK_ERROR_DEVICE_LOST) {
                 logger->error("Device lost detected!");
             }
         }
+
+        for (const auto& queued_commands : queued_command_buffers) {
+            graphics_command_allocators[cur_frame_idx].return_command_buffer(queued_commands.get_vk_commands());
+        }
+
+        queued_command_buffers.clear();
+
+        last_submission_semaphores.emplace_back(signal_semaphore);
     }
-}
-
-void RenderBackend::end_frame() {
-    ZoneScoped;
-
-    flush_batched_command_buffers();
-
-    const auto present_info = VkPresentInfoKHR{
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = last_submission_semaphore == VK_NULL_HANDLE ? 0u : 1u,
-        .pWaitSemaphores = &last_submission_semaphore,
-        .swapchainCount = 1,
-        .pSwapchains = &swapchain.swapchain,
-        .pImageIndices = &cur_swapchain_image_idx
-    };
-    {
-        ZoneScopedN("vkQueuePresentKHR");
-        vkQueuePresentKHR(graphics_queue, &present_info);
-    }
-
-    last_submission_semaphore = VK_NULL_HANDLE;
 }
 
 void RenderBackend::collect_tracy_data(const CommandBuffer& commands) const {
@@ -543,20 +651,21 @@ ResourceUploadQueue& RenderBackend::get_upload_queue() {
     return *upload_queue;
 }
 
-CommandBuffer RenderBackend::create_command_buffer() {
-    return CommandBuffer{command_allocators[cur_frame_idx].allocate_command_buffer(), *this};
+CommandBuffer RenderBackend::create_graphics_command_buffer() {
+    return CommandBuffer{graphics_command_allocators[cur_frame_idx].allocate_command_buffer(), *this};
 }
 
 VkCommandBuffer RenderBackend::create_transfer_command_buffer() {
-    // In theory we could create a command buffer on a dedicated transfer queue. However, for now we just use the
-    // graphics queue
-
-    return command_allocators[cur_frame_idx].allocate_command_buffer();
+    return transfer_command_allocators[cur_frame_idx].allocate_command_buffer();
 }
 
 void RenderBackend::create_command_pools() {
-    for (auto& command_pool : command_allocators) {
-        command_pool = *CommandAllocator::create(device.device, graphics_queue_family_index);
+    for (auto& command_pool : graphics_command_allocators) {
+        command_pool = CommandAllocator{ device.device, graphics_queue_family_index };
+    }
+
+    for (auto& command_pool : transfer_command_allocators) {
+        command_pool = CommandAllocator{ device.device, transfer_queue_family_index };
     }
 }
 
@@ -569,6 +678,23 @@ void RenderBackend::submit_command_buffer(CommandBuffer&& commands) {
     ZoneScoped;
 
     queued_command_buffers.emplace_back(std::move(commands));
+}
+
+void RenderBackend::present() {
+    const auto present_info = VkPresentInfoKHR{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = static_cast<uint32_t>(last_submission_semaphores.size()),
+        .pWaitSemaphores = last_submission_semaphores.data(),
+        .swapchainCount = 1,
+        .pSwapchains = &swapchain.swapchain,
+        .pImageIndices = &cur_swapchain_image_idx
+    };
+    {
+        ZoneScopedN("vkQueuePresentKHR");
+        vkQueuePresentKHR(graphics_queue, &present_info);
+    }
+
+    last_submission_semaphores.clear();
 }
 
 vkutil::DescriptorBuilder RenderBackend::create_persistent_descriptor_builder() {
@@ -585,6 +711,7 @@ VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
     if (!available_semaphores.empty()) {
         semaphore = available_semaphores.back();
         available_semaphores.pop_back();
+        
     } else {
         const auto create_info = VkSemaphoreCreateInfo{
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,

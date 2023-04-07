@@ -18,6 +18,7 @@ ResourceAllocator::ResourceAllocator(RenderBackend& backend_in) :
     backend{backend_in} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("ResourceAllocator");
+        logger->set_level(spdlog::level::info);
     }
     const auto functions = VmaVulkanFunctions{
         .vkGetInstanceProcAddr = vkGetInstanceProcAddr,
@@ -359,7 +360,9 @@ void ResourceAllocator::destroy_texture(TextureHandle handle) {
     cur_frame_zombies.emplace_back(handle);
 }
 
-BufferHandle ResourceAllocator::create_buffer(const std::string& name, size_t size, BufferUsage usage) {
+BufferHandle ResourceAllocator::create_buffer(const std::string& name, const size_t size, const BufferUsage usage) {
+    logger->trace("Creating buffer {} with size {} and usage {}", name, size, magic_enum::enum_name(usage));
+
     const auto device = backend.get_device().device;
 
     VkBufferUsageFlags vk_usage = {};
@@ -623,10 +626,10 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
                         dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
                     }
                     if (is_depth_producer) {
-                        dependency.srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                        dependency.srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
                         dependency.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                     }
-                    dependency.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    dependency.dstAccessMask = VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT;
                 }
 
                 // Early-out

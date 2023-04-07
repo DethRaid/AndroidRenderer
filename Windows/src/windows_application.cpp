@@ -18,8 +18,7 @@ int main(const int argc, const char** argv) {
     SystemInterface::initialize(window);
 
     Application application;
-    // plz help
-    application.get_renderer().get_backend().begin_frame();
+
     {
         ZoneScopedN("Init application");
         application.load_scene("Sponza/Sponza.compressed.glb");
@@ -29,9 +28,7 @@ int main(const int argc, const char** argv) {
         // application.load_scene("Bistro_v5_2/BistroExterior.compressed.glb");
         application.update_resolution();
     }
-
-    application.get_renderer().get_backend().flush_batched_command_buffers();
-    
+        
     while (!glfwWindowShouldClose(window)) {
         ZoneScopedN("Frame");
 

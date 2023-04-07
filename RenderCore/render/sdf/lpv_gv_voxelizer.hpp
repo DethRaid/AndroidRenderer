@@ -26,18 +26,18 @@ class RenderScene;
  */
 class ThreeDeeRasterizer {
 public:
-    ThreeDeeRasterizer() = default;
+    ThreeDeeRasterizer(RenderBackend& backend_in);
 
     ~ThreeDeeRasterizer();
 
     /**
      * Inits all intermediate resources needed to render num_triangles_ triangles at the given resolution
      */
-    void init_resources(RenderBackend& backend_in, glm::uvec3 voxel_texture_resolution, uint32_t num_triangles);
+    void init_resources(glm::uvec3 voxel_texture_resolution, uint32_t num_triangles);
 
     void deinit_resources(ResourceAllocator& allocator);
 
-    void voxelize_mesh(RenderGraph& graph, MeshHandle mesh, const MeshStorage& meshes) const;
+    void voxelize_mesh(RenderGraph& graph, MeshHandle mesh, const MeshStorage& meshes);
 
     /**
      * Extracts the rastered texture from the rasterizer, setting the internal texture to TextureHandle::None
@@ -45,6 +45,8 @@ public:
     TextureHandle extract_texture();
 
 private:
+    uint32_t num_primitives_rasterized = 0;
+
     /**
      * Resolution we're currently rasterizing at
      */

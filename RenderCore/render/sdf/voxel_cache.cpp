@@ -1,6 +1,5 @@
 #include "voxel_cache.hpp"
 
-#include <ranges>
 #include <glm/common.hpp>
 
 #include "console/cvars.hpp"
@@ -9,11 +8,11 @@
 
 AutoCVar_Float cvar_voxel_size{"r.voxel.VoxelSize", "Resolution, in world units, of one side of a mesh voxel", 0.5};
 
-VoxelCache::VoxelCache(RenderBackend& backend_in) : backend{ backend_in }  {}
+VoxelCache::VoxelCache(RenderBackend& backend_in) : backend{ backend_in }, voxelizer{ backend } {}
 
 VoxelCache::~VoxelCache() {
     auto& allocator = backend.get_global_allocator();
-    for(const auto& voxel_object : voxels | std::views::values) {
+    for(const auto& [mesh_index, voxel_object] : voxels) {
         allocator.destroy_texture(voxel_object.sh_texture);
     }
 
@@ -24,7 +23,7 @@ void VoxelCache::build_voxels_for_mesh(const MeshHandle mesh, const MeshStorage&
     const auto num_voxels = glm::uvec3{ glm::ceil(mesh->bounds / cvar_voxel_size.GetFloat()) };
 
     const auto num_triangles = mesh->num_indices / 3;
-    voxelizer.init_resources(backend, num_voxels, num_triangles);
+    voxelizer.init_resources(num_voxels, num_triangles);
 
     auto graph = RenderGraph{ backend };
     voxelizer.voxelize_mesh(graph, mesh, meshes);

@@ -35,11 +35,25 @@ public:
 
     void add_render_pass(RenderPass&& pass);
 
+    void add_present_pass(PresentPass&& pass);
+
     void begin_label(const std::string& label);
 
     void end_label();
 
-    void finish();
+    void finish() const;
+
+    // Kinda-internal API, useful only to Backend
+
+    /**
+     * Removes the command buffer from this RenderGraph
+     */
+    CommandBuffer&& extract_command_buffer();
+
+    /**
+     * Executes all the tasks that should happen after the render graph is executed
+     */
+    void execute_post_submit_tasks();
 
 private:
     RenderBackend& backend;
@@ -57,6 +71,8 @@ private:
     std::vector<VkBufferMemoryBarrier2> buffer_barriers;
 
     std::vector<VkImageMemoryBarrier2> image_barriers;
+
+    std::vector<std::function<void()>> post_submit_lambdas;
 
     void set_resource_usage(BufferHandle buffer, VkPipelineStageFlags2 pipeline_stage, VkAccessFlags2 access);
 

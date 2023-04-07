@@ -11,6 +11,7 @@
 #include <tracy/Tracy.hpp>
 #include <fastgltf_parser.hpp>
 
+#include "core/issue_breakpoint.hpp"
 #include "core/percent_encoding.hpp"
 #include "core/visitor.hpp"
 #include "render/basic_pbr_material.hpp"
@@ -419,8 +420,8 @@ void GltfModel::import_single_texture(
                 image_data = { data_pointer, data_pointer + real_buffer_view.byteLength };
                 mime_type = buffer_view.mimeType;
             },
-            [&](const fastgltf::sources::FilePath& file_path) {
-                const auto uri = decode_percent_encoding(std::string_view{file_path.path.string()});
+            [&](const fastgltf::sources::URI& file_path) {
+                const auto uri = decode_percent_encoding(std::string_view{file_path.uri.raw()});
 
                 logger->info("Loading texture {}", uri);
 

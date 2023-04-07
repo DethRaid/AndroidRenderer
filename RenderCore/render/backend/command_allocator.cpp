@@ -7,39 +7,74 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-tl::optional<CommandAllocator> CommandAllocator::create(VkDevice device, const uint32_t queue_index) {
+CommandAllocator::CommandAllocator(const VkDevice device_in, const uint32_t queue_index) : device{ device_in } {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("CommandAllocator");
     }
-
     const auto create_info = VkCommandPoolCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .queueFamilyIndex = queue_index,
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .queueFamilyIndex = queue_index,
     };
 
-    auto allocator = CommandAllocator{device};
-
-    const auto result = vkCreateCommandPool(device, &create_info, nullptr, &allocator.command_pool);
+    const auto result = vkCreateCommandPool(device, &create_info, nullptr, &command_pool);
     if (result != VK_SUCCESS) {
         logger->error("Could not create command pool: Vulkan error {}", result);
-        return tl::nullopt;
+        throw std::runtime_error{"Could not create command pool"};
     }
+}
 
-    return allocator;
+CommandAllocator::CommandAllocator(CommandAllocator&& old) noexcept : device{old.device},
+                                                                      command_pool{old.command_pool},
+                                                                      command_buffers{std::move(old.command_buffers)},
+                                                                      available_command_buffers{
+                                                                          std::move(old.command_buffers)
+                                                                      } {
+    old.command_pool = VK_NULL_HANDLE;
+}
+
+CommandAllocator& CommandAllocator::operator=(CommandAllocator&& old) noexcept {
+    device = old.device;
+    command_pool = old.command_pool;
+    command_buffers = std::move(old.command_buffers);
+    available_command_buffers = std::move(old.command_buffers);
+
+    old.command_pool = VK_NULL_HANDLE;
+
+    return *this;
+}
+
+CommandAllocator::~CommandAllocator() {
+    if (command_pool != VK_NULL_HANDLE) {
+        if (!command_buffers.empty()) {
+            vkFreeCommandBuffers(
+                device, command_pool, static_cast<uint32_t>(command_buffers.size()), command_buffers.data()
+            );
+        }
+        if (!available_command_buffers.empty()) {
+            vkFreeCommandBuffers(
+                device, command_pool, static_cast<uint32_t>(available_command_buffers.size()),
+                available_command_buffers.data()
+            );
+        }
+
+        vkDestroyCommandPool(device, command_pool, nullptr);
+
+        command_pool = VK_NULL_HANDLE;
+    }
 }
 
 VkCommandBuffer CommandAllocator::allocate_command_buffer() {
-    if(!available_command_buffers.empty()) {
+    if (!available_command_buffers.empty()) {
         auto commands = available_command_buffers.back();
         available_command_buffers.pop_back();
         return commands;
     }
 
     const auto alloc_info = VkCommandBufferAllocateInfo{
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool = command_pool,
-            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .commandBufferCount = 1,
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = command_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
     };
 
     auto commands = VkCommandBuffer{};
@@ -47,7 +82,7 @@ VkCommandBuffer CommandAllocator::allocate_command_buffer() {
     if (result != VK_SUCCESS) {
         throw std::runtime_error{fmt::format("Could not allocate command buffer: Vulkan error {}", result)};
     }
-
+    
     return commands;
 }
 
@@ -59,8 +94,6 @@ void CommandAllocator::reset() {
     vkResetCommandPool(device, command_pool, 0);
 
     available_command_buffers.insert(available_command_buffers.end(), command_buffers.begin(), command_buffers.end());
-}
 
-CommandAllocator::CommandAllocator(VkDevice device_in) : device{device_in} {
-
+    command_buffers.clear();
 }

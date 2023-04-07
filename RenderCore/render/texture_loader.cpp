@@ -135,12 +135,38 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_ktx(
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
     };
+    
+    if (backend.has_separate_transfer_queue()) {
+        backend.add_transfer_barrier(
+            VkImageMemoryBarrier2{
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .srcQueueFamilyIndex = backend.get_transfer_queue_family_index(),
+                .dstQueueFamilyIndex = backend.get_graphics_queue_family_index(),
+                .image = texture.image,
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = ktx_vk_tex.levelCount,
+                    .baseArrayLayer = 0,
+                    .layerCount = ktx_vk_tex.layerCount
+                }
+            }
+        );
 
+        logger->info("Added queue transfer barrier for KTX image {} (Vulkan handle {})", filepath.string(), static_cast<void*>(texture.image));
+    }
+
+    ktxTexture_Destroy(ktxTexture(ktx_texture));
+    
     auto& allocator = backend.get_global_allocator();
     const auto handle = allocator.emplace_texture(filepath.string(), std::move(texture));
     loaded_textures.emplace(filepath.string(), handle);
-
-    ktxTexture_Destroy(ktxTexture(ktx_texture));
 
     return handle;
 }
@@ -150,20 +176,20 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
 ) {
     ZoneScoped;
 
-    LoadedTexture texture;
+    LoadedTexture loaded_texture;
     int num_components;
     const auto decoded_data = stbi_load_from_memory(
         data.data(), static_cast<int>(data.size()),
-        &texture.width, &texture.height, &num_components, 4
+        &loaded_texture.width, &loaded_texture.height, &num_components, 4
     );
     if (decoded_data == nullptr) {
         return tl::nullopt;
     }
 
-    texture.data = std::vector(
+    loaded_texture.data = std::vector(
         reinterpret_cast<uint8_t*>(decoded_data),
         reinterpret_cast<uint8_t*>(decoded_data) +
-        texture.width * texture.height * 4
+        loaded_texture.width * loaded_texture.height * 4
     );
 
     stbi_image_free(decoded_data);
@@ -182,7 +208,7 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
     auto& allocator = backend.get_global_allocator();
     const auto handle = allocator.create_texture(
         filepath.string(), format,
-        glm::uvec2{texture.width, texture.height}, 1,
+        glm::uvec2{loaded_texture.width, loaded_texture.height}, 1,
         TextureUsage::StaticImage
     );
     loaded_textures.emplace(filepath.string(), handle);
@@ -192,9 +218,37 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
         TextureUploadJob{
             .destination = handle,
             .mip = 0,
-            .data = texture.data,
+            .data = loaded_texture.data,
         }
     );
+        
+    if (backend.has_separate_transfer_queue()) {
+        const auto& texture = allocator.get_texture(handle);
+
+        backend.add_transfer_barrier(
+            VkImageMemoryBarrier2{
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .srcQueueFamilyIndex = backend.get_transfer_queue_family_index(),
+                .dstQueueFamilyIndex = backend.get_graphics_queue_family_index(),
+                .image = texture.image,
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1
+                }
+            }
+        );
+
+        logger->info("Added queue transfer barrier for image {} (Vulkan handle {})", filepath.string(), static_cast<void*>(texture.image));
+    }
 
     return handle;
 }

@@ -12,54 +12,12 @@
 
 static_assert(sizeof(Triangle) == 36);
 
-ThreeDeeRasterizer::~ThreeDeeRasterizer() {
-    auto& allocator = backend->get_global_allocator();
-    deinit_resources(allocator);
-}
+static std::shared_ptr<spdlog::logger> logger;
 
-void ThreeDeeRasterizer::init_resources(
-    RenderBackend& backend_in, const glm::uvec3 voxel_texture_resolution, const uint32_t num_triangles
-) {
-    resolution = voxel_texture_resolution;
-    max_num_triangles = num_triangles;
-
-    backend = &backend_in;
-    auto& allocator = backend->get_global_allocator();
-
-    deinit_resources(allocator);
-
-    const auto num_cells = voxel_texture_resolution.x * voxel_texture_resolution.y * voxel_texture_resolution.z;
-    const auto num_bins = (num_cells + 63) / 64;
-    const auto num_uints_per_bin = (max_num_triangles + 31) / 32;
-    const auto num_coarse_uints_per_cell = (num_uints_per_bin + 31) / 32;
-
-    voxel_texture = allocator.create_volume_texture(
-        "Voxels", VK_FORMAT_R16G16B16A16_SFLOAT, voxel_texture_resolution, 1, TextureUsage::StorageImage
-    );
-
-    volume_uniform_buffer = allocator.create_buffer(
-        "Voxel transform buffer", sizeof(glm::mat4), BufferUsage::UniformBuffer
-    );
-
-    transformed_triangle_cache = allocator.create_buffer(
-        "Transformed triangles", sizeof(Triangle) * max_num_triangles, BufferUsage::StorageBuffer
-    );
-
-    triangle_sh_cache = allocator.create_buffer(
-        "Triangles SH", sizeof(glm::vec4) * max_num_triangles, BufferUsage::StorageBuffer
-    );
-
-    bins = allocator.create_buffer(
-        "Bin bitmask", sizeof(uint32_t) * num_uints_per_bin * num_bins, BufferUsage::StorageBuffer
-    );
-
-    cell_bitmask_coarse = allocator.create_buffer(
-        "Coarse cell bitmask", sizeof(uint32_t) * num_coarse_uints_per_cell * num_cells, BufferUsage::StorageBuffer
-    );
-
-    cell_bitmask = allocator.create_buffer(
-        "Cell bitmask", sizeof(uint32_t) * num_uints_per_bin * num_cells, BufferUsage::StorageBuffer
-    );
+ThreeDeeRasterizer::ThreeDeeRasterizer(RenderBackend& backend_in) : backend{&backend_in} {
+    if (logger == nullptr) {
+        logger = SystemInterface::get().get_logger("3D Rasterizer");
+    }
 
     {
         const auto bytes = *SystemInterface::get().load_file("shaders/voxelizer/clear.comp.spv");
@@ -87,6 +45,62 @@ void ThreeDeeRasterizer::init_resources(
     }
 }
 
+ThreeDeeRasterizer::~ThreeDeeRasterizer() {
+    auto& allocator = backend->get_global_allocator();
+    deinit_resources(allocator);
+}
+
+void ThreeDeeRasterizer::init_resources(const glm::uvec3 voxel_texture_resolution, const uint32_t num_triangles) {
+    resolution = voxel_texture_resolution;
+    max_num_triangles = num_triangles;
+
+    logger->debug(
+        "Creating resources to rasterize {} triangles to a volume of resolution {}, {}, {}", num_triangles,
+        voxel_texture_resolution.x, voxel_texture_resolution.y, voxel_texture_resolution.z
+    );
+
+    auto& allocator = backend->get_global_allocator();
+
+    deinit_resources(allocator);
+
+    const auto bin_resolution = (voxel_texture_resolution + glm::uvec3{ 3 }) / glm::uvec3{ 4 };
+
+    const auto num_cells = voxel_texture_resolution.x * voxel_texture_resolution.y * voxel_texture_resolution.z;
+    const auto num_bins = bin_resolution.x * bin_resolution.y * bin_resolution.z;
+    const auto num_uints_per_bin = (max_num_triangles + 31) / 32;
+    const auto num_coarse_uints_per_cell = (num_uints_per_bin + 31) / 32;
+
+    voxel_texture = allocator.create_volume_texture(
+        "Voxels", VK_FORMAT_R16G16B16A16_SFLOAT, voxel_texture_resolution, 1, TextureUsage::StorageImage
+    );
+
+    volume_uniform_buffer = allocator.create_buffer(
+        "Voxel transform buffer", sizeof(glm::mat4), BufferUsage::UniformBuffer
+    );
+
+    const auto triangle_size = sizeof(Triangle);
+
+    transformed_triangle_cache = allocator.create_buffer(
+        "Transformed triangles", triangle_size * max_num_triangles, BufferUsage::StorageBuffer
+    );
+
+    triangle_sh_cache = allocator.create_buffer(
+        "Triangles SH", sizeof(glm::vec4) * max_num_triangles, BufferUsage::StorageBuffer
+    );
+
+    bins = allocator.create_buffer(
+        "Bin bitmask", sizeof(uint32_t) * num_uints_per_bin * num_bins, BufferUsage::StorageBuffer
+    );
+
+    cell_bitmask_coarse = allocator.create_buffer(
+        "Coarse cell bitmask", sizeof(uint32_t) * num_coarse_uints_per_cell * num_cells, BufferUsage::StorageBuffer
+    );
+
+    cell_bitmask = allocator.create_buffer(
+        "Cell bitmask", sizeof(uint32_t) * num_uints_per_bin * num_cells, BufferUsage::StorageBuffer
+    );
+}
+
 void ThreeDeeRasterizer::deinit_resources(ResourceAllocator& allocator) {
     if (transformed_triangle_cache != BufferHandle::None) {
         allocator.destroy_buffer(transformed_triangle_cache);
@@ -106,7 +120,12 @@ void ThreeDeeRasterizer::deinit_resources(ResourceAllocator& allocator) {
     }
 }
 
-void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh, const MeshStorage& meshes) const {
+void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh, const MeshStorage& meshes) {
+    num_primitives_rasterized++;
+    if (num_primitives_rasterized > 1) {
+        return;
+    }
+
     const auto scale = mesh->bounds / 2.f;
 
     const auto bias_mat = glm::mat4{
@@ -232,9 +251,11 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
                 commands.set_push_constant(1, static_cast<uint32_t>(mesh->first_index));
                 commands.set_push_constant(2, num_triangles_to_shade);
 
+                logger->info("Rasterizing a mesh with {} triangles", num_triangles_to_shade);
+
                 // / 96 because we have 96 threads per workgroup
                 commands.dispatch((num_triangles_to_shade + 95) / 96, 1, 1);
-                
+
                 commands.clear_descriptor_set(0);
             }
         }
@@ -278,8 +299,9 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
                 commands.bind_descriptor_set(0, set);
 
                 commands.bind_shader(coarse_binning_shader);
-                
-                commands.dispatch(8, 8, 8);
+
+                const auto bin_resolution = (resolution + glm::uvec3{ 3 }) / glm::uvec3{ 4 };
+                commands.dispatch(bin_resolution.x, bin_resolution.y, bin_resolution.z);
 
                 commands.clear_descriptor_set(0);
             }
@@ -344,9 +366,15 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
 
                 commands.bind_descriptor_set(0, set);
                 commands.bind_shader(fine_binning_shader);
-                
+
+                commands.set_push_constant(0, resolution.x);
+                commands.set_push_constant(1, resolution.y);
+                commands.set_push_constant(2, resolution.z);
+
                 // Workgroups are 96 threads wide
-                commands.dispatch(resolution.x * 11, resolution.y, resolution.z);
+                // commands.dispatch(resolution.x * 11, resolution.y, resolution.z);
+                // Hack when debugging - use a smol dispatch because the prinf buffer is smol
+                commands.dispatch(1, 1, 1);
 
                 commands.clear_descriptor_set(0);
             }

@@ -314,8 +314,9 @@ void LightPropagationVolume::inject_indirect_sun_light(
             RenderPass{
                 .name = "Render RSM and generate VPLs",
                 .buffers = {
-                    {cascade.count_buffer, {VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
-                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
+                    {cascade.count_buffer, {VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT}},
+                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT}},
+                    {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}}
                 },
                 .render_targets = {
                     cascade.flux_target,
@@ -467,36 +468,6 @@ void LightPropagationVolume::inject_indirect_sun_light(
             }
         );
 
-        // graph.add_render_pass(
-        //     RenderPass{
-        //         .name = "Inject RSM geometry",
-        //         .textures = {
-        //             {
-        //                 cascade.normals_target,
-        //                 {
-        //                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-        //                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        //                 }
-        //             },
-        //             {
-        //                 cascade.depth_target,
-        //                 {
-        //                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-        //                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        //                 }
-        //             }
-        //         },
-        //         .render_targets = {geometry_volume_handle},
-        //         .subpasses = {
-        //             {
-        //                 .name = "Inject RSM geometry into GV",
-        //                 .color_attachments = {0},
-        //                 .execute = [&](CommandBuffer& commands) {}
-        //             }
-        //         }
-        //     }
-        // );
-
         cascade_index++;
     }
 
@@ -625,7 +596,7 @@ void LightPropagationVolume::build_geometry_volume(
         }
 
         const auto primitive_id_buffer = allocator.create_buffer(
-            "Primitive ID buffer", primitive_ids.size() * sizeof(uint32_t), BufferUsage::UniformBuffer
+            "Primitive ID buffer", primitive_ids.size() * sizeof(uint32_t), BufferUsage::StagingBuffer
         );
 
         render_graph.add_compute_pass(
@@ -656,7 +627,7 @@ void LightPropagationVolume::build_geometry_volume(
                                                  VK_SHADER_STAGE_COMPUTE_BIT
                                              )
                                              .bind_buffer(
-                                                 1, {.buffer = primitive_id_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                 1, {.buffer = primitive_id_buffer}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                                  VK_SHADER_STAGE_COMPUTE_BIT
                                              )
                                              .bind_buffer(

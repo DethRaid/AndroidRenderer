@@ -1,7 +1,6 @@
 #include "pipeline.hpp"
 
 #include <cassert>
-#include <ranges>
 #include <span>
 
 #include <spirv_reflect.h>
@@ -108,9 +107,9 @@ bool collect_vertex_attributes(
 PipelineBuilder::PipelineBuilder(VkDevice device_in) : device{device_in} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("PipelineBuilder");
-        logger->set_level(spdlog::level::info);
+        logger->set_level(spdlog::level::warn);
     }
-
+    
     set_depth_state({});
     set_raster_state({});
 }
@@ -609,6 +608,7 @@ bool collect_bindings(
 ) {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("PipelineBuilder");
+        logger->set_level(spdlog::level::warn);
     }
 
     const auto shader_module = spv_reflect::ShaderModule{
@@ -884,7 +884,7 @@ void Pipeline::create_pipeline_layout(
 
         auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
 
-        for (const auto& binding : set_info.bindings | std::views::values) {
+        for (const auto& [index, binding] : set_info.bindings) {
             bindings.emplace_back(binding);
         }
 

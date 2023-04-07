@@ -80,9 +80,9 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
 void SceneRenderer::render() {
     ZoneScoped;
 
-    backend.begin_frame();
+    backend.advance_frame();
 
-    auto render_graph = RenderGraph{backend};
+    auto render_graph = backend.create_render_graph();
 
     render_graph.add_compute_pass(
         {
@@ -129,7 +129,7 @@ void SceneRenderer::render() {
         }
     );
 
-    lpv.build_geometry_volume(render_graph, *scene, voxel_cache);
+    // lpv.build_geometry_volume(render_graph, *scene, voxel_cache);
 
     // VPL cloud generation
 
@@ -279,20 +279,15 @@ void SceneRenderer::render() {
         }
     );
 
-    render_graph.add_transition_pass(
+    render_graph.add_present_pass(
         {
-            .textures = {
-                {
-                    swapchain_image,
-                    {VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_MEMORY_READ_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR}
-                }
-            }
+            .swapchain_image = swapchain_image
         }
     );
 
     render_graph.finish();
 
-    backend.end_frame();
+    backend.execute_graph(std::move(render_graph));
 }
 
 TracyVkCtx SceneRenderer::get_tracy_context() {

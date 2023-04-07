@@ -5,12 +5,13 @@
  */
 
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_KHR_shader_subgroup_ballot : enable
 
 #include "shared/vertex_data.hpp"
 #include "shared/triangle.hpp"
 
-layout(set = 0, binding = 0, std430) readonly buffer VertexOutputPositionBuffer {
+layout(set = 0, binding = 0, scalar) readonly buffer VertexOutputPositionBuffer {
     Triangle triangles[];
 }; 
 
@@ -184,9 +185,10 @@ void main() {
 
     // Each bin is 4x4x4 pixels
     uvec3 bin_idx = gl_WorkGroupID;
-    // 4x4x4 bins in a 32x32x32 image - 8 bins in all directions
-    vec3 bin_min = vec3(bin_idx) / 8.f;
-    vec3 bin_max = bin_min + (1.f / 8.f);
+    
+    vec3 num_bins = vec3(gl_NumWorkGroups);
+    vec3 bin_min = vec3(bin_idx) / num_bins;
+    vec3 bin_max = bin_min + (1.f / num_bins);
 
     for(uint triangle_base_idx = 0; triangle_base_idx < num_triangles; triangle_base_idx += NUM_THREADS) {
         uint triangle_idx = triangle_base_idx + local_index;

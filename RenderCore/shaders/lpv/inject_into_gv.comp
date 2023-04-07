@@ -14,8 +14,8 @@ layout(set = 0, binding = 0, std430) uniform LpvCascadesBuffer {
      LPVCascadeMatrices cascade_matrices[4];
 } cascade_matrices_buffer;
 
-layout(set = 0, binding = 1, scalar) uniform PrimitiveIdBuffer {
-    uint primitive_ids[65536];
+layout(set = 0, binding = 1, scalar) readonly buffer PrimitiveIdBuffer {
+    uint primitive_ids[];
 } primitive_id_buffer;
 
 layout(set = 0, binding = 2, std430) readonly buffer PrimitiveDataBuffer {

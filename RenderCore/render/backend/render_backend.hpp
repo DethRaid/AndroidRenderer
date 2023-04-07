@@ -7,8 +7,10 @@
 #include <VkBootstrap.h>
 #include <tracy/TracyVulkan.hpp>
 
+#include "render_graph.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "core/object_pool.hpp"
+#include "render/texture_loader.hpp"
 #include "render/backend/pipeline.hpp"
 #include "render/backend/command_allocator.hpp"
 #include "render/backend/resource_upload_queue.hpp"
@@ -43,6 +45,10 @@ public:
 
     ~RenderBackend();
 
+    RenderGraph create_render_graph();
+
+    void execute_graph(RenderGraph&& render_graph);
+
     VkInstance get_instance() const;
 
     VkPhysicalDevice get_physical_device() const;
@@ -55,11 +61,15 @@ public:
 
     vkb::Device get_device() const;
 
-    uint32_t get_graphics_queue_index() const;
+    bool has_separate_transfer_queue() const;
+
+    uint32_t get_graphics_queue_family_index() const;
 
     VkQueue get_transfer_queue() const;
 
     uint32_t get_transfer_queue_family_index() const;
+
+    void add_transfer_barrier(VkImageMemoryBarrier2 barrier);
 
     PipelineBuilder begin_building_pipeline(std::string_view name) const;
 
@@ -73,18 +83,13 @@ public:
      *
      * Waits for the GPU to finish with this frame, does some beginning-of-frame setup, is generally cool
      */
-    void begin_frame();
+    void advance_frame();
 
     /**
      * Flushes all batched command buffers to their respective queues
      */
     void flush_batched_command_buffers();
-
-    /**
-     * Submits queued resource uploads, submits batched command buffers, presents the swapchain
-     */
-    void end_frame();
-
+    
     void collect_tracy_data(const CommandBuffer& commands) const;
 
     TracyVkCtx get_tracy_context() const;
@@ -107,7 +112,7 @@ public:
      */
     vkutil::DescriptorBuilder create_frame_descriptor_builder();
 
-    CommandBuffer create_command_buffer();
+    CommandBuffer create_graphics_command_buffer();
 
     /**
      * Creates a command buffer that can transfer data around. Intended to be used internally by backend subsystems,
@@ -120,19 +125,24 @@ public:
      * @return A command buffer that can transfer data
      */
     VkCommandBuffer create_transfer_command_buffer();
-
+    
     /**
      * Submits a command buffer to the backend
      *
      * The backend will queue up command buffers and submit them at end-of-frame
      *
      * The command buffers must be ended by the user
-     *
-     * @param commands
      */
     void submit_transfer_command_buffer(VkCommandBuffer commands);
 
     void submit_command_buffer(CommandBuffer&& commands);
+
+    /**
+     * Presents the current swapchain image in the main queue
+     *
+     * The caller is responsible for synchronizing access to the swapchain image. See RenderGraph::add_present_pass
+     */
+    void present();
 
     vkb::Swapchain& get_swapchain();
 
@@ -161,8 +171,8 @@ private:
     VkQueue graphics_queue;
     uint32_t graphics_queue_family_index;
 
-    tl::optional<VkQueue> transfer_queue = tl::nullopt;
-    tl::optional<uint32_t> transfer_queue_family_index = tl::nullopt;
+    VkQueue transfer_queue;
+    uint32_t transfer_queue_family_index;
 
     std::unique_ptr<ResourceAllocator> allocator;
 
@@ -196,15 +206,22 @@ private:
      *
      * Set to VK_NULL_HANDLE after presenting - vkQueuePresentKHR consumes the semaphore value and makes it unsignalled
      */
-    VkSemaphore last_submission_semaphore = VK_NULL_HANDLE;
+    std::vector<VkSemaphore> last_submission_semaphores = {};
 
     uint32_t cur_swapchain_image_idx = 0;
 
     std::array<VkFence, num_in_flight_frames> frame_fences = {};
 
-    std::array<CommandAllocator, num_in_flight_frames> command_allocators = {};
+    std::array<CommandAllocator, num_in_flight_frames> graphics_command_allocators = {};
+
+    std::array<CommandAllocator, num_in_flight_frames> transfer_command_allocators = {};
 
     std::vector<VkCommandBuffer> queued_transfer_command_buffers = {};
+
+    /**
+     * Barriers that need to execute to transfer resources from the transfer queue to the graphics queue
+     */
+    std::vector<VkImageMemoryBarrier2> transfer_barriers = {};
 
     std::vector<CommandBuffer> queued_command_buffers = {};
     

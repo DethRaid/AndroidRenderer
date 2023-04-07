@@ -26,7 +26,7 @@ public:
 private:
     RenderBackend& backend;
 
-    ThreeDeeRasterizer voxelizer = {};
+    ThreeDeeRasterizer voxelizer;
 
     /**
      * Map from mesh index to voxel

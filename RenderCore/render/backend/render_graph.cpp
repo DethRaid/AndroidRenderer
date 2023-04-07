@@ -28,7 +28,7 @@ bool is_write_access(const VkAccessFlagBits2 access) {
     return (access & write_mask) != 0;
 }
 
-RenderGraph::RenderGraph(RenderBackend& backend_in) : backend{backend_in}, cmds{backend.create_command_buffer()} {
+RenderGraph::RenderGraph(RenderBackend& backend_in) : backend{backend_in}, cmds{backend.create_graphics_command_buffer()} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("RenderGraph");
         logger->set_level(spdlog::level::info);
@@ -149,26 +149,53 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     backend.get_global_allocator().destroy_framebuffer(std::move(framebuffer));
 }
 
-void RenderGraph::begin_label(const std::string& label) {
-    add_compute_pass({
-        .execute = [label = std::move(label)](CommandBuffer& commands) {
-            commands.begin_label(label);
+void RenderGraph::add_present_pass(PresentPass&& pass) {
+    add_transition_pass({
+        .textures = {{pass.swapchain_image, {VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR}}},
+        });
+
+    post_submit_lambdas.emplace_back(
+        [this]() {
+            backend.flush_batched_command_buffers();
+            backend.present();
         }
-    });
+    );
+}
+
+void RenderGraph::begin_label(const std::string& label) {
+    add_compute_pass(
+        {
+            .execute = [label = std::move(label)](const CommandBuffer& commands) {
+                commands.begin_label(label);
+            }
+        }
+    );
 }
 
 void RenderGraph::end_label() {
-    add_compute_pass({
-        .execute = [](CommandBuffer& commands) {
-            commands.end_label();
+    add_compute_pass(
+        {
+            .execute = [](const CommandBuffer& commands) {
+                commands.end_label();
+            }
         }
-        });
+    );
 }
 
-void RenderGraph::finish() {
+void RenderGraph::finish() const {
     cmds.end();
+}
 
-    backend.submit_command_buffer(std::move(cmds));
+CommandBuffer&& RenderGraph::extract_command_buffer() {
+    return std::move(cmds);
+}
+
+void RenderGraph::execute_post_submit_tasks() {
+    for (const auto& task : post_submit_lambdas) {
+        task();
+    }
+
+    post_submit_lambdas.clear();
 }
 
 void RenderGraph::set_resource_usage(

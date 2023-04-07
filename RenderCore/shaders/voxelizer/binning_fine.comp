@@ -7,12 +7,14 @@
  */
 
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_EXT_debug_printf : enable
 
 #include "shared/vertex_data.hpp"
 #include "shared/triangle.hpp"
 
-layout(set = 0, binding = 0, std430) readonly buffer VertexOutputPositionBuffer {
+layout(set = 0, binding = 0, scalar) readonly buffer VertexOutputPositionBuffer {
     Triangle triangles[];
 }; 
 
@@ -38,9 +40,9 @@ layout(set = 0, binding = 3, std430) writeonly buffer TriangleCellBitmaskBuffer 
 };
 
 layout(push_constant) uniform Constants {
-    uint num_triangles;
-    uint padding1;
-    uint padding2;
+    uint num_cells_x;
+    uint num_cells_y;
+    uint num_cells_z;
     uint padding3;
     uint padding4;
     uint padding5;
@@ -204,27 +206,34 @@ void main() {
      * cell bitmask has any bits set. This lets the rasterization shaders quickly skip empty parts of the cell bitmask
      */
 
-    uint group_offset_in_bin = gl_WorkGroupID.x % 11;
+    // HARDCODED DEBUGGING HACKS
+    uvec3 WORK_GROUP_ID = uvec3(140, 4, 8);
+
+    uint group_offset_in_bin = WORK_GROUP_ID.x % 11;
 
     // Local index of this thread within the subgroup
     uint local_index = gl_SubgroupInvocationID + gl_SubgroupID * gl_SubgroupSize;
     // Index of the mask in the bin that this thread should look at
     uint mask_offset = group_offset_in_bin * NUM_THREADS + local_index;
 
-    uvec3 cell_id = uvec3(gl_WorkGroupID) / uvec3(11, 1, 1);
-    uint cell_index = cell_id.x + cell_id.y * 32 + cell_id.z * 32 * 32;
+    uvec3 cell_id = uvec3(WORK_GROUP_ID) / uvec3(11, 1, 1);
+    uint cell_index = cell_id.x + cell_id.y * num_cells_x + cell_id.z * num_cells_x * num_cells_y;
     uint cell_offset_in_mask = cell_index * UINTS_PER_BIN;
-    
-    vec3 cell_min = vec3(cell_id) / 32.f;
-    vec3 cell_max = cell_min + (1.f / 32.f);
 
-    uvec3 bin_id = cell_id / 4;
-    uint bin_index = bin_id.x + bin_id.y * 8 + bin_id.z * 8 * 8;
+    vec3 num_cells = vec3(num_cells_x, num_cells_y, num_cells_z);    
+    vec3 cell_min = vec3(cell_id) / num_cells;
+    vec3 cell_max = cell_min + (1.f / num_cells);
+
+    uvec3 num_bins = uvec3(num_cells_x + 3, num_cells_y + 3, num_cells_z + 3) / 4;
+    uvec3 bin_id = (cell_id + 3) / 4;
+    debugPrintfEXT("bin_id=%d %d %d\n", bin_id.x, bin_id.y, bin_id.z);
+    uint bin_index = bin_id.x + bin_id.y * num_bins.x + bin_id.z * num_bins.x * num_bins.y;
     uint bin_offset_in_mask = bin_index * UINTS_PER_BIN;
 
     bool group_bin_to_tile = false;
 
     if(mask_offset < UINTS_PER_BIN) {
+        debugPrintfEXT("Reading from bins_bitmask[%d + %d]\n", bin_offset_in_mask, mask_offset);
         uint current_bin_bits = bins_bitmask[bin_offset_in_mask + mask_offset];
 
         uint cell_mask = 0; // Mask of triangles in this cell
@@ -245,7 +254,6 @@ void main() {
 
     // High level mask of which uints in the bin have at least one bit in ths cell
     uvec4 subgroup_bin_result = subgroupBallot(group_bin_to_tile);
-    uint in_bin_mask = subgroup_bin_result.x;
     if(subgroupElect() && mask_offset < UINTS_PER_BIN) {
         // Store the high level mask to the coarse bins
         uint cell_offset_in_coarse_mask = cell_offset_in_mask / 32;
@@ -253,6 +261,7 @@ void main() {
 
         if(gl_SubgroupSize == 16) {
             // Mali
+            uint in_bin_mask = subgroup_bin_result.x;
             if(gl_SubgroupInvocationID % 2 == 1) {
                 in_bin_mask = in_bin_mask << 16;
             }
@@ -260,7 +269,7 @@ void main() {
 
         } else if(gl_SubgroupSize == 32) {
             // Nvidia
-            cell_bitmask_coarse[cell_offset_in_coarse_mask + local_offset_in_coarse_mask] = in_bin_mask;
+            cell_bitmask_coarse[cell_offset_in_coarse_mask + local_offset_in_coarse_mask] = subgroup_bin_result.x;
         }
         // TODO: Support a subgroup size of 64 for AyyyyyMD
     }

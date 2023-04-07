@@ -80,3 +80,7 @@ struct RenderPass {
 
     std::vector<Subpass> subpasses;
 };
+
+struct PresentPass {
+    TextureHandle swapchain_image;
+};
