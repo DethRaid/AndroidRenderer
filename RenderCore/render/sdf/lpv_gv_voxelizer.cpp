@@ -121,14 +121,9 @@ void ThreeDeeRasterizer::deinit_resources(ResourceAllocator& allocator) {
 }
 
 void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh, const MeshStorage& meshes) {
-    num_primitives_rasterized++;
-    if (num_primitives_rasterized > 1) {
-        return;
-    }
-
     const auto scale = mesh->bounds / 2.f;
 
-    const auto bias_mat = glm::mat4{
+    constexpr auto bias_mat = glm::mat4{
         0.5f, 0.0f, 0.0f, 0.0f,
         0.0f, 0.5f, 0.0f, 0.0f,
         0.0f, 0.0f, 0.5f, 0.0f,

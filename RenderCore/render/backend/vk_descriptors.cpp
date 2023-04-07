@@ -326,7 +326,7 @@ namespace vkutil {
         newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         newWrite.pNext = nullptr;
 
-        newWrite.descriptorCount = 1;
+        newWrite.descriptorCount = count;
         newWrite.descriptorType = type;
         newWrite.pImageInfo = imageInfo;
         newWrite.dstBinding = binding;

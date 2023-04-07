@@ -129,7 +129,7 @@ void SceneRenderer::render() {
         }
     );
 
-    // lpv.build_geometry_volume(render_graph, *scene, voxel_cache);
+    lpv.build_geometry_volume(render_graph, *scene, voxel_cache);
 
     // VPL cloud generation
 

@@ -40,6 +40,10 @@ layout(push_constant) uniform Constants {
 // x should be one subgroup
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
+bool should_print() {
+    return gl_GlobalInvocationID == uvec3(1, 3, 0);
+}
+
 void main() {
     uint local_offset = gl_SubgroupInvocationID;
 
@@ -59,15 +63,13 @@ void main() {
 
     for(uint block_start = 0; block_start < push_constants.num_primitives; block_start += gl_SubgroupSize) {
         uint current_index = block_start + local_offset;
-        if(current_index >= push_constants.num_primitives) {
-            continue;
+        if(current_index < push_constants.num_primitives) {
+            uint primitive_id = primitive_id_buffer.primitive_ids[current_index];            
+            PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
+            vec4 sample_position = bias_mat * primitive_data.inverse_model * worldspace_position;
+
+            local_sh += textureLod(voxel_textures[nonuniformEXT(current_index)], sample_position.xyz, 0);
         }
-
-        uint primitive_id = primitive_id_buffer.primitive_ids[current_index];
-        PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
-        vec4 sample_position = bias_mat * primitive_data.inverse_model * worldspace_position;
-
-        local_sh += textureLod(voxel_textures[nonuniformEXT(current_index)], sample_position.xyz, 0);
     }
 
     subgroupBarrier();

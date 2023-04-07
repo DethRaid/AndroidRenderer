@@ -45,8 +45,6 @@ public:
     TextureHandle extract_texture();
 
 private:
-    uint32_t num_primitives_rasterized = 0;
-
     /**
      * Resolution we're currently rasterizing at
      */

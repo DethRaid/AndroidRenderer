@@ -314,9 +314,27 @@ void LightPropagationVolume::inject_indirect_sun_light(
             RenderPass{
                 .name = "Render RSM and generate VPLs",
                 .buffers = {
-                    {cascade.count_buffer, {VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT}},
-                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT}},
-                    {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}}
+                    {
+                        cascade.count_buffer,
+                        {
+                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                            VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT
+                        }
+                    },
+                    {
+                        cascade.vpl_buffer,
+                        {
+                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                            VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT
+                        }
+                    },
+                    {
+                        cascade_data_buffer,
+                        {
+                            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                            VK_ACCESS_UNIFORM_READ_BIT
+                        }
+                    }
                 },
                 .render_targets = {
                     cascade.flux_target,
@@ -612,9 +630,10 @@ void LightPropagationVolume::build_geometry_volume(
                     }
                 },
                 .buffers = {
-                    {primitive_id_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT}}
+                    {cascade_data_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT}},
+                    {primitive_id_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT}}
                 },
-                .execute = [&, primitive_ids = std::move(primitive_ids), textures = std::move(textures)](
+                .execute = [&, primitive_ids = std::move(primitive_ids), textures = std::move(textures), primitive_id_buffer = primitive_id_buffer](
                 CommandBuffer& commands
             ) {
                     commands.update_buffer(
@@ -650,7 +669,7 @@ void LightPropagationVolume::build_geometry_volume(
                     commands.set_push_constant(0, static_cast<uint32_t>(textures.size()));
                     commands.set_push_constant(1, cascade_idx);
                     commands.bind_shader(inject_into_gv_shader);
-
+                    
                     commands.dispatch(32, 32, 32);
 
                     commands.clear_descriptor_set(0);
@@ -661,6 +680,15 @@ void LightPropagationVolume::build_geometry_volume(
         allocator.destroy_buffer(primitive_id_buffer);
     }
 }
+
+/*
+ * Validation Error: [ UNASSIGNED-Descriptor uninitialized ] Object 0: handle = 0x18f49ce99a0, name = Graphics queue,
+ * type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x893513c7 | Descriptor index 1 is uninitialized. Command buffer
+ * (0x18f5cc9e530). Compute Dispatch Index 0x2. Pipeline (Inject into GV)(0x67022e000000004b). Shader Module
+ * (0x7323f50000000048). Shader Instruction Index = 379.  Stage = Compute.  Global invocation ID (x, y, z) = (865, 0, 0 )
+ * Shader validation error occurred in file D:/Source/SahRenderer/Windows/../RenderCore/shaders/lpv/inject_into_gv.comp
+ * at line 78.Unable to find suitable #line directive in SPIR-V OpSource.
+ */
 
 void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
     render_graph.begin_label("LPV Propagation");
