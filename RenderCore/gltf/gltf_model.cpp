@@ -48,9 +48,9 @@ glm::mat4 get_node_to_parent_matrix(const fastgltf::Node& node) {
             },
             [&](const fastgltf::Node::TRS& trs) {
                 const auto translation = glm::make_vec3(trs.translation.data());
-                const auto rotation = glm::quat{ trs.rotation[3], trs.rotation[0], trs.rotation[1], trs.rotation[2]};
+                const auto rotation = glm::quat{trs.rotation[3], trs.rotation[0], trs.rotation[1], trs.rotation[2]};
                 const auto scale_factors = glm::make_vec3(trs.scale.data());
-                
+
                 matrix = glm::translate(matrix, translation);
                 matrix *= glm::toMat4(rotation);
                 matrix = glm::scale(matrix, scale_factors);
@@ -125,7 +125,7 @@ void GltfModel::import_resources_for_model(SceneRenderer& renderer) {
     // Traverse the glTF scene. For each node with a mesh, create a `PlacesMeshPrimitive` with the mesh -> world
     // transformation matrix already calculated
     // Create a mapping from glTF scene to the `PlacesMeshPrimitive` objects it owns, so we can unload the scene
-    
+
     import_meshes(renderer);
 
     import_materials(
@@ -270,7 +270,7 @@ void GltfModel::import_meshes(SceneRenderer& renderer) {
     ZoneScoped;
 
     auto& mesh_storage = renderer.get_mesh_storage();
-    auto& voxel_cache = renderer.get_voxel_cache();
+    auto voxel_cache_maybe = renderer.get_voxel_cache();
 
     gltf_primitive_to_mesh_primitive.reserve(512);
 
@@ -293,8 +293,9 @@ void GltfModel::import_meshes(SceneRenderer& renderer) {
 
             if (mesh_maybe) {
                 imported_primitives.emplace_back(*mesh_maybe);
-                voxel_cache.build_voxels_for_mesh(*mesh_maybe, mesh_storage);
-
+                voxel_cache_maybe.map(
+                    [&](VoxelCache& voxel_cache) { voxel_cache.build_voxels_for_mesh(*mesh_maybe, mesh_storage); }
+                );
             } else {
                 logger->error(
                     "Could not import mesh primitive {} in mesh {}", primitive_idx,
@@ -324,16 +325,20 @@ void GltfModel::calculate_bounding_sphere_and_footprint() {
                     // This probably breaks for animated meshes
                     // Better solution: Save the glTF model's bounding sphere and footprint radius into an extension in the glTF
                     // file
-                    
-                    const auto primitive_min = glm::make_vec3(std::get_if<std::vector<double>>(&position_accessor.min)->data());
-                    const auto primitive_max = glm::make_vec3(std::get_if<std::vector<double>>(&position_accessor.max)->data());
-                    
+
+                    const auto primitive_min = glm::make_vec3(
+                        std::get_if<std::vector<double>>(&position_accessor.min)->data()
+                    );
+                    const auto primitive_max = glm::make_vec3(
+                        std::get_if<std::vector<double>>(&position_accessor.max)->data()
+                    );
+
                     const auto primitive_min_modelspace = local_to_world * glm::vec4{primitive_min, 1.f};
                     const auto primitive_max_modelspace = local_to_world * glm::vec4{primitive_max, 1.f};
-                    
+
                     min_extents = glm::min(min_extents, glm::vec3{primitive_min_modelspace});
                     max_extents = glm::max(max_extents, glm::vec3{primitive_max_modelspace});
-                    
+
                     logger->info(
                         "New min: ({}, {}, {}) new max: ({}, {}, {})",
                         min_extents.x,
@@ -401,7 +406,7 @@ void GltfModel::import_single_texture(
 ) {
     ZoneScoped;
 
-    const auto& gltf_texture = model->textures[gltf_texture_index];    
+    const auto& gltf_texture = model->textures[gltf_texture_index];
     const auto& image = model->images[*gltf_texture.imageIndex];
 
     auto image_data = std::vector<uint8_t>{};
@@ -409,15 +414,15 @@ void GltfModel::import_single_texture(
     auto mime_type = fastgltf::MimeType::None;
 
     std::visit(
-        Visitor {
-            [&](const auto&) {/* I'm just here so I don't get a compiler error */},
+        Visitor{
+            [&](const auto&) { /* I'm just here so I don't get a compiler error */ },
             [&](const fastgltf::sources::BufferView& buffer_view) {
                 const auto& real_buffer_view = model->bufferViews[buffer_view.bufferViewIndex];
                 const auto& buffer = model->buffers[real_buffer_view.bufferIndex];
                 const auto* buffer_vector = std::get_if<fastgltf::sources::Vector>(&buffer.data);
                 auto* data_pointer = buffer_vector->bytes.data();
                 data_pointer += real_buffer_view.byteOffset;
-                image_data = { data_pointer, data_pointer + real_buffer_view.byteLength };
+                image_data = {data_pointer, data_pointer + real_buffer_view.byteLength};
                 mime_type = buffer_view.mimeType;
             },
             [&](const fastgltf::sources::URI& file_path) {
@@ -426,11 +431,11 @@ void GltfModel::import_single_texture(
                 logger->info("Loading texture {}", uri);
 
                 // Try to load a KTX version of the texture
-                const auto texture_filepath = std::filesystem::path{ uri };
+                const auto texture_filepath = std::filesystem::path{uri};
                 auto ktx_texture_filepath = texture_filepath;
                 ktx_texture_filepath.replace_extension("ktx2");
                 auto data_maybe = SystemInterface::get().load_file(ktx_texture_filepath);
-                if(data_maybe) {
+                if (data_maybe) {
                     image_data = std::move(*data_maybe);
                     image_name = ktx_texture_filepath;
                     mime_type = fastgltf::MimeType::KTX2;
@@ -442,15 +447,15 @@ void GltfModel::import_single_texture(
                     image_data = std::move(*data_maybe);
                     image_name = texture_filepath;
                     const auto& extension = texture_filepath.extension();
-                    if(extension == "png") {
+                    if (extension == "png") {
                         mime_type = fastgltf::MimeType::PNG;
-                    } else if(extension == "jpg" || extension == "jpeg") {
+                    } else if (extension == "jpg" || extension == "jpeg") {
                         mime_type = fastgltf::MimeType::JPEG;
                     }
                     return;
                 }
 
-                throw std::runtime_error{ fmt::format("Could not load image {}", texture_filepath.string()) };
+                throw std::runtime_error{fmt::format("Could not load image {}", texture_filepath.string())};
             },
             [&](const fastgltf::sources::Vector& vector_data) {
                 image_data = {vector_data.bytes.begin(), vector_data.bytes.end()};
@@ -461,16 +466,16 @@ void GltfModel::import_single_texture(
     );
 
     auto handle = tl::optional<TextureHandle>{};
-    if(mime_type == fastgltf::MimeType::KTX2) {
+    if (mime_type == fastgltf::MimeType::KTX2) {
         handle = texture_storage.upload_texture_ktx(image_name, image_data);
-    } else if(mime_type == fastgltf::MimeType::PNG || mime_type == fastgltf::MimeType::JPEG) {
+    } else if (mime_type == fastgltf::MimeType::PNG || mime_type == fastgltf::MimeType::JPEG) {
         handle = texture_storage.upload_texture_stbi(image_name, image_data, type);
     }
 
     if (handle) {
         gltf_texture_to_texture_handle.emplace(gltf_texture_index, *handle);
     } else {
-        throw std::runtime_error{ fmt::format("Could not load image {}", image_name.string()) };
+        throw std::runtime_error{fmt::format("Could not load image {}", image_name.string())};
     }
 }
 
@@ -668,7 +673,7 @@ void copy_vertex_data_to_vector(
             // Massive hack! This code assumes that all primitives in a model will have the same handedness
             // This is not guraunteed by the glTF spec. The only thing it seems to garuantee is that all vertices in a
             // given triangle will have the same handedness
-            if(read_ptr_vec4->w < 0) {
+            if (read_ptr_vec4->w < 0) {
                 front_face_ccw = false;
             }
 

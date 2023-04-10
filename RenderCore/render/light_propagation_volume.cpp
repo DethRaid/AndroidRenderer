@@ -16,6 +16,7 @@
 #include "sdf/voxel_cache.hpp"
 #include "shared/vpl.hpp"
 #include "shared/lpv.hpp"
+#include "shared/view_info.hpp"
 
 static auto cvar_lpv_resolution = AutoCVar_Int{
     "r.LPV.Resolution",
@@ -41,6 +42,12 @@ static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
     "r.LPV.PercentBehindCamera",
     "The percentage of the LPV that should be behind the camera. Not exact",
     0.2
+};
+
+static auto cvar_lpv_build_gv_mode = AutoCVar_Enum<GvBuildMode>{
+    "r.LPV.GvBuildMode",
+    "How to build the geometry volume.\n0 = Disable\n1 = Use the RSM depth buffer and last frame's depth buffer\n2 = Use voxels from the renderer's voxel cache",
+    GvBuildMode::DepthBuffers
 };
 
 static std::shared_ptr<spdlog::logger> logger;
@@ -70,7 +77,6 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
         vpl_injection_pipeline = backend.begin_building_pipeline("VPL Injection")
                                         .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
                                         .set_vertex_shader("shaders/lpv/vpl_injection.vert.spv")
-                                        .set_geometry_shader("shaders/lpv/vpl_injection.geom.spv")
                                         .set_fragment_shader("shaders/lpv/vpl_injection.frag.spv")
                                         .set_blend_state(
                                             0, {
@@ -117,6 +123,26 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
         const auto bytes = *SystemInterface::get().load_file("shaders/lpv/lpv_propagate.comp.spv");
         propagation_shader = *backend.create_compute_shader("LPV Propagation", bytes);
     }
+
+    gv_injection_pipeline = backend.begin_building_pipeline("GV Injection")
+                                   .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+                                   .set_vertex_shader("shaders/lpv/gv_injection.vert.spv")
+                                   .set_fragment_shader("shaders/lpv/gv_injection.frag.spv")
+                                   .set_depth_state({.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE})
+                                   .set_blend_state(
+                                       0, {
+                                           .blendEnable = VK_TRUE,
+                                           .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                           .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                           .colorBlendOp = VK_BLEND_OP_ADD,
+                                           .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                           .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                           .alphaBlendOp = VK_BLEND_OP_ADD,
+                                           .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                       }
+                                   )
+                                   .build();
 
     lpv_render_shader = backend.begin_building_pipeline("LPV Rendering")
                                .set_vertex_shader("shaders/common/fullscreen.vert.spv")
@@ -487,6 +513,10 @@ void LightPropagationVolume::inject_indirect_sun_light(
             }
         );
 
+        if (cvar_lpv_build_gv_mode.Get() == GvBuildMode::DepthBuffers) {
+            inject_rsm_depth_into_cascade_gv(graph, cascade, cascade_index);
+        }
+
         cascade_index++;
     }
 
@@ -575,7 +605,11 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
     );
 }
 
-void LightPropagationVolume::build_geometry_volume(
+GvBuildMode LightPropagationVolume::get_build_mode() const {
+    return cvar_lpv_build_gv_mode.Get();
+}
+
+void LightPropagationVolume::build_geometry_volume_from_voxels(
     RenderGraph& render_graph, const RenderScene& scene, const VoxelCache& voxel_cache
 ) {
     /*
@@ -634,7 +668,8 @@ void LightPropagationVolume::build_geometry_volume(
                     {cascade_data_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT}},
                     {primitive_id_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT}}
                 },
-                .execute = [&, primitive_ids = std::move(primitive_ids), textures = std::move(textures), primitive_id_buffer = primitive_id_buffer](
+                .execute = [&, primitive_ids = std::move(primitive_ids), textures = std::move(textures),
+                    primitive_id_buffer = primitive_id_buffer](
                 CommandBuffer& commands
             ) {
                     commands.update_buffer(
@@ -670,7 +705,7 @@ void LightPropagationVolume::build_geometry_volume(
                     commands.set_push_constant(0, static_cast<uint32_t>(textures.size()));
                     commands.set_push_constant(1, cascade_idx);
                     commands.bind_shader(inject_into_gv_shader);
-                    
+
                     commands.dispatch(32, 32, 32);
 
                     commands.clear_descriptor_set(0);
@@ -682,14 +717,11 @@ void LightPropagationVolume::build_geometry_volume(
     }
 }
 
-/*
- * Validation Error: [ UNASSIGNED-Descriptor uninitialized ] Object 0: handle = 0x18f49ce99a0, name = Graphics queue,
- * type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x893513c7 | Descriptor index 1 is uninitialized. Command buffer
- * (0x18f5cc9e530). Compute Dispatch Index 0x2. Pipeline (Inject into GV)(0x67022e000000004b). Shader Module
- * (0x7323f50000000048). Shader Instruction Index = 379.  Stage = Compute.  Global invocation ID (x, y, z) = (865, 0, 0 )
- * Shader validation error occurred in file D:/Source/SahRenderer/Windows/../RenderCore/shaders/lpv/inject_into_gv.comp
- * at line 78.Unable to find suitable #line directive in SPIR-V OpSource.
- */
+void LightPropagationVolume::build_geometry_volume_from_depth_buffer(
+    const RenderGraph& render_graph, TextureHandle last_frame_depth_buffer
+) {
+    // TODO
+}
 
 void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
     render_graph.begin_label("LPV Propagation");
@@ -732,8 +764,8 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
 }
 
 void LightPropagationVolume::add_lighting_to_scene(
-    CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor, const BufferHandle scene_view_buffer
-) {
+    CommandBuffer& commands, const VkDescriptorSet gbuffers_descriptor, const BufferHandle scene_view_buffer
+) const {
     GpuZoneScoped(commands)
 
     commands.begin_label("LightPropagationVolume::add_lighting_to_scene");
@@ -796,6 +828,89 @@ void LightPropagationVolume::add_lighting_to_scene(
     commands.clear_descriptor_set(0);
 
     commands.end_label();
+}
+
+void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
+    RenderGraph& graph, const CascadeData& cascade, const uint32_t cascade_index
+) {
+    auto view_matrices = backend.get_global_allocator().create_buffer(
+        "GV View Matrices Buffer", sizeof(ViewInfo), BufferUsage::UniformBuffer
+    );
+
+    graph.add_render_pass(
+        RenderPass{
+            .name = "Inject into GV",
+            .textures = {
+                {
+                    cascade.depth_target,
+                    {
+                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                },
+                {
+                    cascade.normals_target,
+                    {
+                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                }
+            },
+            .render_targets = {geometry_volume_handle},
+            .subpasses = {
+                Subpass{
+                    .name = "Inject into GV",
+                    .color_attachments = {0},
+                    .execute = [&](CommandBuffer& commands) {
+                        // We just need this data
+                        const auto view = ViewInfo{
+                            .inverse_view = glm::inverse(cascade.rsm_vp),
+                            .inverse_projection = glm::mat4{1.f},
+                        };
+                        commands.update_buffer(view_matrices, view);
+
+                        const auto sampler = backend.get_default_sampler();
+                        const auto set = *backend.create_frame_descriptor_builder()
+                                                 .bind_image(
+                                                     0, {
+                                                         .sampler = sampler, .image = cascade.normals_target,
+                                                         .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                                     }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                                     VK_SHADER_STAGE_VERTEX_BIT
+                                                 )
+                                                 .bind_image(
+                                                     1, {
+                                                         .sampler = sampler, .image = cascade.depth_target,
+                                                         .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                                     }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                                     VK_SHADER_STAGE_VERTEX_BIT
+                                                 )
+                                                 .bind_buffer(
+                                                     2, {.buffer = cascade_data_buffer},
+                                                     VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                                 )
+                                                 .bind_buffer(
+                                                     3, {.buffer = view_matrices},
+                                                     VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                                 )
+                                                 .build();
+
+                        commands.bind_descriptor_set(0, set);
+
+                        commands.set_push_constant(0, cascade_index);
+                        commands.set_push_constant(1, 1024u);
+                        commands.set_push_constant(2, 1024u);
+
+                        commands.bind_pipeline(gv_injection_pipeline);
+
+                        commands.draw(1024 * 1024);
+
+                        commands.clear_descriptor_set(0);
+                    }
+                }
+            }
+        }
+    );
 }
 
 void LightPropagationVolume::perform_propagation_step(

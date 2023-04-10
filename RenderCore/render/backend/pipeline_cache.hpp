@@ -1,6 +1,7 @@
 #pragma once
 
-#include "graphics_pipeline.hpp"
+#include "render/backend/graphics_pipeline.hpp"
+#include "render/backend/pipeline_builder.hpp"
 #include "core/object_pool.hpp"
 
 class RenderBackend;

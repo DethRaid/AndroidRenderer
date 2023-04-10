@@ -6,6 +6,8 @@
 #include "render/backend/render_backend.hpp"
 #include "render/backend/render_graph.hpp"
 
+AutoCVar_Int cvar_enable_voxelizer{ "r.voxel.Enable", "Whether or not to voxelize meshes and use those voxels for various purposes", 0};
+
 AutoCVar_Float cvar_voxel_size{"r.voxel.VoxelSize", "Resolution, in world units, of one side of a mesh voxel", 0.5};
 
 VoxelCache::VoxelCache(RenderBackend& backend_in) : backend{ backend_in }, voxelizer{ backend } {}

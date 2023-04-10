@@ -3,19 +3,10 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "shared/sun_light_constants.hpp"
+#include "shared/view_info.hpp"
 #include "common/brdf.glsl"
 
 #define PI 3.1415927
-
-struct ViewInfo {
-    mat4 view;
-    mat4 projection;
-
-    mat4 inverse_view;
-    mat4 inverse_projection;
-
-    vec2 render_resolution;
-};
 
 // Gbuffer textures
 

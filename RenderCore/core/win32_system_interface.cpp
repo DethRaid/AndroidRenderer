@@ -90,6 +90,10 @@ tl::optional<std::vector<uint8_t>> Win32SystemInterface::load_file(const std::fi
 }
 
 void Win32SystemInterface::write_file(const std::filesystem::path& filepath, const void* data, const uint32_t data_size) {
+    if(filepath.has_parent_path()) {
+        std::filesystem::create_directories(filepath.parent_path());
+    }
+
     auto file = std::ofstream{ filepath, std::ios::binary };
 
     if (!file.is_open()) {

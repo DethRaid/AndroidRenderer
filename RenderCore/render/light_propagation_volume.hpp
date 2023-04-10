@@ -4,8 +4,8 @@
 
 #include <glm/mat4x4.hpp>
 
-#include "mesh_drawer.hpp"
-#include "backend\graphics_pipeline.hpp"
+#include "render/mesh_drawer.hpp"
+#include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/compute_shader.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
@@ -52,6 +52,12 @@ struct CascadeData {
     void create_render_targets(ResourceAllocator& allocator);
 };
 
+enum class GvBuildMode {
+    Off,
+    DepthBuffers,
+    Voxels
+};
+
 /**
  * A light propagation volume, a la Crytek
  *
@@ -78,7 +84,14 @@ public:
 
     void clear_volume(RenderGraph& render_graph);
 
-    void build_geometry_volume(RenderGraph& render_graph, const RenderScene& scene, const VoxelCache& voxel_cache);
+    GvBuildMode get_build_mode() const;
+
+    void build_geometry_volume_from_voxels(RenderGraph& render_graph, const RenderScene& scene, const VoxelCache& voxel_cache);
+
+    /**
+     * Builds the geometry volume from last frame's depth buffer
+     */
+    void build_geometry_volume_from_depth_buffer(const RenderGraph& render_graph, TextureHandle last_frame_depth_buffer);
     
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
     
@@ -89,9 +102,10 @@ public:
      *
      * @param commands The command buffer to render with. Should already have a framebuffer bound
      * @param gbuffers_descriptor The descriptor set that contains the gbuffer attachments as input attachments
+     * @param scene_view_buffer Buffer with the matrices of the scene view
      */
-    void add_lighting_to_scene(CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor, BufferHandle scene_view_buffer);
-
+    void add_lighting_to_scene(CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor, BufferHandle scene_view_buffer) const;
+    
 private:
     RenderBackend& backend;
 
@@ -130,6 +144,21 @@ private:
     GraphicsPipelineHandle lpv_render_shader;
 
     SceneDrawer rsm_drawer;
+
+    GraphicsPipelineHandle gv_injection_pipeline;
+
+    /**
+     * \brief Injects the RSM depth and normals buffers for a given cascade into that cascade's geometry volume
+     *
+     * This method dispatches one point for each pixel in the depth buffer. The vertex shader reads the depth and
+     * normal targets, converts the normals into SH, and dispatches the point to the correct depth layer. The fragment
+     * shader simply adds the SH into the cascade target
+     *
+     * \param graph Render graph to use to perform the work
+     * \param cascade Cascade to inject data into
+     * \param cascade_index Index of the cascade that we're injecting into
+     */
+    void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index);
 
     void perform_propagation_step(RenderGraph& render_graph,
                                   TextureHandle read_red, TextureHandle read_green, TextureHandle read_blue,

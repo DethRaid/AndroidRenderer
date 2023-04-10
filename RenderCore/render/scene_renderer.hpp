@@ -45,7 +45,7 @@ public:
 
     MeshStorage& get_mesh_storage();
 
-    VoxelCache& get_voxel_cache();
+    tl::optional<VoxelCache&> get_voxel_cache() const;
 
     /**
      * Translates the player's location
@@ -66,7 +66,7 @@ private:
     /**
      * Cache of voxel representations of static meshes
      */
-    VoxelCache voxel_cache;
+    std::unique_ptr<VoxelCache> voxel_cache = nullptr;
 
     RenderScene* scene = nullptr;
 

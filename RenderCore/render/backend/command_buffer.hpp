@@ -115,6 +115,8 @@ public:
     void bind_vertex_buffer(uint32_t binding_index, BufferHandle buffer) const;
 
     void bind_index_buffer(BufferHandle buffer) const;
+    
+    void draw(uint32_t num_vertices, uint32_t num_instances = 1, uint32_t first_vertex = 0, uint32_t first_instance = 0);
 
     void draw_indexed(
         uint32_t num_indices, uint32_t num_instances, uint32_t first_index, uint32_t first_vertex,

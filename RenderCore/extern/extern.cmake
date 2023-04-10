@@ -47,12 +47,8 @@ FetchContent_Declare(
 FetchContent_Declare(
         fetch_fastgltf
         GIT_REPOSITORY  https://github.com/dethraid/fastgltf.git
-        GIT_TAG         1c96ca9dc1dacf250131bd5cef280fb6808439a3
+        GIT_TAG         57f632f67c2a52215c5cc5babac1caf1a43225bc
 )
-# FetchContent_Declare(
-#         fetch_fastgltf
-#         URL D:/Source/fastgltf
-# )
 FetchContent_Declare(
         tl_optional
         GIT_REPOSITORY  https://github.com/TartanLlama/optional.git
@@ -78,7 +74,6 @@ FetchContent_Declare(
         GIT_REPOSITORY  https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
         GIT_TAG         c351692490513cdb0e5a2c925aaf7ea4a9b672f4
 )
-
 
 FetchContent_MakeAvailable(glm spdlog fetch_fastgltf tl_optional fetch_magic_enum fetch_spirv_reflect
         fetch_tracy fetch_vma vk-bootstrap fetch_volk)

@@ -209,6 +209,15 @@ void CommandBuffer::bind_index_buffer(const BufferHandle buffer) const {
     vkCmdBindIndexBuffer(commands, buffer_actual.buffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
+void CommandBuffer::draw(
+    const uint32_t num_vertices, const uint32_t num_instances, const uint32_t first_vertex,
+    const uint32_t first_instance
+) {
+    commit_bindings();
+
+    vkCmdDraw(commands, num_vertices, num_instances, first_vertex, first_instance);
+}
+
 void CommandBuffer::draw_indexed(
     const uint32_t num_indices, const uint32_t num_instances,
     const uint32_t first_index,
@@ -261,7 +270,7 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
     current_pipeline_layout = pipeline->get_layout();
 
     auto vk_pipeline = backend->get_pipeline_cache().get_pipeline(pipeline, current_render_pass, current_subpass);
-    
+
     vkCmdBindPipeline(commands, current_bind_point, vk_pipeline);
 
     are_bindings_dirty = true;

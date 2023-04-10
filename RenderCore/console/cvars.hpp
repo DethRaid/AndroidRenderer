@@ -83,3 +83,31 @@ struct AutoCVar_String : AutoCVar<std::string>
 	const char* Get();
 	void Set(std::string&& val);
 };
+
+template <typename EnumType>
+struct AutoCVar_Enum : AutoCVar_Int {
+	AutoCVar_Enum(const char* name, const char* description, EnumType defaultValue, CVarFlags flags = CVarFlags::None);
+	EnumType Get();
+	EnumType* GetPtr();
+	void Set(EnumType val);
+};
+
+template <typename EnumType>
+AutoCVar_Enum<EnumType>::AutoCVar_Enum(
+	const char* name, const char* description, EnumType defaultValue, CVarFlags flags
+) : AutoCVar_Int{ name, description, static_cast<int32_t>(defaultValue), flags } {}
+
+template <typename EnumType>
+EnumType AutoCVar_Enum<EnumType>::Get() {
+	return static_cast<EnumType>(AutoCVar_Int::Get());
+}
+
+template <typename EnumType>
+EnumType* AutoCVar_Enum<EnumType>::GetPtr() {
+	return static_cast<EnumType*>(AutoCVar_Int::GetPtr());
+}
+
+template <typename EnumType>
+void AutoCVar_Enum<EnumType>::Set(EnumType val) {
+	AutoCVar_Int::Set(static_cast<int32_t>(val));
+}

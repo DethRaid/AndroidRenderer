@@ -25,7 +25,7 @@ static auto cvar_shadow_cascade_split_lambda = AutoCVar_Float{
 
 SceneRenderer::SceneRenderer() :
     backend{}, player_view{backend}, texture_loader{backend}, materials{backend},
-    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, voxel_cache{backend}, lpv{backend},
+    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, lpv{backend},
     lighting_pass{backend}, ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
@@ -41,6 +41,10 @@ SceneRenderer::SceneRenderer() :
     create_shadow_render_targets();
 
     set_render_resolution(render_resolution);
+
+    if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
+        voxel_cache = std::make_unique<VoxelCache>(backend);
+    }
 
     lpv.init_resources(backend.get_global_allocator());
 
@@ -129,7 +133,11 @@ void SceneRenderer::render() {
         }
     );
 
-    lpv.build_geometry_volume(render_graph, *scene, voxel_cache);
+    if (voxel_cache) {
+        lpv.build_geometry_volume_from_voxels(render_graph, *scene, *voxel_cache);
+    } else {
+        lpv.build_geometry_volume_from_depth_buffer(render_graph, last_frame_depth_buffer);
+    }
 
     // VPL cloud generation
 
@@ -446,8 +454,12 @@ MeshStorage& SceneRenderer::get_mesh_storage() {
     return meshes;
 }
 
-VoxelCache& SceneRenderer::get_voxel_cache() {
-    return voxel_cache;
+tl::optional<VoxelCache&> SceneRenderer::get_voxel_cache() const {
+    if (voxel_cache) {
+        return *voxel_cache;
+    } else {
+        return tl::nullopt;
+    }
 }
 
 void SceneRenderer::translate_player(const glm::vec3& movement) {
