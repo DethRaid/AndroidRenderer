@@ -16,9 +16,9 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
     }
 
     const auto module_create_info = VkShaderModuleCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = instructions.size(),
-            .pCode = reinterpret_cast<const uint32_t*>(instructions.data()),
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = instructions.size(),
+        .pCode = reinterpret_cast<const uint32_t*>(instructions.data()),
     };
     VkShaderModule module;
     auto result = vkCreateShaderModule(device, &module_create_info, nullptr, &module);
@@ -35,18 +35,19 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
     auto layouts = std::vector<VkDescriptorSetLayout>{};
     layouts.reserve(descriptor_sets.size());
 
-    for (const auto&[set_index, set_info]: descriptor_sets) {
+    for (const auto& [set_index, set_info] : descriptor_sets) {
         auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
         bindings.resize(set_info.bindings.size());
 
-        for (const auto& [binding_index, binding]: set_info.bindings) {
+        for (const auto& [binding_index, binding] : set_info.bindings) {
             bindings[binding_index] = binding;
         }
 
         auto create_info = VkDescriptorSetLayoutCreateInfo{
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-                .bindingCount = static_cast<uint32_t>(bindings.size()),
-                .pBindings = bindings.data(),
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+            .bindingCount = static_cast<uint32_t>(bindings.size()),
+            .pBindings = bindings.data(),
         };
 
         // If the last binding is un unsized texture array, tell Vulkan about it
@@ -54,7 +55,8 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
         auto flags = std::vector<VkDescriptorBindingFlags>{};
         if (set_info.has_variable_count_binding) {
             flags.resize(bindings.size());
-            flags.back() = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+            flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+                VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
             flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
                 .bindingCount = static_cast<uint32_t>(flags.size()),
@@ -66,8 +68,10 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
         auto dsl = VkDescriptorSetLayout{};
         result = vkCreateDescriptorSetLayout(device, &create_info, nullptr, &dsl);
         if (result != VK_SUCCESS) {
-            logger->error("Could not create descriptor set layout {} for shader {}: Vulkan error {}", set_index, name,
-                          result);
+            logger->error(
+                "Could not create descriptor set layout {} for shader {}: Vulkan error {}", set_index, name,
+                result
+            );
             return tl::nullopt;
         }
 
@@ -75,17 +79,17 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
     }
 
     const auto pipeline_layout_create_info = VkPipelineLayoutCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-            .setLayoutCount = static_cast<uint32_t>(layouts.size()),
-            .pSetLayouts = layouts.data(),
-            .pushConstantRangeCount = static_cast<uint32_t>(push_constants.size()),
-            .pPushConstantRanges = push_constants.data(),
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = static_cast<uint32_t>(layouts.size()),
+        .pSetLayouts = layouts.data(),
+        .pushConstantRangeCount = static_cast<uint32_t>(push_constants.size()),
+        .pPushConstantRanges = push_constants.data(),
     };
     auto pipeline_layout = VkPipelineLayout{};
     result = vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr, &pipeline_layout);
     if (result != VK_SUCCESS) {
         vkDestroyShaderModule(device, module, nullptr);
-        for (const auto layout: layouts) {
+        for (const auto layout : layouts) {
             vkDestroyDescriptorSetLayout(device, layout, nullptr);
         }
 
@@ -94,21 +98,21 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
     }
 
     const auto create_info = VkComputePipelineCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-            .stage = VkPipelineShaderStageCreateInfo{
-                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                    .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-                    .module = module,
-                    .pName = "main",
-            },
-            .layout = pipeline_layout
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .stage = VkPipelineShaderStageCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+            .module = module,
+            .pName = "main",
+        },
+        .layout = pipeline_layout
     };
     auto pipeline = VkPipeline{};
     vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline);
     result = vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr, &pipeline_layout);
     if (result != VK_SUCCESS) {
         vkDestroyShaderModule(device, module, nullptr);
-        for (const auto layout: layouts) {
+        for (const auto layout : layouts) {
             vkDestroyDescriptorSetLayout(device, layout, nullptr);
         }
 
@@ -119,12 +123,12 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
     }
 
     vkDestroyShaderModule(device, module, nullptr);
-    for (const auto layout: layouts) {
+    for (const auto layout : layouts) {
         vkDestroyDescriptorSetLayout(device, layout, nullptr);
     }
 
     const auto layout_name = fmt::format("{} Layout", name);
-    if(vkSetDebugUtilsObjectNameEXT != nullptr) {
+    if (vkSetDebugUtilsObjectNameEXT != nullptr) {
         const auto layout_name_info = VkDebugUtilsObjectNameInfoEXT{
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .objectType = VK_OBJECT_TYPE_PIPELINE_LAYOUT,

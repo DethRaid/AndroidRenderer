@@ -11,7 +11,7 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-constexpr uint32_t variable_size_array_max_size = 1024;
+constexpr uint32_t variable_size_array_max_size = 65536;
 
 constexpr const auto vertex_position_input_binding = VkVertexInputBindingDescription{
     .binding = 0,

@@ -96,6 +96,8 @@ void SceneRenderer::render() {
         }
     );
 
+    backend.get_texture_descriptor_pool().commit_descriptors();
+
     auto render_graph = backend.create_render_graph();
 
     render_graph.set_resource_usage(last_frame_depth_buffer, last_frame_depth_usage, true);

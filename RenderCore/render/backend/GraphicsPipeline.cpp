@@ -33,16 +33,17 @@ void GraphicsPipeline::create_pipeline_layout(
 
         auto create_info = VkDescriptorSetLayoutCreateInfo{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
             .bindingCount = static_cast<uint32_t>(bindings.size()),
             .pBindings = bindings.data(),
         };
 
         // If the last binding is un unsized texture array, tell Vulkan about it
         auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
+        auto flags = std::vector<VkDescriptorBindingFlags>{};
         if (set_info.has_variable_count_binding) {
-            auto flags = std::vector<VkDescriptorBindingFlags>{};
             flags.resize(bindings.size());
-            flags.back() = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+            flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
             flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
                 .bindingCount = static_cast<uint32_t>(flags.size()),

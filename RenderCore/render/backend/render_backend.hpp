@@ -8,6 +8,7 @@
 #include <tracy/TracyVulkan.hpp>
 
 #include "render_graph.hpp"
+#include "texture_descriptor_pool.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/command_allocator.hpp"
 #include "render/backend/pipeline_builder.hpp"
@@ -98,6 +99,8 @@ public:
 
     PipelineCache& get_pipeline_cache() const;
 
+    TextureDescriptorPool& get_texture_descriptor_pool() const;
+
     /**
      * Creates a descriptor builder for descriptors that will persist for a while
      *
@@ -177,6 +180,8 @@ private:
     std::unique_ptr<ResourceUploadQueue> upload_queue = {};
 
     std::unique_ptr<PipelineCache> pipeline_cache = {};
+
+    std::unique_ptr<TextureDescriptorPool> texture_descriptor_pool = {};
 
     VkCommandPool tracy_command_pool = VK_NULL_HANDLE;
     VkCommandBuffer tracy_command_buffer = VK_NULL_HANDLE;

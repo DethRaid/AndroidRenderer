@@ -34,7 +34,7 @@ layout(location = 0) out vec4 lighting;
 
 vec3 get_viewspace_position() {
     float depth = subpassLoad(gbuffer_depth).r;
-    vec2 texcoord = gl_FragCoord.xy / view_info.render_resolution;
+    vec2 texcoord = gl_FragCoord.xy / view_info.render_resolution.xy;
     vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
     vec4 viewspace_position = view_info.inverse_projection * ndc_position;
     viewspace_position /= viewspace_position.w;

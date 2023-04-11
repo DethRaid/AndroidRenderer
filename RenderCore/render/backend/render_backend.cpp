@@ -18,7 +18,7 @@ static std::shared_ptr<spdlog::logger> logger;
 
 static AutoCVar_Int cvar_enable_validation_layers{
     "r.vulkan.EnableValidationLayers",
-    "Whether to enable Vulkan validation layers", 1
+    "Whether to enable Vulkan validation layers", 0
 };
 
 static AutoCVar_Int cvar_enable_best_practices_layer{
@@ -30,7 +30,7 @@ static AutoCVar_Int cvar_enable_best_practices_layer{
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
     "r.vulkan.EnableGpuAssistedValidation",
     "Whether to enable GPU-assisted validation. Helpful when using bindless techniques, but incurs a performance penalty",
-    1
+    0
 };
 
 static AutoCVar_Int cvar_break_on_validation_warning{
@@ -104,11 +104,13 @@ RenderBackend::RenderBackend() {
 
     pipeline_cache = std::make_unique<PipelineCache>(*this);
 
+    texture_descriptor_pool = std::make_unique<TextureDescriptorPool>(*this);
+
     graphics_queue = *device.get_queue(vkb::QueueType::graphics);
     graphics_queue_family_index = *device.get_queue_index(vkb::QueueType::graphics);
 
     const auto graphics_queue_name = VkDebugUtilsObjectNameInfoEXT{
-        .sType =  VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
         .objectType = VK_OBJECT_TYPE_QUEUE,
         .objectHandle = reinterpret_cast<uint64_t>(graphics_queue),
         .pObjectName = "Graphics queue"
@@ -121,14 +123,14 @@ RenderBackend::RenderBackend() {
     // if (transfer_queue_maybe) {
     //     transfer_queue = *transfer_queue_maybe;
     // } else {
-        transfer_queue = graphics_queue;
+    transfer_queue = graphics_queue;
     // }
 
     // const auto transfer_queue_family_index_maybe = device.get_queue_index(vkb::QueueType::transfer);
     // if (transfer_queue_family_index_maybe) {
     //     transfer_queue_family_index = *transfer_queue_family_index_maybe;
     // } else {
-        transfer_queue_family_index = graphics_queue_family_index;
+    transfer_queue_family_index = graphics_queue_family_index;
     // }
 
     create_swapchain();
@@ -150,7 +152,7 @@ RenderBackend::RenderBackend() {
     for (auto& fence : frame_fences) {
         vkCreateFence(device.device, &fence_create_info, nullptr, &fence);
     }
-    
+
     create_default_resources();
 
     logger->info("Initialized backend");
@@ -188,7 +190,7 @@ void RenderBackend::create_instance_and_device() {
                         .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT)
                         .set_debug_callback(debug_callback);
 
-        if(cvar_enable_best_practices_layer.Get()) {
+        if (cvar_enable_best_practices_layer.Get()) {
             instance_builder.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT);
         }
 
@@ -260,6 +262,7 @@ void RenderBackend::create_instance_and_device() {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .descriptorIndexing = VK_TRUE,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+        .descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
         .descriptorBindingPartiallyBound = VK_TRUE,
         .descriptorBindingVariableDescriptorCount = VK_TRUE,
         .runtimeDescriptorArray = VK_TRUE,
@@ -459,7 +462,7 @@ void RenderBackend::flush_batched_command_buffers() {
             ZoneScopedN("vkQueueSubmit transfer");
             vkQueueSubmit(transfer_queue, 1, &transfer_submit, VK_NULL_HANDLE);
         }
-        
+
         for (auto commands : queued_transfer_command_buffers) {
             transfer_command_allocators[cur_frame_idx].return_command_buffer(commands);
         }
@@ -519,7 +522,7 @@ void RenderBackend::flush_batched_command_buffers() {
             auto commands = create_graphics_command_buffer();
 
             commands.begin();
-            
+
             commands.barrier({}, {}, transfer_barriers);
 
             commands.end();
@@ -543,7 +546,7 @@ void RenderBackend::flush_batched_command_buffers() {
             };
             vkQueueSubmit2(graphics_queue, 1, &submit, VK_NULL_HANDLE);
         }
-        
+
         transfer_barriers.clear();
     }
 
@@ -584,7 +587,7 @@ void RenderBackend::flush_batched_command_buffers() {
 
             vkResetFences(device, 1, &frame_fences[cur_frame_idx]);
             const auto result = vkQueueSubmit(graphics_queue, 1, &submit, frame_fences[cur_frame_idx]);
-            
+
             if (result == VK_ERROR_DEVICE_LOST) {
                 logger->error("Device lost detected!");
             }
@@ -655,6 +658,8 @@ PipelineCache& RenderBackend::get_pipeline_cache() const {
     return *pipeline_cache;
 }
 
+TextureDescriptorPool& RenderBackend::get_texture_descriptor_pool() const { return *texture_descriptor_pool; }
+
 CommandBuffer RenderBackend::create_graphics_command_buffer() {
     return CommandBuffer{graphics_command_allocators[cur_frame_idx].allocate_command_buffer(), *this};
 }
@@ -665,11 +670,11 @@ VkCommandBuffer RenderBackend::create_transfer_command_buffer() {
 
 void RenderBackend::create_command_pools() {
     for (auto& command_pool : graphics_command_allocators) {
-        command_pool = CommandAllocator{ device.device, graphics_queue_family_index };
+        command_pool = CommandAllocator{device.device, graphics_queue_family_index};
     }
 
     for (auto& command_pool : transfer_command_allocators) {
-        command_pool = CommandAllocator{ device.device, transfer_queue_family_index };
+        command_pool = CommandAllocator{device.device, transfer_queue_family_index};
     }
 }
 
@@ -715,7 +720,6 @@ VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
     if (!available_semaphores.empty()) {
         semaphore = available_semaphores.back();
         available_semaphores.pop_back();
-        
     } else {
         const auto create_info = VkSemaphoreCreateInfo{
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,

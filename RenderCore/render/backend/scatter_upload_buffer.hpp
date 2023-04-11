@@ -121,6 +121,7 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHa
                 commands.bind_buffer_reference(2, scatter_data);
                 commands.bind_buffer_reference(4, destination_buffer);
                 commands.set_push_constant(6, scatter_buffer_count);
+                commands.set_push_constant(7, static_cast<uint32_t>(sizeof(DataType)));
 
                 commands.bind_shader(scatter_shader);
 
@@ -131,12 +132,12 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHa
 
                 resources.destroy_buffer(scatter_indices);
                 resources.destroy_buffer(scatter_data);
+
+                scatter_indices = BufferHandle::None;
+                scatter_data = BufferHandle::None;
             }
         }
     );
-
-    scatter_indices = BufferHandle::None;
-    scatter_data = BufferHandle::None;
 
     scatter_buffer_count = 0;
 }

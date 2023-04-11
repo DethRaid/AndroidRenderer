@@ -13,57 +13,22 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
     const auto handle = material_pool.add_object(std::make_pair(new_material, MaterialProxy{}));
     auto& proxy = handle->second;
 
-    // Descriptor set...
+    auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
 
-    auto descriptor_builder = backend.create_persistent_descriptor_builder();
-    const auto& resources = backend.get_global_allocator();
-
-    const auto& base_color_texture = resources.get_texture(new_material.base_color_texture);
-    auto base_color_info = VkDescriptorImageInfo{
-        .sampler = new_material.base_color_sampler,
-        .imageView = base_color_texture.image_view,
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    };
-    descriptor_builder.bind_image(
-        0, &base_color_info, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
+    new_material.gpu_data.base_color_texture_index = texture_descriptor_pool.create_texture_srv(
+        new_material.base_color_texture, new_material.base_color_sampler
     );
-
-    const auto& normal_texture = resources.get_texture(new_material.normal_texture);
-    auto normal_texture_info = VkDescriptorImageInfo{
-        .sampler = new_material.normal_sampler,
-        .imageView = normal_texture.image_view,
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    };
-    descriptor_builder.bind_image(
-        1, &normal_texture_info, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        VK_SHADER_STAGE_FRAGMENT_BIT
+    new_material.gpu_data.normal_texture_index = texture_descriptor_pool.create_texture_srv(
+        new_material.normal_texture, new_material.normal_sampler
     );
-
-    const auto& metallic_roughness_texture = resources.get_texture(new_material.metallic_roughness_texture);
-    auto metallic_roughness_texture_info = VkDescriptorImageInfo{
-        .sampler = new_material.metallic_roughness_sampler,
-        .imageView = metallic_roughness_texture.image_view,
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    };
-    descriptor_builder.bind_image(
-        2, &metallic_roughness_texture_info, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        VK_SHADER_STAGE_FRAGMENT_BIT
+    new_material.gpu_data.data_texture_index = texture_descriptor_pool.create_texture_srv(
+        new_material.metallic_roughness_texture, new_material.metallic_roughness_sampler
     );
-
-    const auto& emission_texture = resources.get_texture(new_material.emission_texture);
-    auto emission_texture_info = VkDescriptorImageInfo{
-        .sampler = new_material.emission_sampler,
-        .imageView = emission_texture.image_view,
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    };
-    descriptor_builder.bind_image(
-        3, &emission_texture_info, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        VK_SHADER_STAGE_FRAGMENT_BIT
+    new_material.gpu_data.emission_texture_index = texture_descriptor_pool.create_texture_srv(
+        new_material.emission_texture, new_material.emission_sampler
     );
-
-    material_upload.add_data(handle.index, new_material.gpu_data);
     
-    proxy.descriptor_set = *descriptor_builder.build();
+    material_upload.add_data(handle.index, new_material.gpu_data);
 
     // Pipelines......
 

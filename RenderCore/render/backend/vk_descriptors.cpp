@@ -5,6 +5,8 @@
 #include "render/backend/render_backend.hpp"
 
 namespace vkutil {
+    constexpr auto variable_descriptor_array_max_size = 65536u;
+
     /**
      * Some heuristics for checking if a binding is _probably_ a variable-count descriptor array
      *
@@ -49,7 +51,10 @@ namespace vkutil {
         currentPool = VK_NULL_HANDLE;
     }
 
-    bool DescriptorAllocator::allocate(VkDescriptorSet* set, VkDescriptorSetLayout layout, const VkDescriptorSetVariableDescriptorCountAllocateInfo* variable_count_info) {
+    bool DescriptorAllocator::allocate(
+        VkDescriptorSet* set, VkDescriptorSetLayout layout,
+        const VkDescriptorSetVariableDescriptorCountAllocateInfo* variable_count_info
+    ) {
         if (currentPool == VK_NULL_HANDLE) {
             currentPool = grab_pool();
             usedPools.push_back(currentPool);
@@ -62,7 +67,7 @@ namespace vkutil {
         allocInfo.pSetLayouts = &layout;
         allocInfo.descriptorPool = currentPool;
         allocInfo.descriptorSetCount = 1;
-        
+
 
         VkResult allocResult = vkAllocateDescriptorSets(device, &allocInfo, set);
         bool needReallocate = false;
@@ -157,7 +162,8 @@ namespace vkutil {
         const auto& last_binding = info->pBindings[info->bindingCount - 1];
         if (is_descriptor_array(last_binding)) {
             flags.resize(info->bindingCount);
-            flags.back() = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+            flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
+                VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
             flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
                 .bindingCount = static_cast<uint32_t>(flags.size()),
@@ -337,8 +343,8 @@ namespace vkutil {
 
     bool DescriptorBuilder::build(VkDescriptorSet& set, VkDescriptorSetLayout& layout) {
         // Hack because Vulkan compatibility rules are stupid
-        if(is_descriptor_array(bindings.back())) {
-            bindings.back().descriptorCount = 1024;
+        if (is_descriptor_array(bindings.back())) {
+            bindings.back().descriptorCount = variable_descriptor_array_max_size;
         }
 
         //build layout first
@@ -354,12 +360,11 @@ namespace vkutil {
         auto success = false;
 
         //allocate descriptor
-        if(is_descriptor_array(bindings.back())) {
-            const auto count = 1024u;
+        if (is_descriptor_array(bindings.back())) {
             const auto count_info = VkDescriptorSetVariableDescriptorCountAllocateInfo{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
                 .descriptorSetCount = 1,
-                .pDescriptorCounts = &count,
+                .pDescriptorCounts = &variable_descriptor_array_max_size,
             };
             success = alloc.allocate(&set, layout, &count_info);
         } else {

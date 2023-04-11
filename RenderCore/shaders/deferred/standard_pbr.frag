@@ -1,6 +1,7 @@
 #version 460
 
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
 
 #include "shared/primitive_data.hpp"
@@ -20,10 +21,7 @@ layout(push_constant) uniform Constants {
     uint primitive_id;
 };
 
-layout(set = 1, binding = 0) uniform sampler2D base_color_texture;
-layout(set = 1, binding = 1) uniform sampler2D normal_texture;
-layout(set = 1, binding = 2) uniform sampler2D data_texture;
-layout(set = 1, binding = 3) uniform sampler2D emission_texture;
+layout(set = 1, binding = 0) uniform sampler2D textures[];
 
 layout(location = 0) in vec3 vertex_normal;
 layout(location = 1) in vec3 vertex_tangent;
@@ -40,7 +38,7 @@ void main() {
     BasicPbrMaterialGpu material = material_buffer.materials[primitive_data.data.x];
 
     // Base color
-    vec4 base_color_sample = texture(base_color_texture, vertex_texcoord);
+    vec4 base_color_sample = texture(textures[nonuniformEXT(material.base_color_texture_index)], vertex_texcoord);
     vec4 tinted_base_color = base_color_sample * material.base_color_tint * vertex_color;
 
     gbuffer_base_color = tinted_base_color;
@@ -52,19 +50,19 @@ void main() {
         bitangent,
         vertex_normal
     ));
-    vec3 normal_sample = texture(normal_texture, vertex_texcoord).xyz * 2.0 - 1.0;
+    vec3 normal_sample = texture(textures[nonuniformEXT(material.normal_texture_index)], vertex_texcoord).xyz * 2.0 - 1.0;
     vec3 normal = tbn * normal_sample;
-    gbuffer_normal = vec4(normal, 0.f);
+    gbuffer_normal = vec4(vertex_normal, 0.f);
 
     // Data
-    vec4 data_sample = texture(data_texture, vertex_texcoord);
+    vec4 data_sample = texture(textures[nonuniformEXT(material.data_texture_index)], vertex_texcoord);
     vec4 tinted_data = data_sample * vec4(0.f, material.roughness_factor, material.metalness_factor, 0.f);
 
     gbuffer_data = tinted_data;
 
     // Emission
     // TODO: Make sure this works well with my lighting model
-    vec4 emission_sample = texture(emission_texture, vertex_texcoord);
+    vec4 emission_sample = texture(textures[nonuniformEXT(material.emission_texture_index)], vertex_texcoord);
     vec4 tinted_emission = emission_sample * material.emission_factor;
 
     gbuffer_emission = tinted_emission;

@@ -1,6 +1,7 @@
 #version 460
 
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
 
 #include "common/brdf.glsl"
@@ -27,10 +28,7 @@ layout(set = 0, binding = 1) uniform SunLightBuffer {
     SunLightConstants sun;
 };
 
-layout(set = 1, binding = 0) uniform sampler2D base_color_texture;
-layout(set = 1, binding = 1) uniform sampler2D normal_texture;
-layout(set = 1, binding = 2) uniform sampler2D data_texture;
-layout(set = 1, binding = 3) uniform sampler2D emission_texture;
+layout(set = 1, binding = 0) uniform sampler2D textures[];
 
 layout(location = 0) in vec3 vertex_normal;
 layout(location = 1) in vec3 vertex_tangent;
@@ -43,12 +41,12 @@ layout(location = 1) out vec4 rsm_normal;
 void main() {
     PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
     BasicPbrMaterialGpu material = material_buffer.materials[primitive_data.data.x];
-    
+
     // Base color
-    vec4 base_color_sample = texture(base_color_texture, vertex_texcoord);
+    vec4 base_color_sample = texture(textures[nonuniformEXT(material.base_color_texture_index)], vertex_texcoord);
     vec4 tinted_base_color = base_color_sample * material.base_color_tint * vertex_color;
 
-    vec4 data_sample = texture(data_texture, vertex_texcoord);
+    vec4 data_sample = texture(textures[nonuniformEXT(material.data_texture_index)], vertex_texcoord);
     vec4 tinted_data = data_sample * vec4(0.f, material.roughness_factor, material.metalness_factor, 0.f);
 
     SurfaceInfo surface;

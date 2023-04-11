@@ -10,7 +10,11 @@ struct BasicPbrMaterialGpu {
     float roughness_factor;
 
     vec2 padding0;
-    vec4 padding1;
+
+    uint base_color_texture_index;
+    uint normal_texture_index;
+    uint data_texture_index;
+    uint emission_texture_index;
 };
 
 #endif

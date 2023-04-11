@@ -1,21 +1,10 @@
 #ifndef SAHRENDERER_BASIC_PBR_MATERIAL_HPP
 #define SAHRENDERER_BASIC_PBR_MATERIAL_HPP
 
-#include <glm/glm.hpp>
 #include <filesystem>
 
 #include "render/backend/handles.hpp"
-#include "render/backend/graphics_pipeline.hpp"
-
-struct BasicPbrMaterialGpu {
-    glm::vec4 base_color_tint;
-    glm::vec4 emission_factor;
-    float metalness_factor;
-    float roughness_factor;
-
-    glm::vec2 padding0;
-    glm::vec4 padding1;
-};
+#include "shared/basic_pbr_material.hpp"
 
 static_assert(sizeof(BasicPbrMaterialGpu) % 64 == 0);
 

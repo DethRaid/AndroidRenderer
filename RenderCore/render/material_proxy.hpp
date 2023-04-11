@@ -13,13 +13,9 @@ class RenderBackend;
 
 /**
  * Proxy for a material
- *
- * Immutable once created. To bind new resources, destroy this proxy and make a new one
  */
 struct MaterialProxy {
     std::unordered_map<ScenePassType, GraphicsPipelineHandle> pipelines;
-
-    VkDescriptorSet descriptor_set;
 };
 
 using BasicPbrMaterialProxy = std::pair<BasicPbrMaterial, MaterialProxy>;

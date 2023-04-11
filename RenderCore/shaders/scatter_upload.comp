@@ -11,10 +11,10 @@ layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Sc
     uint scatter_indices[];
 };
 layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer ScatterDataBuffer {
-    PrimitiveDataGPU scatter_data[];
+    uint scatter_data[];
 };
 layout(buffer_reference, std430, buffer_reference_align = 16) buffer DestDataBuffer {
-    PrimitiveDataGPU destination_data[];
+    uint destination_data[];
 };
 
 layout(push_constant) uniform Constants {
@@ -22,7 +22,7 @@ layout(push_constant) uniform Constants {
     ScatterDataBuffer scatter_data_buffer;
     DestDataBuffer dest_data_buffer;
     uint num_data;
-    uint padding7;
+    uint data_size; // Size of the data to copy in uints
 };
 
 void main() {
@@ -32,7 +32,10 @@ void main() {
         return;
     }
 
-    uint dest_index = scatter_indices_buffer.scatter_indices[index];
+    uint dest_index = scatter_indices_buffer.scatter_indices[index] * data_size;
 
-    dest_data_buffer.destination_data[dest_index] = scatter_data_buffer.scatter_data[index];
+    uint read_index = index * data_size;
+    for(uint offset = 0; offset < data_size; offset++) {
+        dest_data_buffer.destination_data[dest_index + offset] = scatter_data_buffer.scatter_data[read_index + offset];
+    }
 }
