@@ -62,7 +62,7 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
     );
 
     auto& material_buffer = resources.get_buffer(material_buffer_handle);
-    auto* materials_pointer = reinterpret_cast<BasicPbrMaterialGpu*>(material_buffer.allocation_info.pMappedData);
+    auto* materials_pointer = static_cast<BasicPbrMaterialGpu*>(material_buffer.allocation_info.pMappedData);
     auto& material_pointer = materials_pointer[handle.index];
     std::memcpy(&material_pointer, &new_material.gpu_data, sizeof(BasicPbrMaterialGpu));
 

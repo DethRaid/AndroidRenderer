@@ -12,7 +12,7 @@ layout(location = 1) out vec4 green;
 layout(location = 2) out vec4 blue;
 
 void main() {
-    vec3 scaled_color = color_in * (32 * 32) / (1024 * 1024);
+    vec3 scaled_color = color_in * (32 * 32) / (512 * 512);
 
     vec3 normal = normal_in;
     // normal.z *= -1;

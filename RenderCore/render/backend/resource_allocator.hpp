@@ -9,13 +9,12 @@
 #include <volk.h>
 
 #include "extern/cityhash/city_hash.hpp"
+#include "core/object_pool.hpp"
 #include "render/backend/texture.hpp"
 #include "render/backend/handles.hpp"
-#include "core/object_pool.hpp"
 #include "render/backend/buffer.hpp"
 #include "render/backend/constants.hpp"
 #include "render/backend/framebuffer.hpp"
-#include "render/backend/texture_usage_token.hpp"
 
 struct RenderPass;
 class RenderBackend;

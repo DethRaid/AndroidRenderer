@@ -42,7 +42,7 @@ SceneRenderer::SceneRenderer() :
 
     set_render_resolution(render_resolution);
 
-    if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
+    if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
         voxel_cache = std::make_unique<VoxelCache>(backend);
     }
 
@@ -78,7 +78,7 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
     sun_shadow_drawer = scene->create_view(ScenePassType::Shadow, meshes);
     gbuffer_drawer = scene->create_view(ScenePassType::Gbuffer, meshes);
 
-    lpv.set_scene(*scene, meshes);
+    lpv.set_scene_drawer(scene->create_view(ScenePassType::RSM, meshes));
 }
 
 void SceneRenderer::render() {
@@ -86,7 +86,20 @@ void SceneRenderer::render() {
 
     backend.advance_frame();
 
+    lighting_pass.set_gbuffer(
+        GBuffer{
+            .color = gbuffer_color_handle,
+            .normal = gbuffer_normals_handle,
+            .data = gbuffer_data_handle,
+            .emission = gbuffer_emission_handle,
+            .depth = gbuffer_depth_handle,
+        }
+    );
+
     auto render_graph = backend.create_render_graph();
+
+    render_graph.set_resource_usage(last_frame_depth_buffer, last_frame_depth_usage, true);
+    render_graph.set_resource_usage(last_frame_normal_target, last_frame_normal_usage, true);
 
     render_graph.add_compute_pass(
         {
@@ -133,10 +146,13 @@ void SceneRenderer::render() {
         }
     );
 
-    if (voxel_cache) {
+    if (voxel_cache && lpv.get_build_mode() == GvBuildMode::Voxels) {
         lpv.build_geometry_volume_from_voxels(render_graph, *scene, *voxel_cache);
-    } else {
-        lpv.build_geometry_volume_from_depth_buffer(render_graph, last_frame_depth_buffer);
+    } else if (lpv.get_build_mode() == GvBuildMode::DepthBuffers) {
+        lpv.build_geometry_volume_from_depth_buffer(
+            render_graph, last_frame_depth_buffer, last_frame_normal_target, player_view.get_buffer(),
+            scene_render_resolution
+        );
     }
 
     // VPL cloud generation
@@ -259,7 +275,13 @@ void SceneRenderer::render() {
 
     // Bloom
 
+    // TODO
+
     // Other postprocessing
+
+    // TODO
+
+    // UI
 
     const auto swapchain_index = backend.get_current_swapchain_index();
     const auto& swapchain_image = swapchain_images.at(swapchain_index);
@@ -295,7 +317,13 @@ void SceneRenderer::render() {
 
     render_graph.finish();
 
+    last_frame_depth_usage = render_graph.get_last_usage_token(gbuffer_depth_handle);
+    last_frame_normal_usage = render_graph.get_last_usage_token(gbuffer_normals_handle);
+
     backend.execute_graph(std::move(render_graph));
+
+    std::swap(gbuffer_depth_handle, last_frame_depth_buffer);
+    std::swap(gbuffer_normals_handle, last_frame_normal_target);
 }
 
 TracyVkCtx SceneRenderer::get_tracy_context() {
@@ -360,6 +388,10 @@ void SceneRenderer::create_scene_render_targets() {
         allocator.destroy_texture(last_frame_depth_buffer);
     }
 
+    if (last_frame_normal_target != TextureHandle::None) {
+        allocator.destroy_texture(last_frame_normal_target);
+    }
+
     if (lit_scene_handle != TextureHandle::None) {
         allocator.destroy_texture(lit_scene_handle);
     }
@@ -402,6 +434,12 @@ void SceneRenderer::create_scene_render_targets() {
         TextureUsage::RenderTarget
     );
 
+    last_frame_normal_target = allocator.create_texture(
+        "gbuffer_normals B", VK_FORMAT_R16G16B16A16_SFLOAT,
+        scene_render_resolution, 1,
+        TextureUsage::RenderTarget
+    );
+
     lit_scene_handle = allocator.create_texture(
         "lit_scene", VK_FORMAT_B10G11R11_UFLOAT_PACK32,
         scene_render_resolution, 1,
@@ -432,16 +470,6 @@ void SceneRenderer::create_scene_render_targets() {
 
         swapchain_images.push_back(swapchain_image);
     }
-
-    lighting_pass.set_gbuffer(
-        GBuffer{
-            .color = gbuffer_color_handle,
-            .normal = gbuffer_normals_handle,
-            .data = gbuffer_data_handle,
-            .emission = gbuffer_emission_handle,
-            .depth = gbuffer_depth_handle,
-        }
-    );
 
     ui_phase.set_resources(lit_scene_handle);
 }

@@ -55,6 +55,13 @@ public:
      */
     void execute_post_submit_tasks();
 
+    void set_resource_usage(TextureHandle texture, const TextureUsageToken& usage, bool skip_barrier = false);
+
+    /**
+     * \brief Retrieves the most recent usage token for the given texture
+     */
+    TextureUsageToken get_last_usage_token(TextureHandle texture_handle) const;
+
 private:
     RenderBackend& backend;
 
@@ -75,10 +82,6 @@ private:
     std::vector<std::function<void()>> post_submit_lambdas;
 
     void set_resource_usage(BufferHandle buffer, VkPipelineStageFlags2 pipeline_stage, VkAccessFlags2 access);
-
-    void set_resource_usage(
-        TextureHandle texture, VkPipelineStageFlags2 pipeline_stage, VkAccessFlags2 access, VkImageLayout layout
-    );
-
+    
     void issue_barriers(const CommandBuffer& cmds);
 };

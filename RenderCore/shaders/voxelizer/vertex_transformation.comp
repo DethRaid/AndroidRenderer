@@ -7,14 +7,11 @@
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_scalar_block_layout : enable
 
+#include "shared/primitive_data.hpp"
 #include "shared/vertex_data.hpp"
 #include "shared/triangle.hpp"
 
 #include "common/spherical_harmonics.glsl"
-
-struct PrimitiveDataGPU {
-    mat4 model;
-};
 
 layout(set = 0, binding = 0, scalar) readonly buffer VertexPositionBuffer {
     vec3 positions[];

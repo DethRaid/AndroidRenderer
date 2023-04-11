@@ -8,8 +8,6 @@
 #include <spdlog/fmt/bundled/format.h>
 #include <tracy/Tracy.hpp>
 
-#include "render_graph.hpp"
-#include "render_pass.hpp"
 #include "core/system_interface.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
@@ -25,11 +23,12 @@ ResourceAllocator::ResourceAllocator(RenderBackend& backend_in) :
         .vkGetDeviceProcAddr = vkGetDeviceProcAddr,
     };
     const auto create_info = VmaAllocatorCreateInfo{
+        .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
         .physicalDevice = backend.get_physical_device(),
         .device = backend.get_device().device,
         .pVulkanFunctions = &functions,
         .instance = backend.get_instance(),
-        .vulkanApiVersion = VK_API_VERSION_1_1
+        .vulkanApiVersion = VK_API_VERSION_1_3
     };
     const auto result = vmaCreateAllocator(&create_info, &vma);
     if (result != VK_SUCCESS) {
@@ -371,23 +370,25 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
 
     switch (usage) {
     case BufferUsage::StagingBuffer:
-        vk_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        vk_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
         vma_flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
         break;
 
     case BufferUsage::VertexBuffer:
-        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
 
     case BufferUsage::IndexBuffer:
-        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
 
     case BufferUsage::IndirectBuffer:
-        vk_usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+        vk_usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
             VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
@@ -399,7 +400,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
         break;
 
     case BufferUsage::StorageBuffer:
-        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
     }
@@ -436,6 +437,16 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
 
     buffer.name = name;
     buffer.create_info = create_info;
+
+    if ((vk_usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) != 0) {
+        const auto info = VkBufferDeviceAddressInfo{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+            .buffer = buffer.buffer
+        };
+        const auto va = vkGetBufferDeviceAddress(device, &info);
+        buffer.address.x = static_cast<uint32_t>(va & 0xFFFFFFFF);
+        buffer.address.y = static_cast<uint32_t>((va >> 32) & 0xFFFFFFFF);
+    }
 
     const auto handle = buffers.add_object(std::move(buffer));
     return static_cast<BufferHandle>(handle.index);
@@ -496,7 +507,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         if (!pass.clear_values.empty()) {
             load_action = VK_ATTACHMENT_LOAD_OP_CLEAR;
         }
-        
+
         auto layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         if (is_depth_format(render_target_actual.create_info.format)) {
             layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -521,7 +532,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
     attachment_references.reserve(pass.subpasses.size() * 3);
     subpasses.reserve(pass.subpasses.size());
     dependencies.reserve(pass.subpasses.size());
-    
+
     for (auto subpass_index = 0u; subpass_index < pass.subpasses.size(); subpass_index++) {
         const auto& subpass = pass.subpasses[subpass_index];
         auto description = VkSubpassDescription{
@@ -626,7 +637,8 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
                         dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
                     }
                     if (is_depth_producer) {
-                        dependency.srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+                        dependency.srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
                         dependency.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                     }
                     dependency.dstAccessMask = VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT;
@@ -666,7 +678,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         .pDependencies = dependencies.data(),
     };
 
-    if(pass.view_mask) {
+    if (pass.view_mask) {
         create_info.pNext = &multiview_info;
     }
 

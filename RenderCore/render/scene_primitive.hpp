@@ -6,13 +6,10 @@
 #include "render/mesh_handle.hpp"
 #include "core/object_pool.hpp"
 #include "render/material_proxy.hpp"
-
-struct PrimitiveData {
-    glm::mat4 model_matrix;
-};
+#include "shared/primitive_data.hpp"
 
 struct MeshPrimitive {
-    PrimitiveData data;
+    PrimitiveDataGPU data = {};
 
     MeshHandle mesh;
 

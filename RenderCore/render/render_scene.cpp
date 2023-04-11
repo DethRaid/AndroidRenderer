@@ -14,13 +14,13 @@ RenderScene::RenderScene(RenderBackend& backend_in) : backend{backend_in},
     auto& allocator = backend.get_global_allocator();
     primitive_data_buffer = allocator.create_buffer(
         "Primitive data",
-        max_num_primitives * sizeof(PrimitiveData),
+        max_num_primitives * sizeof(PrimitiveDataGPU),
         BufferUsage::StorageBuffer
     );
 
     // Defaults
     // sun.set_direction({0.1f, -1.f, 0.33f});
-    sun.set_direction({ 0.1f, -1.f, -0.33f });
+    sun.set_direction({ 0.1f, -1.f, -0.25f });
     sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 80000.f);
 }
 
@@ -82,7 +82,7 @@ std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
 
     const auto test_box = Box{ .min = min_bounds, .max = max_bounds };
     for(const auto& primitive : solid_primitives) {
-        const auto matrix = primitive->data.model_matrix;
+        const auto matrix = primitive->data.model;
         const auto mesh_bounds = primitive->mesh->bounds;
 
         const auto max_mesh_bounds= mesh_bounds * 0.5f;

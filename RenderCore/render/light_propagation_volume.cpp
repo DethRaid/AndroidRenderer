@@ -47,7 +47,13 @@ static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
 static auto cvar_lpv_build_gv_mode = AutoCVar_Enum<GvBuildMode>{
     "r.LPV.GvBuildMode",
     "How to build the geometry volume.\n0 = Disable\n1 = Use the RSM depth buffer and last frame's depth buffer\n2 = Use voxels from the renderer's voxel cache",
-    GvBuildMode::DepthBuffers
+    GvBuildMode::Off
+};
+
+static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
+    "r.lpv.RsmResolution",
+    "Resolution for the RSM targets",
+    512
 };
 
 static std::shared_ptr<spdlog::logger> logger;
@@ -134,10 +140,10 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                            .blendEnable = VK_TRUE,
                                            .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
                                            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                           .colorBlendOp = VK_BLEND_OP_ADD,
+                                           .colorBlendOp = VK_BLEND_OP_MAX,
                                            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
                                            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                           .alphaBlendOp = VK_BLEND_OP_ADD,
+                                           .alphaBlendOp = VK_BLEND_OP_MAX,
                                            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
                                        }
@@ -225,8 +231,8 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
     }
 }
 
-void LightPropagationVolume::set_scene(RenderScene& scene_in, MeshStorage& meshes_in) {
-    rsm_drawer = scene_in.create_view(ScenePassType::RSM, meshes_in);
+void LightPropagationVolume::set_scene_drawer(SceneDrawer&& drawer) {
+    rsm_drawer = std::move(drawer);
 }
 
 void LightPropagationVolume::update_cascade_transforms(const SceneTransform& view, const SunLight& light) {
@@ -395,7 +401,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
                             commands.bind_descriptor_set(0, global_set);
 
-                            commands.set_push_constant(1, cascade_index);
+                            commands.set_push_constant(3, cascade_index);
 
                             rsm_drawer.draw(commands);
 
@@ -443,21 +449,14 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                                         VK_SHADER_STAGE_FRAGMENT_BIT
                                                     )
-                                                    .bind_buffer(
-                                                        4, {.buffer = cascade.count_buffer},
-                                                        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                        VK_SHADER_STAGE_FRAGMENT_BIT
-                                                    )
-                                                    .bind_buffer(
-                                                        5, {.buffer = cascade.vpl_buffer},
-                                                        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                        VK_SHADER_STAGE_FRAGMENT_BIT
-                                                    )
                                                     .build();
 
                             commands.bind_descriptor_set(0, *set);
 
-                            commands.set_push_constant(0, cascade_index);
+                            commands.bind_buffer_reference(0, cascade.count_buffer);
+                            commands.bind_buffer_reference(2, cascade.vpl_buffer);
+
+                            commands.set_push_constant(5, cascade_index);
 
                             commands.bind_pipeline(vpl_pipeline);
 
@@ -492,15 +491,13 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                                          VK_SHADER_STAGE_VERTEX_BIT
                                                      )
-                                                     .bind_buffer(
-                                                         1, {.buffer = cascade.vpl_buffer},
-                                                         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
-                                                     )
                                                      .build();
 
                             commands.bind_descriptor_set(0, set);
 
-                            commands.set_push_constant(0, cascade_index);
+                            commands.bind_buffer_reference(0, cascade.vpl_buffer);
+                            commands.set_push_constant(2, cascade_index);
+                            commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
 
                             commands.bind_pipeline(vpl_injection_pipeline);
 
@@ -718,9 +715,14 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
 }
 
 void LightPropagationVolume::build_geometry_volume_from_depth_buffer(
-    const RenderGraph& render_graph, TextureHandle last_frame_depth_buffer
+    RenderGraph& graph, const TextureHandle last_frame_depth_buffer, const TextureHandle last_frame_normal_target,
+    const BufferHandle view_uniform_buffer, const glm::uvec2 resolution
 ) {
-    // TODO
+    for (auto cascade_index = 0u; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
+        inject_point_cloud_into_gv(
+            graph, last_frame_normal_target, last_frame_depth_buffer, resolution, view_uniform_buffer, cascade_index
+        );
+    }
 }
 
 void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
@@ -833,23 +835,50 @@ void LightPropagationVolume::add_lighting_to_scene(
 void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
     RenderGraph& graph, const CascadeData& cascade, const uint32_t cascade_index
 ) {
-    auto view_matrices = backend.get_global_allocator().create_buffer(
+    auto& allocator = backend.get_global_allocator();
+
+    auto view_matrices = allocator.create_buffer(
         "GV View Matrices Buffer", sizeof(ViewInfo), BufferUsage::UniformBuffer
     );
 
+    // We just need this data
+    const auto view = ViewInfo{
+        .inverse_view = glm::inverse(cascade.rsm_vp),
+        .inverse_projection = glm::mat4{1.f},
+    };
+
+    graph.add_compute_pass(
+        ComputePass{
+            .name = "Update view buffer",
+            .execute = [&](CommandBuffer& commands) { commands.update_buffer(view_matrices, view); }
+        }
+    );
+    const auto rsm_resolution = glm::uvec2{ static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get()) };
+    inject_point_cloud_into_gv(
+        graph, cascade.normals_target, cascade.depth_target, rsm_resolution, view_matrices, cascade_index
+    );
+
+    allocator.destroy_buffer(view_matrices);
+}
+
+void LightPropagationVolume::inject_point_cloud_into_gv(
+    RenderGraph& graph, const TextureHandle normal_texture, const TextureHandle depth_handle,
+    const glm::uvec2 resolution,
+    const BufferHandle view_uniform_buffer, const uint32_t cascade_index
+) {
     graph.add_render_pass(
         RenderPass{
             .name = "Inject into GV",
             .textures = {
                 {
-                    cascade.depth_target,
+                    depth_handle,
                     {
                         VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     }
                 },
                 {
-                    cascade.normals_target,
+                    normal_texture,
                     {
                         VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -862,25 +891,18 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
                     .name = "Inject into GV",
                     .color_attachments = {0},
                     .execute = [&](CommandBuffer& commands) {
-                        // We just need this data
-                        const auto view = ViewInfo{
-                            .inverse_view = glm::inverse(cascade.rsm_vp),
-                            .inverse_projection = glm::mat4{1.f},
-                        };
-                        commands.update_buffer(view_matrices, view);
-
                         const auto sampler = backend.get_default_sampler();
                         const auto set = *backend.create_frame_descriptor_builder()
                                                  .bind_image(
                                                      0, {
-                                                         .sampler = sampler, .image = cascade.normals_target,
+                                                         .sampler = sampler, .image = normal_texture,
                                                          .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                                      }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                                      VK_SHADER_STAGE_VERTEX_BIT
                                                  )
                                                  .bind_image(
                                                      1, {
-                                                         .sampler = sampler, .image = cascade.depth_target,
+                                                         .sampler = sampler, .image = depth_handle,
                                                          .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                                      }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                                      VK_SHADER_STAGE_VERTEX_BIT
@@ -890,7 +912,7 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
                                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
                                                  )
                                                  .bind_buffer(
-                                                     3, {.buffer = view_matrices},
+                                                     3, {.buffer = view_uniform_buffer},
                                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
                                                  )
                                                  .build();
@@ -898,12 +920,12 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
                         commands.bind_descriptor_set(0, set);
 
                         commands.set_push_constant(0, cascade_index);
-                        commands.set_push_constant(1, 1024u);
-                        commands.set_push_constant(2, 1024u);
+                        commands.set_push_constant(1, resolution.x);
+                        commands.set_push_constant(2, resolution.y);
 
                         commands.bind_pipeline(gv_injection_pipeline);
 
-                        commands.draw(1024 * 1024);
+                        commands.draw(resolution.x * resolution.y);
 
                         commands.clear_descriptor_set(0);
                     }
@@ -1049,16 +1071,17 @@ void LightPropagationVolume::perform_propagation_step(
 }
 
 void CascadeData::create_render_targets(ResourceAllocator& allocator) {
+    const auto resolution = glm::uvec2{ static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get()) };
     flux_target = allocator.create_texture(
-        "RSM Flux", VK_FORMAT_R8G8B8A8_SRGB, glm::uvec2{1024}, 1,
+        "RSM Flux", VK_FORMAT_R8G8B8A8_SRGB, resolution, 1,
         TextureUsage::RenderTarget
     );
     normals_target = allocator.create_texture(
-        "RSM Normals", VK_FORMAT_R8G8B8A8_UNORM, glm::uvec2{1024}, 1,
+        "RSM Normals", VK_FORMAT_R8G8B8A8_UNORM, resolution, 1,
         TextureUsage::RenderTarget
     );
     depth_target = allocator.create_texture(
-        "RSM Depth", VK_FORMAT_D16_UNORM, glm::uvec2{1024}, 1,
+        "RSM Depth", VK_FORMAT_D16_UNORM, resolution, 1,
         TextureUsage::RenderTarget
     );
 }

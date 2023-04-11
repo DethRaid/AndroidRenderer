@@ -30,7 +30,7 @@ static AutoCVar_Int cvar_enable_best_practices_layer{
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
     "r.vulkan.EnableGpuAssistedValidation",
     "Whether to enable GPU-assisted validation. Helpful when using bindless techniques, but incurs a performance penalty",
-    1
+    0
 };
 
 static AutoCVar_Int cvar_break_on_validation_warning{
@@ -265,6 +265,7 @@ void RenderBackend::create_instance_and_device() {
         .runtimeDescriptorArray = VK_TRUE,
         .scalarBlockLayout = VK_TRUE,
         .imagelessFramebuffer = VK_TRUE,
+        .bufferDeviceAddress = VK_TRUE,
         .shaderOutputLayer = VK_TRUE,
     };
 

@@ -11,17 +11,15 @@ struct BasicPbrMaterialGpu {
 };
 
 layout(push_constant) uniform Constants {
-    int primitive_id;
-    int constant1;
-    int constant2;
-    int constant3;
-} push_constants;
+    uvec2 primitive_data_buffer;
+    uint primitive_id;
+};
 
-layout(set = 2, binding = 0) uniform sampler2D base_color_texture;
-layout(set = 2, binding = 1) uniform sampler2D normal_texture;
-layout(set = 2, binding = 2) uniform sampler2D data_texture;
-layout(set = 2, binding = 3) uniform sampler2D emission_texture;
-layout(set = 2, binding = 4) uniform MaterialData {
+layout(set = 1, binding = 0) uniform sampler2D base_color_texture;
+layout(set = 1, binding = 1) uniform sampler2D normal_texture;
+layout(set = 1, binding = 2) uniform sampler2D data_texture;
+layout(set = 1, binding = 3) uniform sampler2D emission_texture;
+layout(set = 1, binding = 4) uniform MaterialData {
     BasicPbrMaterialGpu material;
 };
 

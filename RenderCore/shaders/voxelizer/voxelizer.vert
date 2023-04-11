@@ -2,9 +2,7 @@
 
 #extension GL_GOOGLE_include_directive : enable
 
-struct PrimitiveDataGPU {
-    mat4 model;
-};
+#include "shared/primitive_data.hpp"
 
 layout(set = 0, binding = 0, std140) uniform VoxelBoundsBuffer {
     mat4 world_to_bounds;

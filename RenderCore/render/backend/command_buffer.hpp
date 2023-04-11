@@ -8,9 +8,9 @@
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyVulkan.hpp>
 
-#include "buffer_usage_token.hpp"
+#include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
-#include "graphics_pipeline.hpp"
+#include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/framebuffer.hpp"
 #include "render/backend/vk_descriptors.hpp"
 
@@ -148,6 +148,17 @@ public:
     void set_push_constant(uint32_t index, uint32_t data);
 
     void set_push_constant(uint32_t index, float data);
+
+    /**
+     * \brief Binds a buffer to the push constants starting at index using buffer device address
+     *
+     * Note that this uses push constant space to bind the buffer. Calls to `set_push_constant` should be careful to
+     * not overwrite buffer addresses
+     *
+     * \param index Index at which to bind the buffer. Must be evenly divisible by two
+     * \param buffer_handle Handle of the buffer to bind
+     */
+    void bind_buffer_reference(uint32_t index, BufferHandle buffer_handle);
 
     void bind_descriptor_set(uint32_t set_index, VkDescriptorSet set);
 

@@ -20,7 +20,7 @@ PipelineCache::PipelineCache(RenderBackend& backend_in) : backend{backend_in} {
                                   data());
                               if (header->vendorID == physical_device.properties.vendorID &&
                                   header->deviceID == physical_device.properties.deviceID &&
-                                  header->pipelineCacheUUID == physical_device.properties.pipelineCacheUUID) {
+                                  std::memcmp(header->pipelineCacheUUID, physical_device.properties.pipelineCacheUUID, 16) == 0) {
                                   return cache_data;
                               }
 

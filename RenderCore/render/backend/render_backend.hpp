@@ -9,7 +9,6 @@
 
 #include "render_graph.hpp"
 #include "render/backend/resource_allocator.hpp"
-#include "render/texture_loader.hpp"
 #include "render/backend/command_allocator.hpp"
 #include "render/backend/pipeline_builder.hpp"
 #include "render/backend/resource_upload_queue.hpp"

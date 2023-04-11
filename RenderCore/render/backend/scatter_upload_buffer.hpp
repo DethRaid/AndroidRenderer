@@ -116,33 +116,17 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHa
             .execute = [&](CommandBuffer& commands) {
                 commands.flush_buffer(scatter_indices);
                 commands.flush_buffer(scatter_data);
-
-                auto set = *backend->create_frame_descriptor_builder()
-                                   .bind_buffer(
-                                       0, {.buffer = scatter_indices}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                       VK_SHADER_STAGE_COMPUTE_BIT
-                                   )
-                                   .bind_buffer(
-                                       1, {.buffer = scatter_data}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                       VK_SHADER_STAGE_COMPUTE_BIT
-                                   )
-                                   .bind_buffer(
-                                       2, {.buffer = destination_buffer}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                       VK_SHADER_STAGE_COMPUTE_BIT
-                                   )
-                                   .build();
                 
-                commands.bind_descriptor_set(0, set);
-
-                commands.set_push_constant(0, scatter_buffer_count);
+                commands.bind_buffer_reference(0, scatter_indices);
+                commands.bind_buffer_reference(2, scatter_data);
+                commands.bind_buffer_reference(4, destination_buffer);
+                commands.set_push_constant(6, scatter_buffer_count);
 
                 commands.bind_shader(scatter_shader);
 
                 // Add 1 because integer division is fun
                 commands.dispatch(scatter_buffer_count / 32 + 1, 1, 1);
-
-                commands.clear_descriptor_set(0);
-
+                
                 // Free the existing scatter upload buffers. We'll allocate new ones when/if we need them
 
                 resources.destroy_buffer(scatter_indices);

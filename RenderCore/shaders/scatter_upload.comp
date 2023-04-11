@@ -1,42 +1,38 @@
 #version 460 core
 
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference_uvec2 : enable
+
+#include "shared/primitive_data.hpp"
+
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
-struct PrimitiveDataGPU {
-    mat4 model;
-};
-
-layout(std430, set = 0, binding = 0) readonly buffer ScatterIndicesBuffer {
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer ScatterIndicesBuffer {
     uint scatter_indices[];
 };
-
-layout(std430, set = 0, binding = 1) readonly buffer ScatterDataBuffer {
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer ScatterDataBuffer {
     PrimitiveDataGPU scatter_data[];
 };
-
-layout(std430, set = 0, binding = 2) buffer DestDataBuffer {
+layout(buffer_reference, std430, buffer_reference_align = 16) buffer DestDataBuffer {
     PrimitiveDataGPU destination_data[];
 };
 
 layout(push_constant) uniform Constants {
+    ScatterIndicesBuffer scatter_indices_buffer;
+    ScatterDataBuffer scatter_data_buffer;
+    DestDataBuffer dest_data_buffer;
     uint num_data;
-    uint padding1;
-    uint padding2;
-    uint padding3;
-    uint padding4;
-    uint padding5;
-    uint padding6;
     uint padding7;
-} push_constants;
+};
 
 void main() {
     uint index = gl_GlobalInvocationID.x;
 
-    if(index >= push_constants.num_data) {
+    if(index >= num_data) {
         return;
     }
 
-    uint dest_index = scatter_indices[index];
+    uint dest_index = scatter_indices_buffer.scatter_indices[index];
 
-    destination_data[dest_index] = scatter_data[index];
+    dest_data_buffer.destination_data[dest_index] = scatter_data_buffer.scatter_data[index];
 }

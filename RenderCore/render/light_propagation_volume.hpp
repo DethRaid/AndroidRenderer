@@ -72,8 +72,8 @@ public:
     explicit LightPropagationVolume(RenderBackend& backend_in);
 
     void init_resources(ResourceAllocator& allocator);
-    
-    void set_scene(RenderScene& scene_in, MeshStorage& meshes_in);
+
+    void set_scene_drawer(SceneDrawer&& drawer);
 
     /**
      * Updates the transform of this LPV to match the scene view
@@ -86,15 +86,20 @@ public:
 
     GvBuildMode get_build_mode() const;
 
-    void build_geometry_volume_from_voxels(RenderGraph& render_graph, const RenderScene& scene, const VoxelCache& voxel_cache);
+    void build_geometry_volume_from_voxels(
+        RenderGraph& render_graph, const RenderScene& scene, const VoxelCache& voxel_cache
+    );
 
     /**
      * Builds the geometry volume from last frame's depth buffer
      */
-    void build_geometry_volume_from_depth_buffer(const RenderGraph& render_graph, TextureHandle last_frame_depth_buffer);
-    
+    void build_geometry_volume_from_depth_buffer(
+        RenderGraph& render_graph, TextureHandle last_frame_depth_buffer,
+        TextureHandle last_frame_normal_target, BufferHandle view_uniform_buffer, glm::uvec2 resolution
+    );
+
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
-    
+
     void propagate_lighting(RenderGraph& render_graph);
 
     /**
@@ -104,8 +109,10 @@ public:
      * @param gbuffers_descriptor The descriptor set that contains the gbuffer attachments as input attachments
      * @param scene_view_buffer Buffer with the matrices of the scene view
      */
-    void add_lighting_to_scene(CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor, BufferHandle scene_view_buffer) const;
-    
+    void add_lighting_to_scene(
+        CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor, BufferHandle scene_view_buffer
+    ) const;
+
 private:
     RenderBackend& backend;
 
@@ -160,11 +167,14 @@ private:
      */
     void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index);
 
-    void perform_propagation_step(RenderGraph& render_graph,
-                                  TextureHandle read_red, TextureHandle read_green, TextureHandle read_blue,
-                                  TextureHandle write_red, TextureHandle write_green, TextureHandle write_blue) const;
+    void inject_point_cloud_into_gv(
+        RenderGraph& graph, TextureHandle normal_texture, TextureHandle depth_handle, glm::uvec2 resolution,
+        BufferHandle view_uniform_buffer, uint32_t cascade_index
+    );
 
+    void perform_propagation_step(
+        RenderGraph& render_graph,
+        TextureHandle read_red, TextureHandle read_green, TextureHandle read_blue,
+        TextureHandle write_red, TextureHandle write_green, TextureHandle write_blue
+    ) const;
 };
-
-
-

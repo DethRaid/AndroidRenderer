@@ -86,7 +86,12 @@ private:
     
     TextureHandle gbuffer_depth_handle = TextureHandle::None;
 
+    // This should be something like an extracted texture?
     TextureHandle last_frame_depth_buffer = TextureHandle::None;
+    TextureUsageToken last_frame_depth_usage = {};
+
+    TextureHandle last_frame_normal_target = TextureHandle::None;
+    TextureUsageToken last_frame_normal_usage = {};
 
     TextureHandle lit_scene_handle = TextureHandle::None;
 

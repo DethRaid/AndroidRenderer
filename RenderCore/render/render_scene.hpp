@@ -48,7 +48,7 @@ private:
 
     BufferHandle primitive_data_buffer;
 
-    ScatterUploadBuffer<PrimitiveData> primitive_upload_buffer;
+    ScatterUploadBuffer<PrimitiveDataGPU> primitive_upload_buffer;
 
     std::vector<PooledObject<MeshPrimitive>> solid_primitives;
 

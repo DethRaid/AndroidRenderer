@@ -104,7 +104,7 @@ void GltfModel::add_primitives(RenderScene& scene, RenderBackend& backend) {
                     );
                     const auto handle = scene.add_primitive(
                         graph, {
-                            .data = PrimitiveData{.model_matrix = node_to_world},
+                            .data = PrimitiveDataGPU{.model = node_to_world, .inverse_model = glm::inverse(node_to_world)},
                             .mesh = imported_mesh,
                             .material = imported_material,
                         }

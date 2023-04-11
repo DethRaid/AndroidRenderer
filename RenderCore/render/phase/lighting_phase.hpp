@@ -33,7 +33,7 @@ public:
 
     void set_shadowmap(TextureHandle shadowmap_in);
 
-    void render(CommandBuffer& commands, const SceneTransform& view, LightPropagationVolume& lpv);
+    void render(CommandBuffer& commands, const SceneTransform& view, const LightPropagationVolume& lpv);
 
 private:
     RenderBackend& backend;

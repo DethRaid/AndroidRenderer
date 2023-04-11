@@ -5,6 +5,7 @@
 #extension GL_KHR_shader_subgroup_ballot : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference_uvec2 : enable
 
 #include "shared/vpl.hpp"
 #include "shared/sun_light_constants.hpp"
@@ -32,28 +33,30 @@ layout(set = 0, binding = 3, std430) uniform LPVCascadesBuffer {
     LPVCascadeMatrices cascade_matrices[4];
 } cascade_matrices_buffer;
 
-layout(std430, set = 0, binding = 4) buffer CountBuffer {
+layout(buffer_reference, std430, buffer_reference_align = 16) buffer CountBuffer {
      uint    vertex_count;
      uint    instance_count;
      uint    first_vertex;
      uint    first_instance;
-} vpl_count_buffer;
+};
 
-layout(std430, set = 0, binding = 5) writeonly buffer VplListBuffer {
-    PackedVPL lights[];
+layout(buffer_reference, std430, buffer_reference_align = 16) writeonly buffer VplListBuffer  {
+     PackedVPL lights[];
 };
 
 layout(push_constant) uniform Constants {
+    CountBuffer vpl_count_buffer;
+    VplListBuffer vpl_list_buffer;
     int cascade_index;
-} push_constants;
+};
 
 layout(location = 0) in vec2 texcoord;
 
 vec4 get_worldspace_position() {
     float depth = subpassLoad(rsm_depth).r;
-    vec2 texcoord = gl_FragCoord.xy / 1024.f;
+    vec2 texcoord = gl_FragCoord.xy / 512.f;
     vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
-    vec4 worldspace_position = cascade_matrices_buffer.cascade_matrices[push_constants.cascade_index].inverse_rsm_vp * ndc_position;
+    vec4 worldspace_position = cascade_matrices_buffer.cascade_matrices[cascade_index].inverse_rsm_vp * ndc_position;
     worldspace_position /= worldspace_position.w;
 
     return worldspace_position;
@@ -68,7 +71,7 @@ void store_light(in VPL light) {
     packed_light.data.z = packHalf2x16(light.color.rg);
     packed_light.data.w = packSnorm4x8(vec4(light.normal, 0));
 
-    lights[light_index] = packed_light;
+    vpl_list_buffer.lights[light_index] = packed_light;
 }
 
 void main() {

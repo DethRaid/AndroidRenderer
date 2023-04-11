@@ -286,6 +286,13 @@ void CommandBuffer::set_push_constant(const uint32_t index, const float data) {
     set_push_constant(index, glm::floatBitsToUint(data));
 }
 
+void CommandBuffer::bind_buffer_reference(const uint32_t index, const BufferHandle buffer_handle) {
+    const auto& buffer_actual = backend->get_global_allocator().get_buffer(buffer_handle);
+
+    set_push_constant(index, buffer_actual.address.x);
+    set_push_constant(index + 1, buffer_actual.address.y);
+}
+
 void CommandBuffer::bind_descriptor_set(const uint32_t set_index, const VkDescriptorSet set) {
     descriptor_sets[set_index] = set;
 

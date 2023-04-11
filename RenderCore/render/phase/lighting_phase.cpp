@@ -5,12 +5,12 @@
 
 LightingPhase::LightingPhase(RenderBackend& backend_in) : backend{backend_in} {}
 
-void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, LightPropagationVolume& lpv) {
+void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, const LightPropagationVolume& lpv) {
     if (scene == nullptr) {
         return;
     }
     
-    GpuZoneScopedN(commands, "LightingPhase::render");
+    GpuZoneScopedN(commands, "LightingPhase::render")
     
     auto gbuffers_descriptor_set = VkDescriptorSet{};
     backend.create_frame_descriptor_builder()

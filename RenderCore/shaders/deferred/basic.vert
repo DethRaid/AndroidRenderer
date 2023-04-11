@@ -1,7 +1,12 @@
 #version 460
 
-struct PrimitiveDataGPU {
-    mat4 model;
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference_uvec2 : enable
+
+#include "shared/primitive_data.hpp"
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
+    PrimitiveDataGPU primitive_datas[];
 };
 
 layout(set = 0, binding = 0) uniform CameraData {
@@ -9,13 +14,10 @@ layout(set = 0, binding = 0) uniform CameraData {
     mat4 projection;
 } camera_data;
 
-layout(std430, set = 1, binding = 0) readonly buffer PrimitiveDataBuffer {
-    PrimitiveDataGPU primitive_datas[];
-} primitive_data_buffer;
-
 layout(push_constant) uniform Constants {
-    int primitive_id;
-} push_constants;
+    PrimitiveDataBuffer primitive_data_buffer;
+    uint primitive_id;
+};
 
 layout(location = 0) in vec3 position_in;
 layout(location = 1) in vec3 normal_in;
@@ -29,7 +31,7 @@ layout(location = 2) out vec2 texcoord_out;
 layout(location = 3) out vec4 color_out;
 
 void main() {
-    PrimitiveDataGPU data = primitive_data_buffer.primitive_datas[push_constants.primitive_id];
+    PrimitiveDataGPU data = primitive_data_buffer.primitive_datas[primitive_id];
 
     gl_Position = camera_data.projection * camera_data.view * data.model * vec4(position_in, 1.f);
 
