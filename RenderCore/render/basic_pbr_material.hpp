@@ -4,9 +4,8 @@
 #include <glm/glm.hpp>
 #include <filesystem>
 
-#include "scene_pass_type.hpp"
 #include "render/backend/handles.hpp"
-#include "backend\graphics_pipeline.hpp"
+#include "render/backend/graphics_pipeline.hpp"
 
 struct BasicPbrMaterialGpu {
     glm::vec4 base_color_tint;

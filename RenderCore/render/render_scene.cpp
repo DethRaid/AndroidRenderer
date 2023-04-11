@@ -8,9 +8,8 @@
 
 constexpr const uint32_t max_num_primitives = 65536;
 
-RenderScene::RenderScene(RenderBackend& backend_in) : backend{backend_in},
-                                                      sun{backend},
-                                                      primitive_upload_buffer{backend_in} {
+RenderScene::RenderScene(RenderBackend& backend_in)
+    : backend{backend_in}, sun{backend}, primitive_upload_buffer{backend_in} {
     auto& allocator = backend.get_global_allocator();
     primitive_data_buffer = allocator.create_buffer(
         "Primitive data",
@@ -20,12 +19,14 @@ RenderScene::RenderScene(RenderBackend& backend_in) : backend{backend_in},
 
     // Defaults
     // sun.set_direction({0.1f, -1.f, 0.33f});
-    sun.set_direction({ 0.1f, -1.f, -0.25f });
+    sun.set_direction({0.1f, -1.f, -0.33f});
     sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 80000.f);
 }
 
 PooledObject<MeshPrimitive>
 RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
+    // materials.
+
     const auto handle = mesh_primitives.add_object(std::move(primitive));
 
     if (primitive_upload_buffer.is_full()) {
@@ -54,9 +55,6 @@ void RenderScene::flush_primitive_upload(RenderGraph& graph) {
     primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
 }
 
-void RenderScene::add_model(GltfModel& model) {
-    model.add_primitives(*this, backend);
-}
 
 const std::vector<PooledObject<MeshPrimitive>>& RenderScene::get_solid_primitives() const {
     return solid_primitives;
@@ -70,32 +68,28 @@ SunLight& RenderScene::get_sun_light() {
     return sun;
 }
 
-SceneDrawer RenderScene::create_view(const ScenePassType type, const MeshStorage& meshes) {
-    return SceneDrawer{type, *this, meshes};
-}
-
 std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
     const glm::vec3& min_bounds, const glm::vec3& max_bounds
 ) const {
     auto output = std::vector<PooledObject<MeshPrimitive>>{};
     output.reserve(solid_primitives.size());
 
-    const auto test_box = Box{ .min = min_bounds, .max = max_bounds };
-    for(const auto& primitive : solid_primitives) {
+    const auto test_box = Box{.min = min_bounds, .max = max_bounds};
+    for (const auto& primitive : solid_primitives) {
         const auto matrix = primitive->data.model;
         const auto mesh_bounds = primitive->mesh->bounds;
 
-        const auto max_mesh_bounds= mesh_bounds * 0.5f;
+        const auto max_mesh_bounds = mesh_bounds * 0.5f;
         const auto min_mesh_bounds = -max_mesh_bounds;
-        const auto min_primitive_bounds = matrix * glm::vec4{ min_mesh_bounds, 1.f };
-        const auto max_primitive_bounds = matrix * glm::vec4{ max_mesh_bounds, 1.f };
+        const auto min_primitive_bounds = matrix * glm::vec4{min_mesh_bounds, 1.f};
+        const auto max_primitive_bounds = matrix * glm::vec4{max_mesh_bounds, 1.f};
 
-        const auto primitive_box = Box{ .min = min_primitive_bounds, .max = max_primitive_bounds };
+        const auto primitive_box = Box{.min = min_primitive_bounds, .max = max_primitive_bounds};
 
-        if(test_box.overlaps(primitive_box)) {
+        if (test_box.overlaps(primitive_box)) {
             output.push_back(primitive);
         }
     }
-    
+
     return output;
 }

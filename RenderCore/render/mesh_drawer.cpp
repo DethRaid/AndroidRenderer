@@ -1,12 +1,16 @@
 #include "mesh_drawer.hpp"
 
+#include "render/material_storage.hpp"
 #include "render/mesh_storage.hpp"
 #include "render/render_scene.hpp"
 #include "render/backend/command_buffer.hpp"
 
 SceneDrawer::SceneDrawer(
-    const ScenePassType type_in, const RenderScene& scene_in, const MeshStorage& mesh_storage_in
-) : scene{&scene_in}, mesh_storage{&mesh_storage_in}, type{type_in} {}
+    const ScenePassType type_in, const RenderScene& scene_in, const MeshStorage& mesh_storage_in,
+    const MaterialStorage& material_storage_in
+) : scene{&scene_in}, mesh_storage{&mesh_storage_in}, material_storage{&material_storage_in}, type{
+        type_in
+    } {}
 
 void SceneDrawer::draw(CommandBuffer& commands) const {
     if (scene == nullptr) {
@@ -20,13 +24,15 @@ void SceneDrawer::draw(CommandBuffer& commands) const {
     commands.bind_index_buffer(mesh_storage->get_index_buffer());
 
     commands.bind_buffer_reference(0, scene->get_primitive_buffer());
+    commands.bind_buffer_reference(2, material_storage->get_material_buffer());
+
 
     for (const auto& primitive : solids) {
         if (is_color_pass(type)) {
             commands.bind_descriptor_set(1, primitive->material->second.descriptor_set);
         }
 
-        commands.set_push_constant(2, primitive.index);
+        commands.set_push_constant(4, primitive.index);
 
         commands.bind_pipeline(primitive->material->second.pipelines[type]);
 

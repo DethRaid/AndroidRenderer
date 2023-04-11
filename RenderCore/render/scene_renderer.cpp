@@ -24,9 +24,9 @@ static auto cvar_shadow_cascade_split_lambda = AutoCVar_Float{
 };
 
 SceneRenderer::SceneRenderer() :
-    backend{}, player_view{backend}, texture_loader{backend}, materials{backend},
-    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, lpv{backend},
-    lighting_pass{backend}, ui_phase{*this} {
+    backend{}, player_view{backend}, texture_loader{backend}, material_storage{backend},
+    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, lpv{backend}, lighting_pass{backend},
+    ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
     player_view.set_position_and_direction(glm::vec3{7.f, 1.f, 0.0f}, glm::vec3{-1.f, 0.0f, 0.f});
@@ -75,10 +75,10 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
     scene = &scene_in;
     lighting_pass.set_scene(scene_in);
 
-    sun_shadow_drawer = scene->create_view(ScenePassType::Shadow, meshes);
-    gbuffer_drawer = scene->create_view(ScenePassType::Gbuffer, meshes);
+    sun_shadow_drawer = SceneDrawer{ScenePassType::Shadow, *scene, meshes, material_storage};
+    gbuffer_drawer = SceneDrawer{ScenePassType::Gbuffer, *scene, meshes, material_storage};
 
-    lpv.set_scene_drawer(scene->create_view(ScenePassType::RSM, meshes));
+    lpv.set_scene_drawer(SceneDrawer{ScenePassType::RSM, *scene, meshes, material_storage});
 }
 
 void SceneRenderer::render() {
@@ -104,7 +104,7 @@ void SceneRenderer::render() {
     render_graph.add_compute_pass(
         {
             .name = "Tracy Collect",
-            .execute = [&](CommandBuffer& commands) { backend.collect_tracy_data(commands); }
+            .execute = [&](const CommandBuffer& commands) { backend.collect_tracy_data(commands); }
         }
     );
 
@@ -122,11 +122,11 @@ void SceneRenderer::render() {
 
                 lpv.update_cascade_transforms(player_view, scene->get_sun_light());
                 lpv.update_buffers(commands);
-
-                materials.flush_material_buffer(commands);
             }
         }
     );
+    
+    material_storage.flush_material_buffer(render_graph);
 
     scene->flush_primitive_upload(render_graph);
 
@@ -326,10 +326,6 @@ void SceneRenderer::render() {
     std::swap(gbuffer_normals_handle, last_frame_normal_target);
 }
 
-TracyVkCtx SceneRenderer::get_tracy_context() {
-    return backend.get_tracy_context();
-}
-
 RenderBackend& SceneRenderer::get_backend() {
     return backend;
 }
@@ -340,6 +336,10 @@ SceneTransform& SceneRenderer::get_local_player() {
 
 TextureLoader& SceneRenderer::get_texture_loader() {
     return texture_loader;
+}
+
+MaterialStorage& SceneRenderer::get_material_storage() {
+    return material_storage;
 }
 
 void SceneRenderer::create_shadow_render_targets() {
@@ -449,7 +449,7 @@ void SceneRenderer::create_scene_render_targets() {
     auto& swapchain = backend.get_swapchain();
     const auto& images = swapchain.get_images();
     const auto& image_views = swapchain.get_image_views();
-    for (auto swapchain_image_index = 0; swapchain_image_index < swapchain.image_count; swapchain_image_index++) {
+    for (auto swapchain_image_index = 0u; swapchain_image_index < swapchain.image_count; swapchain_image_index++) {
         const auto swapchain_image = allocator.emplace_texture(
             fmt::format("Swapchain image {}", swapchain_image_index), Texture{
                 .create_info = {
@@ -472,10 +472,6 @@ void SceneRenderer::create_scene_render_targets() {
     }
 
     ui_phase.set_resources(lit_scene_handle);
-}
-
-MaterialStorage& SceneRenderer::get_material_storage() {
-    return materials;
 }
 
 MeshStorage& SceneRenderer::get_mesh_storage() {

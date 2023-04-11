@@ -86,7 +86,7 @@ VkCommandBuffer CommandAllocator::allocate_command_buffer() {
     return commands;
 }
 
-void CommandAllocator::return_command_buffer(VkCommandBuffer buffer) {
+void CommandAllocator::return_command_buffer(const VkCommandBuffer buffer) {
     command_buffers.push_back(buffer);
 }
 

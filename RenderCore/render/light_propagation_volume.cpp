@@ -401,7 +401,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
                             commands.bind_descriptor_set(0, global_set);
 
-                            commands.set_push_constant(3, cascade_index);
+                            commands.set_push_constant(5, cascade_index);
 
                             rsm_drawer.draw(commands);
 
@@ -456,7 +456,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                             commands.bind_buffer_reference(0, cascade.count_buffer);
                             commands.bind_buffer_reference(2, cascade.vpl_buffer);
 
-                            commands.set_push_constant(5, cascade_index);
+                            commands.set_push_constant(4, cascade_index);
 
                             commands.bind_pipeline(vpl_pipeline);
 

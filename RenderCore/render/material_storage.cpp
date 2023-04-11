@@ -1,16 +1,16 @@
 #include "material_storage.hpp"
 #include "render/backend/render_backend.hpp"
 
-MaterialStorage::MaterialStorage(RenderBackend& backend_in) : backend{backend_in} {
+MaterialStorage::MaterialStorage(RenderBackend& backend_in) : backend{ backend_in }, material_upload{ backend } {
     auto& allocator = backend.get_global_allocator();
     material_buffer_handle = allocator.create_buffer(
         "Materials buffer", sizeof(BasicPbrMaterialGpu) * 65536,
-        BufferUsage::UniformBuffer
+        BufferUsage::StorageBuffer
     );
 }
 
 PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMaterial&& new_material) {
-    const auto handle = materials.add_object(std::make_pair(new_material, MaterialProxy{}));
+    const auto handle = material_pool.add_object(std::make_pair(new_material, MaterialProxy{}));
     auto& proxy = handle->second;
 
     // Descriptor set...
@@ -61,18 +61,8 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
         VK_SHADER_STAGE_FRAGMENT_BIT
     );
 
-    auto& material_buffer = resources.get_buffer(material_buffer_handle);
-    auto* materials_pointer = static_cast<BasicPbrMaterialGpu*>(material_buffer.allocation_info.pMappedData);
-    auto& material_pointer = materials_pointer[handle.index];
-    std::memcpy(&material_pointer, &new_material.gpu_data, sizeof(BasicPbrMaterialGpu));
-
-    auto uniform_info = VkDescriptorBufferInfo{
-        .buffer = material_buffer.buffer,
-        .offset = handle.index * sizeof(BasicPbrMaterialGpu),
-        .range = sizeof(BasicPbrMaterialGpu)
-    };
-    descriptor_builder.bind_buffer(4, &uniform_info, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
-
+    material_upload.add_data(handle.index, new_material.gpu_data);
+    
     proxy.descriptor_set = *descriptor_builder.build();
 
     // Pipelines......
@@ -159,6 +149,12 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
     return handle;
 }
 
-void MaterialStorage::flush_material_buffer(CommandBuffer& commands) {
-    commands.flush_buffer(material_buffer_handle);
+void MaterialStorage::destroy_material(PooledObject<BasicPbrMaterialProxy>&& proxy) {
+    material_pool.free_object(proxy);
 }
+
+void MaterialStorage::flush_material_buffer(RenderGraph& graph) {
+    material_upload.flush_to_buffer(graph, material_buffer_handle);
+}
+
+BufferHandle MaterialStorage::get_material_buffer() const { return material_buffer_handle; }

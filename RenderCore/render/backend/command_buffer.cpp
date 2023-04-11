@@ -289,6 +289,10 @@ void CommandBuffer::set_push_constant(const uint32_t index, const float data) {
 void CommandBuffer::bind_buffer_reference(const uint32_t index, const BufferHandle buffer_handle) {
     const auto& buffer_actual = backend->get_global_allocator().get_buffer(buffer_handle);
 
+    if(buffer_actual.address == glm::uvec2{0}) {
+        throw std::runtime_error{ "Buffer was not created with a device address! Is it a uniform buffer?" };
+    }
+
     set_push_constant(index, buffer_actual.address.x);
     set_push_constant(index + 1, buffer_actual.address.y);
 }

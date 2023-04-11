@@ -17,7 +17,8 @@ layout(set = 0, binding = 0, std140) uniform ShadowCascadesBuffer {
 
 layout(push_constant, std430) uniform Constants {
     PrimitiveDataBuffer primitive_data_buffer;
-    int primitive_id;
+    uvec2 material_buffer;
+    uint primitive_id;
 };
 
 layout(location = 0) in vec3 position_in;

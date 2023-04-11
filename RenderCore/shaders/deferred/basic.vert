@@ -16,6 +16,7 @@ layout(set = 0, binding = 0) uniform CameraData {
 
 layout(push_constant) uniform Constants {
     PrimitiveDataBuffer primitive_data_buffer;
+    uvec2 materials;
     uint primitive_id;
 };
 

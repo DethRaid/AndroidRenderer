@@ -1,17 +1,22 @@
 #version 460
 
-struct BasicPbrMaterialGpu {
-    vec4 base_color_tint;
-    vec4 emission_factor;
-    float metalness_factor;
-    float roughness_factor;
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference_uvec2 : enable
 
-    vec2 padding0;
-    vec4 padding1;
+#include "shared/primitive_data.hpp"
+#include "shared/basic_pbr_material.hpp"
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
+    PrimitiveDataGPU primitive_datas[];
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer MaterialBuffer {
+    BasicPbrMaterialGpu materials[];
 };
 
 layout(push_constant) uniform Constants {
-    uvec2 primitive_data_buffer;
+    PrimitiveDataBuffer primitive_data_buffer;
+    MaterialBuffer material_buffer;
     uint primitive_id;
 };
 
@@ -19,9 +24,6 @@ layout(set = 1, binding = 0) uniform sampler2D base_color_texture;
 layout(set = 1, binding = 1) uniform sampler2D normal_texture;
 layout(set = 1, binding = 2) uniform sampler2D data_texture;
 layout(set = 1, binding = 3) uniform sampler2D emission_texture;
-layout(set = 1, binding = 4) uniform MaterialData {
-    BasicPbrMaterialGpu material;
-};
 
 layout(location = 0) in vec3 vertex_normal;
 layout(location = 1) in vec3 vertex_tangent;
@@ -34,6 +36,9 @@ layout(location = 2) out vec4 gbuffer_data;
 layout(location = 3) out vec4 gbuffer_emission;
 
 void main() {
+    PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
+    BasicPbrMaterialGpu material = material_buffer.materials[primitive_data.data.x];
+
     // Base color
     vec4 base_color_sample = texture(base_color_texture, vertex_texcoord);
     vec4 tinted_base_color = base_color_sample * material.base_color_tint * vertex_color;
@@ -49,8 +54,7 @@ void main() {
     ));
     vec3 normal_sample = texture(normal_texture, vertex_texcoord).xyz * 2.0 - 1.0;
     vec3 normal = tbn * normal_sample;
-    // gbuffer_normal = vec4(normal, 0.f);
-    gbuffer_normal = vec4(vertex_normal, 0.f);
+    gbuffer_normal = vec4(normal, 0.f);
 
     // Data
     vec4 data_sample = texture(data_texture, vertex_texcoord);

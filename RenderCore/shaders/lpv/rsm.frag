@@ -1,24 +1,27 @@
 #version 460
 
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference_uvec2 : enable
 
 #include "common/brdf.glsl"
 #include "shared/sun_light_constants.hpp"
+#include "shared/basic_pbr_material.hpp"
+#include "shared/primitive_data.hpp"
 
-struct BasicPbrMaterialGpu {
-    vec4 base_color_tint;
-    vec4 emission_factor;
-    float metalness_factor;
-    float roughness_factor;
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
+    PrimitiveDataGPU primitive_datas[];
+};
 
-    vec2 padding0;
-    vec4 padding1;
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer MaterialBuffer {
+    BasicPbrMaterialGpu materials[];
 };
 
 layout(push_constant) uniform Constants {
-    int primitive_id;
-    int cascade_index;
-} push_constants;
+    PrimitiveDataBuffer primitive_data_buffer;
+    MaterialBuffer material_buffer;
+    uint primitive_id;
+    uint cascade_index;
+};
 
 layout(set = 0, binding = 1) uniform SunLightBuffer {
     SunLightConstants sun;
@@ -28,9 +31,6 @@ layout(set = 1, binding = 0) uniform sampler2D base_color_texture;
 layout(set = 1, binding = 1) uniform sampler2D normal_texture;
 layout(set = 1, binding = 2) uniform sampler2D data_texture;
 layout(set = 1, binding = 3) uniform sampler2D emission_texture;
-layout(set = 1, binding = 4) uniform MaterialData {
-    BasicPbrMaterialGpu material;
-};
 
 layout(location = 0) in vec3 vertex_normal;
 layout(location = 1) in vec3 vertex_tangent;
@@ -41,6 +41,9 @@ layout(location = 0) out vec4 rsm_flux;
 layout(location = 1) out vec4 rsm_normal;
 
 void main() {
+    PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
+    BasicPbrMaterialGpu material = material_buffer.materials[primitive_data.data.x];
+    
     // Base color
     vec4 base_color_sample = texture(base_color_texture, vertex_texcoord);
     vec4 tinted_base_color = base_color_sample * material.base_color_tint * vertex_color;

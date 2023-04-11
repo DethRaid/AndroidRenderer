@@ -30,7 +30,7 @@ static AutoCVar_Int cvar_enable_best_practices_layer{
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
     "r.vulkan.EnableGpuAssistedValidation",
     "Whether to enable GPU-assisted validation. Helpful when using bindless techniques, but incurs a performance penalty",
-    0
+    1
 };
 
 static AutoCVar_Int cvar_break_on_validation_warning{
@@ -607,6 +607,7 @@ void RenderBackend::collect_tracy_data(const CommandBuffer& commands) const {
 TracyVkCtx RenderBackend::get_tracy_context() const {
     return tracy_context;
 }
+
 
 void RenderBackend::create_tracy_context() {
     const auto pool_create_info = VkCommandPoolCreateInfo{

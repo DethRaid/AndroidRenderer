@@ -1,13 +1,11 @@
 #pragma once
 
-#include <memory>
-
 #include "render/scene_pass_type.hpp"
 
+class MaterialStorage;
 class CommandBuffer;
 class MeshStorage;
 class RenderScene;
-class SceneTransform;
 
 /**
  * Draws meshes!
@@ -28,6 +26,8 @@ class SceneDrawer {
 public:
     SceneDrawer() = default;
 
+    SceneDrawer(ScenePassType type_in, const RenderScene& scene_in, const MeshStorage& mesh_storage_in, const MaterialStorage& material_storage_in);
+
     SceneDrawer(const SceneDrawer& other) = default;
     SceneDrawer& operator=(const SceneDrawer& other) = default;
 
@@ -37,16 +37,13 @@ public:
     ~SceneDrawer() = default;
 
     void draw(CommandBuffer& commands) const;
-
-protected:
-    SceneDrawer(ScenePassType type_in, const RenderScene& scene_in, const MeshStorage& mesh_storage_in);
     
-    friend class RenderScene;
-
 private: 
     const RenderScene* scene = nullptr;
 
     const MeshStorage* mesh_storage = nullptr;
+
+    const MaterialStorage* material_storage = nullptr;
 
     ScenePassType type;
 };

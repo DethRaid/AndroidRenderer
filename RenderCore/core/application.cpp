@@ -30,6 +30,7 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
 }
 
 void Application::load_scene(const std::filesystem::path& scene_path) {
+    ZoneScoped;
     logger->info("Beginning load of scene {}", scene_path.string());
     if(scene_path.has_parent_path()) {
         logger->info("Scene path {} has parent path {}", scene_path.string(), scene_path.parent_path().string());
@@ -40,10 +41,16 @@ void Application::load_scene(const std::filesystem::path& scene_path) {
 #if defined(__ANDROID__)
     auto& system_interface = reinterpret_cast<AndroidSystemInterface&>(SystemInterface::get());
     auto data = fastgltf::AndroidGltfDataBuffer{system_interface.get_asset_manager()};
-    data.loadFromAndroidAsset(scene_path);
+    {
+        ZoneScopedN("Load file data");
+        data.loadFromAndroidAsset(scene_path);
+    }
 #else
     fastgltf::GltfDataBuffer data;
-    data.loadFromFile(scene_path);
+    {
+        ZoneScopedN("Load file data");
+        data.loadFromFile(scene_path);
+    }
 #endif
     std::unique_ptr<fastgltf::glTF> gltf;
     {
@@ -68,7 +75,7 @@ void Application::load_scene(const std::filesystem::path& scene_path) {
     logger->info("Beginning import of scene {}", scene_path.string());
 
     auto imported_model = GltfModel{scene_path, gltf->getParsedAsset(), *scene_renderer};
-    scene->add_model(imported_model);
+    imported_model.add_to_scene(*scene, *scene_renderer);
 
     logger->info("Loaded scene {}", scene_path.string());
 }

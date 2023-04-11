@@ -32,9 +32,7 @@ public:
      * Do the thing!
      */
     void render();
-
-    TracyVkCtx get_tracy_context();
-
+    
     RenderBackend& get_backend();
 
     SceneTransform& get_local_player();
@@ -59,7 +57,7 @@ private:
 
     TextureLoader texture_loader;
 
-    MaterialStorage materials;
+    MaterialStorage material_storage;
 
     MeshStorage meshes;
 
