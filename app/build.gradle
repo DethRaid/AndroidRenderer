@@ -34,7 +34,7 @@ android {
         shaders {
             def shared_shaders_include_dir =  "-I$projectDir/../RenderCore".toString()
             print "Include dir: '$shared_shaders_include_dir'"
-            glslcArgs.addAll(['-c', '-g', '--target-env=vulkan1.1', shared_shaders_include_dir])
+            glslcArgs.addAll(['-c', '-g', '--target-env=vulkan1.3', shared_shaders_include_dir])
         }
         externalNativeBuild {
             cmake {

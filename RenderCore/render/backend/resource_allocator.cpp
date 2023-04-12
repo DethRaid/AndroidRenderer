@@ -128,25 +128,28 @@ TextureHandle ResourceAllocator::create_texture(
         throw std::runtime_error{fmt::format("Could not create image view {}", image_view_name)};
     }
 
-    texture.rtv = texture.image_view;
-
-    if (vkSetDebugUtilsObjectNameEXT != nullptr) {
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_IMAGE,
-            .objectHandle = reinterpret_cast<uint64_t>(texture.image),
-            .pObjectName = name.c_str(),
+    if (num_mips == 1) {
+        texture.rtv = texture.image_view;
+    } else {
+        const auto rtv_create_info = VkImageViewCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = texture.image,
+            .viewType = num_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
+            .format = view_format == VK_FORMAT_UNDEFINED ? format : view_format,
+            .subresourceRange = {
+                .aspectMask = view_aspect,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = num_layers,
+            },
         };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
-
-        const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-            .objectHandle = reinterpret_cast<uint64_t>(texture.image_view),
-            .pObjectName = image_view_name.c_str(),
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
+        result = vkCreateImageView(device, &rtv_create_info, nullptr, &texture.rtv);
     }
+
+    backend.set_object_name(texture.image, name);
+    backend.set_object_name(texture.image_view, image_view_name);
+    backend.set_object_name(texture.rtv, fmt::format("{} RTV", name));
 
     auto handle = textures.add_object(std::move(texture));
     return static_cast<TextureHandle>(handle.index);
@@ -257,34 +260,12 @@ TextureHandle ResourceAllocator::create_volume_texture(
     };
     result = vkCreateImageView(device, &rtv_create_info, nullptr, &texture.rtv);
     if (result != VK_SUCCESS) {
-        throw std::runtime_error{fmt::format("Could not create image view {}", image_view_name)};
+        throw std::runtime_error{fmt::format("Could not create image view {} RTV", name)};
     }
 
-    if (vkSetDebugUtilsObjectNameEXT != nullptr) {
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_IMAGE,
-            .objectHandle = reinterpret_cast<uint64_t>(texture.image),
-            .pObjectName = name.c_str(),
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
-
-        const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-            .objectHandle = reinterpret_cast<uint64_t>(texture.image_view),
-            .pObjectName = image_view_name.c_str(),
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
-
-        const auto rtv_name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-            .objectHandle = reinterpret_cast<uint64_t>(texture.rtv),
-            .pObjectName = image_view_name.c_str(),
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &rtv_name_info);
-    }
+    backend.set_object_name(texture.image, name);
+    backend.set_object_name(texture.image_view, image_view_name);
+    backend.set_object_name(texture.rtv, fmt::format("{} RTV", name));
 
     auto handle = textures.add_object(std::move(texture));
     return static_cast<TextureHandle>(handle.index);
@@ -323,23 +304,8 @@ TextureHandle ResourceAllocator::emplace_texture(const std::string& name, Textur
             }
         }
 
-        if (vkSetDebugUtilsObjectNameEXT != nullptr) {
-            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_IMAGE,
-                .objectHandle = reinterpret_cast<uint64_t>(new_texture.image),
-                .pObjectName = name.c_str(),
-            };
-            vkSetDebugUtilsObjectNameEXT(device, &name_info);
-
-            const auto view_name_info = VkDebugUtilsObjectNameInfoEXT{
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-                .objectHandle = reinterpret_cast<uint64_t>(new_texture.image_view),
-                .pObjectName = image_view_name.c_str(),
-            };
-            vkSetDebugUtilsObjectNameEXT(device, &view_name_info);
-        }
+        backend.set_object_name(new_texture.image, name);
+        backend.set_object_name(new_texture.image_view, image_view_name);
     }
 
     if (new_texture.rtv == VK_NULL_HANDLE) {
@@ -425,15 +391,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
         throw std::runtime_error{fmt::format("Could not create buffer {}", name)};
     }
 
-    if (vkSetDebugUtilsObjectNameEXT != nullptr) {
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_BUFFER,
-            .objectHandle = reinterpret_cast<uint64_t>(buffer.buffer),
-            .pObjectName = name.c_str(),
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
-    }
+    backend.set_object_name(buffer.buffer, name);
 
     buffer.name = name;
     buffer.create_info = create_info;
@@ -490,12 +448,14 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         return itr->second;
     }
 
-    const auto total_num_attachments = pass.render_targets.size();
+    logger->debug("Creating render pass {}", pass.name);
+
+    const auto total_num_attachments = pass.attachments.size();
 
     auto attachments = std::vector<VkAttachmentDescription>{};
     attachments.reserve(total_num_attachments);
 
-    for (const auto& render_target : pass.render_targets) {
+    for (const auto& render_target : pass.attachments) {
         const auto& render_target_actual = get_texture(render_target);
 
         auto load_action = VK_ATTACHMENT_LOAD_OP_LOAD;
@@ -512,6 +472,8 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         if (is_depth_format(render_target_actual.create_info.format)) {
             layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         }
+
+        logger->debug("RenderPass attachment {} is {}", attachments.size(), render_target_actual.name);
 
         attachments.emplace_back(
             VkAttachmentDescription{
@@ -548,7 +510,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             auto& input_attachment_references = attachment_references.emplace_back();
             input_attachment_references.reserve(subpass.input_attachments.size());
             for (const auto& input_attachment_index : subpass.input_attachments) {
-                const auto input_attachment_handle = pass.render_targets[input_attachment_index];
+                const auto input_attachment_handle = pass.attachments[input_attachment_index];
                 const auto& input_attachment_actual = get_texture(input_attachment_handle);
                 if (is_depth_format(input_attachment_actual.create_info.format)) {
                     input_attachment_references.emplace_back(
@@ -619,11 +581,11 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
                     ) != previous_subpass.color_attachments.end()) {
                         it = input_attachments_unproduced.erase(it);
                         is_color_producer = true;
-                    }
-
-                    if (previous_subpass.depth_attachment && *previous_subpass.depth_attachment == *it) {
+                    } else if (previous_subpass.depth_attachment && *previous_subpass.depth_attachment == *it) {
                         it = input_attachments_unproduced.erase(it);
                         is_depth_producer = true;
+                    } else {
+                        ++it;
                     }
                 }
 
@@ -631,17 +593,11 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
                     auto& dependency = dependencies.emplace_back();
                     dependency.srcSubpass = producer_index;
                     dependency.dstSubpass = subpass_index;
+                    dependency.srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
                     dependency.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-                    if (is_color_producer) {
-                        dependency.srcStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                        dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-                    }
-                    if (is_depth_producer) {
-                        dependency.srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-                            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-                        dependency.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-                    }
-                    dependency.dstAccessMask = VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT;
+                    dependency.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+                    dependency.dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+                    dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
                 }
 
                 // Early-out
@@ -682,10 +638,47 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         create_info.pNext = &multiview_info;
     }
 
+    logger->debug("Creating a render pass with {} subpasses", create_info.subpassCount);
+    for (auto subpass_index = 0u; subpass_index < create_info.subpassCount; subpass_index++) {
+        const auto& subpass = create_info.pSubpasses[subpass_index];
+        logger->debug("Subpass {} has {} color attachments", subpass_index, subpass.colorAttachmentCount);
+        for (auto attachment_index = 0u; attachment_index < subpass.colorAttachmentCount; attachment_index++) {
+            const auto& attachment_ref = subpass.pColorAttachments[attachment_index];
+            logger->debug(
+                "\tattachment={} layout={}", attachment_ref.attachment, magic_enum::enum_name(attachment_ref.layout)
+            );
+        }
+        logger->debug("Subpass {} has {} depth attachments", subpass_index, subpass.pDepthStencilAttachment == nullptr ? 0 : 1);
+        if (subpass.pDepthStencilAttachment != nullptr) {
+            logger->debug(
+                "\tattachment={} layout={}", subpass.pDepthStencilAttachment->attachment,
+                magic_enum::enum_name(subpass.pDepthStencilAttachment->layout)
+            );
+        }
+        logger->debug("Subpass {} has {} input attachments", subpass_index, subpass.inputAttachmentCount);
+        for (auto attachment_index = 0u; attachment_index < subpass.inputAttachmentCount; attachment_index++) {
+            const auto& attachment_ref = subpass.pInputAttachments[attachment_index];
+            logger->debug(
+                "\tattachment={} layout={}", attachment_ref.attachment, magic_enum::enum_name(attachment_ref.layout)
+            );
+        }
+    }
+    if (create_info.dependencyCount > 0) {
+        logger->debug("Dependencies:");
+        for (auto dependency_index = 0u; dependency_index < create_info.dependencyCount; dependency_index++) {
+            const auto& dependency = create_info.pDependencies[dependency_index];
+            logger->debug("\tDependency between subpass {} and {}", dependency.srcSubpass, dependency.dstSubpass);
+            logger->debug("\t\tsrcStageMask={:x}, dstStageMask={:x}", dependency.srcStageMask, dependency.dstStageMask);
+            logger->debug("\t\tsrcAccessMask={:x}, dstAccessMask={:x}", dependency.srcAccessMask, dependency.dstAccessMask);
+        }
+    }
+
     VkRenderPass render_pass;
     {
         ZoneScopedN("vkCreateRenderPass");
         vkCreateRenderPass(backend.get_device().device, &create_info, nullptr, &render_pass);
+
+        backend.set_object_name(render_pass, pass.name);
     }
 
     cached_render_passes.emplace(pass.name, render_pass);
@@ -737,6 +730,47 @@ void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
         vkDestroyFramebuffer(device, framebuffer.framebuffer, nullptr);
     }
     zombie_framebuffers.clear();
+
+    vmaSetCurrentFrameIndex(vma, frame_idx);
+}
+
+void ResourceAllocator::report_memory_usage() const {
+    auto budgets = std::vector<VmaBudget>{};
+    budgets.resize(32);
+    vmaGetHeapBudgets(vma, budgets.data());
+
+    /*
+     * Google Pixel 7:
+     * Memory usage report
+     * Index | Block Count | Allocation Count | Block Bytes | Allocation Bytes | Total
+     *     0 |          23 |               50 |   302570368 |        212183360 | 302570368 out of 6229288550
+     *     1 |           0 |                0 |           0 |                0 | 0 out of 83886080
+     *
+     * RTX 2080 Super:
+     * Memory usage report
+     * Index | Block Count | Allocation Count | Block Bytes | Allocation Bytes | Total
+     *     0 |          24 |               43 |   251064576 |        191568192 | 251064576 out of 6711725260
+     *     1 |           1 |                4 |    33554432 |           215040 | 33554432 out of 27450340147
+     *     2 |           1 |                3 |     3506176 |             1984 | 3506176 out of 179516211
+     */
+
+    logger->info("Memory usage report");
+    logger->info("Index | Block Count | Allocation Count | Block Bytes | Allocation Bytes | Total");
+
+    auto budget_index = 0;
+    for (const auto& budget : budgets) {
+        if (budget.budget == 0) {
+            continue;
+        }
+
+        logger->info(
+            "{:>5} | {:>11} | {:>16} | {:>11} | {:>16} | {} out of {}",
+            budget_index, budget.statistics.blockCount, budget.statistics.allocationCount, budget.statistics.blockBytes,
+            budget.statistics.allocationBytes, budget.usage, budget.budget
+        );
+
+        budget_index++;
+    }
 }
 
 VmaAllocator ResourceAllocator::get_vma() const {

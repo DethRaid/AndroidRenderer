@@ -72,7 +72,7 @@ private:
 
     VkPipeline pipeline = VK_NULL_HANDLE;
 
-    void create_pipeline_layout(VkDevice device,
+    void create_pipeline_layout(RenderBackend& backend,
                                 const std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos);
 };
 

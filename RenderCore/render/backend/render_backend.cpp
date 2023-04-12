@@ -109,13 +109,15 @@ RenderBackend::RenderBackend() {
     graphics_queue = *device.get_queue(vkb::QueueType::graphics);
     graphics_queue_family_index = *device.get_queue_index(vkb::QueueType::graphics);
 
-    const auto graphics_queue_name = VkDebugUtilsObjectNameInfoEXT{
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-        .objectType = VK_OBJECT_TYPE_QUEUE,
-        .objectHandle = reinterpret_cast<uint64_t>(graphics_queue),
-        .pObjectName = "Graphics queue"
-    };
-    vkSetDebugUtilsObjectNameEXT(device, &graphics_queue_name);
+    if(vkSetDebugUtilsObjectNameEXT != nullptr) {
+        const auto graphics_queue_name = VkDebugUtilsObjectNameInfoEXT{
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_QUEUE,
+            .objectHandle = reinterpret_cast<uint64_t>(graphics_queue),
+            .pObjectName = "Graphics queue"
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &graphics_queue_name);
+    }
 
     // Don't use a dedicated transfer queue, because my attempts at a queue ownership transfer have failed
 
@@ -410,6 +412,11 @@ uint32_t RenderBackend::get_transfer_queue_family_index() const {
 void RenderBackend::advance_frame() {
     ZoneScoped;
 
+    total_num_frames++;
+    if(total_num_frames % 100 == 0) {
+        allocator->report_memory_usage();
+    }
+
     cur_frame_idx++;
     cur_frame_idx %= num_in_flight_frames;
 
@@ -643,7 +650,7 @@ GraphicsPipelineBuilder RenderBackend::begin_building_pipeline(std::string_view 
 
 tl::optional<ComputeShader>
 RenderBackend::create_compute_shader(const std::string& name, const std::vector<uint8_t>& instructions) const {
-    return ComputeShader::create(device.device, name, instructions);
+    return ComputeShader::create(*this, name, instructions);
 }
 
 uint32_t RenderBackend::get_current_gpu_frame() const {
@@ -819,4 +826,16 @@ void RenderBackend::create_default_resources() {
             }
         }
     );
+}
+
+void RenderBackend::set_object_name(const uint64_t object_handle, const VkObjectType object_type, const std::string& name) const {
+    if (vkSetDebugUtilsObjectNameEXT != nullptr) {
+        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = object_type,
+            .objectHandle = object_handle,
+            .pObjectName = name.c_str(),
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+    }
 }

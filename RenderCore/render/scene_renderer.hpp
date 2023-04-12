@@ -50,6 +50,12 @@ public:
      */
     void translate_player(const glm::vec3& movement);
 
+    /**
+     * \brief Fills the mip chain of a texture
+     * \param texture_handle Texture to fill the mip chain of
+     */
+    void fill_mip_chain(TextureHandle texture_handle);
+
 private:
     RenderBackend backend;
 

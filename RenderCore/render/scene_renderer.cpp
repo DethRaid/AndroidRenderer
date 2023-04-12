@@ -148,6 +148,8 @@ void SceneRenderer::render() {
         }
     );
 
+    fill_mip_chain(last_frame_depth_buffer);
+
     if (voxel_cache && lpv.get_build_mode() == GvBuildMode::Voxels) {
         lpv.build_geometry_volume_from_voxels(render_graph, *scene, *voxel_cache);
     } else if (lpv.get_build_mode() == GvBuildMode::DepthBuffers) {
@@ -166,7 +168,7 @@ void SceneRenderer::render() {
     render_graph.add_render_pass(
         RenderPass{
             .name = "CSM sun shadow",
-            .render_targets = {shadowmap_handle},
+            .attachments = {shadowmap_handle},
             .clear_values = std::vector{
                 VkClearValue{.depthStencil = {.depth = 1.f}}
             },
@@ -215,7 +217,7 @@ void SceneRenderer::render() {
                     }
                 }
             },
-            .render_targets = std::vector{
+            .attachments = std::vector{
                 gbuffer_color_handle,
                 gbuffer_normals_handle,
                 gbuffer_data_handle,
@@ -298,7 +300,7 @@ void SceneRenderer::render() {
                     }
                 }
             },
-            .render_targets = {swapchain_image},
+            .attachments = {swapchain_image},
             .subpasses = {
                 {
                     .name = "UI",
@@ -424,15 +426,18 @@ void SceneRenderer::create_scene_render_targets() {
         TextureUsage::RenderTarget
     );
 
+    const auto minor_dimension = glm::min(scene_render_resolution.x, scene_render_resolution.y);
+    const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
+
     gbuffer_depth_handle = allocator.create_texture(
         "gbuffer_depth A", VK_FORMAT_D32_SFLOAT,
-        scene_render_resolution, 1,
+        scene_render_resolution, num_mips,
         TextureUsage::RenderTarget
     );
 
     last_frame_depth_buffer = allocator.create_texture(
         "gbuffer_depth B", VK_FORMAT_D32_SFLOAT,
-        scene_render_resolution, 1,
+        scene_render_resolution, num_mips,
         TextureUsage::RenderTarget
     );
 
@@ -490,4 +495,8 @@ tl::optional<VoxelCache&> SceneRenderer::get_voxel_cache() const {
 
 void SceneRenderer::translate_player(const glm::vec3& movement) {
     player_view.translate(movement);
+}
+
+void SceneRenderer::fill_mip_chain(TextureHandle texture_handle) {
+    // TODO
 }

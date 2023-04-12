@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <stdexcept>
 #include <vector>
 #include <unordered_map>
 
@@ -144,6 +145,8 @@ public:
      */
     void free_resources_for_frame(uint32_t frame_idx);
 
+    void report_memory_usage() const;
+
     VmaAllocator get_vma() const;
 
 private:
@@ -171,4 +174,6 @@ private:
     // Cache from sampler create info hash to sampler
     // I do the hashing myself
     std::unordered_map<std::size_t, VkSampler> sampler_cache;
+
+    void set_object_name(uint64_t object_handle, VkObjectType object_type, const std::string& name);
 };

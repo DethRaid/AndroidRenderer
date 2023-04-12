@@ -36,7 +36,7 @@ void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, 
            )
            .bind_image(
                4,
-               {.sampler = {}, .image = gbuffer.depth, .image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL},
+               {.sampler = {}, .image = gbuffer.depth, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
                VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT
            )
            .build(gbuffers_descriptor_set);

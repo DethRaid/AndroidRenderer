@@ -1,5 +1,4 @@
-#ifndef SAHRENDERER_RENDER_BACKEND_HPP
-#define SAHRENDERER_RENDER_BACKEND_HPP
+#pragma once
 
 #include <array>
 
@@ -159,8 +158,12 @@ public:
 
     VkSampler get_default_sampler() const;
 
+    template<typename VulkanType>
+    void set_object_name(VulkanType object, const std::string& name) const;
+
 private:
     uint32_t cur_frame_idx = 0;
+    uint64_t total_num_frames = 0;
 
     vkb::Instance instance;
 
@@ -251,6 +254,31 @@ private:
     std::vector<VkSemaphore> available_semaphores;
     
     void create_default_resources();
+
+    void set_object_name(uint64_t object_handle, VkObjectType object_type, const std::string& name) const;
 };
 
-#endif //SAHRENDERER_RENDER_BACKEND_HPP
+
+template <typename VulkanType>
+void RenderBackend::set_object_name(VulkanType object, const std::string& name) const {
+    auto object_type = VK_OBJECT_TYPE_UNKNOWN;
+    if constexpr (std::is_same_v<VulkanType, VkImage>) {
+        object_type = VK_OBJECT_TYPE_IMAGE;
+    } else if constexpr (std::is_same_v<VulkanType, VkImageView>) {
+        object_type = VK_OBJECT_TYPE_IMAGE_VIEW;
+    } else if constexpr (std::is_same_v<VulkanType, VkBuffer>) {
+        object_type = VK_OBJECT_TYPE_BUFFER;
+    } else if constexpr (std::is_same_v<VulkanType, VkRenderPass>) {
+        object_type = VK_OBJECT_TYPE_RENDER_PASS;
+    } else if constexpr (std::is_same_v<VulkanType, VkPipeline>) {
+        object_type = VK_OBJECT_TYPE_PIPELINE;
+    } else if constexpr (std::is_same_v<VulkanType, VkPipelineLayout>) {
+        object_type = VK_OBJECT_TYPE_PIPELINE_LAYOUT;
+    } else if constexpr (std::is_same_v<VulkanType, VkShaderModule>) {
+        object_type = VK_OBJECT_TYPE_SHADER_MODULE;
+    } else {
+        throw std::runtime_error{ "Invalid object type" };
+    }
+
+    set_object_name(reinterpret_cast<uint64_t>(object), object_type, name);
+}

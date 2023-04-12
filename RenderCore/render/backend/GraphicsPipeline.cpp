@@ -13,7 +13,7 @@
 static std::shared_ptr<spdlog::logger> logger;
 
 void GraphicsPipeline::create_pipeline_layout(
-    VkDevice device,
+    RenderBackend& backend,
     const std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos
 ) {
     // Create descriptor sets
@@ -53,7 +53,7 @@ void GraphicsPipeline::create_pipeline_layout(
         }
 
         auto layout = VkDescriptorSetLayout{};
-        vkCreateDescriptorSetLayout(device, &create_info, nullptr, &layout);
+        vkCreateDescriptorSetLayout(backend.get_device(), &create_info, nullptr, &layout);
         descriptor_set_layouts[set_index] = layout;
     }
 
@@ -71,16 +71,10 @@ void GraphicsPipeline::create_pipeline_layout(
         .pPushConstantRanges = &push_constants,
     };
 
-    vkCreatePipelineLayout(device, &create_info, nullptr, &pipeline_layout);
+    vkCreatePipelineLayout(backend.get_device(), &create_info, nullptr, &pipeline_layout);
 
-    if (!pipeline_name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-            .objectHandle = reinterpret_cast<uint64_t>(pipeline_layout),
-            .pObjectName = pipeline_name.c_str()
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+    if(!pipeline_name.empty()) {
+        backend.set_object_name(pipeline_layout, pipeline_name);
     }
 }
 

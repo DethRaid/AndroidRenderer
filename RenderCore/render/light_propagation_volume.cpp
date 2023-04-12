@@ -47,7 +47,7 @@ static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
 static auto cvar_lpv_build_gv_mode = AutoCVar_Enum<GvBuildMode>{
     "r.LPV.GvBuildMode",
     "How to build the geometry volume.\n0 = Disable\n1 = Use the RSM depth buffer and last frame's depth buffer\n2 = Use voxels from the renderer's voxel cache",
-    GvBuildMode::Off
+    GvBuildMode::DepthBuffers
 };
 
 static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
@@ -369,7 +369,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         }
                     }
                 },
-                .render_targets = {
+                .attachments = {
                     cascade.flux_target,
                     cascade.normals_target,
                     cascade.depth_target,
@@ -477,7 +477,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
                     {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
                 },
-                .render_targets = {lpv_a_red, lpv_a_green, lpv_a_blue},
+                .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
                 .subpasses = {
                     {
                         .name = "VPL Injection",
@@ -885,7 +885,7 @@ void LightPropagationVolume::inject_point_cloud_into_gv(
                     }
                 }
             },
-            .render_targets = {geometry_volume_handle},
+            .attachments = {geometry_volume_handle},
             .subpasses = {
                 Subpass{
                     .name = "Inject into GV",

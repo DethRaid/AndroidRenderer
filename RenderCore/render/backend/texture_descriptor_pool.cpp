@@ -13,7 +13,7 @@ TextureDescriptorPool::TextureDescriptorPool(const RenderBackend& backend_in) : 
         .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .descriptorCount = sampled_image_count,
     };
-    constexpr auto pool_create_info = VkDescriptorPoolCreateInfo{
+    const auto pool_create_info = VkDescriptorPoolCreateInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
         .maxSets = 1,
@@ -26,7 +26,7 @@ TextureDescriptorPool::TextureDescriptorPool(const RenderBackend& backend_in) : 
         VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
     );
-    constexpr auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
+    const auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
         .bindingCount = 1,
         .pBindingFlags = &flags,
@@ -37,7 +37,7 @@ TextureDescriptorPool::TextureDescriptorPool(const RenderBackend& backend_in) : 
         .descriptorCount = sampled_image_count,
         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
     };
-    constexpr auto create_info = VkDescriptorSetLayoutCreateInfo{
+    const auto create_info = VkDescriptorSetLayoutCreateInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = &flags_create_info,
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
@@ -46,7 +46,7 @@ TextureDescriptorPool::TextureDescriptorPool(const RenderBackend& backend_in) : 
     };
     vkCreateDescriptorSetLayout(device, &create_info, nullptr, &descriptor_set_layout);
 
-    constexpr auto set_counts = VkDescriptorSetVariableDescriptorCountAllocateInfo{
+    const auto set_counts = VkDescriptorSetVariableDescriptorCountAllocateInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
         .descriptorSetCount = 1,
         .pDescriptorCounts = &sampled_image_count,

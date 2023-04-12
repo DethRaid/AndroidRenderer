@@ -6,11 +6,12 @@
 #include "pipeline_builder.hpp"
 #include "core/system_interface.hpp"
 #include "graphics_pipeline.hpp"
+#include "render_backend.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
 tl::optional<ComputeShader>
-ComputeShader::create(VkDevice device, const std::string& name, const std::vector<uint8_t>& instructions) {
+ComputeShader::create(const RenderBackend& backend, const std::string& name, const std::vector<uint8_t>& instructions) {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("ComputeShader");
     }
@@ -21,7 +22,7 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
         .pCode = reinterpret_cast<const uint32_t*>(instructions.data()),
     };
     VkShaderModule module;
-    auto result = vkCreateShaderModule(device, &module_create_info, nullptr, &module);
+    auto result = vkCreateShaderModule(backend.get_device(), &module_create_info, nullptr, &module);
     if (result != VK_SUCCESS) {
         logger->error("Could not create compute shader {}: Vulkan error {}", name, result);
         return tl::nullopt;
@@ -66,7 +67,7 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
         }
 
         auto dsl = VkDescriptorSetLayout{};
-        result = vkCreateDescriptorSetLayout(device, &create_info, nullptr, &dsl);
+        result = vkCreateDescriptorSetLayout(backend.get_device(), &create_info, nullptr, &dsl);
         if (result != VK_SUCCESS) {
             logger->error(
                 "Could not create descriptor set layout {} for shader {}: Vulkan error {}", set_index, name,
@@ -86,11 +87,11 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
         .pPushConstantRanges = push_constants.data(),
     };
     auto pipeline_layout = VkPipelineLayout{};
-    result = vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr, &pipeline_layout);
+    result = vkCreatePipelineLayout(backend.get_device(), &pipeline_layout_create_info, nullptr, &pipeline_layout);
     if (result != VK_SUCCESS) {
-        vkDestroyShaderModule(device, module, nullptr);
+        vkDestroyShaderModule(backend.get_device(), module, nullptr);
         for (const auto layout : layouts) {
-            vkDestroyDescriptorSetLayout(device, layout, nullptr);
+            vkDestroyDescriptorSetLayout(backend.get_device(), layout, nullptr);
         }
 
         logger->error("Could not create pipeline layout for shader {}: Vulkan error {}", name, result);
@@ -108,43 +109,29 @@ ComputeShader::create(VkDevice device, const std::string& name, const std::vecto
         .layout = pipeline_layout
     };
     auto pipeline = VkPipeline{};
-    vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline);
-    result = vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr, &pipeline_layout);
+    vkCreateComputePipelines(backend.get_device(), VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline);
+    result = vkCreatePipelineLayout(backend.get_device(), &pipeline_layout_create_info, nullptr, &pipeline_layout);
     if (result != VK_SUCCESS) {
-        vkDestroyShaderModule(device, module, nullptr);
+        vkDestroyShaderModule(backend.get_device(), module, nullptr);
         for (const auto layout : layouts) {
-            vkDestroyDescriptorSetLayout(device, layout, nullptr);
+            vkDestroyDescriptorSetLayout(backend.get_device(), layout, nullptr);
         }
 
-        vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
+        vkDestroyPipelineLayout(backend.get_device(), pipeline_layout, nullptr);
 
         logger->error("Could not create pipeline {}: Vulkan error {}", name, result);
         return tl::nullopt;
     }
 
-    vkDestroyShaderModule(device, module, nullptr);
+    vkDestroyShaderModule(backend.get_device(), module, nullptr);
     for (const auto layout : layouts) {
-        vkDestroyDescriptorSetLayout(device, layout, nullptr);
+        vkDestroyDescriptorSetLayout(backend.get_device(), layout, nullptr);
     }
 
     const auto layout_name = fmt::format("{} Layout", name);
-    if (vkSetDebugUtilsObjectNameEXT != nullptr) {
-        const auto layout_name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_PIPELINE_LAYOUT,
-            .objectHandle = reinterpret_cast<uint64_t>(pipeline_layout),
-            .pObjectName = layout_name.c_str()
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &layout_name_info);
 
-        const auto pipeline_name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_PIPELINE,
-            .objectHandle = reinterpret_cast<uint64_t>(pipeline),
-            .pObjectName = name.c_str()
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &pipeline_name_info);
-    }
+    backend.set_object_name(pipeline, name);
+    backend.set_object_name(pipeline_layout, layout_name);
 
     return ComputeShader{.layout = pipeline_layout, .pipeline = pipeline};
 }

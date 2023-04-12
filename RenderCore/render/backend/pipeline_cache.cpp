@@ -83,15 +83,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
 
         pipeline.vertex_shader_name = pipeline_builder.vertex_shader_name;
 
-        if (vkSetDebugUtilsObjectNameEXT != nullptr) {
-            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
-                .objectHandle = reinterpret_cast<uint64_t>(vertex_module),
-                .pObjectName = pipeline_builder.vertex_shader_name.c_str()
-            };
-            vkSetDebugUtilsObjectNameEXT(device, &name_info);
-        }
+        backend.set_object_name(vertex_module, pipeline_builder.vertex_shader_name);
 
         pipeline.vertex_stage = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -116,15 +108,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
 
         pipeline.geometry_shader_name = pipeline_builder.geometry_shader_name;
 
-        if (vkSetDebugUtilsObjectNameEXT != nullptr) {
-            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
-                .objectHandle = reinterpret_cast<uint64_t>(geometry_module),
-                .pObjectName = pipeline_builder.geometry_shader_name.c_str()
-            };
-            vkSetDebugUtilsObjectNameEXT(device, &name_info);
-        }
+        backend.set_object_name(geometry_module, pipeline_builder.geometry_shader_name);
 
         pipeline.geometry_stage = VkPipelineShaderStageCreateInfo{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -174,7 +158,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
     pipeline.vertex_inputs = pipeline_builder.vertex_inputs;
     pipeline.vertex_attributes = pipeline_builder.vertex_attributes;
 
-    pipeline.create_pipeline_layout(device, pipeline_builder.descriptor_sets);
+    pipeline.create_pipeline_layout(backend, pipeline_builder.descriptor_sets);
 
     return pipelines.add_object(std::move(pipeline));
 }

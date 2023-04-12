@@ -89,9 +89,9 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
 
     // Update state tracking for attachment images, and collect attachments for the framebuffer
     auto render_targets = std::vector<TextureHandle>{};
-    render_targets.reserve(pass.render_targets.size());
+    render_targets.reserve(pass.attachments.size());
     auto depth_target = tl::optional<TextureHandle>{};
-    for (const auto& render_target : pass.render_targets) {
+    for (const auto& render_target : pass.attachments) {
         const auto& render_target_actual = allocator.get_texture(render_target);
         if (is_depth_format(render_target_actual.create_info.format)) {
             depth_target = render_target;

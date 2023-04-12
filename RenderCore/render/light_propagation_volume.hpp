@@ -94,7 +94,7 @@ public:
      * Builds the geometry volume from last frame's depth buffer
      */
     void build_geometry_volume_from_depth_buffer(
-        RenderGraph& render_graph, TextureHandle last_frame_depth_buffer,
+        RenderGraph& graph, TextureHandle last_frame_depth_buffer,
         TextureHandle last_frame_normal_target, BufferHandle view_uniform_buffer, glm::uvec2 resolution
     );
 

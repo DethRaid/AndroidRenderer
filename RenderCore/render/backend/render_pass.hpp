@@ -72,7 +72,7 @@ struct RenderPass {
 
     std::unordered_map<BufferHandle, BufferUsageToken> buffers;
     
-    std::vector<TextureHandle> render_targets;
+    std::vector<TextureHandle> attachments;
 
     std::vector<VkClearValue> clear_values;
 

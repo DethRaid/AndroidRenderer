@@ -30,8 +30,7 @@ void handle_cmd(android_app *app, int32_t cmd) {
             if(application == nullptr) {
                 SystemInterface::initialize(app);
                 application = std::make_unique<Application>();
-                // application->load_scene("Sponza/Sponza.compressed.glb");
-                application->load_scene("Sponza/Sponza.gltf");
+                application->load_scene("Sponza/Sponza.compressed.glb");
                 application->update_resolution();
             }
             break;
