@@ -249,12 +249,16 @@ namespace vkutil {
     ) {
         auto& allocator = backend.get_global_allocator();
         const auto& image_actual = allocator.get_texture(info.image);
+        auto image_view = image_actual.image_view;
+        if(type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
+            image_view = image_actual.attachment_view;
+        }
 
         auto& vk_info = image_infos_to_delete.emplace_back(
             std::vector{
                 VkDescriptorImageInfo{
                     .sampler = info.sampler,
-                    .imageView = image_actual.image_view,
+                    .imageView = image_view,
                     .imageLayout = info.image_layout,
                 }
             }

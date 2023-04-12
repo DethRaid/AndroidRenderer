@@ -39,7 +39,7 @@ struct Texture {
      * View to use when using this image as a render target. Probably the same as image_view for 2D images, may be a
      * 2D array view for 3D images
      */
-    VkImageView rtv;
+    VkImageView attachment_view;
 
     TextureAllocationType type;
 

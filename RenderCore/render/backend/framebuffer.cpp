@@ -26,7 +26,7 @@ Framebuffer Framebuffer::create(RenderBackend& backend, const std::vector<Textur
     for (const auto& color_att: color_attachments) {
         const auto& attachment_actual = allocator.get_texture(color_att);
 
-        attachments.push_back(attachment_actual.rtv);
+        attachments.push_back(attachment_actual.attachment_view);
 
         // Assumes that all render targets have the same depth
         // If they don't all have the same depth, I'll get very sad
@@ -41,7 +41,7 @@ Framebuffer Framebuffer::create(RenderBackend& backend, const std::vector<Textur
     if (depth_attachment) {
         const auto& attachment_actual = allocator.get_texture(*depth_attachment);
 
-        attachments.push_back(attachment_actual.rtv);
+        attachments.push_back(attachment_actual.attachment_view);
 
         // Assumes that all render targets have the same depth
         // If they don't all have the same depth, I'll get very sad
