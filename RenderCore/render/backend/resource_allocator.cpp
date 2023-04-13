@@ -153,6 +153,32 @@ TextureHandle ResourceAllocator::create_texture(
     backend.set_object_name(texture.image_view, image_view_name);
     backend.set_object_name(texture.attachment_view, fmt::format("{} RTV", name));
 
+    texture.mip_views.reserve(num_mips);
+    for(auto i = 0u; i < num_mips; i++) {
+        const auto view_create_info = VkImageViewCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = texture.image,
+            .viewType = num_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
+            .format = view_format == VK_FORMAT_UNDEFINED ? format : view_format,
+            .subresourceRange = {
+                .aspectMask = view_aspect,
+                .baseMipLevel = i,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = num_layers,
+            },
+        };
+        auto view = VkImageView{};
+        result = vkCreateImageView(device, &view_create_info, nullptr, &view);
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error{ fmt::format("Could not create image view") };
+        }
+
+        backend.set_object_name(view, fmt::format("{} mip {}", name, i));
+
+        texture.mip_views.emplace_back(view);
+    }
+
     auto handle = textures.add_object(std::move(texture));
     return static_cast<TextureHandle>(handle.index);
 }

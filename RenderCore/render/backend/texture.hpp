@@ -43,6 +43,11 @@ struct Texture {
 
     TextureAllocationType type;
 
+    /**
+     * \brief Views that just look at one mip level of the image. Useful for single-pass-downsampling
+     */
+    std::vector<VkImageView> mip_views;
+
     union {
         VmaTextureAllocation vma;
         KtxTextureAllocation ktx;

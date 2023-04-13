@@ -5,16 +5,7 @@
 #include "common/spherical_harmonics.glsl"
 #include "common/brdf.glsl"
 #include "shared/lpv.hpp"
-
-struct ViewInfo {
-    mat4 view;
-    mat4 projection;
-
-    mat4 inverse_view;
-    mat4 inverse_projection;
-
-    vec2 render_resolution;
-};
+#include "shared/view_info.hpp"
 
 // Gbuffer textures
 
@@ -36,7 +27,9 @@ layout(set = 1, binding = 4) uniform ViewUniformBuffer {
     ViewInfo view_info;
 };
 
-#define NUM_CASCADES 4
+layout(push_constant) uniform Constants {
+    uint num_cascades;
+};
 
 // Texcoord from the vertex shader
 layout(location = 0) in vec2 texcoord;
@@ -46,7 +39,7 @@ layout(location = 0) out vec4 lighting;
 
 vec3 get_viewspace_position() {
     float depth = subpassLoad(gbuffer_depth).r;
-    vec2 texcoord = gl_FragCoord.xy / view_info.render_resolution;
+    vec2 texcoord = gl_FragCoord.xy / view_info.render_resolution.xy;
     vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
     vec4 viewspace_position = view_info.inverse_projection * ndc_position;
     viewspace_position /= viewspace_position.w;
@@ -58,7 +51,7 @@ vec3 sample_light_from_cascade(vec4 normal_coefficients, vec4 position_worldspac
     vec4 cascade_position = cascade_matrices[cascade_index].world_to_cascade * position_worldspace;
 
     cascade_position.x += float(cascade_index);
-    cascade_position.x /= NUM_CASCADES;
+    cascade_position.x /= num_cascades;
 
     vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
     vec4 green_coefficients = texture(lpv_green, cascade_position.xyz);
@@ -94,17 +87,17 @@ void main() {
     vec4 normal_coefficients = dir_to_sh(-surface.normal);
 
     float weights_total = 0;
-    float cascade_weights[NUM_CASCADES] = float[](0, 0, 0, 0);
-    for(uint i = 0; i < NUM_CASCADES; i++) {
+    float cascade_weights[4] = float[](0, 0, 0, 0);
+    for(uint i = 0; i < num_cascades; i++) {
         vec4 cascade_position = cascade_matrices[i].world_to_cascade * worldspace_position;
         if(all(greaterThan(cascade_position.xyz, vec3(0))) && all(lessThan(cascade_position.xyz, vec3(1)))) {
-            cascade_weights[i] = pow(2.0, float(NUM_CASCADES - i));
+            cascade_weights[i] = pow(2.0, float(num_cascades - i));
             weights_total += cascade_weights[i];
         }
     }
      
     vec3 indirect_light = vec3(0);
-    for(uint i = 0; i < NUM_CASCADES; i++) {
+    for(uint i = 0; i < num_cascades; i++) {
         vec4 offset = vec4(0);
         offset.xyz = surface.normal + float(i) * 0.01f;
         indirect_light += sample_light_from_cascade(normal_coefficients, worldspace_position + offset, i) * cascade_weights[i];
@@ -157,7 +150,7 @@ void main() {
     const vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
-    const float exposure_factor = PI;
+    const float exposure_factor = PI * PI * PI;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 

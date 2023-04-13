@@ -25,11 +25,12 @@ static auto cvar_shadow_cascade_split_lambda = AutoCVar_Float{
 
 SceneRenderer::SceneRenderer() :
     backend{}, player_view{backend}, texture_loader{backend}, material_storage{backend},
-    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, lpv{backend}, lighting_pass{backend},
+    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, mip_chain_generator{backend}, lpv{backend},
+    lighting_pass{backend},
     ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
-    player_view.set_position_and_direction(glm::vec3{7.f, 1.f, 0.0f}, glm::vec3{-1.f, 0.0f, 0.f});
+    player_view.set_position_and_direction(glm::vec3{10.f, 0.f, 20.0f}, glm::vec3{0.f, 0.0f, -1.f});
 
     const auto render_resolution = SystemInterface::get().get_resolution();
 
@@ -127,7 +128,7 @@ void SceneRenderer::render() {
             }
         }
     );
-    
+
     material_storage.flush_material_buffer(render_graph);
 
     scene->flush_primitive_upload(render_graph);
@@ -148,7 +149,7 @@ void SceneRenderer::render() {
         }
     );
 
-    fill_mip_chain(last_frame_depth_buffer);
+    mip_chain_generator.fill_mip_chain(render_graph, last_frame_depth_buffer);
 
     if (voxel_cache && lpv.get_build_mode() == GvBuildMode::Voxels) {
         lpv.build_geometry_volume_from_voxels(render_graph, *scene, *voxel_cache);
@@ -495,8 +496,4 @@ tl::optional<VoxelCache&> SceneRenderer::get_voxel_cache() const {
 
 void SceneRenderer::translate_player(const glm::vec3& movement) {
     player_view.translate(movement);
-}
-
-void SceneRenderer::fill_mip_chain(TextureHandle texture_handle) {
-    // TODO
 }

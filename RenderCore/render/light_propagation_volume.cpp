@@ -35,7 +35,7 @@ static auto cvar_lpv_num_cascades = AutoCVar_Int{
 
 static auto cvar_lpv_num_propagation_steps = AutoCVar_Int{
     "r.LPV.NumPropagationSteps",
-    "Number of times to propagate lighting through the LPV", 8
+    "Number of times to propagate lighting through the LPV", 1
 };
 
 static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
@@ -47,7 +47,7 @@ static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
 static auto cvar_lpv_build_gv_mode = AutoCVar_Enum<GvBuildMode>{
     "r.LPV.GvBuildMode",
     "How to build the geometry volume.\n0 = Disable\n1 = Use the RSM depth buffer and last frame's depth buffer\n2 = Use voxels from the renderer's voxel cache",
-    GvBuildMode::DepthBuffers
+    GvBuildMode::Off
 };
 
 static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
@@ -80,55 +80,54 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
         inject_into_gv_shader = *backend.create_compute_shader("Inject into GV", bytes);
     }
     {
-        vpl_injection_pipeline = backend.begin_building_pipeline("VPL Injection")
-                                        .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
-                                        .set_vertex_shader("shaders/lpv/vpl_injection.vert.spv")
-                                        .set_fragment_shader("shaders/lpv/vpl_injection.frag.spv")
-                                        .set_blend_state(
-                                            0, {
-                                                .blendEnable = VK_TRUE,
-                                                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .colorBlendOp = VK_BLEND_OP_ADD,
-                                                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .alphaBlendOp = VK_BLEND_OP_ADD,
-                                                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-                                            }
-                                        )
-                                        .set_blend_state(
-                                            1, {
-                                                .blendEnable = VK_TRUE,
-                                                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .colorBlendOp = VK_BLEND_OP_ADD,
-                                                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .alphaBlendOp = VK_BLEND_OP_ADD,
-                                                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-                                            }
-                                        )
-                                        .set_blend_state(
-                                            2, {
-                                                .blendEnable = VK_TRUE,
-                                                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .colorBlendOp = VK_BLEND_OP_ADD,
-                                                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                .alphaBlendOp = VK_BLEND_OP_ADD,
-                                                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-                                            }
-                                        )
-                                        .build();
-    }
-    {
         const auto bytes = *SystemInterface::get().load_file("shaders/lpv/lpv_propagate.comp.spv");
         propagation_shader = *backend.create_compute_shader("LPV Propagation", bytes);
     }
+    
+    vpl_injection_pipeline = backend.begin_building_pipeline("VPL Injection")
+                                    .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+                                    .set_vertex_shader("shaders/lpv/vpl_injection.vert.spv")
+                                    .set_fragment_shader("shaders/lpv/vpl_injection.frag.spv")
+                                    .set_blend_state(
+                                        0, {
+                                            .blendEnable = VK_TRUE,
+                                            .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .colorBlendOp = VK_BLEND_OP_ADD,
+                                            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .alphaBlendOp = VK_BLEND_OP_ADD,
+                                            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                        }
+                                    )
+                                    .set_blend_state(
+                                        1, {
+                                            .blendEnable = VK_TRUE,
+                                            .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .colorBlendOp = VK_BLEND_OP_ADD,
+                                            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .alphaBlendOp = VK_BLEND_OP_ADD,
+                                            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                        }
+                                    )
+                                    .set_blend_state(
+                                        2, {
+                                            .blendEnable = VK_TRUE,
+                                            .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .colorBlendOp = VK_BLEND_OP_ADD,
+                                            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                            .alphaBlendOp = VK_BLEND_OP_ADD,
+                                            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                        }
+                                    )
+                                    .build();
 
     gv_injection_pipeline = backend.begin_building_pipeline("GV Injection")
                                    .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
@@ -728,12 +727,15 @@ void LightPropagationVolume::build_geometry_volume_from_depth_buffer(
 void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
     render_graph.begin_label("LPV Propagation");
 
+    bool use_gv = false;
+
     for (auto step_index = 0; step_index < cvar_lpv_num_propagation_steps.Get(); step_index += 2) {
         perform_propagation_step(
-            render_graph, lpv_a_red, lpv_a_green, lpv_a_blue, lpv_b_red, lpv_b_green, lpv_b_blue
+            render_graph, lpv_a_red, lpv_a_green, lpv_a_blue, lpv_b_red, lpv_b_green, lpv_b_blue, use_gv
         );
+        use_gv = true;
         perform_propagation_step(
-            render_graph, lpv_b_red, lpv_b_green, lpv_b_blue, lpv_a_red, lpv_a_green, lpv_a_blue
+            render_graph, lpv_b_red, lpv_b_green, lpv_b_blue, lpv_a_red, lpv_a_green, lpv_a_blue, use_gv
         );
     }
 
@@ -824,6 +826,8 @@ void LightPropagationVolume::add_lighting_to_scene(
 
     commands.bind_pipeline(lpv_render_shader);
 
+    commands.set_push_constant(0, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
+
     commands.draw_triangle();
 
     commands.clear_descriptor_set(1);
@@ -853,7 +857,7 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
             .execute = [&](CommandBuffer& commands) { commands.update_buffer(view_matrices, view); }
         }
     );
-    const auto rsm_resolution = glm::uvec2{ static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get()) };
+    const auto rsm_resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
     inject_point_cloud_into_gv(
         graph, cascade.normals_target, cascade.depth_target, rsm_resolution, view_matrices, cascade_index
     );
@@ -938,7 +942,8 @@ void LightPropagationVolume::inject_point_cloud_into_gv(
 void LightPropagationVolume::perform_propagation_step(
     RenderGraph& render_graph,
     const TextureHandle read_red, const TextureHandle read_green, const TextureHandle read_blue,
-    const TextureHandle write_red, const TextureHandle write_green, const TextureHandle write_blue
+    const TextureHandle write_red, const TextureHandle write_green, const TextureHandle write_blue,
+    const bool use_gv
 ) const {
     render_graph.add_compute_pass(
         {
@@ -1058,6 +1063,8 @@ void LightPropagationVolume::perform_propagation_step(
 
                 commands.bind_shader(propagation_shader);
 
+                commands.set_push_constant(1, use_gv ? 1u : 0u);
+
                 for (uint32_t cascade_index = 0; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
                     commands.set_push_constant(0, cascade_index);
 
@@ -1071,7 +1078,7 @@ void LightPropagationVolume::perform_propagation_step(
 }
 
 void CascadeData::create_render_targets(ResourceAllocator& allocator) {
-    const auto resolution = glm::uvec2{ static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get()) };
+    const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
     flux_target = allocator.create_texture(
         "RSM Flux", VK_FORMAT_R8G8B8A8_SRGB, resolution, 1,
         TextureUsage::RenderTarget

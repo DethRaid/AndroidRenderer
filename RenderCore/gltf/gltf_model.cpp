@@ -201,6 +201,8 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
         material.gpu_data.metalness_factor = static_cast<float>(gltf_material.pbrData->metallicFactor);
         material.gpu_data.roughness_factor = static_cast<float>(gltf_material.pbrData->roughnessFactor);
 
+        material.gpu_data.emission_factor = glm::vec4(glm::make_vec3(gltf_material.emissiveFactor.data()), 1.f);
+
         if (gltf_material.pbrData->baseColorTexture) {
             material.base_color_texture = get_texture(
                 gltf_material.pbrData->baseColorTexture->textureIndex,

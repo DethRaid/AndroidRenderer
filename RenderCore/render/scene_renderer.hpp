@@ -5,6 +5,7 @@
 #include "render/material_storage.hpp"
 #include "render/texture_loader.hpp"
 #include "mesh_storage.hpp"
+#include "mip_chain_generator.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
@@ -49,13 +50,7 @@ public:
      * Translates the player's location
      */
     void translate_player(const glm::vec3& movement);
-
-    /**
-     * \brief Fills the mip chain of a texture
-     * \param texture_handle Texture to fill the mip chain of
-     */
-    void fill_mip_chain(TextureHandle texture_handle);
-
+    
 private:
     RenderBackend backend;
 
@@ -66,6 +61,8 @@ private:
     MaterialStorage material_storage;
 
     MeshStorage meshes;
+
+    MipChainGenerator mip_chain_generator;
 
     /**
      * Cache of voxel representations of static meshes

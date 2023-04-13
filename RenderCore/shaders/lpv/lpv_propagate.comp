@@ -19,15 +19,15 @@ layout(set = 0, binding = 5, rgba16f) uniform writeonly image3D write_lpv_blue;
 layout(set = 0, binding = 6, rgba16f) uniform readonly image3D geo_volume;
 
 layout(push_constant) uniform Constants {
-    int cascade_index;
-    uint padding1;
+    uint cascade_index;
+    uint use_gv;
     uint padding2;
     uint padding3;
     uint padding4;
     uint padding5;
     uint padding6;
     uint padding7;
-} push_constants;
+};
 
 const mat3 neighbour_orientations[6] = mat3[](
         // Z+
@@ -67,7 +67,7 @@ vec3 get_reproj_side_direction(uint index, mat3 orientation) {
 void main() {
     ivec3 cell = ivec3(gl_GlobalInvocationID);
     
-    ivec3 cascade_offset = push_constants.cascade_index * ivec3(32, 0, 0);
+    ivec3 cascade_offset = int(cascade_index) * ivec3(32, 0, 0);
 
     vec4 red_data = vec4(0);
     vec4 green_data = vec4(0);
@@ -80,7 +80,10 @@ void main() {
 
         ivec3 neighbor_cell = cell - ivec3(directions[neighbor]);
 
-        vec4 gv_sh = imageLoad(geo_volume, neighbor_cell);
+        vec4 gv_sh = vec4(0);
+        if(use_gv != 0) {
+            gv_sh = imageLoad(geo_volume, neighbor_cell);
+        }
 
         vec4 red_coefficients = imageLoad(read_lpv_red, neighbor_cell + cascade_offset);
         vec4 green_coefficients = imageLoad(read_lpv_green, neighbor_cell + cascade_offset);

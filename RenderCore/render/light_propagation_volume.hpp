@@ -175,6 +175,7 @@ private:
     void perform_propagation_step(
         RenderGraph& render_graph,
         TextureHandle read_red, TextureHandle read_green, TextureHandle read_blue,
-        TextureHandle write_red, TextureHandle write_green, TextureHandle write_blue
+        TextureHandle write_red, TextureHandle write_green, TextureHandle write_blue,
+        bool use_gv
     ) const;
 };

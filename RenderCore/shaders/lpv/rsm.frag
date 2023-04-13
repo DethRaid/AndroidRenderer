@@ -43,7 +43,7 @@ void main() {
     BasicPbrMaterialGpu material = material_buffer.materials[primitive_data.data.x];
 
     // Base color
-    vec4 base_color_sample = texture(textures[nonuniformEXT(material.base_color_texture_index)], vertex_texcoord);
+    vec4 base_color_sample = texture(textures[material.base_color_texture_index], vertex_texcoord);
     vec4 tinted_base_color = base_color_sample * material.base_color_tint * vertex_color;
 
     vec4 data_sample = texture(textures[nonuniformEXT(material.data_texture_index)], vertex_texcoord);

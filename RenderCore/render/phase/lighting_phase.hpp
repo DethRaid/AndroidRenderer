@@ -1,6 +1,8 @@
 #pragma once
 
 #include <volk.h>
+
+#include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
 class CommandBuffer;
@@ -42,7 +44,11 @@ private:
 
     GBuffer gbuffer;
 
-    void add_sun_lighting(CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor_set, const SceneTransform& view);
-    
+    GraphicsPipelineHandle emission_pipeline;
+
+    void add_sun_lighting(CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor_set, const SceneTransform& view) const;
+
+    void add_emissive_lighting(CommandBuffer& commands, VkDescriptorSet gbuffer_descriptor_set);
+
     TextureHandle shadowmap = TextureHandle::None;
 };
