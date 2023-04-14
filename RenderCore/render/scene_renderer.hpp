@@ -91,10 +91,12 @@ private:
     TextureHandle depth_buffer_mip_chain = TextureHandle::None;
     TextureUsageToken last_frame_depth_usage = {};
     
-    TextureHandle last_frame_normal_target = TextureHandle::None;
+    TextureHandle normal_target_mip_chain = TextureHandle::None;
     TextureUsageToken last_frame_normal_usage = {};
 
     TextureHandle lit_scene_handle = TextureHandle::None;
+
+    TextureHandle bloom_mip_chain = TextureHandle::None;
 
     std::vector<TextureHandle> swapchain_images;
 

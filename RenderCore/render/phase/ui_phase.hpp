@@ -16,15 +16,17 @@ public:
 
     void set_resources(TextureHandle scene_color_in);
 
-    void render(CommandBuffer& commands, SceneTransform& view);
+    void render(CommandBuffer& commands, const SceneTransform& view, TextureHandle bloom_texture);
 private:
     SceneRenderer& scene_renderer;
 
     TextureHandle scene_color = TextureHandle::None;
 
+    VkSampler bilinear_sampler;
+
     void create_upscale_pipeline();
 
-    void upscale_scene_color(CommandBuffer& commands);
+    void upscale_scene_color(CommandBuffer& commands, TextureHandle bloom_texture);
 
     GraphicsPipelineHandle upsample_pipeline;
 };

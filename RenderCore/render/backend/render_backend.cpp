@@ -24,7 +24,7 @@ static AutoCVar_Int cvar_enable_validation_layers{
 static AutoCVar_Int cvar_enable_best_practices_layer{
     "r.vulkan.EnableBestPractices",
     "Whether to enable the best practices validation layer. It can be useful, but it complains a lot about libktx",
-    0
+    1
 };
 
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
@@ -76,7 +76,7 @@ VkBool32 VKAPI_ATTR debug_callback(
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
         spdlog::error("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
         if (cvar_break_on_validation_error.Get() != 0) {
-            SAH_BREAKPOINT;
+           SAH_BREAKPOINT;
         }
         break;
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_FLAG_BITS_MAX_ENUM_EXT:
@@ -262,6 +262,7 @@ void RenderBackend::create_instance_and_device() {
 
     auto required_1_2_features = VkPhysicalDeviceVulkan12Features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .shaderFloat16 = VK_TRUE,
         .descriptorIndexing = VK_TRUE,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
         .descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
@@ -270,6 +271,7 @@ void RenderBackend::create_instance_and_device() {
         .runtimeDescriptorArray = VK_TRUE,
         .scalarBlockLayout = VK_TRUE,
         .imagelessFramebuffer = VK_TRUE,
+        .shaderSubgroupExtendedTypes = VK_TRUE,
         .bufferDeviceAddress = VK_TRUE,
         .shaderOutputLayer = VK_TRUE,
     };

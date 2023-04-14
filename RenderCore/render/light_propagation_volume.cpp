@@ -66,8 +66,8 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
         clear_lpv_shader = *backend.create_compute_shader("Clear LPV", bytes);
     }
     {
-        const auto bytes = *SystemInterface::get().load_file("shaders/lpv/inject_into_gv.comp.spv");
-        inject_into_gv_shader = *backend.create_compute_shader("Inject into GV", bytes);
+        const auto bytes = *SystemInterface::get().load_file("shaders/lpv/inject_voxels_into_gv.comp.spv");
+        inject_voxels_into_gv_shader = *backend.create_compute_shader("Inject voxels into GV", bytes);
     }
     {
         const auto bytes = *SystemInterface::get().load_file("shaders/lpv/lpv_propagate.comp.spv");
@@ -127,7 +127,7 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                     )
                                     .build();
 
-    gv_injection_pipeline = backend.begin_building_pipeline("GV Injection")
+    inject_rsm_depth_into_gv_pipeline = backend.begin_building_pipeline("GV Injection")
                                    .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
                                    .set_vertex_shader("shaders/lpv/gv_injection.vert.spv")
                                    .set_fragment_shader("shaders/lpv/gv_injection.frag.spv")
@@ -719,7 +719,7 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
                     commands.bind_descriptor_set(0, set);
                     commands.set_push_constant(0, static_cast<uint32_t>(textures.size()));
                     commands.set_push_constant(1, cascade_idx);
-                    commands.bind_shader(inject_into_gv_shader);
+                    commands.bind_shader(inject_voxels_into_gv_shader);
 
                     commands.dispatch(32, 32, 32);
 
@@ -743,14 +743,14 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
                 {
                     depth_buffer,
                     {
-                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     }
                 },
                 {
                     normal_target,
                     {
-                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     }
                 }
@@ -799,7 +799,7 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
 
                         commands.bind_pipeline(inject_scene_depth_into_gv_pipeline);
 
-                        commands.draw(effective_resolution.x * effective_resolution.y);
+                        commands.draw(effective_resolution.x * effective_resolution.y / 4);
 
                         commands.clear_descriptor_set(0);
                     }
@@ -872,6 +872,7 @@ void LightPropagationVolume::add_lighting_to_scene(
             .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
             .anisotropyEnable = VK_TRUE,
             .maxAnisotropy = 16,
+            .maxLod = 16,
             .borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
         }
     );
@@ -952,14 +953,14 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
                 {
                     cascade.depth_target,
                     {
-                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     }
                 },
                 {
                     cascade.normals_target,
                     {
-                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     }
                 }
@@ -1004,7 +1005,7 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
                         commands.set_push_constant(1, rsm_resolution.x);
                         commands.set_push_constant(2, rsm_resolution.y);
 
-                        commands.bind_pipeline(gv_injection_pipeline);
+                        commands.bind_pipeline(inject_rsm_depth_into_gv_pipeline);
 
                         commands.draw(rsm_resolution.x * rsm_resolution.y);
 

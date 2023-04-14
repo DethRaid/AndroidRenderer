@@ -119,6 +119,10 @@ void main() {
     const medfloat exposure_factor = 0.00015f;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
+    
+    if(any(isnan(direct_light))) {
+        direct_light = vec3(0);
+    }
 
     lighting = vec4(direct_light * exposure_factor, 1.f);
     // lighting = vec4(0, 0, 0, 1);

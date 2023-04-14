@@ -147,12 +147,16 @@ void main() {
 
     const mediump vec3 specular_factor = Fr(surface, surface.normal, reflection_vector);
 
-    const mediump vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
+    mediump vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
     const mediump float exposure_factor = PI * PI * PI;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
+
+    if(any(isnan(total_lighting))) {
+        total_lighting = vec3(0);
+    }
 
     lighting = vec4(total_lighting * exposure_factor, 1.f);
 }

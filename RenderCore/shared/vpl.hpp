@@ -17,8 +17,7 @@
  * z = rg color, hafls packed into a uint
  * w = normal, stored as snorm4
  *
- * Note that we have a space half, a spare unorm, and a spare snorm
- * Note also that more clever normal encoding schemes are readily available. Storing it in two halfs would be great
+ * Note that more clever normal encoding schemes are readily available. Storing it in two halfs would be great
  */
 struct PackedVPL {
     uvec4 data;

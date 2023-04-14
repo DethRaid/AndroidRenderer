@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unordered_map>
+
 #include "render/backend/compute_shader.hpp"
 #include "render/backend/handles.hpp"
 

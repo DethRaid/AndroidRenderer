@@ -142,7 +142,7 @@ private:
 
     ComputeShader clear_lpv_shader;
 
-    ComputeShader inject_into_gv_shader;
+    ComputeShader inject_voxels_into_gv_shader;
 
     GraphicsPipelineHandle vpl_injection_pipeline;
 
@@ -158,7 +158,7 @@ private:
 
     SceneDrawer rsm_drawer;
 
-    GraphicsPipelineHandle gv_injection_pipeline;
+    GraphicsPipelineHandle inject_rsm_depth_into_gv_pipeline;
     GraphicsPipelineHandle inject_scene_depth_into_gv_pipeline;
 
     /**

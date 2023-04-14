@@ -10,7 +10,15 @@
 MipChainGenerator::MipChainGenerator(RenderBackend& backend_in) : backend{backend_in} {
     {
         const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_R16F.comp.spv");
-        shaders.emplace(VK_FORMAT_R16_SFLOAT, *backend.create_compute_shader("Mip Chain Generator", bytes));
+        shaders.emplace(VK_FORMAT_R16_SFLOAT, *backend.create_compute_shader("Mip Chain Generator R16F", bytes));
+    }
+    {
+        const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_RGBA16F.comp.spv");
+        shaders.emplace(VK_FORMAT_R16G16B16A16_SFLOAT, *backend.create_compute_shader("Mip Chain Generator RGBA16F", bytes));
+    }
+    {
+        const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_B10G11R11F.comp.spv");
+        shaders.emplace(VK_FORMAT_B10G11R11_UFLOAT_PACK32, *backend.create_compute_shader("Mip Chain Generator B10G11R11F", bytes));
     }
 
     auto& allocator = backend.get_global_allocator();
@@ -21,6 +29,7 @@ MipChainGenerator::MipChainGenerator(RenderBackend& backend_in) : backend{backen
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
             .magFilter = VK_FILTER_LINEAR,
             .minFilter = VK_FILTER_LINEAR,
+            .maxLod = 16,
         }
     );
 }
@@ -52,7 +61,7 @@ void MipChainGenerator::fill_mip_chain(
                 {
                     src_texture,
                     {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     }
                 },
@@ -86,7 +95,7 @@ void MipChainGenerator::fill_mip_chain(
 
                 auto uavs = std::vector<VkDescriptorImageInfo>{};
                 uavs.reserve(12);
-                for (auto mip_level = 1u; mip_level < dest_texture_actual.create_info.mipLevels; mip_level++) {
+                for (auto mip_level = 0u; mip_level < dest_texture_actual.create_info.mipLevels; mip_level++) {
                     uavs.emplace_back(
                         VkDescriptorImageInfo{
                             .imageView = dest_texture_actual.mip_views[mip_level],
@@ -94,7 +103,7 @@ void MipChainGenerator::fill_mip_chain(
                         }
                     );
                 }
-                for (auto mip_level = dest_texture_actual.create_info.mipLevels; mip_level <= 12; mip_level++) {
+                for (auto mip_level = dest_texture_actual.create_info.mipLevels; mip_level < 12; mip_level++) {
                     uavs.emplace_back(
                         VkDescriptorImageInfo{
                             .imageView = dest_texture_actual.mip_views[1],

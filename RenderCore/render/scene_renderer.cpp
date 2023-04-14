@@ -103,7 +103,7 @@ void SceneRenderer::render() {
     auto render_graph = backend.create_render_graph();
 
     render_graph.set_resource_usage(depth_buffer_mip_chain, last_frame_depth_usage, true);
-    render_graph.set_resource_usage(last_frame_normal_target, last_frame_normal_usage, true);
+    render_graph.set_resource_usage(normal_target_mip_chain, last_frame_normal_usage, true);
 
     render_graph.add_compute_pass(
         {
@@ -154,7 +154,7 @@ void SceneRenderer::render() {
         lpv.build_geometry_volume_from_voxels(render_graph, *scene, *voxel_cache);
     } else if (lpv.get_build_mode() == GvBuildMode::DepthBuffers) {
         lpv.build_geometry_volume_from_scene_view(
-            render_graph, depth_buffer_mip_chain, last_frame_normal_target, player_view.get_buffer(),
+            render_graph, depth_buffer_mip_chain, normal_target_mip_chain, player_view.get_buffer(),
             scene_render_resolution / glm::uvec2{ 2 }
         );
     }
@@ -279,7 +279,7 @@ void SceneRenderer::render() {
 
     // Bloom
 
-    // TODO
+    mip_chain_generator.fill_mip_chain(render_graph, lit_scene_handle, bloom_mip_chain);
 
     // Other postprocessing
 
@@ -295,7 +295,13 @@ void SceneRenderer::render() {
             .textures = {
                 {
                     lit_scene_handle, {
-                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
+                        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                },
+                {
+                    bloom_mip_chain, {
+                        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     }
                 }
@@ -306,7 +312,7 @@ void SceneRenderer::render() {
                     .name = "UI",
                     .color_attachments = {0},
                     .execute = [&](CommandBuffer& commands) {
-                        ui_phase.render(commands, player_view);
+                        ui_phase.render(commands, player_view, bloom_mip_chain);
                     }
                 }
             }
@@ -314,6 +320,7 @@ void SceneRenderer::render() {
     );
 
     mip_chain_generator.fill_mip_chain(render_graph, gbuffer_depth_handle, depth_buffer_mip_chain);
+    mip_chain_generator.fill_mip_chain(render_graph, gbuffer_normals_handle, normal_target_mip_chain);
 
     render_graph.add_present_pass(
         {
@@ -324,11 +331,9 @@ void SceneRenderer::render() {
     render_graph.finish();
 
     last_frame_depth_usage = render_graph.get_last_usage_token(depth_buffer_mip_chain);
-    last_frame_normal_usage = render_graph.get_last_usage_token(gbuffer_normals_handle);
+    last_frame_normal_usage = render_graph.get_last_usage_token(normal_target_mip_chain);
 
-    backend.execute_graph(std::move(render_graph));
-    
-    std::swap(gbuffer_normals_handle, last_frame_normal_target);
+    backend.execute_graph(std::move(render_graph));    
 }
 
 RenderBackend& SceneRenderer::get_backend() {
@@ -393,12 +398,16 @@ void SceneRenderer::create_scene_render_targets() {
         allocator.destroy_texture(depth_buffer_mip_chain);
     }
 
-    if (last_frame_normal_target != TextureHandle::None) {
-        allocator.destroy_texture(last_frame_normal_target);
+    if (normal_target_mip_chain != TextureHandle::None) {
+        allocator.destroy_texture(normal_target_mip_chain);
     }
 
     if (lit_scene_handle != TextureHandle::None) {
         allocator.destroy_texture(lit_scene_handle);
+    }
+
+    if (bloom_mip_chain != TextureHandle::None) {
+        allocator.destroy_texture(bloom_mip_chain);
     }
 
     // gbuffer and lighting render targets
@@ -433,25 +442,31 @@ void SceneRenderer::create_scene_render_targets() {
         TextureUsage::RenderTarget
     );
 
-    const auto depth_buffer_mip_chain_resolution = scene_render_resolution / glm::uvec2{ 2 };
-    const auto minor_dimension = glm::min(depth_buffer_mip_chain_resolution.x, depth_buffer_mip_chain_resolution.y);
+    const auto mip_chain_resolution = scene_render_resolution / glm::uvec2{ 2 };
+    const auto minor_dimension = glm::min(mip_chain_resolution.x, mip_chain_resolution.y);
     const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
     depth_buffer_mip_chain = allocator.create_texture(
         "Depth buffer mip chain", VK_FORMAT_R16_SFLOAT,
-        depth_buffer_mip_chain_resolution, num_mips,
+        mip_chain_resolution, num_mips,
         TextureUsage::StorageImage
     );
 
-    last_frame_normal_target = allocator.create_texture(
+    normal_target_mip_chain = allocator.create_texture(
         "gbuffer_normals B", VK_FORMAT_R16G16B16A16_SFLOAT,
-        scene_render_resolution, 1,
-        TextureUsage::RenderTarget
+        mip_chain_resolution, num_mips,
+        TextureUsage::StorageImage
     );
 
     lit_scene_handle = allocator.create_texture(
         "lit_scene", VK_FORMAT_B10G11R11_UFLOAT_PACK32,
         scene_render_resolution, 1,
         TextureUsage::RenderTarget
+    );
+
+    bloom_mip_chain = allocator.create_texture(
+        "Bloom mip chain", VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+        mip_chain_resolution, num_mips,
+        TextureUsage::StorageImage
     );
 
     auto& swapchain = backend.get_swapchain();

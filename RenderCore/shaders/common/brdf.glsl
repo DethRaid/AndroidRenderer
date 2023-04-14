@@ -31,7 +31,7 @@ medfloat D_GGX(medfloat NoH, medfloat roughness) {
     return k * k * (1.0 / PI);
 }
 
-medvec3 F_Schlick(medfloat u, medvec3 f0, medfloat f90) { return f0 + (f90 - f0) * pow(1.0 - u, 5.0); }
+medvec3 F_Schlick(medfloat u, medvec3 f0, medfloat f90) { return f0 + (f90 - f0) * pow(clamp(1.0 - u, 0.0, 1.0), 5.0); }
 
 medfloat V_SmithGGXCorrelated(medfloat NoV, medfloat NoL, medfloat a) {
     medfloat a2 = a * a;

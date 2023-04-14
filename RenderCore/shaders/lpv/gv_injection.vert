@@ -33,15 +33,18 @@ layout(push_constant) uniform Constants {
 layout(location = 0) out mediump vec4 sh;
 
 void main() {
-    uint x = gl_VertexIndex % resolution_x;
-    uint y = gl_VertexIndex / resolution_x;
+    uint x = (gl_VertexIndex * 2) % resolution_x;
+    uint y = (gl_VertexIndex * 2) / resolution_x;
 
     if(x >= resolution_x || y >= resolution_y) {
         gl_Position = vec4(0) / 0.f;
         return;
     }
 
-    float depth = texelFetch(depth_target, ivec2(x, y), 0).x;
+    float texcoord_x = (0.5 + float(x)) / float(resolution_x);
+    float texcoord_y = (0.5 + float(y)) / float(resolution_y);
+
+    float depth = texture(depth_target, vec2(texcoord_x, texcoord_y)).x;
 
     vec2 screenspace = vec2(x, y) / vec2(resolution_x, resolution_y);
     vec4 ndc_position = vec4(screenspace * 2.f - 1.f, depth, 1);
@@ -57,7 +60,7 @@ void main() {
         return;
     }
 
-    mediump vec3 normal = texelFetch(normal_target, ivec2(x, y), 0).xyz;
+    mediump vec3 normal = texture(normal_target, vec2(texcoord_x, texcoord_y)).xyz;
     sh = dir_to_cosine_lobe(normal);
    
     cascade_position.x += cascade_index;

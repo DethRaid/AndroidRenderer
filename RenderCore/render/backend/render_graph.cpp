@@ -269,7 +269,8 @@ void RenderGraph::set_resource_usage(
             // Issue a barrier if either (or both) of the accesses require writing
             const auto needs_write_barrier = is_write_access(usage.access) || is_write_access(itr->second.access);
             const auto needs_transition_barrier = usage.layout != itr->second.layout;
-            if (needs_write_barrier || needs_transition_barrier) {
+            const auto needs_fussy_shader_barrier = usage.stage != itr->second.stage;
+            if (needs_write_barrier || needs_transition_barrier || needs_fussy_shader_barrier) {
                 logger->trace(
                     "Transitioning image {} from {} to {}", texture_actual.name,
                     magic_enum::enum_name(itr->second.layout), magic_enum::enum_name(usage.layout)
