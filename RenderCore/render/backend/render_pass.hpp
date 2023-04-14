@@ -44,6 +44,14 @@ struct TransitionPass {
     std::unordered_map<BufferHandle, BufferUsageToken> buffers;
 };
 
+struct ImageCopyPass {
+    std::string name;
+
+    TextureHandle src_image;
+
+    TextureHandle dst_image;
+};
+
 struct Subpass {
     std::string name;
 

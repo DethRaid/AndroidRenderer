@@ -126,7 +126,7 @@ TextureHandle ResourceAllocator::create_texture(
         };
         result = vkCreateImageView(device, &view_create_info, nullptr, &texture.image_view);
         if (result != VK_SUCCESS) {
-            throw std::runtime_error{ fmt::format("Could not create image view {}", image_view_name) };
+            throw std::runtime_error{fmt::format("Could not create image view {}", image_view_name)};
         }
     }
 
@@ -154,7 +154,7 @@ TextureHandle ResourceAllocator::create_texture(
     backend.set_object_name(texture.attachment_view, fmt::format("{} RTV", name));
 
     texture.mip_views.reserve(num_mips);
-    for(auto i = 0u; i < num_mips; i++) {
+    for (auto i = 0u; i < num_mips; i++) {
         const auto view_create_info = VkImageViewCreateInfo{
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = texture.image,
@@ -171,7 +171,7 @@ TextureHandle ResourceAllocator::create_texture(
         auto view = VkImageView{};
         result = vkCreateImageView(device, &view_create_info, nullptr, &view);
         if (result != VK_SUCCESS) {
-            throw std::runtime_error{ fmt::format("Could not create image view") };
+            throw std::runtime_error{fmt::format("Could not create image view")};
         }
 
         backend.set_object_name(view, fmt::format("{} mip {}", name, i));

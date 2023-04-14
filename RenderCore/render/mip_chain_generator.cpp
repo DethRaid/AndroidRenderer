@@ -15,9 +15,19 @@ MipChainGenerator::MipChainGenerator(RenderBackend& backend_in) : backend{backen
 
     auto& allocator = backend.get_global_allocator();
     counter_buffer = allocator.create_buffer("SPD Counter Buffer", sizeof(uint32_t) * 6, BufferUsage::StorageBuffer);
+
+    sampler = allocator.get_sampler(
+        {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+        }
+    );
 }
 
-void MipChainGenerator::fill_mip_chain(RenderGraph& graph, TextureHandle texture) {
+void MipChainGenerator::fill_mip_chain(
+    RenderGraph& graph, const TextureHandle src_texture, const TextureHandle dest_texture
+) {
     graph.add_compute_pass(
         {
             .name = "Clear counter",
@@ -40,7 +50,14 @@ void MipChainGenerator::fill_mip_chain(RenderGraph& graph, TextureHandle texture
             .name = "Downsample",
             .textures = {
                 {
-                    texture,
+                    src_texture,
+                    {
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                },
+                {
+                    dest_texture,
                     {
                         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                         VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
@@ -59,25 +76,41 @@ void MipChainGenerator::fill_mip_chain(RenderGraph& graph, TextureHandle texture
             },
             .execute = [=, this](CommandBuffer& commands) {
                 auto& allocator = backend.get_global_allocator();
-                const auto& texture_actual = allocator.get_texture(texture);
+                const auto& src_texture_actual = allocator.get_texture(src_texture);
+                const auto& dest_texture_actual = allocator.get_texture(dest_texture);
 
                 auto uavs = std::vector<VkDescriptorImageInfo>{};
-                uavs.reserve(texture_actual.create_info.mipLevels - 1);
-                for (auto mip_level = 1u; mip_level < texture_actual.create_info.mipLevels; mip_level++) {
+                uavs.reserve(12);
+                for (auto mip_level = 1u; mip_level < dest_texture_actual.create_info.mipLevels; mip_level++) {
                     uavs.emplace_back(
                         VkDescriptorImageInfo{
-                            .imageView = texture_actual.mip_views[mip_level],
+                            .imageView = dest_texture_actual.mip_views[mip_level],
+                            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                        }
+                    );
+                }
+                for (auto mip_level = dest_texture_actual.create_info.mipLevels; mip_level <= 12; mip_level++) {
+                    uavs.emplace_back(
+                        VkDescriptorImageInfo{
+                            .imageView = dest_texture_actual.mip_views[1],
                             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                         }
                     );
                 }
 
+                auto image_info = VkDescriptorImageInfo{
+                    .sampler = sampler,
+                    .imageView = src_texture_actual.mip_views[0],
+                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL
+                };
+
                 auto set = VkDescriptorSet{};
                 backend.create_frame_descriptor_builder()
                        .bind_image(
                            0, {
-                               .sampler = backend.get_default_sampler(), .image = texture,
-                               .image_layout = VK_IMAGE_LAYOUT_GENERAL
+                               .sampler = sampler,
+                               .image = src_texture,
+                               .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                            }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT
                        )
                        .bind_image(
@@ -93,7 +126,7 @@ void MipChainGenerator::fill_mip_chain(RenderGraph& graph, TextureHandle texture
                 varAU2(work_group_offset);
                 varAU2(num_work_groups_and_mips);
                 varAU4(rect_info) = initAU4(
-                    0, 0, texture_actual.create_info.extent.width, texture_actual.create_info.extent.height
+                    0, 0, src_texture_actual.create_info.extent.width, src_texture_actual.create_info.extent.height
                 );
                 SpdSetup(dispatch_thread_group_count_xy, work_group_offset, num_work_groups_and_mips, rect_info);
 

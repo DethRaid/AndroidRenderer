@@ -101,7 +101,7 @@ void SceneRenderer::render() {
 
     auto render_graph = backend.create_render_graph();
 
-    render_graph.set_resource_usage(last_frame_depth_buffer, last_frame_depth_usage, true);
+    render_graph.set_resource_usage(depth_buffer_mip_chain, last_frame_depth_usage, true);
     render_graph.set_resource_usage(last_frame_normal_target, last_frame_normal_usage, true);
 
     render_graph.add_compute_pass(
@@ -149,13 +149,11 @@ void SceneRenderer::render() {
         }
     );
 
-    mip_chain_generator.fill_mip_chain(render_graph, last_frame_depth_buffer);
-
     if (voxel_cache && lpv.get_build_mode() == GvBuildMode::Voxels) {
         lpv.build_geometry_volume_from_voxels(render_graph, *scene, *voxel_cache);
     } else if (lpv.get_build_mode() == GvBuildMode::DepthBuffers) {
         lpv.build_geometry_volume_from_depth_buffer(
-            render_graph, last_frame_depth_buffer, last_frame_normal_target, player_view.get_buffer(),
+            render_graph, depth_buffer_mip_chain, last_frame_normal_target, player_view.get_buffer(),
             scene_render_resolution
         );
     }
@@ -314,6 +312,8 @@ void SceneRenderer::render() {
         }
     );
 
+    mip_chain_generator.fill_mip_chain(render_graph, gbuffer_depth_handle, depth_buffer_mip_chain);
+
     render_graph.add_present_pass(
         {
             .swapchain_image = swapchain_image
@@ -322,12 +322,11 @@ void SceneRenderer::render() {
 
     render_graph.finish();
 
-    last_frame_depth_usage = render_graph.get_last_usage_token(gbuffer_depth_handle);
+    last_frame_depth_usage = render_graph.get_last_usage_token(depth_buffer_mip_chain);
     last_frame_normal_usage = render_graph.get_last_usage_token(gbuffer_normals_handle);
 
     backend.execute_graph(std::move(render_graph));
-
-    std::swap(gbuffer_depth_handle, last_frame_depth_buffer);
+    
     std::swap(gbuffer_normals_handle, last_frame_normal_target);
 }
 
@@ -389,8 +388,8 @@ void SceneRenderer::create_scene_render_targets() {
         allocator.destroy_texture(gbuffer_depth_handle);
     }
 
-    if (last_frame_depth_buffer != TextureHandle::None) {
-        allocator.destroy_texture(last_frame_depth_buffer);
+    if (depth_buffer_mip_chain != TextureHandle::None) {
+        allocator.destroy_texture(depth_buffer_mip_chain);
     }
 
     if (last_frame_normal_target != TextureHandle::None) {
@@ -427,19 +426,19 @@ void SceneRenderer::create_scene_render_targets() {
         TextureUsage::RenderTarget
     );
 
-    const auto minor_dimension = glm::min(scene_render_resolution.x, scene_render_resolution.y);
-    const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
-
     gbuffer_depth_handle = allocator.create_texture(
-        "gbuffer_depth A", VK_FORMAT_D32_SFLOAT,
-        scene_render_resolution, num_mips,
+        "gbuffer_depth", VK_FORMAT_D32_SFLOAT,
+        scene_render_resolution, 1,
         TextureUsage::RenderTarget
     );
 
-    last_frame_depth_buffer = allocator.create_texture(
-        "gbuffer_depth B", VK_FORMAT_D32_SFLOAT,
-        scene_render_resolution, num_mips,
-        TextureUsage::RenderTarget
+    const auto depth_buffer_mip_chain_resolution = scene_render_resolution / glm::uvec2{ 2 };
+    const auto minor_dimension = glm::min(depth_buffer_mip_chain_resolution.x, depth_buffer_mip_chain_resolution.y);
+    const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
+    depth_buffer_mip_chain = allocator.create_texture(
+        "Depth buffer mip chain", VK_FORMAT_R32_SFLOAT,
+        depth_buffer_mip_chain_resolution, num_mips,
+        TextureUsage::StorageImage
     );
 
     last_frame_normal_target = allocator.create_texture(

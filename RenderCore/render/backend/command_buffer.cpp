@@ -289,8 +289,8 @@ void CommandBuffer::set_push_constant(const uint32_t index, const float data) {
 void CommandBuffer::bind_buffer_reference(const uint32_t index, const BufferHandle buffer_handle) {
     const auto& buffer_actual = backend->get_global_allocator().get_buffer(buffer_handle);
 
-    if(buffer_actual.address == glm::uvec2{0}) {
-        throw std::runtime_error{ "Buffer was not created with a device address! Is it a uniform buffer?" };
+    if (buffer_actual.address == glm::uvec2{0}) {
+        throw std::runtime_error{"Buffer was not created with a device address! Is it a uniform buffer?"};
     }
 
     set_push_constant(index, buffer_actual.address.x);
@@ -313,6 +313,46 @@ void CommandBuffer::dispatch(const uint32_t width, const uint32_t height, const 
     commit_bindings();
 
     vkCmdDispatch(commands, width, height, depth);
+}
+
+void CommandBuffer::copy_image_to_image(const TextureHandle src, const TextureHandle dst) const {
+    auto& allocator = backend->get_global_allocator();
+    const auto& src_actual = allocator.get_texture(src);
+    const auto& dst_actual = allocator.get_texture(dst);
+        
+    const auto region = VkImageCopy2{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_COPY_2,
+        .srcSubresource = {
+            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(src_actual.create_info.format)
+                                                              ? VK_IMAGE_ASPECT_DEPTH_BIT
+                                                              : VK_IMAGE_ASPECT_COLOR_BIT),
+            .mipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+        .srcOffset = {},
+        .dstSubresource = {
+            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(dst_actual.create_info.format)
+                                                              ? VK_IMAGE_ASPECT_DEPTH_BIT
+                                                              : VK_IMAGE_ASPECT_COLOR_BIT),
+            .mipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+        .dstOffset = {},
+        .extent = src_actual.create_info.extent,
+    };
+
+    const auto copy_info = VkCopyImageInfo2{
+        .sType = VK_STRUCTURE_TYPE_COPY_IMAGE_INFO_2,
+        .srcImage = src_actual.image,
+        .srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .dstImage = dst_actual.image,
+        .dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .regionCount = 1,
+        .pRegions = &region
+    };
+    vkCmdCopyImage2(commands, &copy_info);
 }
 
 void CommandBuffer::reset_event(const VkEvent event, const VkPipelineStageFlags stages) const {

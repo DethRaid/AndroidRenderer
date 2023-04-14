@@ -47,6 +47,27 @@ void RenderGraph::add_transition_pass(TransitionPass&& pass) {
     );
 }
 
+void RenderGraph::add_copy_pass(ImageCopyPass&& pass) {
+    add_compute_pass(
+        {
+            .name = pass.name,
+            .textures = {
+                {
+                    pass.src_image,
+                    {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL}
+                },
+                {
+                    pass.dst_image,
+                    {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL}
+                }
+            },
+            .execute = [=](CommandBuffer& commands) {
+                commands.copy_image_to_image(pass.src_image, pass.dst_image);
+            }
+        }
+    );
+}
+
 void RenderGraph::add_compute_pass(ComputePass&& pass) {
     if (!pass.name.empty()) {
         logger->debug("Adding compute pass {}", pass.name);
@@ -203,7 +224,9 @@ void RenderGraph::execute_post_submit_tasks() {
     post_submit_lambdas.clear();
 }
 
-void RenderGraph::set_resource_usage(const TextureHandle texture, const TextureUsageToken& usage, const bool skip_barrier) {
+void RenderGraph::set_resource_usage(
+    const TextureHandle texture, const TextureUsageToken& usage, const bool skip_barrier
+) {
     auto& allocator = backend.get_global_allocator();
     const auto& texture_actual = allocator.get_texture(texture);
     auto aspect = VK_IMAGE_ASPECT_COLOR_BIT;

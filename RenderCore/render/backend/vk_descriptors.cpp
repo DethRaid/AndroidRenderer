@@ -13,9 +13,7 @@ namespace vkutil {
      * Probably not generalizable beyond my use case
      */
     static bool is_descriptor_array(const VkDescriptorSetLayoutBinding& binding) {
-        return binding.descriptorCount > 1 && (binding.descriptorType ==
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || binding.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
-            || binding.descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        return binding.descriptorCount == variable_descriptor_array_max_size && (binding.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     }
 
     VkDescriptorPool
@@ -162,7 +160,8 @@ namespace vkutil {
         const auto& last_binding = info->pBindings[info->bindingCount - 1];
         if (is_descriptor_array(last_binding)) {
             flags.resize(info->bindingCount);
-            flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
+            flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+                VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
                 VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
             flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
@@ -250,7 +249,7 @@ namespace vkutil {
         auto& allocator = backend.get_global_allocator();
         const auto& image_actual = allocator.get_texture(info.image);
         auto image_view = image_actual.image_view;
-        if(type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
+        if (type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
             image_view = image_actual.attachment_view;
         }
 

@@ -166,6 +166,8 @@ public:
 
     void dispatch(uint32_t width, uint32_t height, uint32_t depth);
 
+    void copy_image_to_image(TextureHandle src, TextureHandle dst) const;
+
     void reset_event(VkEvent event, VkPipelineStageFlags stages) const;
 
     void set_event(VkEvent event, const std::vector<BufferBarrier>& buffers);
