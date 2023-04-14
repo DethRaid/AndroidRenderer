@@ -30,7 +30,8 @@ SceneRenderer::SceneRenderer() :
     ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
-    player_view.set_position_and_direction(glm::vec3{10.f, 0.f, 20.0f}, glm::vec3{0.f, 0.0f, -1.f});
+    // player_view.set_position_and_direction(glm::vec3{10.f, 0.f, 20.0f}, glm::vec3{0.f, 0.0f, -1.f});
+    player_view.set_position_and_direction(glm::vec3{ 7.f, 1.f, 0.0f }, glm::vec3{ -1.0f, 0.0f, 0.f });
 
     const auto render_resolution = SystemInterface::get().get_resolution();
 
@@ -152,9 +153,9 @@ void SceneRenderer::render() {
     if (voxel_cache && lpv.get_build_mode() == GvBuildMode::Voxels) {
         lpv.build_geometry_volume_from_voxels(render_graph, *scene, *voxel_cache);
     } else if (lpv.get_build_mode() == GvBuildMode::DepthBuffers) {
-        lpv.build_geometry_volume_from_depth_buffer(
+        lpv.build_geometry_volume_from_scene_view(
             render_graph, depth_buffer_mip_chain, last_frame_normal_target, player_view.get_buffer(),
-            scene_render_resolution
+            scene_render_resolution / glm::uvec2{ 2 }
         );
     }
 
@@ -436,7 +437,7 @@ void SceneRenderer::create_scene_render_targets() {
     const auto minor_dimension = glm::min(depth_buffer_mip_chain_resolution.x, depth_buffer_mip_chain_resolution.y);
     const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
     depth_buffer_mip_chain = allocator.create_texture(
-        "Depth buffer mip chain", VK_FORMAT_R32_SFLOAT,
+        "Depth buffer mip chain", VK_FORMAT_R16_SFLOAT,
         depth_buffer_mip_chain_resolution, num_mips,
         TextureUsage::StorageImage
     );

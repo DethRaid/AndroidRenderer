@@ -21,15 +21,15 @@ layout(push_constant) uniform Constants {
 };
 
 layout(location = 0) in vec3 position_in;
-layout(location = 1) in vec3 normal_in;
-layout(location = 2) in vec3 tangent_in;
+layout(location = 1) in mediump vec3 normal_in;
+layout(location = 2) in mediump vec3 tangent_in;
 layout(location = 3) in vec2 texcoord_in;
-layout(location = 4) in vec4 color_in;
+layout(location = 4) in mediump vec4 color_in;
 
-layout(location = 0) out vec3 normal_out;
-layout(location = 1) out vec3 tangent_out;
+layout(location = 0) out mediump vec3 normal_out;
+layout(location = 1) out mediump vec3 tangent_out;
 layout(location = 2) out vec2 texcoord_out;
-layout(location = 3) out vec4 color_out;
+layout(location = 3) out mediump vec4 color_out;
 
 void main() {
     PrimitiveDataGPU data = primitive_data_buffer.primitive_datas[primitive_id];

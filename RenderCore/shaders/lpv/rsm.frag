@@ -30,33 +30,33 @@ layout(set = 0, binding = 1) uniform SunLightBuffer {
 
 layout(set = 1, binding = 0) uniform sampler2D textures[];
 
-layout(location = 0) in vec3 vertex_normal;
-layout(location = 1) in vec3 vertex_tangent;
+layout(location = 0) in mediump vec3 vertex_normal;
+layout(location = 1) in mediump vec3 vertex_tangent;
 layout(location = 2) in vec2 vertex_texcoord;
-layout(location = 3) in vec4 vertex_color;
+layout(location = 3) in mediump vec4 vertex_color;
 
-layout(location = 0) out vec4 rsm_flux;
-layout(location = 1) out vec4 rsm_normal;
+layout(location = 0) out mediump vec4 rsm_flux;
+layout(location = 1) out mediump vec4 rsm_normal;
 
 void main() {
     PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
     BasicPbrMaterialGpu material = material_buffer.materials[primitive_data.data.x];
 
     // Base color
-    vec4 base_color_sample = texture(textures[material.base_color_texture_index], vertex_texcoord);
-    vec4 tinted_base_color = base_color_sample * material.base_color_tint * vertex_color;
+    mediump vec4 base_color_sample = texture(textures[material.base_color_texture_index], vertex_texcoord);
+    mediump vec4 tinted_base_color = base_color_sample * material.base_color_tint * vertex_color;
 
-    vec4 data_sample = texture(textures[nonuniformEXT(material.data_texture_index)], vertex_texcoord);
-    vec4 tinted_data = data_sample * vec4(0.f, material.roughness_factor, material.metalness_factor, 0.f);
+    mediump vec4 data_sample = texture(textures[nonuniformEXT(material.data_texture_index)], vertex_texcoord);
+    mediump vec4 tinted_data = data_sample * vec4(0.f, material.roughness_factor, material.metalness_factor, 0.f);
 
     SurfaceInfo surface;
-    surface.base_color = tinted_base_color;
+    surface.base_color = tinted_base_color.rgb;
     surface.normal = vertex_normal;
     surface.metalness = tinted_data.b;
     surface.roughness = tinted_data.g;
     
     // We use the normal as the view vector because we want the light reflected directly away from the surface
-    const vec3 brdf_result = Fd(surface, -sun.direction_and_size.xyz, surface.normal);
+    const mediump vec3 brdf_result = Fd(surface, -sun.direction_and_size.xyz, surface.normal);
 
     rsm_flux = vec4(brdf_result, 1.f);
 

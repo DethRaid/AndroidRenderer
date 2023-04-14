@@ -10,13 +10,13 @@ layout(set = 0, binding = 4, input_attachment_index = 4) uniform subpassInput gb
 
 layout(location = 0) in vec2 texcoord;
 
-layout(location = 0) out vec4 lighting;
+layout(location = 0) out mediump vec4 lighting;
 
 void main() {
-    vec4 emission_sample = subpassLoad(gbuffer_emission);
+    mediump vec4 emission_sample = subpassLoad(gbuffer_emission);
 
     // Number chosen based on what happened to look fine
-    const float exposure_factor = 1.f;
+    const mediump float exposure_factor = 1.f;
 
     lighting = vec4(emission_sample.rgb * exposure_factor, 1.f);
 }

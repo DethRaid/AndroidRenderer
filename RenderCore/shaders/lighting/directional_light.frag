@@ -8,6 +8,13 @@
 
 #define PI 3.1415927
 
+#ifndef medfloat
+#define medfloat mediump float
+#define medvec2 mediump vec2
+#define medvec3 mediump vec3
+#define medvec4 mediump vec4
+#endif
+
 // Gbuffer textures
 
 layout(set = 0, binding = 0, input_attachment_index = 0) uniform subpassInput gbuffer_base_color;
@@ -30,7 +37,7 @@ layout(set = 1, binding = 2) uniform ViewUniformBuffer {
 layout(location = 0) in vec2 texcoord;
 
 // Lighting output
-layout(location = 0) out vec4 lighting;
+layout(location = 0) out medvec4 lighting;
 
 vec3 get_viewspace_position() {
     float depth = subpassLoad(gbuffer_depth).r;
@@ -49,7 +56,7 @@ const mat4 biasMat = mat4(
 	0.5, 0.5, 0.0, 1.0 
 );
 
-float get_shadow_factor(vec3 worldspace_position, uint cascade_index, float bias) {
+medfloat get_shadow_factor(vec3 worldspace_position, uint cascade_index, float bias) {
     vec4 shadow_lookup = vec4(-1);
     
     vec4 shadowspace_position = biasMat * sun_light.cascade_matrices[cascade_index] * vec4(worldspace_position, 1.0);
@@ -68,22 +75,22 @@ float get_shadow_factor(vec3 worldspace_position, uint cascade_index, float bias
 }
 
 void main() {
-    vec3 base_color_sample = subpassLoad(gbuffer_base_color).rgb;
-    vec3 normal_sample = normalize(subpassLoad(gbuffer_normal).xyz);
-    vec4 data_sample = subpassLoad(gbuffer_data);
-    vec4 emission_sample = subpassLoad(gbuffer_emission);
+    medvec3 base_color_sample = subpassLoad(gbuffer_base_color).rgb;
+    medvec3 normal_sample = normalize(subpassLoad(gbuffer_normal).xyz);
+    medvec4 data_sample = subpassLoad(gbuffer_data);
+    medvec4 emission_sample = subpassLoad(gbuffer_emission);
 
     vec3 viewspace_position = get_viewspace_position();
     vec4 worldspace_position = view_info.inverse_view * vec4(viewspace_position, 1.0);
 
     vec3 view_position = vec3(-view_info.view[3].xyz);
     vec3 worldspace_view_position = worldspace_position.xyz - view_position;
-    vec3 worldspace_view_vector = normalize(worldspace_view_position);
+    medvec3 worldspace_view_vector = normalize(worldspace_view_position);
 
-    vec3 light_vector = normalize(-sun_light.direction_and_size.xyz);
+    medvec3 light_vector = normalize(-sun_light.direction_and_size.xyz);
 
     SurfaceInfo surface;
-    surface.base_color = vec4(base_color_sample, 1.0);
+    surface.base_color = base_color_sample;
     surface.normal = normal_sample;
     surface.roughness = data_sample.g;
     surface.metalness = data_sample.b;
@@ -97,19 +104,19 @@ void main() {
         }
     }
 
-    float ndotl = clamp(dot(normal_sample, light_vector), 0.f, 1.f);
+    medfloat ndotl = clamp(dot(normal_sample, light_vector), 0.f, 1.f);
 
-    float shadow = get_shadow_factor(worldspace_position.xyz, cascade_index, 0.025 * (1.f - ndotl));
+    medfloat shadow = get_shadow_factor(worldspace_position.xyz, cascade_index, 0.025 * (1.f - ndotl));
     if(cascade_index > 3) {
         shadow = 1.f;
     }
 
-    vec3 brdf_result = brdf(surface, light_vector, worldspace_view_vector);
+    medvec3 brdf_result = brdf(surface, light_vector, worldspace_view_vector);
 
-    vec3 direct_light = ndotl * brdf_result * sun_light.color.rgb * shadow;
+    medvec3 direct_light = ndotl * brdf_result * sun_light.color.rgb * shadow;
 
     // Number chosen based on what happened to look fine
-    const float exposure_factor = 0.00015f;
+    const medfloat exposure_factor = 0.00015f;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 

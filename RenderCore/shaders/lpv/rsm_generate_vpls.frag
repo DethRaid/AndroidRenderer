@@ -81,10 +81,10 @@ void main() {
     light.color = subpassLoad(rsm_flux).rgb;
     light.normal = subpassLoad(rsm_normal).rgb * 2.f - 1.f;
 
-    float luma = dot(light.color.rgb, vec3(0.2126, 0.7152, 0.0722));
+    mediump float luma = dot(light.color.rgb, vec3(0.2126, 0.7152, 0.0722));
 
     subgroupBarrier();
-    float max_luma = subgroupInclusiveMax(luma);
+    mediump float max_luma = subgroupInclusiveMax(luma);
 
     uvec4 result = subgroupBallot(max_luma == luma);
     uint first_max_thread = subgroupBallotFindLSB(result);

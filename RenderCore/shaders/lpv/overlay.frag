@@ -35,7 +35,7 @@ layout(push_constant) uniform Constants {
 layout(location = 0) in vec2 texcoord;
 
 // Lighting output
-layout(location = 0) out vec4 lighting;
+layout(location = 0) out mediump vec4 lighting;
 
 vec3 get_viewspace_position() {
     float depth = subpassLoad(gbuffer_depth).r;
@@ -47,28 +47,28 @@ vec3 get_viewspace_position() {
     return viewspace_position.xyz;
 }
 
-vec3 sample_light_from_cascade(vec4 normal_coefficients, vec4 position_worldspace, uint cascade_index) {
+mediump vec3 sample_light_from_cascade(mediump vec4 normal_coefficients, vec4 position_worldspace, uint cascade_index) {
     vec4 cascade_position = cascade_matrices[cascade_index].world_to_cascade * position_worldspace;
 
     cascade_position.x += float(cascade_index);
     cascade_position.x /= num_cascades;
 
-    vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
-    vec4 green_coefficients = texture(lpv_green, cascade_position.xyz);
-    vec4 blue_coefficients = texture(lpv_blue, cascade_position.xyz);
+    mediump vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
+    mediump vec4 green_coefficients = texture(lpv_green, cascade_position.xyz);
+    mediump vec4 blue_coefficients = texture(lpv_blue, cascade_position.xyz);
 
-    float red_strength = dot(red_coefficients, normal_coefficients);
-    float green_strength = dot(green_coefficients, normal_coefficients);
-    float blue_strength = dot(blue_coefficients, normal_coefficients);
+    mediump float red_strength = dot(red_coefficients, normal_coefficients);
+    mediump float green_strength = dot(green_coefficients, normal_coefficients);
+    mediump float blue_strength = dot(blue_coefficients, normal_coefficients);
 
     return vec3(red_strength, green_strength, blue_strength);
 }
 
 void main() {
-    vec3 base_color_sample = subpassLoad(gbuffer_base_color).rgb;
-    vec3 normal_sample = normalize(subpassLoad(gbuffer_normal).xyz);
-    vec4 data_sample = subpassLoad(gbuffer_data);
-    vec4 emission_sample = subpassLoad(gbuffer_emission);
+    mediump vec3 base_color_sample = subpassLoad(gbuffer_base_color).rgb;
+    mediump vec3 normal_sample = normalize(subpassLoad(gbuffer_normal).xyz);
+    mediump vec4 data_sample = subpassLoad(gbuffer_data);
+    mediump vec4 emission_sample = subpassLoad(gbuffer_emission);
 
     vec3 viewspace_position = get_viewspace_position();
     vec4 worldspace_position = view_info.inverse_view * vec4(viewspace_position, 1.0);
@@ -77,28 +77,28 @@ void main() {
     vec3 worldspace_view_vector = normalize(worldspace_position.xyz - view_position);
 
     SurfaceInfo surface;
-    surface.base_color = vec4(base_color_sample, 1.0);
+    surface.base_color = base_color_sample;
     surface.normal = normal_sample;
     surface.metalness = data_sample.b;
     surface.roughness = data_sample.g;
     surface.emission = emission_sample.rgb;
     surface.location = worldspace_position.xyz;
 
-    vec4 normal_coefficients = dir_to_sh(-surface.normal);
+    mediump vec4 normal_coefficients = dir_to_sh(-surface.normal);
 
-    float weights_total = 0;
-    float cascade_weights[4] = float[](0, 0, 0, 0);
+    mediump float weights_total = 0;
+    mediump float cascade_weights[4] = float[](0, 0, 0, 0);
     for(uint i = 0; i < num_cascades; i++) {
-        vec4 cascade_position = cascade_matrices[i].world_to_cascade * worldspace_position;
+        mediump vec4 cascade_position = cascade_matrices[i].world_to_cascade * worldspace_position;
         if(all(greaterThan(cascade_position.xyz, vec3(0))) && all(lessThan(cascade_position.xyz, vec3(1)))) {
             cascade_weights[i] = pow(2.0, float(num_cascades - i));
             weights_total += cascade_weights[i];
         }
     }
      
-    vec3 indirect_light = vec3(0);
+    mediump vec3 indirect_light = vec3(0);
     for(uint i = 0; i < num_cascades; i++) {
-        vec4 offset = vec4(0);
+        mediump vec4 offset = vec4(0);
         offset.xyz = surface.normal + float(i) * 0.01f;
         indirect_light += sample_light_from_cascade(normal_coefficients, worldspace_position + offset, i) * cascade_weights[i];
     }
@@ -108,19 +108,19 @@ void main() {
     }
 
     vec3 reflection_vector = reflect(-worldspace_view_vector, surface.normal);
-    vec3 specular_light = vec3(0);
+    mediump vec3 specular_light = vec3(0);
     {
         vec4 cascade_position = cascade_matrices[0].world_to_cascade * worldspace_position;
 
-        vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
-        vec4 green_coefficients = texture(lpv_green, cascade_position.xyz);
-        vec4 blue_coefficients = texture(lpv_blue, cascade_position.xyz);
+        mediump vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
+        mediump vec4 green_coefficients = texture(lpv_green, cascade_position.xyz);
+        mediump vec4 blue_coefficients = texture(lpv_blue, cascade_position.xyz);
 
-        vec4 reflection_coefficients = dir_to_sh(reflection_vector);
+        mediump vec4 reflection_coefficients = dir_to_sh(reflection_vector);
     
-        float red_strength = dot(red_coefficients, reflection_coefficients);
-        float green_strength = dot(green_coefficients, reflection_coefficients);
-        float blue_strength = dot(blue_coefficients, reflection_coefficients);
+        mediump float red_strength = dot(red_coefficients, reflection_coefficients);
+        mediump float green_strength = dot(green_coefficients, reflection_coefficients);
+        mediump float blue_strength = dot(blue_coefficients, reflection_coefficients);
     
         specular_light = vec3(red_strength, green_strength, blue_strength);
     
@@ -143,14 +143,14 @@ void main() {
         specular_light /= vec3(num_additional_specular_samples + 1);
     }
 
-    const vec3 diffuse_factor = Fd(surface, surface.normal, surface.normal);
+    const mediump vec3 diffuse_factor = Fd(surface, surface.normal, surface.normal);
 
-    const vec3 specular_factor = Fr(surface, surface.normal, reflection_vector);
+    const mediump vec3 specular_factor = Fr(surface, surface.normal, reflection_vector);
 
-    const vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
+    const mediump vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
-    const float exposure_factor = PI * PI * PI;
+    const mediump float exposure_factor = PI * PI * PI;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 

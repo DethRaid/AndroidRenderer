@@ -23,5 +23,10 @@ using mat4 = glm::mat4;
 
 #define PI 3.1415927
 
+#define medfloat mediump float
+#define medvec2 mediump vec2
+#define medvec3 mediump vec3
+#define medvec4 mediump vec4
+
 #endif
 

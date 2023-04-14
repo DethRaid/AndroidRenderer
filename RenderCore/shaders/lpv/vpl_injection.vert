@@ -22,8 +22,8 @@ layout(push_constant) uniform Constants {
     uint num_cascades;
 };
 
-layout(location = 0) out vec3 color;
-layout(location = 1) out vec3 normal;
+layout(location = 0) out mediump vec3 color;
+layout(location = 1) out mediump vec3 normal;
 
 VPL unpack_vpl(PackedVPL packed_vpl) {
     VPL vpl;

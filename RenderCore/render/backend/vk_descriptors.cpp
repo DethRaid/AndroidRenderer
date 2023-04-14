@@ -248,7 +248,12 @@ namespace vkutil {
     ) {
         auto& allocator = backend.get_global_allocator();
         const auto& image_actual = allocator.get_texture(info.image);
-        auto image_view = image_actual.image_view;
+        auto image_view = VkImageView{};
+        if(info.mip_level < 0) {
+            image_view = image_actual.image_view;
+        } else {
+            image_view = image_actual.mip_views[info.mip_level];
+        }
         if (type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
             image_view = image_actual.attachment_view;
         }
@@ -277,11 +282,20 @@ namespace vkutil {
 
         for (const auto& info : infos) {
             const auto& image_actual = allocator.get_texture(info.image);
+            auto image_view = VkImageView{};
+            if (info.mip_level < 0) {
+                image_view = image_actual.image_view;
+            } else {
+                image_view = image_actual.mip_views[info.mip_level];
+            }
+            if (type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
+                image_view = image_actual.attachment_view;
+            }
 
             vk_infos.emplace_back(
                 VkDescriptorImageInfo{
                     .sampler = info.sampler,
-                    .imageView = image_actual.image_view,
+                    .imageView = image_view,
                     .imageLayout = info.image_layout,
                 }
             );

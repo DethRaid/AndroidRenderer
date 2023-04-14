@@ -59,7 +59,7 @@ void main() {
         0.5, 0.5, 0.5, 0.0
     );
     
-    vec4 local_sh = vec4(0);
+    mediump vec4 local_sh = vec4(0);
 
     for(uint block_start = 0; block_start < push_constants.num_primitives; block_start += gl_SubgroupSize) {
         uint current_index = block_start + local_offset;
@@ -77,7 +77,7 @@ void main() {
     local_sh = subgroupAdd(local_sh);
 
     if(subgroupElect()) {
-        vec4 sh = imageLoad(geometry_volume, ivec3(gl_WorkGroupID));
+        mediump vec4 sh = imageLoad(geometry_volume, ivec3(gl_WorkGroupID));
         sh += local_sh;
         imageStore(geometry_volume, ivec3(gl_WorkGroupID), local_sh);
     }

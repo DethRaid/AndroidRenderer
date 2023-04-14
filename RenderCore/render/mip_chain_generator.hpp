@@ -31,7 +31,7 @@ private:
 
     BufferHandle counter_buffer;
 
-    ComputeShader shader;
+    std::unordered_map<VkFormat, ComputeShader> shaders;
 
     VkSampler sampler;
 };

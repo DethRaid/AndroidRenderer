@@ -33,8 +33,9 @@ android {
         //               but it will eventually time out and complain about shader compiling
         shaders {
             def shared_shaders_include_dir =  "-I$projectDir/../RenderCore".toString()
+            def extern_files_include_dir = "-I$projectDir/../RenderCore/extern".toString()
             print "Include dir: '$shared_shaders_include_dir'"
-            glslcArgs.addAll(['-c', '-g', '--target-env=vulkan1.3', shared_shaders_include_dir])
+            glslcArgs.addAll(['-c', '-g', '--target-env=vulkan1.3', shared_shaders_include_dir, extern_files_include_dir])
         }
         externalNativeBuild {
             cmake {

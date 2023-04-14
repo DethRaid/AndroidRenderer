@@ -91,11 +91,17 @@ public:
     );
 
     /**
-     * Builds the geometry volume from last frame's depth buffer
+     * \brief Builds the geometry volume from last frame's depth buffer
+     *
+     * \param graph Render graph to use
+     * \param depth_buffer Scene depth buffer to inject
+     * \param normal_target gbuffer normals to inject
+     * \param view_uniform_buffer The view uniform buffer that was used to render the depth and normals targets
+     * \param resolution Resolution of the depth and normal targets
      */
-    void build_geometry_volume_from_depth_buffer(
-        RenderGraph& graph, TextureHandle last_frame_depth_buffer,
-        TextureHandle last_frame_normal_target, BufferHandle view_uniform_buffer, glm::uvec2 resolution
+    void build_geometry_volume_from_scene_view(
+        RenderGraph& graph, TextureHandle depth_buffer,
+        TextureHandle normal_target, BufferHandle view_uniform_buffer, glm::uvec2 resolution
     );
 
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
@@ -153,6 +159,7 @@ private:
     SceneDrawer rsm_drawer;
 
     GraphicsPipelineHandle gv_injection_pipeline;
+    GraphicsPipelineHandle inject_scene_depth_into_gv_pipeline;
 
     /**
      * \brief Injects the RSM depth and normals buffers for a given cascade into that cascade's geometry volume
@@ -166,11 +173,6 @@ private:
      * \param cascade_index Index of the cascade that we're injecting into
      */
     void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index);
-
-    void inject_point_cloud_into_gv(
-        RenderGraph& graph, TextureHandle normal_texture, TextureHandle depth_handle, glm::uvec2 resolution,
-        BufferHandle view_uniform_buffer, uint32_t cascade_index
-    );
 
     void perform_propagation_step(
         RenderGraph& render_graph,

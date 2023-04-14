@@ -114,6 +114,8 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHa
                 {destination_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
             },
             .execute = [&](CommandBuffer& commands) {
+                GpuZoneScopedN(commands, "Flush scatter buffer");
+
                 commands.flush_buffer(scatter_indices);
                 commands.flush_buffer(scatter_data);
                 

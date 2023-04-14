@@ -3,6 +3,12 @@
 
 #include "shared/prelude.h"
 
+#if defined(__cplusplus)
+#define mvec3 vec3
+#else
+#define mvec3 mediump vec3
+#endif
+
 /**
  * A Virtual Point Light, packed into a single vec4
  *
@@ -20,8 +26,8 @@ struct PackedVPL {
 
 struct VPL {
     vec3 position;
-    vec3 color;
-    vec3 normal;
+    mvec3 color;
+    mvec3 normal;
 };
 
 #endif

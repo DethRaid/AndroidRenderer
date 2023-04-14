@@ -4,17 +4,17 @@
 
 #include "common/spherical_harmonics.glsl"
 
-layout(location = 0) in vec3 color_in;
-layout(location = 1) in vec3 normal_in;
+layout(location = 0) in mediump vec3 color_in;
+layout(location = 1) in mediump vec3 normal_in;
 
-layout(location = 0) out vec4 red;
-layout(location = 1) out vec4 green;
-layout(location = 2) out vec4 blue;
+layout(location = 0) out mediump vec4 red;
+layout(location = 1) out mediump vec4 green;
+layout(location = 2) out mediump vec4 blue;
 
 void main() {
-    vec3 scaled_color = color_in * (32 * 32) / (512 * 512);
+    mediump vec3 scaled_color = color_in * (32 * 32) / (512 * 512);
 
-    vec3 normal = normal_in;
+    mediump vec3 normal = normal_in;
     // normal.z *= -1;
 
     red = dir_to_sh(normal) * color_in.r / PI;

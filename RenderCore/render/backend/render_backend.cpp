@@ -18,7 +18,7 @@ static std::shared_ptr<spdlog::logger> logger;
 
 static AutoCVar_Int cvar_enable_validation_layers{
     "r.vulkan.EnableValidationLayers",
-    "Whether to enable Vulkan validation layers", 1
+    "Whether to enable Vulkan validation layers", 0
 };
 
 static AutoCVar_Int cvar_enable_best_practices_layer{
@@ -30,7 +30,7 @@ static AutoCVar_Int cvar_enable_best_practices_layer{
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
     "r.vulkan.EnableGpuAssistedValidation",
     "Whether to enable GPU-assisted validation. Helpful when using bindless techniques, but incurs a performance penalty",
-    1
+    0
 };
 
 static AutoCVar_Int cvar_break_on_validation_warning{

@@ -9,8 +9,8 @@
 
 MipChainGenerator::MipChainGenerator(RenderBackend& backend_in) : backend{backend_in} {
     {
-        const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator.comp.spv");
-        shader = *backend.create_compute_shader("Mip Chain Generator", bytes);
+        const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_R16F.comp.spv");
+        shaders.emplace(VK_FORMAT_R16_SFLOAT, *backend.create_compute_shader("Mip Chain Generator", bytes));
     }
 
     auto& allocator = backend.get_global_allocator();
@@ -52,7 +52,7 @@ void MipChainGenerator::fill_mip_chain(
                 {
                     src_texture,
                     {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     }
                 },
@@ -75,9 +75,14 @@ void MipChainGenerator::fill_mip_chain(
                 }
             },
             .execute = [=, this](CommandBuffer& commands) {
+                GpuZoneScopedN(commands, "Generate mip chain")
+
                 auto& allocator = backend.get_global_allocator();
                 const auto& src_texture_actual = allocator.get_texture(src_texture);
                 const auto& dest_texture_actual = allocator.get_texture(dest_texture);
+
+                const auto dest_texture_format = dest_texture_actual.create_info.format;
+                const auto& shader = shaders.at(dest_texture_format);
 
                 auto uavs = std::vector<VkDescriptorImageInfo>{};
                 uavs.reserve(12);
@@ -98,12 +103,6 @@ void MipChainGenerator::fill_mip_chain(
                     );
                 }
 
-                auto image_info = VkDescriptorImageInfo{
-                    .sampler = sampler,
-                    .imageView = src_texture_actual.mip_views[0],
-                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL
-                };
-
                 auto set = VkDescriptorSet{};
                 backend.create_frame_descriptor_builder()
                        .bind_image(
@@ -114,7 +113,7 @@ void MipChainGenerator::fill_mip_chain(
                            }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT
                        )
                        .bind_image(
-                           1, uavs.data(), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, uavs.size()
+                           1, uavs.data(), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, static_cast<int32_t>(uavs.size())
                        )
                        .build(set);
 
