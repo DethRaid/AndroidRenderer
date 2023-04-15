@@ -276,6 +276,8 @@ void RenderBackend::set_object_name(VulkanType object, const std::string& name) 
         object_type = VK_OBJECT_TYPE_PIPELINE_LAYOUT;
     } else if constexpr (std::is_same_v<VulkanType, VkShaderModule>) {
         object_type = VK_OBJECT_TYPE_SHADER_MODULE;
+    } else if constexpr (std::is_same_v<VulkanType, VkQueue>) {
+        object_type = VK_OBJECT_TYPE_QUEUE;
     } else {
         throw std::runtime_error{ "Invalid object type" };
     }

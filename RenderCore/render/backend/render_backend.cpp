@@ -30,7 +30,7 @@ static AutoCVar_Int cvar_enable_best_practices_layer{
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
     "r.vulkan.EnableGpuAssistedValidation",
     "Whether to enable GPU-assisted validation. Helpful when using bindless techniques, but incurs a performance penalty",
-    0
+    1
 };
 
 static AutoCVar_Int cvar_break_on_validation_warning{
@@ -109,15 +109,7 @@ RenderBackend::RenderBackend() {
     graphics_queue = *device.get_queue(vkb::QueueType::graphics);
     graphics_queue_family_index = *device.get_queue_index(vkb::QueueType::graphics);
 
-    if(vkSetDebugUtilsObjectNameEXT != nullptr) {
-        const auto graphics_queue_name = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_QUEUE,
-            .objectHandle = reinterpret_cast<uint64_t>(graphics_queue),
-            .pObjectName = "Graphics queue"
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &graphics_queue_name);
-    }
+    set_object_name(graphics_queue, "Graphics Queue");
 
     // Don't use a dedicated transfer queue, because my attempts at a queue ownership transfer have failed
 

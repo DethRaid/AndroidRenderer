@@ -18,10 +18,12 @@ layout(location = 0) in vec2 texcoord;
 layout(location = 0) out mediump vec4 color_out;
 
 mediump vec3 sample_bloom_chain(vec2 texcoord) {
+    vec2 texture_size = textureSize(bloom_chain, 0);
+    vec2 half_texel = vec2(1.0) / texture_size;
     mediump vec3 result = vec3(0);
 
-    for(float mip_level = 0; mip_level < 5.0; mip_level += 1) {
-        mediump vec3 bloom_sample = textureLod(bloom_chain, texcoord, mip_level).xyz;
+    for(float mip_level = 0; mip_level < 6.0; mip_level += 1) {
+        mediump vec3 bloom_sample = textureLod(bloom_chain, texcoord + half_texel, mip_level).xyz;
         result += bloom_sample;
     }
 
@@ -35,7 +37,7 @@ void main() {
 
     mediump vec4 scene_color = textureLod(scene_color_texture, texcoord, 0);
 
-    scene_color.rgb += bloom / 7.0;
+    scene_color.rgb += bloom * 0.0314159;
 
     scene_color.rgb = pow(scene_color.rgb, vec3(1.f / 2.2f));
 

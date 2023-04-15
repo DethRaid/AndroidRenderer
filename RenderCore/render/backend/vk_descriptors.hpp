@@ -93,7 +93,7 @@ namespace vkutil {
             VkSampler sampler = {};
             TextureHandle image = {};
             VkImageLayout image_layout = {};
-            int32_t mip_level = -1;
+            tl::optional<uint32_t> mip_level = tl::nullopt;
         };
 
         static DescriptorBuilder begin(RenderBackend& backend, vkutil::DescriptorAllocator& allocator);

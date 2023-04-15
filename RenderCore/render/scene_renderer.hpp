@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bloomer.hpp"
 #include "render/backend/render_backend.hpp"
 #include "scene_view.hpp"
 #include "render/material_storage.hpp"
@@ -64,6 +65,8 @@ private:
 
     MipChainGenerator mip_chain_generator;
 
+    Bloomer bloomer;
+
     /**
      * Cache of voxel representations of static meshes
      */
@@ -95,8 +98,6 @@ private:
     TextureUsageToken last_frame_normal_usage = {};
 
     TextureHandle lit_scene_handle = TextureHandle::None;
-
-    TextureHandle bloom_mip_chain = TextureHandle::None;
 
     std::vector<TextureHandle> swapchain_images;
 

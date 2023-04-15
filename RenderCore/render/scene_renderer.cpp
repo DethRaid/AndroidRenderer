@@ -25,13 +25,12 @@ static auto cvar_shadow_cascade_split_lambda = AutoCVar_Float{
 
 SceneRenderer::SceneRenderer() :
     backend{}, player_view{backend}, texture_loader{backend}, material_storage{backend},
-    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, mip_chain_generator{backend}, lpv{backend},
-    lighting_pass{backend},
-    ui_phase{*this} {
+    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, mip_chain_generator{backend}, bloomer{backend},
+    lpv{backend}, lighting_pass{backend}, ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
-    // player_view.set_position_and_direction(glm::vec3{10.f, 0.f, 20.0f}, glm::vec3{0.f, 0.0f, -1.f});
-    player_view.set_position_and_direction(glm::vec3{ 7.f, 1.f, 0.0f }, glm::vec3{ -1.0f, 0.0f, 0.f });
+    player_view.set_position_and_direction(glm::vec3{20.f, -10.f, 30.0f}, glm::vec3{0.f, 0.0f, -1.f});
+    // player_view.set_position_and_direction(glm::vec3{ 7.f, 1.f, 0.0f }, glm::vec3{ -1.0f, 0.0f, 0.f });
 
     const auto render_resolution = SystemInterface::get().get_resolution();
 
@@ -155,7 +154,7 @@ void SceneRenderer::render() {
     } else if (lpv.get_build_mode() == GvBuildMode::DepthBuffers) {
         lpv.build_geometry_volume_from_scene_view(
             render_graph, depth_buffer_mip_chain, normal_target_mip_chain, player_view.get_buffer(),
-            scene_render_resolution / glm::uvec2{ 2 }
+            scene_render_resolution / glm::uvec2{2}
         );
     }
 
@@ -279,7 +278,7 @@ void SceneRenderer::render() {
 
     // Bloom
 
-    mip_chain_generator.fill_mip_chain(render_graph, lit_scene_handle, bloom_mip_chain);
+    bloomer.fill_bloom_tex(render_graph, lit_scene_handle);
 
     // Other postprocessing
 
@@ -300,7 +299,7 @@ void SceneRenderer::render() {
                     }
                 },
                 {
-                    bloom_mip_chain, {
+                    bloomer.get_bloom_tex(), {
                         VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     }
@@ -312,7 +311,7 @@ void SceneRenderer::render() {
                     .name = "UI",
                     .color_attachments = {0},
                     .execute = [&](CommandBuffer& commands) {
-                        ui_phase.render(commands, player_view, bloom_mip_chain);
+                        ui_phase.render(commands, player_view, bloomer.get_bloom_tex());
                     }
                 }
             }
@@ -333,7 +332,7 @@ void SceneRenderer::render() {
     last_frame_depth_usage = render_graph.get_last_usage_token(depth_buffer_mip_chain);
     last_frame_normal_usage = render_graph.get_last_usage_token(normal_target_mip_chain);
 
-    backend.execute_graph(std::move(render_graph));    
+    backend.execute_graph(std::move(render_graph));
 }
 
 RenderBackend& SceneRenderer::get_backend() {
@@ -405,11 +404,7 @@ void SceneRenderer::create_scene_render_targets() {
     if (lit_scene_handle != TextureHandle::None) {
         allocator.destroy_texture(lit_scene_handle);
     }
-
-    if (bloom_mip_chain != TextureHandle::None) {
-        allocator.destroy_texture(bloom_mip_chain);
-    }
-
+    
     // gbuffer and lighting render targets
     gbuffer_color_handle = allocator.create_texture(
         "gbuffer_color", VK_FORMAT_R8G8B8A8_SRGB,
@@ -442,7 +437,7 @@ void SceneRenderer::create_scene_render_targets() {
         TextureUsage::RenderTarget
     );
 
-    const auto mip_chain_resolution = scene_render_resolution / glm::uvec2{ 2 };
+    const auto mip_chain_resolution = scene_render_resolution / glm::uvec2{2};
     const auto minor_dimension = glm::min(mip_chain_resolution.x, mip_chain_resolution.y);
     const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
     depth_buffer_mip_chain = allocator.create_texture(
@@ -462,13 +457,7 @@ void SceneRenderer::create_scene_render_targets() {
         scene_render_resolution, 1,
         TextureUsage::RenderTarget
     );
-
-    bloom_mip_chain = allocator.create_texture(
-        "Bloom mip chain", VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        mip_chain_resolution, num_mips,
-        TextureUsage::StorageImage
-    );
-
+    
     auto& swapchain = backend.get_swapchain();
     const auto& images = swapchain.get_images();
     const auto& image_views = swapchain.get_image_views();

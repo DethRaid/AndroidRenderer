@@ -1,0 +1,52 @@
+#version 460
+
+layout(set = 0, binding = 0) uniform sampler2D src_image;
+layout(set = 0, binding = 1, r11f_g11f_b10f) uniform writeonly image2D dst_image;
+
+layout(push_constant) uniform PushConstants {
+    uvec4 padding0;
+    uvec4 padding1;
+};
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+vec2 source_size;
+vec2 inv_source_size;
+
+mediump vec3 box_blur(const vec2 uv) {
+    const float delta = 1.f;
+
+    mediump vec4 o = inv_source_size.xyxy * vec2(-delta, delta).xxyy;
+    mediump vec3 s = textureLod(src_image, uv + o.xy, 0).rgb +
+              textureLod(src_image, uv + o.zy, 0).rgb +
+              textureLod(src_image, uv + o.xw, 0).rgb +
+              textureLod(src_image, uv + o.zw, 0).rgb;
+    return s * 0.25f;
+}
+
+mediump vec3 cod_blur(const vec2 uv) {
+    const float delta = 1.f;
+
+    mediump vec4 o = inv_source_size.xyxy * vec2(-delta, delta).xxyy;
+    mediump vec3 s = box_blur(uv) * 0.5f + box_blur(uv + o.xy) * 0.125f +
+              box_blur(uv + o.zy) * 0.125f + box_blur(uv + o.xw) * 0.125f +
+              box_blur(uv + o.zw) * 0.125f;
+
+    return s;
+}
+
+void main() {    
+    source_size = textureSize(src_image, 0);
+    inv_source_size = vec2(1.0) / source_size;
+
+    vec2 dest_size = imageSize(dst_image);
+
+    if(any(greaterThan(gl_GlobalInvocationID.xy, dest_size))) {
+        return;
+    }
+
+    const vec2 uv = vec2(vec2(gl_GlobalInvocationID.xy) + vec2(0.5)) / dest_size;
+    mediump vec3 bloomed = cod_blur(uv);
+
+    imageStore(dst_image, ivec2(gl_GlobalInvocationID.xy), vec4(bloomed, 0));
+}

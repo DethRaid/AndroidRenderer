@@ -1,5 +1,7 @@
 #include "mesh_storage.hpp"
 
+#include <tracy/Tracy.hpp>
+
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/resource_upload_queue.hpp"
 #include "shared/vertex_data.hpp"
@@ -101,6 +103,24 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
     );
     upload_queue->upload_to_buffer(index_buffer, indices, static_cast<uint32_t>(mesh.first_index * sizeof(uint32_t)));
 
+    /*
+     * Do a bunch of bullshit
+     *
+     * Some bullshits:
+     * - Compute the area of each triangle in the mesh
+     * - Average the area to get some concept of "average triangle area." This is how we should do LODs, any other
+     *   method is cringe
+     * - Sample the triangles using a weighted average of triangle area. Generate random positions with barycentrics.
+     *   Use this to generate a representative point cloud of the mesh
+     * - We can use this point cloud to build the GV for our LPVs
+     * - We can use this point cloud for mesh lights. If the mesh has an emissive material, we can sample the emission
+     *   texture at each point. Generate VPLs for each sample with non-zero emission and put them into a new buffer.
+     *   Inject that buffer into the LPV before propagation
+     * - This will make us win deccerballs
+     */
+
+    const auto [point_cloud, average_triangle_area] = generate_surface_point_cloud(vertices, indices);
+
     return meshes.add_object(std::move(mesh));
 }
 
@@ -121,4 +141,100 @@ BufferHandle MeshStorage::get_vertex_data_buffer() const {
 
 BufferHandle MeshStorage::get_index_buffer() const {
     return index_buffer;
+}
+
+/**
+ * \brief Finds the reservoir that contains the probability sample
+ *
+ * Basically does a binary search among reservoir to find the one that's closest to the probability sample without being smaller
+ *
+ * \param probability_sample Probability to find a reservoir for
+ * \param prefices Prefix sums of all the reservoir probabilities
+ * \return Index of the reservoir that contains the probability
+ */
+size_t find_reservoir(double probability_sample, const std::vector<double>& prefices);
+
+std::pair<std::vector<MeshPoint>, float> MeshStorage::generate_surface_point_cloud(
+    std::span<const StandardVertex> vertices, std::span<const uint32_t> indices
+) {
+    ZoneScoped;
+
+    auto triangle_areas = std::vector<float>{};
+    triangle_areas.reserve(indices.size() / 3);
+
+    auto area_accumulator = 0.f;
+
+    for(uint32_t i = 0; i < indices.size(); i += 3) {
+        const auto index_0 = indices[i];
+        const auto index_1 = indices[i + 1];
+        const auto index_2 = indices[i + 2];
+
+        const auto& v0 = vertices[index_0];
+        const auto& v1 = vertices[index_1];
+        const auto& v2 = vertices[index_2];
+
+        const auto edge_0 = v0.position - v1.position;
+        const auto edge_1 = v0.position - v2.position;
+        
+        const auto parallelogram_area = glm::cross(edge_0, edge_1);
+
+        const auto area = glm::length(parallelogram_area) / 2.0f;
+
+        triangle_areas.push_back(area);
+        area_accumulator += area;
+    }
+
+    // Normalize the area
+    for (auto& area : triangle_areas) {
+        area /= area_accumulator;
+    }
+
+    // Prefix sum my beloved
+    auto prefices = std::vector<double>{};
+    prefices.reserve(triangle_areas.size());
+
+    auto last_prefix = 0.0;
+    for(const auto area : triangle_areas) {
+        last_prefix += area;
+        prefices.emplace_back(last_prefix);
+    }
+
+    // area_accumulator is the total surface area of the mesh
+    // We want a number of samples with a fixed density
+    // We want one sample per 0.1 m^2
+    // So the number of samples is the total area divided by 0.1
+    const auto num_samples = glm::round(area_accumulator / 0.1f);
+    
+    auto points = std::vector<MeshPoint>{};
+    points.reserve(static_cast<size_t>(num_samples));
+
+    // TODO: Better rng
+    srand(time(NULL));
+
+    for(auto i = 0u; i < num_samples; i++) {
+        const auto probability_sample = static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
+        const auto triangle_index = find_reservoir(probability_sample, prefices);
+    }
+
+    area_accumulator /= static_cast<float>(triangle_areas.size());
+
+    return std::make_pair(std::vector<MeshPoint>{}, area_accumulator);
+}
+
+size_t find_reservoir(double probability_sample, const std::vector<double>& prefices) {
+    // Find the index where prefices[n] > sample but prefices[n - 1] < sample
+
+    // BINARY SEARCH
+    auto test_index = prefices.size() / 2;
+
+    if(prefices[test_index] > probability_sample) {
+        if (test_index > 0 && prefices[test_index - 1] < probability_sample) {
+            // WE FOUND IT
+            return test_index;
+        }
+
+
+    }
+
+    return 0;
 }

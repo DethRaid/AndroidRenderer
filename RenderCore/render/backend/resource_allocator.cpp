@@ -16,7 +16,7 @@ ResourceAllocator::ResourceAllocator(RenderBackend& backend_in) :
     backend{backend_in} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("ResourceAllocator");
-        logger->set_level(spdlog::level::debug);
+        logger->set_level(spdlog::level::info);
     }
     const auto functions = VmaVulkanFunctions{
         .vkGetInstanceProcAddr = vkGetInstanceProcAddr,

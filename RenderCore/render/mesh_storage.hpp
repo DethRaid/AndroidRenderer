@@ -10,9 +10,15 @@
 #include "render/backend/handles.hpp"
 #include "render/mesh.hpp"
 #include "render/standard_vertex.hpp"
+#include "shared/vertex_data.hpp"
 
 class ResourceAllocator;
 class ResourceUploadQueue;
+
+struct MeshPoint {
+    uint32_t triangle_id;
+    glm::vec3 barycentric;
+};
 
 /**
  * Stores meshes
@@ -49,4 +55,6 @@ private:
 
     VmaVirtualBlock index_block;
     BufferHandle index_buffer;
+
+    std::pair<std::vector<MeshPoint>, float> generate_surface_point_cloud(std::span<const StandardVertex> vertices, std::span<const uint32_t> indices);
 };
