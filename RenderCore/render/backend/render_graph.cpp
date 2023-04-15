@@ -32,7 +32,7 @@ RenderGraph::RenderGraph(RenderBackend& backend_in) : backend{backend_in},
                                                       cmds{backend.create_graphics_command_buffer()} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("RenderGraph");
-        logger->set_level(spdlog::level::trace);
+        logger->set_level(spdlog::level::info);
     }
 
     cmds.begin();
