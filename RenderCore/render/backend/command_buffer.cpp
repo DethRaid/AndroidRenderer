@@ -22,11 +22,12 @@ CommandBuffer::CommandBuffer(VkCommandBuffer vk_cmds, RenderBackend& backend_in)
 void CommandBuffer::begin() {
     const auto begin_info = VkCommandBufferBeginInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     };
     vkBeginCommandBuffer(commands, &begin_info);
 }
 
-void CommandBuffer::set_marker(const std::string& marker_name) {
+void CommandBuffer::set_marker(const std::string& marker_name) const {
     if (vkCmdSetCheckpointNV != nullptr) {
         vkCmdSetCheckpointNV(commands, marker_name.c_str());
     }

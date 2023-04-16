@@ -8,8 +8,9 @@
 
 constexpr const uint32_t max_num_primitives = 65536;
 
-RenderScene::RenderScene(RenderBackend& backend_in)
-    : backend{backend_in}, sun{backend}, primitive_upload_buffer{backend_in} {
+RenderScene::RenderScene(RenderBackend& backend_in, MeshStorage& meshes_in, MaterialStorage& materials_in)
+    : backend{backend_in}, meshes{meshes_in}, materials{materials_in}, sun{backend},
+      primitive_upload_buffer{backend_in} {
     auto& allocator = backend.get_global_allocator();
     primitive_data_buffer = allocator.create_buffer(
         "Primitive data",
@@ -21,13 +22,24 @@ RenderScene::RenderScene(RenderBackend& backend_in)
     // sun.set_direction({0.1f, -1.f, 0.33f});
     sun.set_direction({0.1f, -1.f, -0.33f});
     sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 100000.f);
+
+
+    {
+        const auto bytes = *SystemInterface::get().load_file("shaders/util/emissive_point_cloud.comp.spv");
+        emissive_point_cloud_shader = *backend.create_compute_shader("Generate emissive point cloud", bytes);
+    }
 }
 
 PooledObject<MeshPrimitive>
 RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
-    // materials.
+    auto& allocator = backend.get_global_allocator();
 
-    const auto handle = mesh_primitives.add_object(std::move(primitive));
+    const auto materials_buffer = materials.get_material_buffer();
+    const auto& materials_buffer_actual = allocator.get_buffer(materials_buffer);
+    primitive.data.material_id = materials_buffer_actual.address;
+    primitive.data.material_id.x += sizeof(BasicPbrMaterialGpu) * primitive.material.index;
+
+    auto handle = mesh_primitives.add_object(std::move(primitive));
 
     if (primitive_upload_buffer.is_full()) {
         primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
@@ -46,6 +58,10 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
     case TransparencyMode::Translucent:
         translucent_primitives.push_back(handle);
         break;
+    }
+
+    if(handle->material->first.emissive) {
+        new_emissive_objects.push_back(handle);
     }
 
     return handle;
@@ -92,4 +108,52 @@ std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
     }
 
     return output;
+}
+
+void RenderScene::generate_emissive_point_clouds(RenderGraph& render_graph) {
+    for(auto& primitive : new_emissive_objects) {
+        primitive->emissive_points_buffer = generate_emissive_point_cloud(render_graph, primitive);
+    }
+
+    new_emissive_objects.clear();
+}
+
+BufferHandle RenderScene::generate_emissive_point_cloud(
+    RenderGraph& graph, const PooledObject<MeshPrimitive>& primitive
+) {
+    const auto handle = backend.get_global_allocator().create_buffer(
+        "Primitive emission buffer", primitive->mesh->num_points * sizeof(glm::vec4), BufferUsage::StorageBuffer
+    );
+
+    graph.add_compute_pass(
+        {
+            .name = "Build emissive points",
+            .buffers = {
+                {handle, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT}},
+                {
+                    primitive->mesh->point_cloud_buffer,
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                },
+                {
+                    primitive_data_buffer,
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                }
+            },
+            .execute = [&](CommandBuffer& commands) {
+                commands.bind_buffer_reference(0, primitive_data_buffer);
+                commands.bind_buffer_reference(2, primitive->mesh->point_cloud_buffer);
+                commands.bind_buffer_reference(4, handle);
+                commands.set_push_constant(6, primitive.index);
+                commands.set_push_constant(7, primitive->mesh->num_points);
+
+                commands.bind_descriptor_set(0, backend.get_texture_descriptor_pool().get_descriptor_set());
+
+                commands.bind_shader(emissive_point_cloud_shader);
+
+                commands.clear_descriptor_set(0);
+            }
+        }
+    );
+
+    return handle;
 }

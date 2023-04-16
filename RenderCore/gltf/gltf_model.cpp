@@ -16,7 +16,6 @@
 #include "core/visitor.hpp"
 #include "render/basic_pbr_material.hpp"
 #include "render/scene_renderer.hpp"
-#include "render/standard_vertex.hpp"
 #include "render/render_scene.hpp"
 #include "render/texture_loader.hpp"
 
@@ -106,7 +105,6 @@ void GltfModel::add_primitives(RenderScene& scene, RenderBackend& backend) {
                         graph, {
                             .data = PrimitiveDataGPU{
                                 .model = node_to_world, .inverse_model = glm::inverse(node_to_world),
-                                .data = {imported_material.index, 0, 0, 0}
                             },
                             .mesh = imported_mesh,
                             .material = imported_material,
@@ -587,7 +585,13 @@ read_vertex_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& mo
     const auto num_vertices = positions_accessor.count;
 
     auto vertices = std::vector<StandardVertex>();
-    vertices.resize(num_vertices);
+    vertices.resize(num_vertices, StandardVertex{
+        .position = glm::vec3{},
+        .normal = glm::vec3{ 0, 0, 1 },
+        .tangent = glm::vec3{ 1, 0, 0 },
+        .texcoord = {},
+        .color = glm::packUnorm4x8(glm::vec4{ 1, 1, 1, 1 }),
+    });
 
     copy_vertex_data_to_vector(primitive.attributes, model, vertices.data());
 

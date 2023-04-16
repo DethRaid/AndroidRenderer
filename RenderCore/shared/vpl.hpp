@@ -4,7 +4,7 @@
 #include "shared/prelude.h"
 
 #if defined(__cplusplus)
-#define mvec3 vec3
+#define mvec3 glm::mediump_vec3
 #else
 #define mvec3 mediump vec3
 #endif

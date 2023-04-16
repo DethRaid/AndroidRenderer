@@ -29,7 +29,7 @@ public:
     void begin();
 
 
-    void set_marker(const std::string& marker_name);
+    void set_marker(const std::string& marker_name) const;
 
     /**
      * Writes some data to a buffer

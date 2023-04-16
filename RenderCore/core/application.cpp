@@ -18,7 +18,9 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
     spdlog::flush_on(spdlog::level::warn);
 
     scene_renderer = std::make_unique<SceneRenderer>();
-    scene = std::make_unique<RenderScene>(scene_renderer->get_backend());
+    scene = std::make_unique<RenderScene>(
+        scene_renderer->get_backend(), scene_renderer->get_mesh_storage(), scene_renderer->get_material_storage()
+    );
 
     scene_renderer->set_scene(*scene);
 
@@ -32,7 +34,7 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
 void Application::load_scene(const std::filesystem::path& scene_path) {
     ZoneScoped;
     logger->info("Beginning load of scene {}", scene_path.string());
-    if(scene_path.has_parent_path()) {
+    if (scene_path.has_parent_path()) {
         logger->info("Scene path {} has parent path {}", scene_path.string(), scene_path.parent_path().string());
     } else {
         logger->warn("Scene path {} has no parent path!", scene_path.string());

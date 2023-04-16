@@ -11,6 +11,7 @@ static std::shared_ptr<spdlog::logger> logger;
 Bloomer::Bloomer(RenderBackend& backend_in) : backend{backend_in} {
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("Bloomer");
+        logger->set_level(spdlog::level::info);
     }
 
     {

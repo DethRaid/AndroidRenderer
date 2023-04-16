@@ -24,7 +24,6 @@ void SceneDrawer::draw(CommandBuffer& commands) const {
     commands.bind_index_buffer(mesh_storage->get_index_buffer());
 
     commands.bind_buffer_reference(0, scene->get_primitive_buffer());
-    commands.bind_buffer_reference(2, material_storage->get_material_buffer());
 
     if (is_color_pass(type)) {
         commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
@@ -32,7 +31,7 @@ void SceneDrawer::draw(CommandBuffer& commands) const {
 
     for (const auto& primitive : solids) {
 
-        commands.set_push_constant(4, primitive.index);
+        commands.set_push_constant(2, primitive.index);
 
         commands.bind_pipeline(primitive->material->second.pipelines[type]);
 

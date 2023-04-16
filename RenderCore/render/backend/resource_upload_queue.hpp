@@ -46,6 +46,9 @@ public:
     template<typename DataType>
     void upload_to_buffer(BufferHandle buffer, std::span<const DataType> data, uint32_t offset);
 
+    template<typename DataType>
+    void upload_to_buffer(BufferHandle buffer, std::span<DataType> data, uint32_t offset);
+
     void enqueue(KtxUploadJob&& job);
 
     /**
@@ -80,7 +83,20 @@ private:
 };
 
 template <typename DataType>
-void ResourceUploadQueue::upload_to_buffer(BufferHandle buffer, std::span<const DataType> data, uint32_t offset) {
+void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<const DataType> data, const uint32_t offset) {
+    auto job = BufferUploadJob{
+            .buffer = buffer,
+            .data = {},
+            .offset = offset,
+    };
+    job.data.resize(data.size() * sizeof(DataType));
+    std::memcpy(job.data.data(), data.data(), data.size() * sizeof(DataType));
+
+    enqueue(std::move(job));
+}
+
+template <typename DataType>
+void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<DataType> data, const uint32_t offset) {
     auto job = BufferUploadJob{
             .buffer = buffer,
             .data = {},

@@ -133,6 +133,8 @@ void SceneRenderer::render() {
 
     scene->flush_primitive_upload(render_graph);
 
+    scene->generate_emissive_point_clouds(render_graph);
+
     lpv.clear_volume(render_graph);
 
     render_graph.add_transition_pass(

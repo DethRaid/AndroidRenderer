@@ -18,7 +18,6 @@ layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Pr
 
 layout(push_constant) uniform Constants {
     PrimitiveDataBuffer primitive_data_buffer;
-    uvec2 material_buffer;
     uint primitive_id;
     uint cascade_index;
 };

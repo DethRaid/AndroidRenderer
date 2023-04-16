@@ -1,7 +1,9 @@
 #include "mesh_storage.hpp"
 
+#include <random>
 #include <tracy/Tracy.hpp>
 
+#include "core/system_interface.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/resource_upload_queue.hpp"
 #include "shared/vertex_data.hpp"
@@ -9,8 +11,15 @@
 constexpr const uint32_t max_num_vertices = 1000000;
 constexpr const uint32_t max_num_indices = 1000000;
 
+static std::shared_ptr<spdlog::logger> logger;
+
 MeshStorage::MeshStorage(ResourceAllocator& allocator_in, ResourceUploadQueue& queue_in) :
     allocator{&allocator_in}, upload_queue{&queue_in} {
+    if (logger == nullptr) {
+        logger = SystemInterface::get().get_logger("MeshStorage");
+        logger->set_level(spdlog::level::info);
+    }
+
     vertex_position_buffer = allocator_in.create_buffer(
         "Vertex position buffer",
         max_num_vertices * sizeof(VertexPosition),
@@ -121,6 +130,16 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
 
     const auto [point_cloud, average_triangle_area] = generate_surface_point_cloud(vertices, indices);
 
+    mesh.average_triangle_area = average_triangle_area;
+
+    mesh.point_cloud_buffer = allocator->create_buffer(
+        fmt::format("Mesh point cloud"), sizeof(StandardVertex) * point_cloud.size(), BufferUsage::StorageBuffer
+    );
+    upload_queue->upload_to_buffer(mesh.point_cloud_buffer, std::span{point_cloud}, 0);
+
+    mesh.sh_points_buffer = generate_sh_point_cloud(point_cloud);
+    mesh.num_points = static_cast<uint32_t>(point_cloud.size());
+
     return meshes.add_object(std::move(mesh));
 }
 
@@ -154,17 +173,17 @@ BufferHandle MeshStorage::get_index_buffer() const {
  */
 size_t find_reservoir(double probability_sample, const std::vector<double>& prefices);
 
-std::pair<std::vector<MeshPoint>, float> MeshStorage::generate_surface_point_cloud(
-    std::span<const StandardVertex> vertices, std::span<const uint32_t> indices
-) {
+std::pair<std::vector<StandardVertex>, float> MeshStorage::generate_surface_point_cloud(
+    const std::span<const StandardVertex> vertices, const std::span<const uint32_t> indices
+) const {
     ZoneScoped;
 
-    auto triangle_areas = std::vector<float>{};
+    auto triangle_areas = std::vector<double>{};
     triangle_areas.reserve(indices.size() / 3);
 
-    auto area_accumulator = 0.f;
+    auto area_accumulator = 0.0;
 
-    for(uint32_t i = 0; i < indices.size(); i += 3) {
+    for (uint32_t i = 0; i < indices.size(); i += 3) {
         const auto index_0 = indices[i];
         const auto index_1 = indices[i + 1];
         const auto index_2 = indices[i + 2];
@@ -175,10 +194,10 @@ std::pair<std::vector<MeshPoint>, float> MeshStorage::generate_surface_point_clo
 
         const auto edge_0 = v0.position - v1.position;
         const auto edge_1 = v0.position - v2.position;
-        
+
         const auto parallelogram_area = glm::cross(edge_0, edge_1);
 
-        const auto area = glm::length(parallelogram_area) / 2.0f;
+        const auto area = glm::length(parallelogram_area) / 2.0;
 
         triangle_areas.push_back(area);
         area_accumulator += area;
@@ -194,7 +213,7 @@ std::pair<std::vector<MeshPoint>, float> MeshStorage::generate_surface_point_clo
     prefices.reserve(triangle_areas.size());
 
     auto last_prefix = 0.0;
-    for(const auto area : triangle_areas) {
+    for (const auto area : triangle_areas) {
         last_prefix += area;
         prefices.emplace_back(last_prefix);
     }
@@ -203,38 +222,155 @@ std::pair<std::vector<MeshPoint>, float> MeshStorage::generate_surface_point_clo
     // We want a number of samples with a fixed density
     // We want one sample per 0.1 m^2
     // So the number of samples is the total area divided by 0.1
-    const auto num_samples = glm::round(area_accumulator / 0.1f);
-    
-    auto points = std::vector<MeshPoint>{};
-    points.reserve(static_cast<size_t>(num_samples));
+    const auto num_samples = static_cast<size_t>(glm::round(area_accumulator / 0.1));
 
-    // TODO: Better rng
-    srand(time(NULL));
+    auto points = std::vector<StandardVertex>{};
+    points.reserve(num_samples);
 
-    for(auto i = 0u; i < num_samples; i++) {
-        const auto probability_sample = static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
-        const auto triangle_index = find_reservoir(probability_sample, prefices);
+    auto r = std::random_device{};
+    auto e1 = std::default_random_engine{r()};
+    auto uniform_dist = std::uniform_real_distribution<double>{0.0, 1.0};
+
+    for (auto i = 0u; i < num_samples; i++) {
+        const auto probability_sample = uniform_dist(e1);
+        logger->trace("Searching for reservoir {}", probability_sample);
+        const auto triangle_id = find_reservoir(probability_sample, prefices);
+        const auto barycentric = glm::normalize(glm::vec3{uniform_dist(e1), uniform_dist(e1), uniform_dist(e1)});
+
+        const auto vertex = interpolate_vertex(vertices, indices, triangle_id, barycentric);
+
+        points.emplace_back(vertex);
     }
 
-    area_accumulator /= static_cast<float>(triangle_areas.size());
+    area_accumulator /= static_cast<double>(triangle_areas.size());
 
-    return std::make_pair(std::vector<MeshPoint>{}, area_accumulator);
+    return std::make_pair(points, static_cast<float>(area_accumulator));
 }
 
-size_t find_reservoir(double probability_sample, const std::vector<double>& prefices) {
+StandardVertex MeshStorage::interpolate_vertex(
+    std::span<const StandardVertex> vertices, std::span<const uint32_t> indices, size_t triangle_id,
+    glm::vec3 barycentric
+) {
+    const auto provoking_index = triangle_id * 3;
+    const auto i0 = indices[provoking_index];
+    const auto i1 = indices[provoking_index + 1];
+    const auto i2 = indices[provoking_index + 2];
+
+    const auto& v0 = vertices[i0];
+    const auto& v1 = vertices[i1];
+    const auto& v2 = vertices[i2];
+
+    // Barycentrib
+    const auto p0 = v0.position * barycentric.x;
+    const auto p1 = v1.position * barycentric.y;
+    const auto p2 = v2.position * barycentric.z;
+
+    const auto position = (p0 + p1 + p2) / 3.f;
+
+    const auto n0 = v0.normal * barycentric.x;
+    const auto n1 = v1.normal * barycentric.y;
+    const auto n2 = v2.normal * barycentric.z;
+
+    const auto normal = (n0 + n1 + n2) / 3.f;
+
+    const auto t0 = v0.tangent * barycentric.x;
+    const auto t1 = v1.tangent * barycentric.y;
+    const auto t2 = v2.tangent * barycentric.z;
+
+    const auto tangent = (t0 + t1 + t2) / 3.f;
+
+    const auto uv0 = v0.texcoord * barycentric.x;
+    const auto uv1 = v1.texcoord * barycentric.y;
+    const auto uv2 = v2.texcoord * barycentric.z;
+
+    const auto texcoord = (uv0 + uv1 + uv2) / 3.f;
+
+    const auto c0 = glm::unpackUnorm4x8(v0.color) * barycentric.x;
+    const auto c1 = glm::unpackUnorm4x8(v1.color) * barycentric.y;
+    const auto c2 = glm::unpackUnorm4x8(v2.color) * barycentric.z;
+
+    const auto color = (c0 + c1 + c2) / 3.f;
+
+    return {
+        .position = position,
+        .normal = normal,
+        .tangent = tangent,
+        .texcoord = texcoord,
+        .color = glm::packUnorm4x8(color),
+    };
+}
+
+// Vector to SH - from https://ericpolman.com/2016/06/28/light-propagation-volumes/
+
+/*Spherical harmonics coefficients – precomputed*/
+// 1 / 2sqrt(pi)
+#define SH_c0 0.282094792f
+// sqrt(3/pi) / 2
+#define SH_c1 0.488602512f
+
+/*Cosine lobe coeff*/
+// sqrt(pi)/2
+#define SH_cosLobe_c0 0.886226925f
+// sqrt(pi/3) 
+#define SH_cosLobe_c1 1.02332671f
+
+glm::vec4 dir_to_cosine_lobe(const glm::vec3 dir) {
+    return glm::vec4{SH_cosLobe_c0, -SH_cosLobe_c1 * dir.y, SH_cosLobe_c1 * dir.z, -SH_cosLobe_c1 * dir.x};
+}
+
+glm::vec4 dir_to_sh(const glm::vec3 dir) {
+    return glm::vec4{SH_c0, -SH_c1 * dir.y, SH_c1 * dir.z, -SH_c1 * dir.x};
+}
+
+BufferHandle MeshStorage::generate_sh_point_cloud(const std::vector<StandardVertex>& point_cloud) const {
+    auto sh_points = std::vector<ShPoint>{};
+    sh_points.reserve(point_cloud.size());
+
+    for (const auto& point : point_cloud) {
+        const auto sh = dir_to_cosine_lobe(point.normal);
+        sh_points.emplace_back(glm::vec4{point.position, 1.f}, sh);
+    }
+
+    const auto sh_buffer_handle = allocator->create_buffer("SH Point Cloud", sizeof(ShPoint) * sh_points.size(), BufferUsage::StorageBuffer);
+    upload_queue->upload_to_buffer(sh_buffer_handle, std::span{ sh_points }, 0);
+
+    return sh_buffer_handle;
+}
+
+size_t find_reservoir(const double probability_sample, const std::vector<double>& prefices) {
     // Find the index where prefices[n] > sample but prefices[n - 1] < sample
 
     // BINARY SEARCH
     auto test_index = prefices.size() / 2;
+    auto step_size = test_index;
 
-    if(prefices[test_index] > probability_sample) {
-        if (test_index > 0 && prefices[test_index - 1] < probability_sample) {
-            // WE FOUND IT
+    while (true) {
+        if (prefices[test_index] > probability_sample) {
+            if (test_index == 0) {
+                // The lowest reservoir contains the sample
+                return test_index;
+            }
+            if (test_index > 0 && prefices[test_index - 1] < probability_sample) {
+                // We're not in the lowest reservoir, but we did find the sample
+                return test_index;
+            }
+        }
+
+        if (prefices[test_index] < probability_sample && test_index == prefices.size() - 1) {
+            // The probability sample is outside of the range - just return the last index
             return test_index;
         }
 
+        // We have not yet found the reservoir. Change the test index and try again
+        step_size = glm::max(step_size / 2u, static_cast<size_t>(1u));
+        if (prefices[test_index] > probability_sample) {
+            test_index -= step_size;
+        } else {
+            test_index += step_size;
+        }
 
+        // Pray we avoid infinite loops
     }
 
-    return 0;
+    throw std::runtime_error{"Could not find appropriate reservoir"};
 }

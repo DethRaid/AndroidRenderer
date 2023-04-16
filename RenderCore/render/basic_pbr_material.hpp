@@ -34,6 +34,8 @@ struct BasicPbrMaterial {
 
     TransparencyMode transparency_mode;
 
+    bool emissive = false;
+
     bool double_sided;
 
     bool front_face_ccw;

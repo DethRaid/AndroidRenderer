@@ -9,16 +9,11 @@
 #include "core/object_pool.hpp"
 #include "render/backend/handles.hpp"
 #include "render/mesh.hpp"
-#include "render/standard_vertex.hpp"
 #include "shared/vertex_data.hpp"
+#include "shared/mesh_point.hpp"
 
 class ResourceAllocator;
 class ResourceUploadQueue;
-
-struct MeshPoint {
-    uint32_t triangle_id;
-    glm::vec3 barycentric;
-};
 
 /**
  * Stores meshes
@@ -49,12 +44,18 @@ private:
 
     // vertex_block and index_block measure vertices and indices, respectively
 
-    VmaVirtualBlock vertex_block;
-    BufferHandle vertex_position_buffer;
-    BufferHandle vertex_data_buffer;
+    VmaVirtualBlock vertex_block = {};
+    BufferHandle vertex_position_buffer = BufferHandle::None;
+    BufferHandle vertex_data_buffer = BufferHandle::None;
 
-    VmaVirtualBlock index_block;
-    BufferHandle index_buffer;
+    VmaVirtualBlock index_block = {};
+    BufferHandle index_buffer = BufferHandle::None;
 
-    std::pair<std::vector<MeshPoint>, float> generate_surface_point_cloud(std::span<const StandardVertex> vertices, std::span<const uint32_t> indices);
+    std::pair<std::vector<StandardVertex>, float> generate_surface_point_cloud(
+        std::span<const StandardVertex> vertices, std::span<const uint32_t> indices
+    ) const;
+
+    static StandardVertex interpolate_vertex(std::span<const StandardVertex> vertices, std::span<const uint32_t> indices, size_t triangle_id, glm::vec3 barycentric);
+
+    BufferHandle generate_sh_point_cloud(const std::vector<StandardVertex>& point_cloud) const;
 };

@@ -3,6 +3,15 @@
 
 #include "shared/prelude.h"
 
+// TODO: Compress down to 20 bytes
+struct StandardVertex {
+    vec3 position;
+    vec3 normal;
+    vec3 tangent;
+    vec2 texcoord;
+    uint color;
+};
+
 #if __cplusplus
 using VertexPosition = glm::vec3;
 #endif

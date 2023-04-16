@@ -11,13 +11,8 @@ layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Pr
     PrimitiveDataGPU primitive_datas[];
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer MaterialBuffer {
-    BasicPbrMaterialGpu materials[];
-};
-
 layout(push_constant) uniform Constants {
     PrimitiveDataBuffer primitive_data_buffer;
-    MaterialBuffer material_buffer;
     uint primitive_id;
 };
 
@@ -34,8 +29,8 @@ layout(location = 2) out mediump vec4 gbuffer_data;
 layout(location = 3) out mediump vec4 gbuffer_emission;
 
 void main() {
-    PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
-    BasicPbrMaterialGpu material = material_buffer.materials[primitive_data.data.x];
+    PrimitiveDataGPU primitive = primitive_data_buffer.primitive_datas[primitive_id];
+    BasicPbrMaterialGpu material = primitive.material_id.material;
 
     // Base color
     mediump vec4 base_color_sample = texture(textures[nonuniformEXT(material.base_color_texture_index)], vertex_texcoord);
@@ -61,7 +56,6 @@ void main() {
     gbuffer_data = tinted_data;
 
     // Emission
-    // TODO: Make sure this works well with my lighting model
     mediump vec4 emission_sample = texture(textures[nonuniformEXT(material.emission_texture_index)], vertex_texcoord);
     mediump vec4 tinted_emission = emission_sample * material.emission_factor;
 

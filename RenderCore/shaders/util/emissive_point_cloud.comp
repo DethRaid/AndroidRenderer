@@ -1,0 +1,71 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_buffer_reference_uvec2 : enable
+#extension GL_EXT_buffer_reference2 : enable
+
+#include "common/spherical_harmonics.glsl"
+#include "shared/primitive_data.hpp"
+#include "shared/basic_pbr_material.hpp"
+#include "shared/vertex_data.hpp"
+#include "shared/mesh_point.hpp"
+#include "shared/vpl.hpp"
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
+    PrimitiveDataGPU primitive_datas[];
+};
+
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer MeshDataBuffer {
+    StandardVertex vertices[];
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer VplBuffer {
+    PackedVPL vpls[];
+};
+
+layout(set = 0, binding = 0) uniform sampler2D textures[];
+
+layout(push_constant) uniform Constants {
+    PrimitiveDataBuffer primitive_data_buffer;
+    MeshDataBuffer points;
+    VplBuffer vpl_buffer;
+    uint primitive_id;
+    uint num_points;
+};
+
+layout(local_size_x = 96, local_size_y = 1, local_size_z = 1) in;
+
+PackedVPL pack_vpl(in VPL light) {
+    PackedVPL packed_light;
+    packed_light.data.x = packHalf2x16(light.position.xy);
+    packed_light.data.y = packHalf2x16(vec2(light.color.b, light.position.z));
+    packed_light.data.z = packHalf2x16(light.color.rg);
+    packed_light.data.w = packSnorm4x8(vec4(light.normal, 0));
+
+    return packed_light;
+}
+
+void main() {
+    uint point_id = gl_GlobalInvocationID.x;
+    if(point_id >= num_points) {
+        return;
+    }
+
+    StandardVertex vertex = points.vertices[point_id];
+
+    PrimitiveDataGPU primitive = primitive_data_buffer.primitive_datas[primitive_id];
+    BasicPbrMaterialGpu material = primitive.material_id.material;
+
+    mediump vec4 emission_sample = texture(textures[nonuniformEXT(material.emission_texture_index)], vertex.texcoord);
+    mediump vec4 tinted_emission = emission_sample * material.emission_factor;
+
+    VPL light;
+    light.position = vertex.position;
+    light.normal = vertex.normal;
+    light.color = tinted_emission.rgb;
+
+    PackedVPL packed_vpl = pack_vpl(light);
+    vpl_buffer.vpls[point_id] = packed_vpl;
+}

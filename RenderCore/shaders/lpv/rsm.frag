@@ -13,13 +13,8 @@ layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Pr
     PrimitiveDataGPU primitive_datas[];
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer MaterialBuffer {
-    BasicPbrMaterialGpu materials[];
-};
-
 layout(push_constant) uniform Constants {
     PrimitiveDataBuffer primitive_data_buffer;
-    MaterialBuffer material_buffer;
     uint primitive_id;
     uint cascade_index;
 };
@@ -39,8 +34,8 @@ layout(location = 0) out mediump vec4 rsm_flux;
 layout(location = 1) out mediump vec4 rsm_normal;
 
 void main() {
-    PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
-    BasicPbrMaterialGpu material = material_buffer.materials[primitive_data.data.x];
+    PrimitiveDataGPU primitive = primitive_data_buffer.primitive_datas[primitive_id];
+    BasicPbrMaterialGpu material = primitive.material_id.material;
 
     // Base color
     mediump vec4 base_color_sample = texture(textures[material.base_color_texture_index], vertex_texcoord);
