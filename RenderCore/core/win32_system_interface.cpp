@@ -17,13 +17,13 @@ void on_glfw_key(GLFWwindow* window, const int key, const int scancode, const in
 
     if(key == GLFW_KEY_W) {
         if (action == GLFW_PRESS) {
-            win32_system_interface->set_forward_axis(1.f);
+            win32_system_interface->set_forward_axis(-1.f);
         } else if(action == GLFW_RELEASE) {
             win32_system_interface->set_forward_axis(0.f);
         }
     } else if(key == GLFW_KEY_S) {
         if (action == GLFW_PRESS) {
-            win32_system_interface->set_forward_axis(-1.f);
+            win32_system_interface->set_forward_axis(1.f);
         } else if (action == GLFW_RELEASE) {
             win32_system_interface->set_forward_axis(0.f);
         }
@@ -31,13 +31,13 @@ void on_glfw_key(GLFWwindow* window, const int key, const int scancode, const in
 
     if (key == GLFW_KEY_A) {
         if (action == GLFW_PRESS) {
-            win32_system_interface->set_right_axis(1.f);
+            win32_system_interface->set_right_axis(-1.f);
         } else if (action == GLFW_RELEASE) {
             win32_system_interface->set_right_axis(0.f);
         }
     } else if (key == GLFW_KEY_D) {
         if (action == GLFW_PRESS) {
-            win32_system_interface->set_right_axis(-1.f);
+            win32_system_interface->set_right_axis(1.f);
         } else if (action == GLFW_RELEASE) {
             win32_system_interface->set_right_axis(0.f);
         }
@@ -58,11 +58,26 @@ void on_glfw_key(GLFWwindow* window, const int key, const int scancode, const in
     }
 }
 
+void on_glfw_cursor(GLFWwindow* window, double xpos, double ypos) {
+    auto* win32_system_interface = static_cast<Win32SystemInterface*>(glfwGetWindowUserPointer(window));
+
+    win32_system_interface->set_cursor_position(glm::vec2{ xpos, ypos });
+}
+
+void on_glfw_focus(GLFWwindow* window, int focused) {
+    auto* win32_system_interface = static_cast<Win32SystemInterface*>(glfwGetWindowUserPointer(window));
+    win32_system_interface->set_focus(focused);
+}
+
 Win32SystemInterface::Win32SystemInterface(GLFWwindow* window_in) : window{ window_in } {
     hwnd = glfwGetWin32Window(window);
 
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
     glfwSetWindowUserPointer(window, this);
     glfwSetKeyCallback(window, on_glfw_key);
+    glfwSetCursorPosCallback(window, on_glfw_cursor);
+    glfwSetWindowFocusCallback(window, on_glfw_focus);
 }
 
 std::shared_ptr<spdlog::logger> Win32SystemInterface::get_logger(const std::string& name) {
@@ -105,7 +120,18 @@ void Win32SystemInterface::write_file(const std::filesystem::path& filepath, con
 }
 
 void Win32SystemInterface::poll_input(InputManager& input) {
+    if(!focused) {
+        return;
+    }
+
     input.set_player_movement(raw_player_movement_axis);
+
+    input.set_player_rotation(raw_cursor_input * glm::vec2{ -1, -1 });
+
+    auto window_size = glm::ivec2{};
+    glfwGetWindowSize(window, &window_size.x, &window_size.y);
+    const auto half_window_size = window_size / 2;
+    glfwSetCursorPos(window, half_window_size.x, half_window_size.y);
 }
 
 glm::uvec2 Win32SystemInterface::get_resolution() {
@@ -129,6 +155,18 @@ void Win32SystemInterface::set_right_axis(const float value) {
 
 void Win32SystemInterface::set_up_axis(const float value) {
     raw_player_movement_axis.y = value;
+}
+
+void Win32SystemInterface::set_cursor_position(const glm::vec2 new_position) {
+    auto window_size = glm::ivec2{};
+    glfwGetWindowSize(window, &window_size.x, &window_size.y);
+    const auto half_window_size = window_size / 2;
+
+    raw_cursor_input = new_position - glm::vec2{ half_window_size };
+}
+
+void Win32SystemInterface::set_focus(bool focused_in) {
+    focused = focused_in;
 }
 
 #endif

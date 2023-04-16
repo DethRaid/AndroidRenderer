@@ -10,14 +10,28 @@ void InputManager::set_player_movement(const glm::vec3& raw_axis) {
     }
 }
 
+void InputManager::set_player_rotation(const glm::vec2 rotation_in) {
+    player_rotation_input = rotation_in;
+}
+
 void InputManager::add_player_movement_callback(const std::function<void(const glm::vec3&)>& new_callback) {
-    input_callbacks.push_back(new_callback);
+    movement_callbacks.push_back(new_callback);
+}
+
+void InputManager::add_player_rotation_callback(const std::function<void(const glm::vec2&)>& new_callback) {
+    rotation_callbacks.emplace_back(new_callback);
 }
 
 void InputManager::dispatch_callbacks() {
-    for(const auto& callback : input_callbacks) {
+    for (const auto& callback : movement_callbacks) {
         callback(player_movement_input);
     }
 
-    player_movement_input = glm::vec3{ 0 };
+    player_movement_input = glm::vec3{0};
+
+    for (const auto& callback : rotation_callbacks) {
+        callback(player_rotation_input);
+    }
+
+    player_rotation_input = glm::vec2{0};
 }

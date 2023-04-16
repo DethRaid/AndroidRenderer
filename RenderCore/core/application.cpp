@@ -25,6 +25,7 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
     scene_renderer->set_scene(*scene);
 
     input.add_player_movement_callback([&](const glm::vec3& movement) { update_player_location(movement); });
+    input.add_player_rotation_callback([&](const glm::vec2& rotation) {update_player_rotation(rotation); });
 
     last_frame_start_time = std::chrono::high_resolution_clock::now();
 
@@ -101,6 +102,12 @@ void Application::update_player_location(const glm::vec3& movement_axis) const {
     const auto movement = movement_axis * player_movement_speed * static_cast<float>(delta_time);
 
     scene_renderer->translate_player(movement);
+}
+
+void Application::update_player_rotation(const glm::vec2& rotation_input) {
+    const auto rotation = rotation_input * player_rotation_speed * static_cast<float>(delta_time);
+
+    scene_renderer->rotate_player(rotation.y, rotation.x);
 }
 
 SceneRenderer& Application::get_renderer() const { return *scene_renderer; }

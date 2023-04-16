@@ -33,15 +33,21 @@ void SceneTransform::set_render_resolution(const glm::uvec2 render_resolution) {
 }
 
 void SceneTransform::translate(const glm::vec3 localspace_movement) {
-    const auto worldspace_movement = gpu_data.view * glm::vec4{ localspace_movement, 0.f };
+    const auto worldspace_movement = gpu_data.inverse_view * glm::vec4{ localspace_movement, 0.f };
     position += glm::vec3{ worldspace_movement };
 
     refresh_view_matrices();
 }
 
-void SceneTransform::set_position_and_direction(const glm::vec3& position_in, const glm::vec3& direction_in) {
+void SceneTransform::rotate(const float delta_pitch, const float delta_yaw) {
+    pitch += delta_pitch;
+    yaw += delta_yaw;
+
+    refresh_view_matrices();
+}
+
+void SceneTransform::set_position(const glm::vec3& position_in) {
     position = position_in;
-    direction = direction_in;
 
     refresh_view_matrices();
 }
@@ -99,15 +105,19 @@ const SceneViewGpu& SceneTransform::get_gpu_data() const {
 }
 
 glm::vec3 SceneTransform::get_position() const {
-    return glm::vec3{ gpu_data.inverse_view[3] };
+    return position;
 }
 
 glm::vec3 SceneTransform::get_forward() const {
-    return glm::normalize(glm::vec3{ gpu_data.inverse_view[0][2], gpu_data.inverse_view[1][2] , gpu_data.inverse_view[2][2] });
+    return forward;
 }
 
 void SceneTransform::refresh_view_matrices() {
-    gpu_data.view = glm::lookAt(position, position + direction, glm::vec3{ 0.f, 1.f, 0.f });
+    forward = glm::vec3{cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw)};
+    const auto right = glm::vec3{ sin(yaw - 3.1415927 / 2.0), 0, cos(yaw - 3.14159 / 2.0) };
+    const auto up = cross(right, forward);
+
+    gpu_data.view = glm::lookAt(position, position + forward, up);
     gpu_data.inverse_view = glm::inverse(gpu_data.view);
     is_dirty = true;
 }

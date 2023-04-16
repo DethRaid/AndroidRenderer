@@ -91,9 +91,8 @@ void main() {
     for(uint i = 0; i < num_cascades; i++) {
         mediump vec4 cascade_position = cascade_matrices[i].world_to_cascade * worldspace_position;
         if(all(greaterThan(cascade_position.xyz, vec3(0))) && all(lessThan(cascade_position.xyz, vec3(1)))) {
-            cascade_weights[i] = 1;
-            weights_total += 1;
-            break;
+            cascade_weights[i] = pow(2.0, float(num_cascades - i));
+            weights_total += cascade_weights[i];
         }
     }
      

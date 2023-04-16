@@ -25,10 +25,14 @@ public:
 
     void update_player_location(const glm::vec3& movement_axis) const;
 
+    void update_player_rotation(const glm::vec2& rotation_input);
+
     SceneRenderer& get_renderer() const;
 
 private:
     const float player_movement_speed = 2.f;
+
+    const float player_rotation_speed = 0.05;
 
     double delta_time = 0.0;
 

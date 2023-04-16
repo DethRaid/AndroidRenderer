@@ -125,6 +125,10 @@ public:
 
     void set_up_axis(float value);
 
+    void set_cursor_position(glm::vec2 new_position);
+
+    void set_focus(bool focused_in);
+
 private:
     GLFWwindow* window = nullptr;
 
@@ -133,5 +137,9 @@ private:
     HINSTANCE hinstance = nullptr;
 
     glm::vec3 raw_player_movement_axis = glm::vec3{0};
+
+    glm::vec2 raw_cursor_input = {};
+
+    bool focused = true;
 };
 #endif

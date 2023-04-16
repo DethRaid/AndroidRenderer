@@ -29,8 +29,8 @@ SceneRenderer::SceneRenderer() :
     lpv{backend}, lighting_pass{backend}, ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
-    player_view.set_position_and_direction(glm::vec3{2.f, -1.f, 3.0f}, glm::vec3{0.f, 0.0f, -1.f});
-    // player_view.set_position_and_direction(glm::vec3{ 7.f, 1.f, 0.0f }, glm::vec3{ -1.0f, 0.0f, 0.f });
+    // player_view.set_position(glm::vec3{2.f, -1.f, 3.0f});
+    player_view.set_position(glm::vec3{ 7.f, 1.f, 0.0f });
 
     const auto render_resolution = SystemInterface::get().get_resolution();
 
@@ -504,4 +504,8 @@ tl::optional<VoxelCache&> SceneRenderer::get_voxel_cache() const {
 
 void SceneRenderer::translate_player(const glm::vec3& movement) {
     player_view.translate(movement);
+}
+
+void SceneRenderer::rotate_player(const float delta_pitch, const float delta_yaw) {
+    player_view.rotate(delta_pitch, delta_yaw);
 }

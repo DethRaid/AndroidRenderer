@@ -51,6 +51,8 @@ public:
      * Translates the player's location
      */
     void translate_player(const glm::vec3& movement);
+
+    void rotate_player(float delta_pitch, float delta_yaw);
     
 private:
     RenderBackend backend;

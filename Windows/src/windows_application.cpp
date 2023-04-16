@@ -21,14 +21,14 @@ int main(const int argc, const char** argv) {
 
     {
         ZoneScopedN("Init application");
-        // application.load_scene("Sponza/Sponza.compressed.glb");
+        application.load_scene("Sponza/Sponza.compressed.glb");
         // application.load_scene("path_tracing_nightmare.compressed.glb");
         // application.load_scene("shadow_test.glb");
         // application.load_scene("deccercube/SM_Deccer_Cubes_Textured.compressed.glb");
         // application.load_scene("Bistro_v5_2/BistroExterior.compressed.glb");
         // application.load_scene("Main.1_Sponza/NewSponza_Main_glTF_002.compressed.glb");
         // application.load_scene("PKG_A_Curtains/NewSponza_Curtains_glTF.compressed.glb");
-        application.load_scene("deccerballs/scene.compressed.glb");
+        // application.load_scene("deccerballs/scene.compressed.glb");
         application.update_resolution();
     }
         

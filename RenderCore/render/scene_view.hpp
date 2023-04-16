@@ -17,17 +17,23 @@ class SceneTransform {
 public:
     explicit SceneTransform(RenderBackend& backend_in);
 
-    void set_render_resolution(const glm::uvec2 render_resolution);
+    void set_render_resolution(glm::uvec2 render_resolution);
     
     void translate(glm::vec3 localspace_movement);
+
+    /**
+     * \brief Rotates the camera by the specified amount
+     * \param delta_pitch Pitch, in radians
+     * \param delta_yaw Yaw, in radians
+     */
+    void rotate(float delta_pitch, float delta_yaw);
 
     /**
      * Sets the position and forward direction of this scene view
      *
      * @param position_in Worldspace position
-     * @param direction_in Worldspace forward direction
      */
-    void set_position_and_direction(const glm::vec3& position_in, const glm::vec3& direction_in);
+    void set_position(const glm::vec3& position_in);
 
     void set_perspective_projection(float fov_in, float aspect_in, float near_value_in);
 
@@ -64,9 +70,16 @@ private:
     glm::vec3 position = glm::vec3{};
 
     /**
-     * Worldspace forward vector of the camera
+     * \brief Pitch of the view, in radians
      */
-    glm::vec3  direction = {};
+    float pitch = 0;
+
+    /**
+     * \brief Yaw of the view, in radians
+     */
+    float yaw = 0;
+
+    glm::vec3 forward = {};
 
     SceneViewGpu gpu_data = {};
 

@@ -116,7 +116,7 @@ void main() {
     medvec3 direct_light = ndotl * brdf_result * sun_light.color.rgb * shadow;
 
     // Number chosen based on what happened to look fine
-    const medfloat exposure_factor = 0.00015f;
+    const medfloat exposure_factor = 0.00005f;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
     
