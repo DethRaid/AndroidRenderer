@@ -29,7 +29,7 @@ SceneRenderer::SceneRenderer() :
     lpv{backend}, lighting_pass{backend}, ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
-    player_view.set_position_and_direction(glm::vec3{20.f, -10.f, 30.0f}, glm::vec3{0.f, 0.0f, -1.f});
+    player_view.set_position_and_direction(glm::vec3{2.f, -1.f, 3.0f}, glm::vec3{0.f, 0.0f, -1.f});
     // player_view.set_position_and_direction(glm::vec3{ 7.f, 1.f, 0.0f }, glm::vec3{ -1.0f, 0.0f, 0.f });
 
     const auto render_resolution = SystemInterface::get().get_resolution();
@@ -133,23 +133,23 @@ void SceneRenderer::render() {
 
     scene->flush_primitive_upload(render_graph);
 
-    scene->generate_emissive_point_clouds(render_graph);
-
-    lpv.clear_volume(render_graph);
-
     render_graph.add_transition_pass(
         {
             .buffers = {
                 {
                     scene->get_primitive_buffer(),
                     {
-                        .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                         .access = VK_ACCESS_SHADER_READ_BIT
                     }
                 }
             }
         }
     );
+
+    scene->generate_emissive_point_clouds(render_graph);
+
+    lpv.clear_volume(render_graph);
 
     if (voxel_cache && lpv.get_build_mode() == GvBuildMode::Voxels) {
         lpv.build_geometry_volume_from_voxels(render_graph, *scene, *voxel_cache);
@@ -163,6 +163,8 @@ void SceneRenderer::render() {
     // VPL cloud generation
 
     lpv.inject_indirect_sun_light(render_graph, *scene);
+
+    lpv.inject_emissive_point_clouds(render_graph, *scene);
 
     // Shadows
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS

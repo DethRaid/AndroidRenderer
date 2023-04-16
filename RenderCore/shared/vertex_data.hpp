@@ -4,6 +4,7 @@
 #include "shared/prelude.h"
 
 // TODO: Compress down to 20 bytes
+// We're at 48 now :(
 struct StandardVertex {
     vec3 position;
     vec3 normal;

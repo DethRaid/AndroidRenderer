@@ -200,6 +200,9 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
         material.gpu_data.roughness_factor = static_cast<float>(gltf_material.pbrData->roughnessFactor);
 
         material.gpu_data.emission_factor = glm::vec4(glm::make_vec3(gltf_material.emissiveFactor.data()), 1.f);
+        if(length(material.gpu_data.emission_factor) > 0) {
+            material.emissive = true;
+        }
 
         if (gltf_material.pbrData->baseColorTexture) {
             material.base_color_texture = get_texture(
@@ -259,6 +262,9 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
             const auto& sampler = model->samplers[*texture.samplerIndex];
 
             material.emission_sampler = to_vk_sampler(sampler, backend);
+
+            material.emissive = true;
+
         } else {
             material.emission_texture = backend.get_white_texture_handle();
             material.emission_sampler = backend.get_default_sampler();

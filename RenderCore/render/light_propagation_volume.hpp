@@ -55,7 +55,8 @@ struct CascadeData {
 enum class GvBuildMode {
     Off,
     DepthBuffers,
-    Voxels
+    Voxels,
+    PointClouds,
 };
 
 /**
@@ -105,6 +106,11 @@ public:
     );
 
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
+
+    /**
+     * \brief Injects emissive mesh VPL clouds into the LPV
+     */
+    void inject_emissive_point_clouds(RenderGraph& graph, const RenderScene& scene);
 
     void propagate_lighting(RenderGraph& render_graph);
 

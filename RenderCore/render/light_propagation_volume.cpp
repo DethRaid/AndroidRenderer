@@ -75,12 +75,12 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
     }
 
     vpl_pipeline = backend.begin_building_pipeline("RSM VPL extraction")
-        .set_vertex_shader("shaders/common/fullscreen.vert.spv")
-        .set_fragment_shader("shaders/lpv/rsm_generate_vpls.frag.spv")
-        .set_depth_state(
-            DepthStencilState{ .enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE }
-        )
-        .build();
+                          .set_vertex_shader("shaders/common/fullscreen.vert.spv")
+                          .set_fragment_shader("shaders/lpv/rsm_generate_vpls.frag.spv")
+                          .set_depth_state(
+                              DepthStencilState{.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE}
+                          )
+                          .build();
 
     vpl_injection_pipeline = backend.begin_building_pipeline("VPL Injection")
                                     .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
@@ -128,45 +128,51 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                     .build();
 
     inject_rsm_depth_into_gv_pipeline = backend.begin_building_pipeline("GV Injection")
-                                   .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
-                                   .set_vertex_shader("shaders/lpv/gv_injection.vert.spv")
-                                   .set_fragment_shader("shaders/lpv/gv_injection.frag.spv")
-                                   .set_depth_state({.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE})
-                                   .set_blend_state(
-                                       0, {
-                                           .blendEnable = VK_TRUE,
-                                           .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                           .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                           .colorBlendOp = VK_BLEND_OP_MAX,
-                                           .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                           .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                           .alphaBlendOp = VK_BLEND_OP_MAX,
-                                           .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                           VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-                                       }
-                                   )
-                                   .build();
+                                               .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+                                               .set_vertex_shader("shaders/lpv/gv_injection.vert.spv")
+                                               .set_fragment_shader("shaders/lpv/gv_injection.frag.spv")
+                                               .set_depth_state(
+                                                   {.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE}
+                                               )
+                                               .set_blend_state(
+                                                   0, {
+                                                       .blendEnable = VK_TRUE,
+                                                       .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                       .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                       .colorBlendOp = VK_BLEND_OP_MAX,
+                                                       .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                       .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                       .alphaBlendOp = VK_BLEND_OP_MAX,
+                                                       .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+                                                       VK_COLOR_COMPONENT_G_BIT |
+                                                       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                                   }
+                                               )
+                                               .build();
 
     inject_scene_depth_into_gv_pipeline = backend.begin_building_pipeline("Inject scene depth into GV")
-        .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
-        .set_vertex_shader("shaders/lpv/inject_scene_depth_into_gv.vert.spv")
-        .set_geometry_shader("shaders/lpv/inject_scene_depth_into_gv.geom.spv")
-        .set_fragment_shader("shaders/lpv/inject_scene_depth_into_gv.frag.spv")
-        .set_depth_state({ .enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE })
-        .set_blend_state(
-            0, {
-                .blendEnable = VK_TRUE,
-                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                .colorBlendOp = VK_BLEND_OP_MAX,
-                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                .alphaBlendOp = VK_BLEND_OP_MAX,
-                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-            }
-        )
-        .build();
+                                                 .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+                                                 .set_vertex_shader("shaders/lpv/inject_scene_depth_into_gv.vert.spv")
+                                                 .set_geometry_shader("shaders/lpv/inject_scene_depth_into_gv.geom.spv")
+                                                 .set_fragment_shader("shaders/lpv/inject_scene_depth_into_gv.frag.spv")
+                                                 .set_depth_state(
+                                                     {.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE}
+                                                 )
+                                                 .set_blend_state(
+                                                     0, {
+                                                         .blendEnable = VK_TRUE,
+                                                         .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                         .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                         .colorBlendOp = VK_BLEND_OP_MAX,
+                                                         .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                         .alphaBlendOp = VK_BLEND_OP_MAX,
+                                                         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+                                                         VK_COLOR_COMPONENT_G_BIT |
+                                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                                     }
+                                                 )
+                                                 .build();
 
     lpv_render_shader = backend.begin_building_pipeline("LPV Rendering")
                                .set_vertex_shader("shaders/common/fullscreen.vert.spv")
@@ -536,6 +542,68 @@ void LightPropagationVolume::inject_indirect_sun_light(
     graph.end_label();
 }
 
+void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, const RenderScene& scene) {
+    graph.begin_label("Emissive mesh injection");
+        
+    for (auto cascade_index = 0u; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
+        const auto& cascade = cascades[cascade_index];
+
+        const auto& primitives = scene.get_primitives_in_bounds(cascade.min_bounds, cascade.max_bounds);
+        if (primitives.empty()) {
+            continue;
+        }
+
+        graph.add_render_pass(
+            {
+                .name = "VPL Injection",
+                .buffers = {
+                    {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
+                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+                    {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
+                },
+                .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
+                .subpasses = {
+                    {
+                        .name = "VPL Injection",
+                        .color_attachments = {0, 1, 2},
+                        .execute = [&](CommandBuffer& commands) {
+                            GpuZoneScopedN(commands, "VPL Injection")
+
+                            const auto set = *backend.create_frame_descriptor_builder()
+                                                     .bind_buffer(
+                                                         0, {.buffer = cascade_data_buffer},
+                                                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                         VK_SHADER_STAGE_VERTEX_BIT
+                                                     )
+                                                     .build();
+
+                            commands.bind_descriptor_set(0, set);
+
+                            commands.set_push_constant(2, cascade_index);
+                            commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
+
+                            commands.bind_pipeline(vpl_injection_pipeline);
+
+                            for (const auto& primitive : primitives) {
+                                if (!primitive->material->first.emissive) {
+                                    continue;
+                                }
+
+                                commands.bind_buffer_reference(0, primitive->emissive_points_buffer);
+                                commands.draw(primitive->mesh->num_points);
+                            }
+
+                            commands.clear_descriptor_set(0);
+                        }
+                    }
+                }
+            }
+        );
+    }
+
+    graph.end_label();
+}
+
 void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
     render_graph.add_compute_pass(
         {
@@ -792,7 +860,7 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
                                                  .build();
 
                         commands.bind_descriptor_set(0, set);
-                        
+
                         commands.set_push_constant(0, effective_resolution.x);
                         commands.set_push_constant(1, effective_resolution.y);
                         commands.set_push_constant(2, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));

@@ -222,7 +222,7 @@ std::pair<std::vector<StandardVertex>, float> MeshStorage::generate_surface_poin
     // We want a number of samples with a fixed density
     // We want one sample per 0.1 m^2
     // So the number of samples is the total area divided by 0.1
-    const auto num_samples = static_cast<size_t>(glm::round(area_accumulator / 0.1));
+    const auto num_samples = static_cast<size_t>(glm::ceil(area_accumulator / 0.1));
 
     auto points = std::vector<StandardVertex>{};
     points.reserve(num_samples);

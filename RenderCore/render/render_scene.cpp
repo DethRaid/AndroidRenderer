@@ -111,9 +111,11 @@ std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
 }
 
 void RenderScene::generate_emissive_point_clouds(RenderGraph& render_graph) {
+    render_graph.begin_label("Generate emissive mesh VPLs");
     for(auto& primitive : new_emissive_objects) {
         primitive->emissive_points_buffer = generate_emissive_point_cloud(render_graph, primitive);
     }
+    render_graph.end_label();
 
     new_emissive_objects.clear();
 }
@@ -149,6 +151,8 @@ BufferHandle RenderScene::generate_emissive_point_cloud(
                 commands.bind_descriptor_set(0, backend.get_texture_descriptor_pool().get_descriptor_set());
 
                 commands.bind_shader(emissive_point_cloud_shader);
+
+                commands.dispatch((primitive->mesh->num_points + 95) / 96, 1, 1);
 
                 commands.clear_descriptor_set(0);
             }

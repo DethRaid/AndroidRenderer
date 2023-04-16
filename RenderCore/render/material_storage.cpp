@@ -10,9 +10,6 @@ MaterialStorage::MaterialStorage(RenderBackend& backend_in) : backend{ backend_i
 }
 
 PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMaterial&& new_material) {
-    const auto handle = material_pool.add_object(std::make_pair(new_material, MaterialProxy{}));
-    auto& proxy = handle->second;
-
     auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
 
     new_material.gpu_data.base_color_texture_index = texture_descriptor_pool.create_texture_srv(
@@ -27,6 +24,9 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
     new_material.gpu_data.emission_texture_index = texture_descriptor_pool.create_texture_srv(
         new_material.emission_texture, new_material.emission_sampler
     );
+
+    const auto handle = material_pool.add_object(std::make_pair(new_material, MaterialProxy{}));
+    auto& proxy = handle->second;
     
     material_upload.add_data(handle.index, new_material.gpu_data);
 
