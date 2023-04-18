@@ -199,8 +199,9 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
         material.gpu_data.metalness_factor = static_cast<float>(gltf_material.pbrData->metallicFactor);
         material.gpu_data.roughness_factor = static_cast<float>(gltf_material.pbrData->roughnessFactor);
 
-        material.gpu_data.emission_factor = glm::vec4(glm::make_vec3(gltf_material.emissiveFactor.data()), 1.f);
-        if(length(material.gpu_data.emission_factor) > 0) {
+        const auto emissive_factor = glm::make_vec3(gltf_material.emissiveFactor.data());
+        material.gpu_data.emission_factor = glm::vec4(emissive_factor, 1.f);
+        if (length(emissive_factor) > 0) {
             material.emissive = true;
         }
 

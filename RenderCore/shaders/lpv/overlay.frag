@@ -109,39 +109,39 @@ void main() {
 
     vec3 reflection_vector = reflect(-worldspace_view_vector, surface.normal);
     mediump vec3 specular_light = vec3(0);
-    {
-        vec4 cascade_position = cascade_matrices[0].world_to_cascade * worldspace_position;
-
-        mediump vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
-        mediump vec4 green_coefficients = texture(lpv_green, cascade_position.xyz);
-        mediump vec4 blue_coefficients = texture(lpv_blue, cascade_position.xyz);
-
-        mediump vec4 reflection_coefficients = dir_to_sh(reflection_vector);
-    
-        mediump float red_strength = dot(red_coefficients, reflection_coefficients);
-        mediump float green_strength = dot(green_coefficients, reflection_coefficients);
-        mediump float blue_strength = dot(blue_coefficients, reflection_coefficients);
-    
-        specular_light = vec3(red_strength, green_strength, blue_strength);
-    
-        const uint num_additional_specular_samples = 1;
-        for(uint sample_index = 1; sample_index <= num_additional_specular_samples; sample_index++) {
-            vec3 sample_location = worldspace_position.xyz + reflection_vector * sample_index;
-            
-            cascade_position = cascade_matrices[0].world_to_cascade * vec4(sample_location, 1.f);
-            red_coefficients = texture(lpv_red, cascade_position.xyz);
-            green_coefficients = texture(lpv_green, cascade_position.xyz);
-            blue_coefficients = texture(lpv_blue, cascade_position.xyz);
-    
-            red_strength = dot(red_coefficients, reflection_coefficients);
-            green_strength = dot(green_coefficients, reflection_coefficients);
-            blue_strength = dot(blue_coefficients, reflection_coefficients);
-    
-            specular_light += vec3(red_strength, green_strength, blue_strength);
-        }
-    
-        specular_light /= vec3(num_additional_specular_samples + 1);
-    }
+    // {
+    //     vec4 cascade_position = cascade_matrices[0].world_to_cascade * worldspace_position;
+    // 
+    //     mediump vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
+    //     mediump vec4 green_coefficients = texture(lpv_green, cascade_position.xyz);
+    //     mediump vec4 blue_coefficients = texture(lpv_blue, cascade_position.xyz);
+    // 
+    //     mediump vec4 reflection_coefficients = dir_to_sh(reflection_vector);
+    // 
+    //     mediump float red_strength = dot(red_coefficients, reflection_coefficients);
+    //     mediump float green_strength = dot(green_coefficients, reflection_coefficients);
+    //     mediump float blue_strength = dot(blue_coefficients, reflection_coefficients);
+    // 
+    //     specular_light = vec3(red_strength, green_strength, blue_strength);
+    // 
+    //     const uint num_additional_specular_samples = 1;
+    //     for(uint sample_index = 1; sample_index <= num_additional_specular_samples; sample_index++) {
+    //         vec3 sample_location = worldspace_position.xyz + reflection_vector * sample_index;
+    //         
+    //         cascade_position = cascade_matrices[0].world_to_cascade * vec4(sample_location, 1.f);
+    //         red_coefficients = texture(lpv_red, cascade_position.xyz);
+    //         green_coefficients = texture(lpv_green, cascade_position.xyz);
+    //         blue_coefficients = texture(lpv_blue, cascade_position.xyz);
+    // 
+    //         red_strength = dot(red_coefficients, reflection_coefficients);
+    //         green_strength = dot(green_coefficients, reflection_coefficients);
+    //         blue_strength = dot(blue_coefficients, reflection_coefficients);
+    // 
+    //         specular_light += vec3(red_strength, green_strength, blue_strength);
+    //     }
+    // 
+    //     specular_light /= vec3(num_additional_specular_samples + 1);
+    // }
 
     const mediump vec3 diffuse_factor = Fd(surface, surface.normal, surface.normal);
 

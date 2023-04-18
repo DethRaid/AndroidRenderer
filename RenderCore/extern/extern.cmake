@@ -46,8 +46,8 @@ FetchContent_Declare(
 )
 FetchContent_Declare(
         fetch_fastgltf
-        GIT_REPOSITORY  https://github.com/dethraid/fastgltf.git
-        GIT_TAG         57f632f67c2a52215c5cc5babac1caf1a43225bc
+        GIT_REPOSITORY  https://github.com/spnda/fastgltf.git
+        GIT_TAG         aa43588c42b78bc188fdd36124f1d1491e04a680
 )
 FetchContent_Declare(
         tl_optional

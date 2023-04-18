@@ -491,46 +491,46 @@ void LightPropagationVolume::inject_indirect_sun_light(
             }
         );
 
-        graph.add_render_pass(
-            {
-                .name = "VPL Injection",
-                .buffers = {
-                    {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
-                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                    {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
-                },
-                .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
-                .subpasses = {
-                    {
-                        .name = "VPL Injection",
-                        .color_attachments = {0, 1, 2},
-                        .execute = [&](CommandBuffer& commands) {
-                            GpuZoneScopedN(commands, "VPL Injection")
-
-                            const auto set = *backend.create_frame_descriptor_builder()
-                                                     .bind_buffer(
-                                                         0, {.buffer = cascade_data_buffer},
-                                                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                         VK_SHADER_STAGE_VERTEX_BIT
-                                                     )
-                                                     .build();
-
-                            commands.bind_descriptor_set(0, set);
-
-                            commands.bind_buffer_reference(0, cascade.vpl_buffer);
-                            commands.set_push_constant(2, cascade_index);
-                            commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
-
-                            commands.bind_pipeline(vpl_injection_pipeline);
-
-                            commands.draw_indirect(cascade.count_buffer);
-
-                            commands.clear_descriptor_set(0);
-                        }
-                    }
-                }
-            }
-        );
+        // graph.add_render_pass(
+        //     {
+        //         .name = "VPL Injection",
+        //         .buffers = {
+        //             {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
+        //             {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+        //             {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
+        //         },
+        //         .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
+        //         .subpasses = {
+        //             {
+        //                 .name = "VPL Injection",
+        //                 .color_attachments = {0, 1, 2},
+        //                 .execute = [&](CommandBuffer& commands) {
+        //                     GpuZoneScopedN(commands, "VPL Injection")
+        // 
+        //                     const auto set = *backend.create_frame_descriptor_builder()
+        //                                              .bind_buffer(
+        //                                                  0, {.buffer = cascade_data_buffer},
+        //                                                  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        //                                                  VK_SHADER_STAGE_VERTEX_BIT
+        //                                              )
+        //                                              .build();
+        // 
+        //                     commands.bind_descriptor_set(0, set);
+        // 
+        //                     commands.bind_buffer_reference(0, cascade.vpl_buffer);
+        //                     commands.set_push_constant(2, cascade_index);
+        //                     commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
+        // 
+        //                     commands.bind_pipeline(vpl_injection_pipeline);
+        // 
+        //                     commands.draw_indirect(cascade.count_buffer);
+        // 
+        //                     commands.clear_descriptor_set(0);
+        //                 }
+        //             }
+        //         }
+        //     }
+        // );
 
         if (cvar_lpv_build_gv_mode.Get() == GvBuildMode::DepthBuffers) {
             inject_rsm_depth_into_cascade_gv(graph, cascade, cascade_index);

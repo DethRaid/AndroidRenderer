@@ -61,8 +61,10 @@ void main() {
     mediump vec4 emission_sample = texture(textures[nonuniformEXT(material.emission_texture_index)], vertex.texcoord);
     mediump vec4 tinted_emission = emission_sample * material.emission_factor;
 
+    vec4 position_worldspace = primitive.model * vec4(vertex.position, 1.0);
+
     VPL light;
-    light.position = vertex.position;
+    light.position = position_worldspace.xyz;
     light.normal = vertex.normal;
     light.color = tinted_emission.rgb;
 

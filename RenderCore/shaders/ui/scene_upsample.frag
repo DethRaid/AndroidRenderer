@@ -58,7 +58,7 @@ void main() {
 
     mediump vec4 scene_color = textureLod(scene_color_texture, texcoord, 0);
 
-    scene_color.rgb += bloom * 0.314159;
+    // scene_color.rgb += bloom * 0.314159;
 
     scene_color.rgb = pow(scene_color.rgb, vec3(1.f / 2.2f));
 
