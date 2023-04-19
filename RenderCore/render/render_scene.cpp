@@ -113,17 +113,17 @@ std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
 void RenderScene::generate_emissive_point_clouds(RenderGraph& render_graph) {
     render_graph.begin_label("Generate emissive mesh VPLs");
     for(auto& primitive : new_emissive_objects) {
-        primitive->emissive_points_buffer = generate_emissive_point_cloud(render_graph, primitive);
+        primitive->emissive_points_buffer = generate_vpls_for_primitive(render_graph, primitive);
     }
     render_graph.end_label();
 
     new_emissive_objects.clear();
 }
 
-BufferHandle RenderScene::generate_emissive_point_cloud(
+BufferHandle RenderScene::generate_vpls_for_primitive(
     RenderGraph& graph, const PooledObject<MeshPrimitive>& primitive
 ) {
-    const auto handle = backend.get_global_allocator().create_buffer(
+    const auto vpl_buffer_handle = backend.get_global_allocator().create_buffer(
         "Primitive emission buffer", primitive->mesh->num_points * sizeof(glm::vec4), BufferUsage::StorageBuffer
     );
 
@@ -131,7 +131,7 @@ BufferHandle RenderScene::generate_emissive_point_cloud(
         {
             .name = "Build emissive points",
             .buffers = {
-                {handle, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT}},
+                {vpl_buffer_handle, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT}},
                 {
                     primitive->mesh->point_cloud_buffer,
                     {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
@@ -144,7 +144,7 @@ BufferHandle RenderScene::generate_emissive_point_cloud(
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_buffer_reference(0, primitive_data_buffer);
                 commands.bind_buffer_reference(2, primitive->mesh->point_cloud_buffer);
-                commands.bind_buffer_reference(4, handle);
+                commands.bind_buffer_reference(4, vpl_buffer_handle);
                 commands.set_push_constant(6, primitive.index);
                 commands.set_push_constant(7, primitive->mesh->num_points);
 
@@ -159,5 +159,5 @@ BufferHandle RenderScene::generate_emissive_point_cloud(
         }
     );
 
-    return handle;
+    return vpl_buffer_handle;
 }

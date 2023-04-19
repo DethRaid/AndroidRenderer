@@ -50,6 +50,7 @@ void GraphicsPipeline::create_pipeline_layout(
                 .pBindingFlags = flags.data(),
             };
             create_info.pNext = &flags_create_info;
+            bindings.back().stageFlags = VK_SHADER_STAGE_ALL;
         }
 
         auto layout = VkDescriptorSetLayout{};

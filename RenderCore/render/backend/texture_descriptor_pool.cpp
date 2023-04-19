@@ -35,7 +35,7 @@ TextureDescriptorPool::TextureDescriptorPool(const RenderBackend& backend_in) : 
         .binding = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .descriptorCount = sampled_image_count,
-        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+        .stageFlags = VK_SHADER_STAGE_ALL
     };
     const auto create_info = VkDescriptorSetLayoutCreateInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,

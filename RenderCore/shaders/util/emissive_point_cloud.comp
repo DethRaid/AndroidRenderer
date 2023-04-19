@@ -40,8 +40,8 @@ layout(local_size_x = 96, local_size_y = 1, local_size_z = 1) in;
 PackedVPL pack_vpl(in VPL light) {
     PackedVPL packed_light;
     packed_light.data.x = packHalf2x16(light.position.xy);
-    packed_light.data.y = packHalf2x16(vec2(light.color.b, light.position.z));
-    packed_light.data.z = packHalf2x16(light.color.rg);
+    packed_light.data.y = packHalf2x16(vec2(light.position.z, light.color.r));
+    packed_light.data.z = packHalf2x16(light.color.gb);
     packed_light.data.w = packSnorm4x8(vec4(light.normal, 0));
 
     return packed_light;

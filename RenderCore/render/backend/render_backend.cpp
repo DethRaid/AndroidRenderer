@@ -24,13 +24,13 @@ static AutoCVar_Int cvar_enable_validation_layers{
 static AutoCVar_Int cvar_enable_best_practices_layer{
     "r.vulkan.EnableBestPractices",
     "Whether to enable the best practices validation layer. It can be useful, but it complains a lot about libktx",
-    1
+    0
 };
 
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
     "r.vulkan.EnableGpuAssistedValidation",
     "Whether to enable GPU-assisted validation. Helpful when using bindless techniques, but incurs a performance penalty",
-    1
+    0
 };
 
 static AutoCVar_Int cvar_break_on_validation_warning{

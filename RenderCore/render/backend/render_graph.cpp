@@ -175,7 +175,7 @@ void RenderGraph::add_present_pass(PresentPass&& pass) {
     add_transition_pass(
         {
             .textures = {
-                {pass.swapchain_image, {VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR}}
+                {pass.swapchain_image, {VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, VK_ACCESS_2_NONE, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR}}
             },
         }
     );

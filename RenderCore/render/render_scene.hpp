@@ -66,5 +66,5 @@ private:
 
     ComputeShader emissive_point_cloud_shader;
 
-    BufferHandle generate_emissive_point_cloud(RenderGraph& graph, const PooledObject<MeshPrimitive>& primitive);
+    BufferHandle generate_vpls_for_primitive(RenderGraph& graph, const PooledObject<MeshPrimitive>& primitive);
 };

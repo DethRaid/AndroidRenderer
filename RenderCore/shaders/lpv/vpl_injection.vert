@@ -28,13 +28,16 @@ layout(location = 1) out mediump vec3 normal;
 VPL unpack_vpl(PackedVPL packed_vpl) {
     VPL vpl;
 
-    vec2 unpacked_y = unpackHalf2x16(packed_vpl.data.y);
+    mediump vec2 unpacked_x = unpackHalf2x16(packed_vpl.data.x);
+    mediump vec2 unpacked_y = unpackHalf2x16(packed_vpl.data.y);
+    mediump vec2 unpacked_z = unpackHalf2x16(packed_vpl.data.z);
+    lowp vec4 unpacked_w = unpackSnorm4x8(packed_vpl.data.w);
 
-    vpl.position.xy = unpackHalf2x16(packed_vpl.data.x);
-    vpl.position.z = unpacked_y.y;
-    vpl.color.rg = unpackHalf2x16(packed_vpl.data.z);
-    vpl.color.b = unpacked_y.x;
-    vpl.normal = normalize(unpackUnorm4x8(packed_vpl.data.w).xyz);
+    vpl.position.xy = unpacked_x.xy;
+    vpl.position.z = unpacked_y.x;
+    vpl.color.r = unpacked_y.y;
+    vpl.color.gb = unpacked_z.xy;
+    vpl.normal = normalize(unpacked_w.xyz);
 
     return vpl;
 }

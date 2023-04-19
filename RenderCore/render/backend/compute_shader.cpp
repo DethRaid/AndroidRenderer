@@ -32,7 +32,7 @@ ComputeShader::create(const RenderBackend& backend, const std::string& name, con
     std::unordered_map<uint32_t, DescriptorSetInfo> descriptor_sets;
     std::vector<VkPushConstantRange> push_constants;
     collect_bindings(instructions, name, VK_SHADER_STAGE_COMPUTE_BIT, descriptor_sets, push_constants);
-
+    
     auto layouts = std::vector<VkDescriptorSetLayout>{};
     layouts.reserve(descriptor_sets.size());
 
@@ -64,6 +64,7 @@ ComputeShader::create(const RenderBackend& backend, const std::string& name, con
                 .pBindingFlags = flags.data(),
             };
             create_info.pNext = &flags_create_info;
+            bindings.back().stageFlags = VK_SHADER_STAGE_ALL;
         }
 
         auto dsl = VkDescriptorSetLayout{};

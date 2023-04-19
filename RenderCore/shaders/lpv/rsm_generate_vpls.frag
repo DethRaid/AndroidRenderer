@@ -67,8 +67,8 @@ void store_light(in VPL light) {
 
     PackedVPL packed_light;
     packed_light.data.x = packHalf2x16(light.position.xy);
-    packed_light.data.y = packHalf2x16(vec2(light.color.b, light.position.z));
-    packed_light.data.z = packHalf2x16(light.color.rg);
+    packed_light.data.y = packHalf2x16(vec2(light.position.z, light.color.r));
+    packed_light.data.z = packHalf2x16(light.color.gb);
     packed_light.data.w = packSnorm4x8(vec4(light.normal, 0));
 
     vpl_list_buffer.lights[light_index] = packed_light;
