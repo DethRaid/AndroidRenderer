@@ -144,6 +144,8 @@ private:
 
     TextureHandle geometry_volume_handle = TextureHandle::None;
 
+    VkSampler linear_sampler = VK_NULL_HANDLE;
+
     GraphicsPipelineHandle vpl_pipeline;
 
     ComputeShader clear_lpv_shader;

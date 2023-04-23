@@ -34,13 +34,13 @@ static auto cvar_lpv_num_cascades = AutoCVar_Int{
 
 static auto cvar_lpv_num_propagation_steps = AutoCVar_Int{
     "r.LPV.NumPropagationSteps",
-    "Number of times to propagate lighting through the LPV", 8
+    "Number of times to propagate lighting through the LPV", 16
 };
 
 static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
     "r.LPV.PercentBehindCamera",
     "The percentage of the LPV that should be behind the camera. Not exact",
-    0.2
+    0.1
 };
 
 static auto cvar_lpv_build_gv_mode = AutoCVar_Enum<GvBuildMode>{
@@ -73,6 +73,22 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
         const auto bytes = *SystemInterface::get().load_file("shaders/lpv/lpv_propagate.comp.spv");
         propagation_shader = *backend.create_compute_shader("LPV Propagation", bytes);
     }
+
+    linear_sampler = backend.get_global_allocator().get_sampler(
+        {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .anisotropyEnable = VK_TRUE,
+            .maxAnisotropy = 16,
+            .maxLod = 16,
+            .borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
+        }
+    );
 
     vpl_pipeline = backend.begin_building_pipeline("RSM VPL extraction")
                           .set_vertex_shader("shaders/common/fullscreen.vert.spv")
@@ -491,46 +507,46 @@ void LightPropagationVolume::inject_indirect_sun_light(
             }
         );
 
-        // graph.add_render_pass(
-        //     {
-        //         .name = "VPL Injection",
-        //         .buffers = {
-        //             {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
-        //             {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-        //             {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
-        //         },
-        //         .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
-        //         .subpasses = {
-        //             {
-        //                 .name = "VPL Injection",
-        //                 .color_attachments = {0, 1, 2},
-        //                 .execute = [&](CommandBuffer& commands) {
-        //                     GpuZoneScopedN(commands, "VPL Injection")
-        // 
-        //                     const auto set = *backend.create_frame_descriptor_builder()
-        //                                              .bind_buffer(
-        //                                                  0, {.buffer = cascade_data_buffer},
-        //                                                  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        //                                                  VK_SHADER_STAGE_VERTEX_BIT
-        //                                              )
-        //                                              .build();
-        // 
-        //                     commands.bind_descriptor_set(0, set);
-        // 
-        //                     commands.bind_buffer_reference(0, cascade.vpl_buffer);
-        //                     commands.set_push_constant(2, cascade_index);
-        //                     commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
-        // 
-        //                     commands.bind_pipeline(vpl_injection_pipeline);
-        // 
-        //                     commands.draw_indirect(cascade.count_buffer);
-        // 
-        //                     commands.clear_descriptor_set(0);
-        //                 }
-        //             }
-        //         }
-        //     }
-        // );
+        graph.add_render_pass(
+            {
+                .name = "VPL Injection",
+                .buffers = {
+                    {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
+                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+                    {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
+                },
+                .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
+                .subpasses = {
+                    {
+                        .name = "VPL Injection",
+                        .color_attachments = {0, 1, 2},
+                        .execute = [&](CommandBuffer& commands) {
+                            GpuZoneScopedN(commands, "VPL Injection")
+
+                            const auto set = *backend.create_frame_descriptor_builder()
+                                                     .bind_buffer(
+                                                         0, {.buffer = cascade_data_buffer},
+                                                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                         VK_SHADER_STAGE_VERTEX_BIT
+                                                     )
+                                                     .build();
+
+                            commands.bind_descriptor_set(0, set);
+
+                            commands.bind_buffer_reference(0, cascade.vpl_buffer);
+                            commands.set_push_constant(2, cascade_index);
+                            commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
+
+                            commands.bind_pipeline(vpl_injection_pipeline);
+
+                            commands.draw_indirect(cascade.count_buffer);
+
+                            commands.clear_descriptor_set(0);
+                        }
+                    }
+                }
+            }
+        );
 
         if (cvar_lpv_build_gv_mode.Get() == GvBuildMode::DepthBuffers) {
             inject_rsm_depth_into_cascade_gv(graph, cascade, cascade_index);
@@ -544,7 +560,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
 void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, const RenderScene& scene) {
     graph.begin_label("Emissive mesh injection");
-        
+
     for (auto cascade_index = 0u; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
         const auto& cascade = cascades[cascade_index];
 
@@ -929,40 +945,24 @@ void LightPropagationVolume::add_lighting_to_scene(
 
     commands.bind_descriptor_set(0, gbuffers_descriptor);
 
-    const auto sampler = backend.get_global_allocator().get_sampler(
-        {
-            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-            .magFilter = VK_FILTER_LINEAR,
-            .minFilter = VK_FILTER_LINEAR,
-            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-            .anisotropyEnable = VK_TRUE,
-            .maxAnisotropy = 16,
-            .maxLod = 16,
-            .borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
-        }
-    );
-
     auto lpv_descriptor = *backend.create_frame_descriptor_builder()
                                   .bind_image(
                                       0, {
-                                          .sampler = sampler, .image = lpv_a_red,
+                                          .sampler = linear_sampler, .image = lpv_a_red,
                                           .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                       },
                                       VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
                                   )
                                   .bind_image(
                                       1, {
-                                          .sampler = sampler, .image = lpv_a_green,
+                                          .sampler = linear_sampler, .image = lpv_a_green,
                                           .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                       },
                                       VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
                                   )
                                   .bind_image(
                                       2, {
-                                          .sampler = sampler, .image = lpv_a_blue,
+                                          .sampler = linear_sampler, .image = lpv_a_blue,
                                           .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                       },
                                       VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
@@ -1098,115 +1098,72 @@ void LightPropagationVolume::perform_propagation_step(
             .name = "Propagate lighting",
             .textures = {
                 {
-                    read_red,
-                    {
-                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    read_red, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL}
                 },
                 {
                     read_green,
-                    {
-                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL}
                 },
                 {
                     read_blue,
-                    {
-                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL}
                 },
                 {
                     write_red,
-                    {
-                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
-                        VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL}
                 },
                 {
                     write_green,
-                    {
-                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
-                        VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL}
                 },
                 {
                     write_blue,
-                    {
-                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
-                        VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL}
                 },
                 {
                     geometry_volume_handle,
                     {
                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_GENERAL
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     }
                 },
             },
             .execute = [&](CommandBuffer& commands) {
                 GpuZoneScopedN(commands, "LPV propagation step")
-                const auto descriptor_set = *backend.create_frame_descriptor_builder()
-                                                    .bind_image(
-                                                        0, {
-                                                            .image = read_red,
-                                                            .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                                        },
-                                                        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                                        VK_SHADER_STAGE_COMPUTE_BIT
-                                                    )
-                                                    .bind_image(
-                                                        1, {
-                                                            .image = read_green,
-                                                            .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                                        },
-                                                        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                                        VK_SHADER_STAGE_COMPUTE_BIT
-                                                    )
-                                                    .bind_image(
-                                                        2, {
-                                                            .image = read_blue,
-                                                            .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                                        },
-                                                        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                                        VK_SHADER_STAGE_COMPUTE_BIT
-                                                    )
-                                                    .bind_image(
-                                                        3, {
-                                                            .image = write_red,
-                                                            .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                                        },
-                                                        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                                        VK_SHADER_STAGE_COMPUTE_BIT
-                                                    )
-                                                    .bind_image(
-                                                        4, {
-                                                            .image = write_green,
-                                                            .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                                        },
-                                                        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                                        VK_SHADER_STAGE_COMPUTE_BIT
-                                                    )
-                                                    .bind_image(
-                                                        5, {
-                                                            .image = write_blue,
-                                                            .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                                        },
-                                                        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                                        VK_SHADER_STAGE_COMPUTE_BIT
-                                                    )
-                                                    .bind_image(
-                                                        6, {
-                                                            .image = geometry_volume_handle,
-                                                            .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                                        },
-                                                        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                                        VK_SHADER_STAGE_COMPUTE_BIT
-                                                    )
-                                                    .build();
+                const auto descriptor_set =
+                    *backend.create_frame_descriptor_builder()
+                            .bind_image(
+                                0, {.image = read_red, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                            )
+                            .bind_image(
+                                1, {.image = read_green, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                            )
+                            .bind_image(
+                                2, {.image = read_blue, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                            )
+                            .bind_image(
+                                3, {.image = write_red, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                            )
+                            .bind_image(
+                                4, {.image = write_green, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                            )
+                            .bind_image(
+                                5, {.image = write_blue, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                            )
+                            .bind_image(
+                                6, {
+                                    .sampler = linear_sampler, .image = geometry_volume_handle,
+                                    .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                },
+                                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT
+                            )
+                            .build();
 
                 commands.bind_descriptor_set(0, descriptor_set);
 

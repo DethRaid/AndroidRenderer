@@ -16,7 +16,7 @@ layout(set = 0, binding = 3, rgba16f) uniform writeonly image3D write_lpv_red;
 layout(set = 0, binding = 4, rgba16f) uniform writeonly image3D write_lpv_green;
 layout(set = 0, binding = 5, rgba16f) uniform writeonly image3D write_lpv_blue;
 
-layout(set = 0, binding = 6, rgba16f) uniform readonly image3D geo_volume;
+layout(set = 0, binding = 6) uniform sampler3D geo_volume;
 
 layout(push_constant) uniform Constants {
     uint cascade_index;
@@ -82,7 +82,14 @@ void main() {
 
         mediump vec4 gv_sh = vec4(0);
         if(use_gv != 0) {
-            gv_sh = imageLoad(geo_volume, neighbor_cell);
+            vec3 gv_coordinate = vec3(neighbor_cell) / 32.f;
+            // Add a half-cell offset to the GV
+            gv_coordinate += 0.5f / 32.f;
+            
+            gv_coordinate.x += cascade_index;
+            gv_coordinate.x /= 4.f;
+
+            gv_sh = textureLod(geo_volume, gv_coordinate, 0);
         }
 
         mediump vec4 red_coefficients = imageLoad(read_lpv_red, neighbor_cell + cascade_offset);

@@ -62,6 +62,9 @@ void main() {
 
     mediump vec3 normal = texture(normal_target, vec2(texcoord_x, texcoord_y)).xyz;
     sh = dir_to_cosine_lobe(normal);
+
+    // Add a half-cell offset to the GV
+    cascade_position += 0.5f / 32.f;
    
     cascade_position.x += cascade_index;
     cascade_position.x /= num_cascades;
