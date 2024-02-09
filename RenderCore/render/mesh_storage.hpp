@@ -2,9 +2,11 @@
 
 #include <span>
 
+#include <Volk/volk.h>
 #include <vk_mem_alloc.h>
 #include <tl/optional.hpp>
 
+#include "render/backend/scatter_upload_buffer.hpp"
 #include "render/mesh_handle.hpp"
 #include "core/object_pool.hpp"
 #include "render/backend/handles.hpp"
@@ -12,7 +14,7 @@
 #include "shared/vertex_data.hpp"
 #include "shared/mesh_point.hpp"
 
-class ResourceAllocator;
+class RenderBackend;
 class ResourceUploadQueue;
 
 /**
@@ -20,7 +22,7 @@ class ResourceUploadQueue;
  */
 class MeshStorage {
 public:
-    explicit MeshStorage(ResourceAllocator& allocator_in, ResourceUploadQueue& queue_in);
+    explicit MeshStorage(RenderBackend& backend_in, ResourceUploadQueue& queue_in);
 
     ~MeshStorage();
 
@@ -30,17 +32,24 @@ public:
 
     void free_mesh(MeshHandle mesh);
 
+    void flush_mesh_draw_arg_uploads(RenderGraph& graph);
+
     BufferHandle get_vertex_position_buffer() const;
 
     BufferHandle get_vertex_data_buffer() const;
 
     BufferHandle get_index_buffer() const;
 
+    BufferHandle get_draw_args_buffer() const;
+
 private:
-    ResourceAllocator* allocator;
+    RenderBackend* backend;
     ResourceUploadQueue* upload_queue;
 
     ObjectPool<Mesh> meshes;
+
+    ScatterUploadBuffer<VkDrawIndexedIndirectCommand> mesh_draw_args_upload_buffer;
+    BufferHandle mesh_draw_args_buffer = BufferHandle::None;
 
     // vertex_block and index_block measure vertices and indices, respectively
 

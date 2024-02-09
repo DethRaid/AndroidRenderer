@@ -25,7 +25,7 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
     scene_renderer->set_scene(*scene);
 
     input.add_player_movement_callback([&](const glm::vec3& movement) { update_player_location(movement); });
-    input.add_player_rotation_callback([&](const glm::vec2& rotation) {update_player_rotation(rotation); });
+    input.add_player_rotation_callback([&](const glm::vec2& rotation) { update_player_rotation(rotation); });
 
     last_frame_start_time = std::chrono::high_resolution_clock::now();
 

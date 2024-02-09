@@ -1,7 +1,7 @@
 #include "material_storage.hpp"
 #include "render/backend/render_backend.hpp"
 
-MaterialStorage::MaterialStorage(RenderBackend& backend_in) : backend{ backend_in }, material_upload{ backend } {
+MaterialStorage::MaterialStorage(RenderBackend& backend_in) : backend{backend_in}, material_upload{backend} {
     auto& allocator = backend.get_global_allocator();
     material_buffer_handle = allocator.create_buffer(
         "Materials buffer", sizeof(BasicPbrMaterialGpu) * 65536,
@@ -27,7 +27,7 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
 
     const auto handle = material_pool.add_object(std::make_pair(new_material, MaterialProxy{}));
     auto& proxy = handle->second;
-    
+
     material_upload.add_data(handle.index, new_material.gpu_data);
 
     // Pipelines......
@@ -46,6 +46,18 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                                          ? VK_FRONT_FACE_COUNTER_CLOCKWISE
                                                          : VK_FRONT_FACE_CLOCKWISE);
 
+    // Depth prepass
+    const auto depth_prepass_pipeline = backend.begin_building_pipeline(fmt::format("{} depth prepass", new_material.name))
+        .set_vertex_shader("shaders/deferred/basic.vert.spv")
+        .set_raster_state(
+            {
+                .cull_mode = cull_mode,
+                .front_face = front_face
+            }
+        )
+        .build();
+    proxy.pipelines.emplace(ScenePassType::DepthPrepass, depth_prepass_pipeline);
+
     // gbuffer
     const auto gbuffer_pipeline = backend.begin_building_pipeline(new_material.name)
                                          .set_vertex_shader("shaders/deferred/basic.vert.spv")
@@ -54,6 +66,13 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                          .set_blend_state(1, new_material.blend_state)
                                          .set_blend_state(2, new_material.blend_state)
                                          .set_blend_state(3, new_material.blend_state)
+                                         .set_depth_state(
+                                             {
+                                                 .enable_depth_test = true,
+                                                 .enable_depth_write = false,
+                                                 .compare_op = VK_COMPARE_OP_EQUAL
+                                             }
+                                         )
                                          .set_raster_state(
                                              {
                                                  .cull_mode = cull_mode,

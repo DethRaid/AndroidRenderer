@@ -2,6 +2,7 @@
 
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
+#include "shared/view_data.hpp"
 
 LightingPhase::LightingPhase(RenderBackend& backend_in) : backend{backend_in} {
     emission_pipeline = backend.begin_building_pipeline("Emissive Lighting")
@@ -26,7 +27,7 @@ LightingPhase::LightingPhase(RenderBackend& backend_in) : backend{backend_in} {
                                .build();
 }
 
-void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, const LightPropagationVolume& lpv) {
+void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, const std::unique_ptr<LightPropagationVolume>& lpv) {
     if (scene == nullptr) {
         return;
     }
@@ -64,7 +65,13 @@ void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, 
 
     add_sun_lighting(commands, gbuffers_descriptor_set, view);
 
-    lpv.add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer());
+    if (lpv) {
+        lpv->add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer());
+    }
+
+    if(*CVarSystem::Get()->GetIntCVar("r.MeshLight.Raytrace")) {
+        add_raytraced_mesh_lighting(commands, gbuffers_descriptor_set, view.get_buffer());
+    }
 
     add_emissive_lighting(commands, gbuffers_descriptor_set);
 }
@@ -126,7 +133,7 @@ LightingPhase::add_sun_lighting(
                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT
            )
            .bind_buffer(
-               2, {.buffer = view.get_buffer(), .offset = 0, .range = sizeof(SceneViewGpu)},
+               2, {.buffer = view.get_buffer(), .offset = 0, .range = sizeof(ViewDataGPU)},
                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT
            )
            .build(sun_descriptor_set);
@@ -138,6 +145,13 @@ LightingPhase::add_sun_lighting(
     commands.clear_descriptor_set(1);
 
     commands.end_label();
+}
+
+void LightingPhase::add_raytraced_mesh_lighting(
+    CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor_set, BufferHandle view_buffer
+) {
+    auto& sun = scene->get_sun_light();
+    auto& raytracing_scene = scene->get_raytracing_scene();
 }
 
 void LightingPhase::add_emissive_lighting(CommandBuffer& commands, const VkDescriptorSet gbuffer_descriptor_set) {

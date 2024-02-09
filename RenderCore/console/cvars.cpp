@@ -10,6 +10,8 @@
 #include <imgui_stdlib.h>
 #include <imgui_internal.h>
 
+#include "core/user_options_controller.hpp"
+
 enum class CVarType : char
 {
 	INT,
@@ -38,6 +40,8 @@ struct CVarStorage
 	CVarParameter* parameter;
 };
 
+class CVarSystemImpl;
+
 template<typename T>
 struct CVarArray
 {
@@ -58,12 +62,12 @@ struct CVarArray
 	T* GetCurrentPtr(int32_t index)
 	{
 		return &cvars[index].current;
-	};
+	}
 
 	T GetCurrent(int32_t index)
 	{
 		return cvars[index].current;
-	};
+	}
 
 	void SetCurrent(const T& val, int32_t index)
 	{
@@ -103,45 +107,46 @@ uint32_t Hash(const char* str)
 	return StringUtils::fnv1a_32(str, strlen(str));
 }
 
-class CVarSystemImpl : public CVarSystem
+class CVarSystemImpl final : public CVarSystem
 {
 public:
-	CVarParameter* GetCVar(StringUtils::StringHash hash) override final;
+	CVarParameter* GetCVar(StringUtils::StringHash hash) override;
 
 	
-	CVarParameter* CreateFloatCVar(const char* name, const char* description, double defaultValue, double currentValue) override final;
+	CVarParameter* CreateFloatCVar(const char* name, const char* description, double defaultValue, double currentValue) override;
 	
-	CVarParameter* CreateIntCVar(const char* name, const char* description, int32_t defaultValue, int32_t currentValue) override final;
+	CVarParameter* CreateIntCVar(const char* name, const char* description, int32_t defaultValue, int32_t currentValue) override;
 
-	CVarParameter* CreateStringCVar(const char* name, const char* description, const char* defaultValue, const char* currentValue) override final;
+	CVarParameter* CreateStringCVar(const char* name, const char* description, const char* defaultValue, const char* currentValue) override;
 	
-	double* GetFloatCVar(StringUtils::StringHash hash) override final;
-	int32_t* GetIntCVar(StringUtils::StringHash hash) override final;
-	const char* GetStringCVar(StringUtils::StringHash hash) override final;
+	double* GetFloatCVar(StringUtils::StringHash hash) override;
+	int32_t* GetIntCVar(StringUtils::StringHash hash) override;
+	const char* GetStringCVar(StringUtils::StringHash hash) override;
 	
 
-	void SetFloatCVar(StringUtils::StringHash hash, double value) override final;
+	void SetFloatCVar(StringUtils::StringHash hash, double value) override;
 
-	void SetIntCVar(StringUtils::StringHash hash, int32_t value) override final;
+	void SetIntCVar(StringUtils::StringHash hash, int32_t value) override;
 
-	void SetStringCVar(StringUtils::StringHash hash, const char* value) override final;
+	void SetStringCVar(StringUtils::StringHash hash, const char* value) override;
 
-	void DrawImguiEditor() override final;
+	void DrawImguiEditor() override;
+
+	void register_listener(std::string_view cvar_name, std::function<void(int32_t)> listener) override;
 
 	void EditParameter(CVarParameter* p, float textWidth);
 
 	constexpr static int MAX_INT_CVARS = 1000;
 	CVarArray<int32_t> intCVars2{ MAX_INT_CVARS };
 
-	constexpr static int MAX_FLOAT_CVARS = 1000;
+    constexpr static int MAX_FLOAT_CVARS = 1000;
 	CVarArray<double> floatCVars{ MAX_FLOAT_CVARS };
 
 	constexpr static int MAX_STRING_CVARS = 200;
 	CVarArray<std::string> stringCVars{ MAX_STRING_CVARS };
 
-
 	//using templates with specializations to get the cvar arrays for each type.
-	//if you try to use a type that doesnt have specialization, it will trigger a linker error
+	//if you try to use a type that doesn't have specialization, it will trigger a linker error
 	template<typename T>
 	CVarArray<T>* GetCVarArray();
 
@@ -180,6 +185,7 @@ public:
 		if (cvar)
 		{
 			GetCVarArray<T>()->SetCurrent(value, cvar->arrayIndex);
+			dispatcher.on_cvar_changed(namehash, value);
 		}
 	}
 
@@ -197,6 +203,8 @@ private:
 	std::unordered_map<uint32_t, CVarParameter> savedCVars;
 
 	std::vector<CVarParameter*> cachedEditParameters;
+
+	CvarChangeDispatcher dispatcher;
 };
 
 double* CVarSystemImpl::GetFloatCVar(StringUtils::StringHash hash)
@@ -516,6 +524,11 @@ void CVarSystemImpl::DrawImguiEditor()
 		}
 	}
 }
+
+void CVarSystemImpl::register_listener(std::string_view cvar_name, std::function<void(int32_t)> listener) {
+	dispatcher.register_cvar_listener(cvar_name, listener);
+}
+
 void Label(const char* label, float textWidth)
 {
 	constexpr float Slack = 50;

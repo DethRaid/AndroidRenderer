@@ -358,43 +358,40 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
 
     const auto device = backend.get_device().device;
 
-    VkBufferUsageFlags vk_usage = {};
+    VkBufferUsageFlags vk_usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     VmaAllocationCreateFlags vma_flags = {};
     VmaMemoryUsage memory_usage = {};
 
     switch (usage) {
     case BufferUsage::StagingBuffer:
-        vk_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-        vma_flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        vk_usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        vma_flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
         break;
 
     case BufferUsage::VertexBuffer:
-        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+        vk_usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
 
     case BufferUsage::IndexBuffer:
-        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+        vk_usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
 
     case BufferUsage::IndirectBuffer:
-        vk_usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        vk_usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
 
     case BufferUsage::UniformBuffer:
-        vk_usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-        vma_flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        vk_usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        vma_flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
 
     case BufferUsage::StorageBuffer:
-        vk_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+        vk_usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
     }
@@ -423,23 +420,34 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
 
     buffer.name = name;
     buffer.create_info = create_info;
-
-    if ((vk_usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) != 0) {
-        const auto info = VkBufferDeviceAddressInfo{
-            .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-            .buffer = buffer.buffer
-        };
-        const auto va = vkGetBufferDeviceAddress(device, &info);
-        buffer.address.x = static_cast<uint32_t>(va & 0xFFFFFFFF);
-        buffer.address.y = static_cast<uint32_t>((va >> 32) & 0xFFFFFFFF);
-    }
-
+    
+    const auto info = VkBufferDeviceAddressInfo{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .buffer = buffer.buffer
+    };
+    const auto va = vkGetBufferDeviceAddress(device, &info);
+    buffer.address.x = static_cast<uint32_t>(va & 0xFFFFFFFF);
+    buffer.address.y = static_cast<uint32_t>((va >> 32) & 0xFFFFFFFF);
+    
     const auto handle = buffers.add_object(std::move(buffer));
     return static_cast<BufferHandle>(handle.index);
 }
 
 const Buffer& ResourceAllocator::get_buffer(BufferHandle handle) const {
     return buffers[static_cast<uint32_t>(handle)];
+}
+
+void* ResourceAllocator::map_buffer(const BufferHandle buffer_handle) {
+    auto& buffer_actual = buffers[static_cast<uint32_t>(buffer_handle)];
+    if (buffer_actual.allocation_info.pMappedData == nullptr) {
+        vmaMapMemory(vma, buffer_actual.allocation, &buffer_actual.allocation_info.pMappedData);
+    }
+
+    return buffer_actual.allocation_info.pMappedData;
+}
+
+AccelerationStructureHandle ResourceAllocator::create_acceleration_structure() {
+    return AccelerationStructureHandle::None;
 }
 
 void ResourceAllocator::destroy_buffer(BufferHandle handle) {

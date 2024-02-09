@@ -1,0 +1,81 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_buffer_reference_uvec2 : enable
+#extension GL_EXT_buffer_reference2 : enable
+
+#include "shared/primitive_data.hpp"
+
+struct DrawCommand {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int  vertexOffset;
+    uint firstInstance;
+};
+
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
+    PrimitiveDataGPU primitive_datas[];
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveVisibilityBuffer {
+    uint visible[];
+};
+
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer MeshArgumentsBuffer {
+    DrawCommand meshes[];
+};
+
+layout(buffer_reference, scalar, buffer_reference_align = 16) writeonly buffer DrawCommandBuffer {
+    DrawCommand draw_commands[];
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) buffer DrawCountBuffer {
+    uint draw_count;
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) writeonly buffer PrimitiveIdBuffer {
+    uint primitive_ids[];
+};
+
+layout(local_size_x = 96, local_size_y = 1, local_size_z = 1) in;
+
+layout(push_constant) uniform Constants {
+    PrimitiveDataBuffer primitive_data_buffer;
+    PrimitiveVisibilityBuffer primitive_visibility_buffer;
+    MeshArgumentsBuffer mesh_args_buffer;
+    DrawCommandBuffer draw_command_buffer;
+    DrawCountBuffer draw_count_buffer;
+    PrimitiveIdBuffer primitive_id_buffer;
+
+    uint num_primitives;
+};
+
+void main() {
+    if(gl_GlobalInvocationID.x >= num_primitives) {
+        return;
+    }
+
+    uint primitive_id = gl_GlobalInvocationID.x;
+
+    uint visible = primitive_visibility_buffer.visible[primitive_id];
+
+    if(visible == 0) {
+        return;
+    }
+
+    PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
+    if(primitive_data.type != PRIMITIVE_TYPE_SOLID) {
+        // TODO: Support other primitive types. We need three sets of outputs so that's annoying
+        return;
+    }
+
+    // TODO: Subgroup 
+    uint draw_id = atomicAdd(draw_count_buffer.draw_count, 1);
+
+    primitive_id_buffer.primitive_ids[draw_id] = primitive_id;
+    // Page fault here for some reason
+    draw_command_buffer.draw_commands[draw_id] = mesh_args_buffer.meshes[primitive_data.mesh_id];
+}

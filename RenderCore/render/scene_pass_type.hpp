@@ -20,7 +20,12 @@ enum class ScenePassType {
      * Vozelization pass. The pipeline must position its triangle within a 3D texture, and the pipeline must output
      * spherical harmonics to represent the surface
      */
-    Vozelization
+    Vozelization,
+
+    /**
+     * \brief Depth-only prepass
+     */
+    DepthPrepass,
 };
 
 inline bool is_color_pass(const ScenePassType pass_type) {
@@ -33,6 +38,8 @@ inline bool is_color_pass(const ScenePassType pass_type) {
     case ScenePassType::Shadow:
         [[fallthrough]];
     case ScenePassType::Vozelization:
+        [[fallthrough]];
+    case ScenePassType::DepthPrepass:
         return false;
     }
 

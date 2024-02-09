@@ -4,6 +4,7 @@
 
 #include <fastgltf_parser.hpp>
 
+#include "user_options_controller.hpp"
 #include "input/input_manager.hpp"
 #include "render/scene_renderer.hpp"
 #include "render/render_scene.hpp"
@@ -41,7 +42,7 @@ private:
     std::unique_ptr<SceneRenderer> scene_renderer;
 
     std::unique_ptr<RenderScene> scene;
-
+    
     InputManager input;
 
     fastgltf::Parser parser;

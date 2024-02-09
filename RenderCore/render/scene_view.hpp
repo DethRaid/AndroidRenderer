@@ -4,8 +4,8 @@
 
 #include "render/backend/handles.hpp"
 #include "render/backend/command_buffer.hpp"
-#include "render/scene_view_gpu.hpp"
 #include "light_propagation_volume.hpp"
+#include "shared/view_data.hpp"
 
 class ResourceAllocator;
 class RenderBackend;
@@ -49,7 +49,7 @@ public:
 
     float get_aspect_ratio() const;
 
-    const SceneViewGpu& get_gpu_data() const;
+    const ViewDataGPU& get_gpu_data() const;
 
     glm::vec3 get_position() const;
 
@@ -81,7 +81,7 @@ private:
 
     glm::vec3 forward = {};
 
-    SceneViewGpu gpu_data = {};
+    ViewDataGPU gpu_data = {};
 
     BufferHandle buffer = BufferHandle::None;
 

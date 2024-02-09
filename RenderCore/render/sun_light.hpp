@@ -4,8 +4,7 @@
 #include <glm/vec4.hpp>
 
 #include "render/backend/handles.hpp"
-#include "backend\graphics_pipeline.hpp"
-#include "render/scene_view_gpu.hpp"
+#include "backend/graphics_pipeline.hpp"
 #include "shared/sun_light_constants.hpp"
 
 class ResourceAllocator;
@@ -40,6 +39,7 @@ private:
 
     bool sun_buffer_dirty = true;
 
+    // Massive TODO: Replace this with the ViewDataGPU struct
     SunLightConstants constants = {};
 
     BufferHandle sun_buffer = BufferHandle::None;

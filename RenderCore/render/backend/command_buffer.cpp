@@ -9,6 +9,12 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
+static AutoCVar_Int cvar_validate_bindings{
+    "r.Debug.ValidateBindings",
+    "Whether or not to validate bindings, such as vertex or index buffers",
+    1
+};
+
 CommandBuffer::CommandBuffer(VkCommandBuffer vk_cmds, RenderBackend& backend_in) :
     commands{vk_cmds}, backend{&backend_in} {
     if (logger == nullptr) {
@@ -251,6 +257,21 @@ void CommandBuffer::draw_indexed_indirect(const BufferHandle indirect_buffer) {
     vkCmdDrawIndexedIndirect(commands, buffer_actual.buffer, 0, 1, 0);
 }
 
+void CommandBuffer::draw_indexed_indirect(
+    const BufferHandle indirect_buffer, const BufferHandle count_buffer, const uint32_t max_count
+) {
+    commit_bindings();
+
+    const auto& allocator = backend->get_global_allocator();
+    const auto& indirect_buffer_actual = allocator.get_buffer(indirect_buffer);
+    const auto& count_buffer_actual = allocator.get_buffer(count_buffer);
+
+    vkCmdDrawIndexedIndirectCount(
+        commands, indirect_buffer_actual.buffer, 0, count_buffer_actual.buffer, 0, max_count,
+        sizeof(VkDrawIndexedIndirectCommand)
+    );
+}
+
 void CommandBuffer::draw_triangle() {
     commit_bindings();
 
@@ -260,6 +281,9 @@ void CommandBuffer::draw_triangle() {
 void CommandBuffer::bind_shader(const ComputeShader& shader) {
     current_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
     current_pipeline_layout = shader.layout;
+    num_push_constants_in_current_pipeline = shader.num_push_constants;
+    push_constant_shader_stages = VK_SHADER_STAGE_COMPUTE_BIT;
+
     vkCmdBindPipeline(commands, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline);
 
     are_bindings_dirty = true;
@@ -269,6 +293,9 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
     current_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
     current_pipeline_layout = pipeline->get_layout();
+
+    num_push_constants_in_current_pipeline = pipeline->get_num_push_constants();
+    push_constant_shader_stages = pipeline->get_push_constant_shader_stages();
 
     auto vk_pipeline = backend->get_pipeline_cache().get_pipeline(pipeline, current_render_pass, current_subpass);
 
@@ -320,7 +347,7 @@ void CommandBuffer::copy_image_to_image(const TextureHandle src, const TextureHa
     auto& allocator = backend->get_global_allocator();
     const auto& src_actual = allocator.get_texture(src);
     const auto& dst_actual = allocator.get_texture(dst);
-        
+
     const auto region = VkImageCopy2{
         .sType = VK_STRUCTURE_TYPE_IMAGE_COPY_2,
         .srcSubresource = {
@@ -433,13 +460,13 @@ void CommandBuffer::commit_bindings() {
         return;
     }
 
-    vkCmdPushConstants(
-        commands, current_pipeline_layout,
-        current_bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS
-            ? VK_SHADER_STAGE_ALL
-            : VK_SHADER_STAGE_COMPUTE_BIT, 0,
-        static_cast<uint32_t>(push_constants.size() * sizeof(uint32_t)), push_constants.data()
-    );
+    if (num_push_constants_in_current_pipeline > 0) {
+        vkCmdPushConstants(
+            commands, current_pipeline_layout,
+            push_constant_shader_stages, 0,
+            static_cast<uint32_t>(num_push_constants_in_current_pipeline * sizeof(uint32_t)), push_constants.data()
+        );
+    }
 
     for (uint32_t i = 0; i < descriptor_sets.size(); i++) {
         if (descriptor_sets[i] != VK_NULL_HANDLE) {
@@ -473,7 +500,7 @@ RenderBackend& CommandBuffer::get_backend() const {
     return *backend;
 }
 
-#if TRACY_ENABLE
+#if defined(TRACY_ENABLE)
 tracy::VkCtx* const CommandBuffer::get_tracy_context() const {
     return backend->get_tracy_context();
 }

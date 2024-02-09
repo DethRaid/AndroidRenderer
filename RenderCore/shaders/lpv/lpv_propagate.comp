@@ -79,6 +79,9 @@ void main() {
         mediump vec3 main_direction = orientation * vec3(0, 0, 1);
 
         ivec3 neighbor_cell = cell - ivec3(directions[neighbor]);
+        if(any(lessThan(neighbor_cell, ivec3(-1))) || any(greaterThan(neighbor_cell, ivec3(31)))) {
+            continue;
+        }
 
         mediump vec4 gv_sh = vec4(0);
         if(use_gv != 0) {

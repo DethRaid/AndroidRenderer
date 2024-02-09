@@ -30,7 +30,7 @@ static AutoCVar_Int cvar_enable_best_practices_layer{
 static AutoCVar_Int cvar_enable_gpu_assisted_validation{
     "r.vulkan.EnableGpuAssistedValidation",
     "Whether to enable GPU-assisted validation. Helpful when using bindless techniques, but incurs a performance penalty",
-    0
+    1
 };
 
 static AutoCVar_Int cvar_break_on_validation_warning{
@@ -87,7 +87,7 @@ VkBool32 VKAPI_ATTR debug_callback(
     return VK_FALSE;
 }
 
-RenderBackend::RenderBackend() {
+RenderBackend::RenderBackend() : resource_access_synchronizer { *this } {
     logger = SystemInterface::get().get_logger("RenderBackend");
     logger->set_level(spdlog::level::trace);
 
@@ -95,6 +95,8 @@ RenderBackend::RenderBackend() {
     if (volk_result != VK_SUCCESS) {
         throw std::runtime_error{"Could not initialize Volk, Vulkan is not available"};
     }
+
+    supports_raytracing = *CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable") != 0;
 
     create_instance_and_device();
 
@@ -252,8 +254,15 @@ void RenderBackend::create_instance_and_device() {
         .shaderStorageBufferArrayDynamicIndexing = VK_TRUE,
     };
 
+    auto required_1_1_features = VkPhysicalDeviceVulkan11Features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+        .multiview = VK_TRUE,
+        .shaderDrawParameters = VK_TRUE,
+    };
+
     auto required_1_2_features = VkPhysicalDeviceVulkan12Features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .drawIndirectCount = VK_TRUE,
         .shaderFloat16 = VK_TRUE,
         .descriptorIndexing = VK_TRUE,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
@@ -261,6 +270,7 @@ void RenderBackend::create_instance_and_device() {
         .descriptorBindingPartiallyBound = VK_TRUE,
         .descriptorBindingVariableDescriptorCount = VK_TRUE,
         .runtimeDescriptorArray = VK_TRUE,
+        .samplerFilterMinmax = VK_TRUE,
         .scalarBlockLayout = VK_TRUE,
         .imagelessFramebuffer = VK_TRUE,
         .shaderSubgroupExtendedTypes = VK_TRUE,
@@ -277,31 +287,54 @@ void RenderBackend::create_instance_and_device() {
         .maintenance4 = VK_TRUE,
     };
 
-    auto phys_device_ret = vkb::PhysicalDeviceSelector{instance}
-                           .set_surface(surface)
-                           .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
+    auto phys_device_builder = vkb::PhysicalDeviceSelector{ instance }
+        .set_surface(surface)
+        .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
 #if defined(_WIN32)
         .add_desired_extension(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME)
         .add_desired_extension(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME)
 #endif
         .set_required_features(required_features)
+        .set_required_features_11(required_1_1_features)
         .set_required_features_12(required_1_2_features)
         .set_required_features_13(required_1_3_features)
-        .set_minimum_version(1, 1)
-        .select();
+        .set_minimum_version(1, 1);
+
+    if(supports_raytracing) {
+        phys_device_builder.add_required_extension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+        phys_device_builder.add_required_extension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+        phys_device_builder.add_required_extension(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
+        phys_device_builder.add_required_extension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
+    }
+
+    auto phys_device_ret = phys_device_builder.select();
     if (!phys_device_ret) {
         const auto error_message = fmt::format("Could not select device: {}", phys_device_ret.error().message());
         throw std::runtime_error{error_message};
     }
     physical_device = phys_device_ret.value();
+    
 
-    auto multiview_features = VkPhysicalDeviceMultiviewFeatures{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
-        .multiview = VK_TRUE,
+    auto acceleration_structure_features = VkPhysicalDeviceAccelerationStructureFeaturesKHR{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+        .accelerationStructure = VK_TRUE,
+        .accelerationStructureHostCommands = VK_TRUE,
     };
 
-    auto device_builder = vkb::DeviceBuilder{physical_device}
-        .add_pNext(&multiview_features);
+    auto rt_pipeline_features = VkPhysicalDeviceRayTracingPipelineFeaturesKHR{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+        .rayTracingPipeline = VK_TRUE,
+        .rayTracingPipelineShaderGroupHandleCaptureReplay = VK_TRUE,
+        .rayTracingPipelineTraceRaysIndirect = VK_TRUE,
+        .rayTraversalPrimitiveCulling = VK_TRUE,
+    };
+
+    auto device_builder = vkb::DeviceBuilder{physical_device};
+
+    if(supports_raytracing) {
+        device_builder.add_pNext(&acceleration_structure_features);
+        device_builder.add_pNext(&rt_pipeline_features);
+    }
 
     // Set up device creation info for Aftermath feature flag configuration.
 #if defined(_WIN32)
@@ -417,6 +450,10 @@ void RenderBackend::advance_frame() {
     {
         ZoneScopedN("Wait for previous frame");
         vkWaitForFences(device, 1, &frame_fences[cur_frame_idx], VK_TRUE, std::numeric_limits<uint64_t>::max());
+        logger->trace("Waited for the submission fence for frame {}", cur_frame_idx);
+
+        vkQueueWaitIdle(graphics_queue);
+        vkQueueWaitIdle(transfer_queue);
     }
 
     graphics_command_allocators[cur_frame_idx].reset();
@@ -482,7 +519,7 @@ void RenderBackend::flush_batched_command_buffers() {
 
         // Submit release barriers to transfer queue
         {
-            const auto commands = create_transfer_command_buffer();
+            const auto commands = create_transfer_command_buffer("Transfer queue release command buffer");
 
             constexpr auto begin_info = VkCommandBufferBeginInfo{
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -520,7 +557,7 @@ void RenderBackend::flush_batched_command_buffers() {
 
         // Submit acquire barriers to graphics queue
         {
-            auto commands = create_graphics_command_buffer();
+            auto commands = create_graphics_command_buffer("Graphics queue acquire command buffer");
 
             commands.begin();
 
@@ -588,6 +625,7 @@ void RenderBackend::flush_batched_command_buffers() {
 
             vkResetFences(device, 1, &frame_fences[cur_frame_idx]);
             const auto result = vkQueueSubmit(graphics_queue, 1, &submit, frame_fences[cur_frame_idx]);
+            logger->trace("Submitted submission fence for frame {}", cur_frame_idx);
 
             if (result == VK_ERROR_DEVICE_LOST) {
                 logger->error("Device lost detected!");
@@ -655,27 +693,29 @@ ResourceUploadQueue& RenderBackend::get_upload_queue() const {
     return *upload_queue;
 }
 
+ResourceAccessTracker& RenderBackend::get_resource_access_tracker() { return resource_access_synchronizer; }
+
 PipelineCache& RenderBackend::get_pipeline_cache() const {
     return *pipeline_cache;
 }
 
 TextureDescriptorPool& RenderBackend::get_texture_descriptor_pool() const { return *texture_descriptor_pool; }
 
-CommandBuffer RenderBackend::create_graphics_command_buffer() {
-    return CommandBuffer{graphics_command_allocators[cur_frame_idx].allocate_command_buffer(), *this};
+CommandBuffer RenderBackend::create_graphics_command_buffer(const std::string& name) {
+    return CommandBuffer{graphics_command_allocators[cur_frame_idx].allocate_command_buffer(fmt::format("{} for frame {}", name, cur_frame_idx)), *this};
 }
 
-VkCommandBuffer RenderBackend::create_transfer_command_buffer() {
-    return transfer_command_allocators[cur_frame_idx].allocate_command_buffer();
+VkCommandBuffer RenderBackend::create_transfer_command_buffer(const std::string& name) {
+    return transfer_command_allocators[cur_frame_idx].allocate_command_buffer(fmt::format("{} for frame {}", name, cur_frame_idx));
 }
 
 void RenderBackend::create_command_pools() {
     for (auto& command_pool : graphics_command_allocators) {
-        command_pool = CommandAllocator{device.device, graphics_queue_family_index};
+        command_pool = CommandAllocator{*this, graphics_queue_family_index};
     }
 
     for (auto& command_pool : transfer_command_allocators) {
-        command_pool = CommandAllocator{device.device, transfer_queue_family_index};
+        command_pool = CommandAllocator{ *this, transfer_queue_family_index};
     }
 }
 

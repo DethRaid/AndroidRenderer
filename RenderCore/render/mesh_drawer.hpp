@@ -1,7 +1,9 @@
 #pragma once
 
+#include "backend/handles.hpp"
 #include "render/scene_pass_type.hpp"
 
+class ResourceAllocator;
 class MaterialStorage;
 class CommandBuffer;
 class MeshStorage;
@@ -26,7 +28,7 @@ class SceneDrawer {
 public:
     SceneDrawer() = default;
 
-    SceneDrawer(ScenePassType type_in, const RenderScene& scene_in, const MeshStorage& mesh_storage_in, const MaterialStorage& material_storage_in);
+    SceneDrawer(ScenePassType type_in, const RenderScene& scene_in, const MeshStorage& mesh_storage_in, const MaterialStorage& material_storage_in, ResourceAllocator& resource_allocator_in);
 
     SceneDrawer(const SceneDrawer& other) = default;
     SceneDrawer& operator=(const SceneDrawer& other) = default;
@@ -36,7 +38,21 @@ public:
 
     ~SceneDrawer() = default;
 
+    /**
+     * \brief Draws the primitives in the scene using non-indexed draws
+     *
+     * Note: The PSOs for the type of pass that this scene drawer draws must support non-indexed draws. Currently this
+     * is only the shadow pass, eventually it will be nothing
+     *
+     * \param commands Command buffer to use to render
+     */
     void draw(CommandBuffer& commands) const;
+
+    void draw_indirect(CommandBuffer& commands, BufferHandle indirect_buffer, BufferHandle draw_count_buffer, BufferHandle primitive_ids) const;
+
+    const RenderScene& get_scene() const;
+
+    const MeshStorage& get_mesh_storage() const;
     
 private: 
     const RenderScene* scene = nullptr;
@@ -44,6 +60,8 @@ private:
     const MeshStorage* mesh_storage = nullptr;
 
     const MaterialStorage* material_storage = nullptr;
+
+    ResourceAllocator* allocator = nullptr;
 
     ScenePassType type;
 };

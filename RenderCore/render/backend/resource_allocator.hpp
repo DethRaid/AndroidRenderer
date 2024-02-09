@@ -116,6 +116,13 @@ public:
 
     const Buffer& get_buffer(BufferHandle handle) const;
 
+    void* map_buffer(BufferHandle buffer_handle);
+
+    template<typename MappedType>
+    MappedType* map_buffer(BufferHandle buffer);
+
+    AccelerationStructureHandle create_acceleration_structure();
+
     void destroy_buffer(BufferHandle handle);
 
     void destroy_framebuffer(Framebuffer&& framebuffer);
@@ -148,7 +155,7 @@ public:
     void report_memory_usage() const;
 
     VmaAllocator get_vma() const;
-
+    
 private:
     RenderBackend& backend;
 
@@ -177,3 +184,8 @@ private:
 
     void set_object_name(uint64_t object_handle, VkObjectType object_type, const std::string& name);
 };
+
+template <typename MappedType>
+MappedType* ResourceAllocator::map_buffer(const BufferHandle buffer) {
+    return static_cast<MappedType*>(map_buffer(buffer));
+}

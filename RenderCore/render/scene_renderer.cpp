@@ -5,6 +5,7 @@
 #include "render/scene_renderer.hpp"
 #include "render/backend/render_graph.hpp"
 #include "core/system_interface.hpp"
+#include "core/user_options.hpp"
 #include "render/render_scene.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
@@ -23,14 +24,30 @@ static auto cvar_shadow_cascade_split_lambda = AutoCVar_Float{
     "Factor to use when calculating shadow cascade splits", 0.95
 };
 
+static auto cvar_enable_sun_gi = AutoCVar_Int{
+    "r.EnableSunGI", "Whether or not to enable GI from the sun", 1
+};
+
+static auto cvar_enable_mesh_lights = AutoCVar_Int{
+    "r.MeshLight.Enable", "Whether or not to enable mesh lights", 0
+};
+
+static auto cvar_raytrace_mesh_lights = AutoCVar_Int{
+    "r.MeshLight.Raytrace", "Whether or not to raytrace mesh lights", 0
+};
+
+static auto cvar_use_lpv = AutoCVar_Int{
+    "r.lpv.Enable", "Whether to enable the LPV", 1
+};
+
 SceneRenderer::SceneRenderer() :
     backend{}, player_view{backend}, texture_loader{backend}, material_storage{backend},
-    meshes{backend.get_global_allocator(), backend.get_upload_queue()}, mip_chain_generator{backend}, bloomer{backend},
-    lpv{backend}, lighting_pass{backend}, ui_phase{*this} {
+    meshes{backend, backend.get_upload_queue()}, mip_chain_generator{backend}, bloomer{backend},
+    depth_culling_phase{backend}, lighting_pass{backend}, ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
     // player_view.set_position(glm::vec3{2.f, -1.f, 3.0f});
-    player_view.set_position(glm::vec3{ 7.f, 1.f, 0.0f });
+    player_view.set_position(glm::vec3{7.f, 1.f, 0.0f});
 
     const auto render_resolution = SystemInterface::get().get_resolution();
 
@@ -47,7 +64,13 @@ SceneRenderer::SceneRenderer() :
         voxel_cache = std::make_unique<VoxelCache>(backend);
     }
 
-    lpv.init_resources(backend.get_global_allocator());
+    if (cvar_use_lpv.Get()) {
+        lpv = std::make_unique<LightPropagationVolume>(backend);
+    }
+
+    if (lpv) {
+        lpv->init_resources(backend.get_global_allocator());
+    }
 
     logger->info("Initialized SceneRenderer");
 }
@@ -76,16 +99,31 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
     scene = &scene_in;
     lighting_pass.set_scene(scene_in);
 
-    sun_shadow_drawer = SceneDrawer{ScenePassType::Shadow, *scene, meshes, material_storage};
-    gbuffer_drawer = SceneDrawer{ScenePassType::Gbuffer, *scene, meshes, material_storage};
+    sun_shadow_drawer = SceneDrawer{
+        ScenePassType::Shadow, *scene, meshes, material_storage, backend.get_global_allocator()
+    };
+    depth_prepass_drawer = SceneDrawer{
+        ScenePassType::DepthPrepass, *scene, meshes, material_storage, backend.get_global_allocator()
+    };
+    gbuffer_drawer = SceneDrawer{
+        ScenePassType::Gbuffer, *scene, meshes, material_storage, backend.get_global_allocator()
+    };
 
-    lpv.set_scene_drawer(SceneDrawer{ScenePassType::RSM, *scene, meshes, material_storage});
+    if (lpv) {
+        lpv->set_scene_drawer(
+            SceneDrawer{ScenePassType::RSM, *scene, meshes, material_storage, backend.get_global_allocator()}
+        );
+    }
 }
 
 void SceneRenderer::render() {
     ZoneScoped;
 
     backend.advance_frame();
+
+    logger->debug("Beginning frame");
+
+    const auto gbuffer_depth_handle = depth_culling_phase.get_depth_buffer();
 
     lighting_pass.set_gbuffer(
         GBuffer{
@@ -123,8 +161,10 @@ void SceneRenderer::render() {
 
                 player_view.update_transforms(commands);
 
-                lpv.update_cascade_transforms(player_view, scene->get_sun_light());
-                lpv.update_buffers(commands);
+                if (lpv) {
+                    lpv->update_cascade_transforms(player_view, scene->get_sun_light());
+                    lpv->update_buffers(commands);
+                }
             }
         }
     );
@@ -133,14 +173,38 @@ void SceneRenderer::render() {
 
     scene->flush_primitive_upload(render_graph);
 
+    meshes.flush_mesh_draw_arg_uploads(render_graph);
+
     render_graph.add_transition_pass(
         {
             .buffers = {
                 {
                     scene->get_primitive_buffer(),
                     {
-                        .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                         .access = VK_ACCESS_SHADER_READ_BIT
+                    }
+                },
+                {
+                    meshes.get_index_buffer(),
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT,
+                        .access = VK_ACCESS_2_INDEX_READ_BIT
+                    }
+                },
+                {
+                    meshes.get_vertex_position_buffer(),
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,
+                        .access = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT
+                    }
+                },
+                {
+                    meshes.get_vertex_data_buffer(),
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,
+                        .access = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT
                     }
                 }
             }
@@ -149,22 +213,32 @@ void SceneRenderer::render() {
 
     scene->generate_emissive_point_clouds(render_graph);
 
-    lpv.clear_volume(render_graph);
+    if (lpv) {
+        lpv->clear_volume(render_graph);
 
-    if (voxel_cache && lpv.get_build_mode() == GvBuildMode::Voxels) {
-        lpv.build_geometry_volume_from_voxels(render_graph, *scene, *voxel_cache);
-    } else if (lpv.get_build_mode() == GvBuildMode::DepthBuffers) {
-        lpv.build_geometry_volume_from_scene_view(
-            render_graph, depth_buffer_mip_chain, normal_target_mip_chain, player_view.get_buffer(),
-            scene_render_resolution / glm::uvec2{2}
-        );
+        const auto build_mode = lpv->get_build_mode();
+
+        if (voxel_cache && build_mode == GvBuildMode::Voxels) {
+            lpv->build_geometry_volume_from_voxels(render_graph, *scene, *voxel_cache);
+        } else if (build_mode == GvBuildMode::DepthBuffers) {
+            lpv->build_geometry_volume_from_scene_view(
+                render_graph, depth_buffer_mip_chain, normal_target_mip_chain, player_view.get_buffer(),
+                scene_render_resolution / glm::uvec2{2}
+            );
+        } else if (build_mode == GvBuildMode::PointClouds) {
+            lpv->build_geometry_volume_from_point_clouds(render_graph, *scene);
+        }
+
+        // VPL cloud generation
+
+        if (cvar_enable_sun_gi.Get()) {
+            lpv->inject_indirect_sun_light(render_graph, *scene);
+        }
+
+        if (cvar_enable_mesh_lights.Get()) {
+            lpv->inject_emissive_point_clouds(render_graph, *scene);
+        }
     }
-
-    // VPL cloud generation
-
-    lpv.inject_indirect_sun_light(render_graph, *scene);
-
-    lpv.inject_emissive_point_clouds(render_graph, *scene);
 
     // Shadows
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
@@ -204,9 +278,18 @@ void SceneRenderer::render() {
         }
     );
 
-    lpv.propagate_lighting(render_graph);
+    if (lpv) {
+        lpv->propagate_lighting(render_graph);
+    }
+
+    // Depth and stuff
+
+    depth_culling_phase.render(render_graph, depth_prepass_drawer, player_view.get_buffer());
 
     // Gbuffers, lighting, and translucency
+
+    const auto visible_objects_buffer = depth_culling_phase.get_visible_objects();
+    const auto& [draw_commands, draw_count, primitive_ids] = depth_culling_phase.translate_visibility_list_to_draw_commands(render_graph, visible_objects_buffer, scene->get_primitive_buffer(), scene->get_total_num_primitives(), meshes.get_draw_args_buffer());
 
     render_graph.add_render_pass(
         RenderPass{
@@ -219,6 +302,11 @@ void SceneRenderer::render() {
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     }
                 }
+            },
+            .buffers = {
+                {draw_commands, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
+                {draw_count, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
+                {primitive_ids, {VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
             },
             .attachments = std::vector{
                 gbuffer_color_handle,
@@ -256,7 +344,7 @@ void SceneRenderer::render() {
 
                         commands.bind_descriptor_set(0, global_set);
 
-                        gbuffer_drawer.draw(commands);
+                        gbuffer_drawer.draw_indirect(commands, draw_commands, draw_count, primitive_ids);
 
                         commands.clear_descriptor_set(0);
                     }
@@ -269,13 +357,6 @@ void SceneRenderer::render() {
                         lighting_pass.render(commands, player_view, lpv);
                     }
                 },
-                // TODO
-                // Subpass{
-                //     .name = "Translucency",
-                //     .color_attachments = {4},
-                //     .depth_attachment = {5},
-                //     .execute = [&](CommandBuffer& commands) {}
-                // }
             }
         }
     );
@@ -393,10 +474,6 @@ void SceneRenderer::create_scene_render_targets() {
         allocator.destroy_texture(gbuffer_emission_handle);
     }
 
-    if (gbuffer_depth_handle != TextureHandle::None) {
-        allocator.destroy_texture(gbuffer_depth_handle);
-    }
-
     if (depth_buffer_mip_chain != TextureHandle::None) {
         allocator.destroy_texture(depth_buffer_mip_chain);
     }
@@ -408,7 +485,9 @@ void SceneRenderer::create_scene_render_targets() {
     if (lit_scene_handle != TextureHandle::None) {
         allocator.destroy_texture(lit_scene_handle);
     }
-    
+
+    depth_culling_phase.set_render_resolution(scene_render_resolution);
+
     // gbuffer and lighting render targets
     gbuffer_color_handle = allocator.create_texture(
         "gbuffer_color", VK_FORMAT_R8G8B8A8_SRGB,
@@ -435,12 +514,6 @@ void SceneRenderer::create_scene_render_targets() {
         TextureUsage::RenderTarget
     );
 
-    gbuffer_depth_handle = allocator.create_texture(
-        "gbuffer_depth", VK_FORMAT_D32_SFLOAT,
-        scene_render_resolution, 1,
-        TextureUsage::RenderTarget
-    );
-
     const auto mip_chain_resolution = scene_render_resolution / glm::uvec2{2};
     const auto minor_dimension = glm::min(mip_chain_resolution.x, mip_chain_resolution.y);
     const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
@@ -461,7 +534,7 @@ void SceneRenderer::create_scene_render_targets() {
         scene_render_resolution, 1,
         TextureUsage::RenderTarget
     );
-    
+
     auto& swapchain = backend.get_swapchain();
     const auto& images = swapchain.get_images();
     const auto& image_views = swapchain.get_image_views();

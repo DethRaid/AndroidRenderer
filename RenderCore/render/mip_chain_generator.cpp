@@ -8,6 +8,9 @@
 #include "core/system_interface.hpp"
 
 MipChainGenerator::MipChainGenerator(RenderBackend& backend_in) : backend{backend_in} {
+    // TODO: We need a shader templating system. This will let us build the mip chain generation shaders with a custom
+    // texture format and reduction filter
+
     {
         const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_R16F.comp.spv");
         shaders.emplace(VK_FORMAT_R16_SFLOAT, *backend.create_compute_shader("Mip Chain Generator R16F", bytes));
@@ -19,6 +22,11 @@ MipChainGenerator::MipChainGenerator(RenderBackend& backend_in) : backend{backen
     {
         const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_B10G11R11F.comp.spv");
         shaders.emplace(VK_FORMAT_B10G11R11_UFLOAT_PACK32, *backend.create_compute_shader("Mip Chain Generator B10G11R11F", bytes));
+    }
+
+    {
+        const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_D32F_min.comp.spv");
+        shaders.emplace(VK_FORMAT_R32_SFLOAT, *backend.create_compute_shader("Mip Chain Generator D32F", bytes));
     }
 
     auto& allocator = backend.get_global_allocator();

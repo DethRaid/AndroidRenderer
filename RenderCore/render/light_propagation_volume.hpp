@@ -105,6 +105,8 @@ public:
         TextureHandle normal_target, BufferHandle view_uniform_buffer, glm::uvec2 resolution
     );
 
+    void build_geometry_volume_from_point_clouds(RenderGraph& render_graph, const RenderScene& scene);
+
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
 
     /**

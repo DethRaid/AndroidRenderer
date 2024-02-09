@@ -1,12 +1,13 @@
 #pragma once
 
-#include "bloomer.hpp"
+#include "render/bloomer.hpp"
 #include "render/backend/render_backend.hpp"
-#include "scene_view.hpp"
+#include "render/scene_view.hpp"
 #include "render/material_storage.hpp"
 #include "render/texture_loader.hpp"
 #include "mesh_storage.hpp"
 #include "mip_chain_generator.hpp"
+#include "phase/depth_culling_phase.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
@@ -78,7 +79,7 @@ private:
 
     glm::uvec2 scene_render_resolution = glm::uvec2{};
 
-    LightPropagationVolume lpv;
+    std::unique_ptr<LightPropagationVolume> lpv;
         
     TextureHandle shadowmap_handle = TextureHandle::None;
 
@@ -89,8 +90,6 @@ private:
     TextureHandle gbuffer_data_handle = TextureHandle::None;
 
     TextureHandle gbuffer_emission_handle = TextureHandle::None;
-    
-    TextureHandle gbuffer_depth_handle = TextureHandle::None;
 
     // This should be something like an extracted texture?
     TextureHandle depth_buffer_mip_chain = TextureHandle::None;
@@ -104,6 +103,10 @@ private:
     std::vector<TextureHandle> swapchain_images;
 
     SceneDrawer sun_shadow_drawer;
+
+    DepthCullingPhase depth_culling_phase;
+
+    SceneDrawer depth_prepass_drawer;
 
     SceneDrawer gbuffer_drawer;
     

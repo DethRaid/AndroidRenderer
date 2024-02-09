@@ -6,8 +6,10 @@
 #include <VkBootstrap.h>
 #include <tracy/TracyVulkan.hpp>
 
-#include "render_graph.hpp"
-#include "texture_descriptor_pool.hpp"
+#include "render/backend/render_graph.hpp"
+#include "render/backend/resource_access_synchronizer.hpp"
+#include "render/backend/texture_descriptor_pool.hpp"
+#include "console/cvars.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/command_allocator.hpp"
 #include "render/backend/pipeline_builder.hpp"
@@ -96,6 +98,8 @@ public:
 
     ResourceUploadQueue& get_upload_queue() const;
 
+    ResourceAccessTracker& get_resource_access_tracker();
+
     PipelineCache& get_pipeline_cache() const;
 
     TextureDescriptorPool& get_texture_descriptor_pool() const;
@@ -114,7 +118,7 @@ public:
      */
     vkutil::DescriptorBuilder create_frame_descriptor_builder();
 
-    CommandBuffer create_graphics_command_buffer();
+    CommandBuffer create_graphics_command_buffer(const std::string& name);
 
     /**
      * Creates a command buffer that can transfer data around. Intended to be used internally by backend subsystems,
@@ -126,7 +130,7 @@ public:
      *
      * @return A command buffer that can transfer data
      */
-    VkCommandBuffer create_transfer_command_buffer();
+    VkCommandBuffer create_transfer_command_buffer(const std::string& name);
     
     /**
      * Submits a command buffer to the backend
@@ -165,6 +169,8 @@ private:
     uint32_t cur_frame_idx = 0;
     uint64_t total_num_frames = 0;
 
+    bool supports_raytracing = false;
+
     vkb::Instance instance;
 
     VkSurfaceKHR surface = {};
@@ -181,6 +187,8 @@ private:
     std::unique_ptr<ResourceAllocator> allocator;
 
     std::unique_ptr<ResourceUploadQueue> upload_queue = {};
+
+    ResourceAccessTracker resource_access_synchronizer;
 
     std::unique_ptr<PipelineCache> pipeline_cache = {};
 
@@ -232,7 +240,7 @@ private:
     std::vector<VkImageMemoryBarrier2> transfer_barriers = {};
 
     std::vector<CommandBuffer> queued_command_buffers = {};
-    
+
     void create_instance_and_device();
 
     void create_swapchain();
@@ -278,6 +286,10 @@ void RenderBackend::set_object_name(VulkanType object, const std::string& name) 
         object_type = VK_OBJECT_TYPE_SHADER_MODULE;
     } else if constexpr (std::is_same_v<VulkanType, VkQueue>) {
         object_type = VK_OBJECT_TYPE_QUEUE;
+    } else if constexpr (std::is_same_v<VulkanType, VkCommandPool>) {
+        object_type = VK_OBJECT_TYPE_COMMAND_POOL;
+    } else if constexpr (std::is_same_v<VulkanType, VkCommandBuffer>) {
+        object_type = VK_OBJECT_TYPE_COMMAND_BUFFER;
     } else {
         throw std::runtime_error{ "Invalid object type" };
     }

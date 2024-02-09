@@ -101,10 +101,13 @@ void GltfModel::add_primitives(RenderScene& scene, RenderBackend& backend) {
                     const auto& imported_material = gltf_material_to_material_handle.at(
                         *gltf_primitive.materialIndex
                     );
+
+                    const auto bounds_radius = glm::max(glm::max(imported_mesh->bounds.x, imported_mesh->bounds.y), imported_mesh->bounds.z);
+
                     const auto handle = scene.add_primitive(
                         graph, {
                             .data = PrimitiveDataGPU{
-                                .model = node_to_world, .inverse_model = glm::inverse(node_to_world),
+                                .model = node_to_world, .inverse_model = glm::inverse(node_to_world), .bounding_sphere = {0.f, 0.f, 0.f, bounds_radius},
                             },
                             .mesh = imported_mesh,
                             .material = imported_material,

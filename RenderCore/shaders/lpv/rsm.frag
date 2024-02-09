@@ -13,9 +13,13 @@ layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Pr
     PrimitiveDataGPU primitive_datas[];
 };
 
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveIdBuffer {
+    uint primitive_ids[];
+};
+
 layout(push_constant) uniform Constants {
     PrimitiveDataBuffer primitive_data_buffer;
-    uint primitive_id;
+    PrimitiveIdBuffer primitive_id_buffer;
     uint cascade_index;
 };
 
@@ -29,6 +33,7 @@ layout(location = 0) in mediump vec3 vertex_normal;
 layout(location = 1) in mediump vec3 vertex_tangent;
 layout(location = 2) in vec2 vertex_texcoord;
 layout(location = 3) in mediump vec4 vertex_color;
+layout(location = 4) flat in uint primitive_id;
 
 layout(location = 0) out mediump vec4 rsm_flux;
 layout(location = 1) out mediump vec4 rsm_normal;

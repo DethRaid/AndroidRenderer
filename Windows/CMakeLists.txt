@@ -54,7 +54,7 @@ set(EXTERN_DIR ${SHADER_INCLUDE_DIR}/extern)
 
 target_glsl_shaders(SahWindows
         PRIVATE ${SHADERS}
-        COMPILE_OPTIONS --target-env vulkan1.3 -g -Od -I${SHADER_INCLUDE_DIR} -I${SHADER_DIR} -I${EXTERN_DIR})
+        COMPILE_OPTIONS --target-env vulkan1.3 -V -g -o -Od -I${SHADER_INCLUDE_DIR} -I${SHADER_DIR} -I${EXTERN_DIR})
 
 target_link_libraries(SahWindows PUBLIC
         SahCore)

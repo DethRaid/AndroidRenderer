@@ -1,0 +1,161 @@
+#version 460 
+
+/**
+ * Hi-Z culling shader
+ * 
+ * Can cull objects to a frustum and depth pyramid in one go
+ */
+
+// Culling adapted from https://vkguide.dev/docs/gpudriven/compute_culling/
+
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference_uvec2 : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+#include "shared/primitive_data.hpp"
+#include "shared/view_data.hpp"
+
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
+    PrimitiveDataGPU primitive_datas[];
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveVisibilityBuffer_readonly {
+    uint visible[];
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) buffer PrimitiveVisibilityBuffer {
+    uint visible[];
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer ViewDataBuffer {
+    ViewDataGPU view_data;
+};
+
+layout(set = 0, binding = 0) uniform sampler2D textures[];
+
+layout(push_constant) uniform Constants {
+    PrimitiveDataBuffer primitive_data_buffer;
+    PrimitiveVisibilityBuffer_readonly last_frame_visible_objects;
+    PrimitiveVisibilityBuffer newly_visible_objects;
+    PrimitiveVisibilityBuffer this_frame_visible_objects;
+    ViewDataBuffer view_data_buffer;
+
+    uint num_primitives;
+    uint hi_z_texture_index;
+};
+
+layout(local_size_x = 96, local_size_y = 1, local_size_z = 1) in;
+
+// TODO: We add the sphere's radius to its z in a few places, the math I copied says we should subtract (and logic
+// says we should subtract). Not sure what's going on, something with math
+
+// 2D Polyhedral Bounds of a Clipped, Perspective-Projected 3D Sphere. Michael Mara, Morgan McGuire. 2013
+bool projectSphere(vec3 center, float radius, float znear, float P00, float P11, out vec4 aabb) {
+    if(center.z + radius < znear) {
+        return false;
+    }
+
+    vec2 cx = -center.xz;
+    vec2 vx = vec2(sqrt(dot(cx, cx) - radius * radius), radius);
+    vec2 minx = mat2(vx.x, vx.y, -vx.y, vx.x) * cx;
+    vec2 maxx = mat2(vx.x, -vx.y, vx.y, vx.x) * cx;
+
+    vec2 cy = -center.yz;
+    vec2 vy = vec2(sqrt(dot(cy, cy) - radius * radius), radius);
+    vec2 miny = mat2(vy.x, vy.y, -vy.y, vy.x) * cy;
+    vec2 maxy = mat2(vy.x, -vy.y, vy.y, vy.x) * cy;
+
+    aabb = vec4(minx.x / minx.y * P00, miny.x / miny.y * P11, maxx.x / maxx.y * P00, maxy.x / maxy.y * P11);
+    aabb = aabb.xwzy * vec4(0.5f, -0.5f, 0.5f, -0.5f) + 0.5f; // clip space -> uv space
+
+    return true;
+}
+
+bool is_in_frustum(const vec3 center, const float radius) {
+    bool visible = true;
+
+    // frustum culling
+
+    // Multiply the center of the bounding sphere by the plane equation for each frustum plane, test if the result is
+    // less than the bounding sphere's radius
+    // The `abs` in the equation lets us test the left/right and up/down planes at once
+    // We omit some components of the plane equation for each plane, because they're always 0
+    visible = visible && center.z * view_data_buffer.view_data.frustum[1] - abs(center.x) * view_data_buffer.view_data.frustum[0] > -radius;
+    visible = visible && center.z * view_data_buffer.view_data.frustum[3] - abs(center.y) * view_data_buffer.view_data.frustum[2] > -radius;
+
+    // Viewspace z_near - no need to worry about reversed-Z
+    visible = visible && center.z + radius > view_data_buffer.view_data.z_near;
+
+    return visible;
+}
+
+bool is_not_occluded(const vec3 center, const float radius) {
+    vec4 aabb;
+    const bool success = projectSphere(center, radius, view_data_buffer.view_data.z_near, view_data_buffer.view_data.projection[0][0], view_data_buffer.view_data.projection[1][1], aabb);
+    if(!success) {
+        return false;
+    }
+
+    ivec2 depth_pyramid_size = textureSize(textures[hi_z_texture_index], 0);
+    uint num_mips;
+    
+    // Reversed AABB order because... reasons. If I use the order vkguide uses the AABB size is negative and I sample
+    // HiZ MIP NaN, if I use this order then the AABB size is positive and I sample a reasonable MIP level
+
+    float width = (aabb.x - aabb.z) * float(depth_pyramid_size.x);
+    float height = (aabb.y - aabb.w) * float(depth_pyramid_size.y);
+
+    // Mip level of the depth pyramid to compare against
+    float level = floor(log2(max(width, height)));
+    level = min(level, num_mips - 1);
+
+    // Duplicate the lookup into the texture descriptor array because GLSL is too useless to let you use textures as local varaibles
+    // Sure hope that the compiler can optimize the texture descriptor lookup! Oh boy I love this language!
+    float depth = textureLod(textures[hi_z_texture_index], (aabb.xy + aabb.zw) * 0.5f, level).r;
+
+    float depth_of_sphere = view_data_buffer.view_data.z_near / (center.z + radius);
+    if(depth_of_sphere < 0) {
+        depth_of_sphere = 0;
+    }
+    if(depth_of_sphere > 1) {
+        depth_of_sphere = 1;
+    }
+
+    return depth_of_sphere <= depth;
+}
+
+void main() {
+    if(gl_GlobalInvocationID.x >= num_primitives) {
+        return;
+    }
+
+    uint primitive_id = gl_GlobalInvocationID.x;
+
+    PrimitiveDataGPU instance_to_cull = primitive_data_buffer.primitive_datas[primitive_id];
+
+    vec3 center = instance_to_cull.bounding_sphere.xyz;
+    center = (view_data_buffer.view_data.view * instance_to_cull.model * vec4(center, 1.f)).xyz;
+    float radius = instance_to_cull.bounding_sphere.w + 2.f;
+
+    bool visible = is_in_frustum(center, radius);
+    if(!visible) {
+        newly_visible_objects.visible[primitive_id] = 0;
+        this_frame_visible_objects.visible[primitive_id] = 0;
+        return;
+    }
+    
+    visible = is_not_occluded(center, radius);
+    if(!visible) {
+        newly_visible_objects.visible[primitive_id] = 0;
+        this_frame_visible_objects.visible[primitive_id] = 0;
+        return;
+    }
+
+    uint visible_last_frame = last_frame_visible_objects.visible[primitive_id];
+    newly_visible_objects.visible[primitive_id] = visible_last_frame == 0 ? 1 : 0;
+    this_frame_visible_objects.visible[primitive_id] = 1;
+}

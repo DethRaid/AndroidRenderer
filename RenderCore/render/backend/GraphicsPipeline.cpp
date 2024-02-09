@@ -13,8 +13,9 @@
 static std::shared_ptr<spdlog::logger> logger;
 
 void GraphicsPipeline::create_pipeline_layout(
-    RenderBackend& backend,
-    const std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos
+    const RenderBackend& backend,
+    const std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos, 
+    const std::vector<VkPushConstantRange>& push_constants
 ) {
     // Create descriptor sets
     auto descriptor_set_layouts = std::vector<VkDescriptorSetLayout>{};
@@ -57,19 +58,13 @@ void GraphicsPipeline::create_pipeline_layout(
         vkCreateDescriptorSetLayout(backend.get_device(), &create_info, nullptr, &layout);
         descriptor_set_layouts[set_index] = layout;
     }
-
-    const auto push_constants = VkPushConstantRange{
-        .stageFlags = VK_SHADER_STAGE_ALL,
-        .offset = 0,
-        .size = 8 * sizeof(uint32_t)
-    };
-
+    
     const auto create_info = VkPipelineLayoutCreateInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size()),
         .pSetLayouts = descriptor_set_layouts.data(),
-        .pushConstantRangeCount = 1,
-        .pPushConstantRanges = &push_constants,
+        .pushConstantRangeCount = static_cast<uint32_t>(push_constants.size()),
+        .pPushConstantRanges = push_constants.data(),
     };
 
     vkCreatePipelineLayout(backend.get_device(), &create_info, nullptr, &pipeline_layout);
@@ -82,6 +77,9 @@ void GraphicsPipeline::create_pipeline_layout(
 VkPipelineLayout GraphicsPipeline::get_layout() const {
     return pipeline_layout;
 }
+
+uint32_t GraphicsPipeline::get_num_push_constants() const { return num_push_constants; }
+VkShaderStageFlags GraphicsPipeline::get_push_constant_shader_stages() const { return push_constant_stages; }
 
 VkDescriptorType to_vk_type(SpvReflectDescriptorType type) {
     switch (type) {

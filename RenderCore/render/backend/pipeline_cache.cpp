@@ -158,7 +158,15 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
     pipeline.vertex_inputs = pipeline_builder.vertex_inputs;
     pipeline.vertex_attributes = pipeline_builder.vertex_attributes;
 
-    pipeline.create_pipeline_layout(backend, pipeline_builder.descriptor_sets);
+    pipeline.create_pipeline_layout(backend, pipeline_builder.descriptor_sets, pipeline_builder.push_constants);
+
+    // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
+    pipeline.num_push_constants = 0;
+    for (const auto& range : pipeline_builder.push_constants) {
+        const auto max_used_byte = range.offset + range.size;
+        pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
+        pipeline.push_constant_stages |= range.stageFlags;  // Assumption that all shader stages will use the same push constants. If this is not true, I have a headache and I need to lie down
+    }
 
     return pipelines.add_object(std::move(pipeline));
 }

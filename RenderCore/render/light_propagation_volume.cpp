@@ -29,7 +29,7 @@ static auto cvar_lpv_cell_size = AutoCVar_Float{
 
 static auto cvar_lpv_num_cascades = AutoCVar_Int{
     "r.LPV.NumCascades",
-    "Number of cascades in the light propagation volume", 4
+    "Number of cascades in the light propagation volume", 1
 };
 
 static auto cvar_lpv_num_propagation_steps = AutoCVar_Int{
@@ -79,7 +79,22 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
             .magFilter = VK_FILTER_LINEAR,
             .minFilter = VK_FILTER_LINEAR,
-            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .anisotropyEnable = VK_TRUE,
+            .maxAnisotropy = 16,
+            .maxLod = 16,
+            .borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
+        }
+    );
+    linear_sampler = backend.get_global_allocator().get_sampler(
+        {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_NEAREST,
+            .minFilter = VK_FILTER_NEAREST,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
             .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
             .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
             .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
@@ -299,9 +314,9 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
         const auto offset = view_position + view.get_forward() * offset_distance;
 
         // Round to the cell size to prevent flickering
-        const auto rounded_offset = glm::round(offset / cell_size) * cell_size;
+        const auto snapped_offset = glm::round(offset / glm::vec3{cell_size}) * cell_size;
 
-        const auto scale_factor = 1.f / cascade_size;
+        const auto scale_factor = 1.0f / cascade_size;
 
         const auto bias_mat = glm::mat4{
             0.5f, 0.0f, 0.0f, 0.0f,
@@ -313,21 +328,26 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
         auto& cascade = cascades[cascade_index];
         cascade.world_to_cascade = glm::mat4{1.f};
         cascade.world_to_cascade = glm::scale(cascade.world_to_cascade, glm::vec3{scale_factor});
-        cascade.world_to_cascade = glm::translate(cascade.world_to_cascade, -rounded_offset);
+        cascade.world_to_cascade = glm::translate(cascade.world_to_cascade, -snapped_offset);
         cascade.world_to_cascade = bias_mat * cascade.world_to_cascade;
 
         const auto half_cascade_size = cascade_size / 2.f;
         constexpr auto rsm_pullback_distance = 32.f;
-        const auto rsm_view_start = rounded_offset - light.get_direction() * rsm_pullback_distance;
-        const auto rsm_view_matrix = glm::lookAt(rsm_view_start, rounded_offset, glm::vec3{0, 1, 0});
+        const auto rsm_view_start = snapped_offset - light.get_direction() * rsm_pullback_distance;
+        const auto rsm_view_matrix = glm::lookAt(rsm_view_start, snapped_offset, glm::vec3{0, 1, 0});
         const auto rsm_projection_matrix = glm::ortho(
             -half_cascade_size, half_cascade_size, -half_cascade_size, half_cascade_size, 0.f,
             rsm_pullback_distance * 2.f
         );
         cascade.rsm_vp = rsm_projection_matrix * rsm_view_matrix;
 
-        cascade.min_bounds = rounded_offset - glm::vec3{half_cascade_size};
-        cascade.max_bounds = rounded_offset + glm::vec3{half_cascade_size};
+        cascade.min_bounds = snapped_offset - glm::vec3{half_cascade_size};
+        cascade.max_bounds = snapped_offset + glm::vec3{half_cascade_size};
+
+        logger->info(
+            "Cascade {} original offset {}, {}, {}, snapped offset {}, {}, {}", cascade_index, offset.x, offset.y,
+            offset.z, snapped_offset.x, snapped_offset.y, snapped_offset.z
+        );
     }
 }
 
@@ -439,7 +459,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
                             commands.bind_descriptor_set(0, global_set);
 
-                            commands.set_push_constant(3, cascade_index);
+                            commands.set_push_constant(4, cascade_index);
 
                             rsm_drawer.draw(commands);
 
@@ -891,6 +911,119 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
             }
         }
     );
+}
+
+void LightPropagationVolume::build_geometry_volume_from_point_clouds(
+    RenderGraph& render_graph, const RenderScene& scene
+) {
+    // /*
+    //    * For each cascade:
+    //    * - Get the static mesh primitives in the cascade
+    //    * - Dispatch a compute shader to add them to the GV
+    //    */
+    // 
+    // auto& allocator = backend.get_global_allocator();
+    // 
+    // const auto num_cascades = cvar_lpv_num_cascades.Get();
+    // for (auto cascade_idx = 0u; cascade_idx < num_cascades; cascade_idx++) {
+    //     const auto& cascade = cascades[cascade_idx];
+    //     const auto& primitives = scene.get_primitives_in_bounds(cascade.min_bounds, cascade.max_bounds);
+    // 
+    //     if (primitives.empty()) {
+    //         continue;
+    //     }
+    // 
+    //     auto buffer_tokens = std::vector<BufferUsageToken>{};
+    //     buffer_tokens.reserve(primitives.size() + 1);
+    // 
+    // 
+    //     // Two arrays: one for the voxels for each primitive, one that maps from thread ID to primitive ID
+    //     auto primitive_ids = std::vector<uint32_t>{};
+    //     auto textures = std::vector<vkutil::DescriptorBuilder::ImageInfo>{};
+    //     primitive_ids.reserve(primitives.size());
+    //     textures.reserve(primitives.size());
+    // 
+    //     for (const auto& primitive : primitives) {
+    //         primitive_ids.push_back(primitive.index);
+    //         const auto& mesh = primitive->mesh;
+    //         mesh->
+    //         const auto& voxel = voxel_cache.get_voxel_for_mesh(mesh);
+    //         textures.emplace_back(
+    //             vkutil::DescriptorBuilder::ImageInfo{
+    //                 .sampler = backend.get_default_sampler(),
+    //                 .image = voxel.sh_texture,
+    //                 .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    //             }
+    //         );
+    //     }
+    // 
+    //     const auto primitive_id_buffer = allocator.create_buffer(
+    //         "Primitive ID buffer", primitive_ids.size() * sizeof(uint32_t), BufferUsage::StagingBuffer
+    //     );
+    // 
+    //     render_graph.add_compute_pass(
+    //         {
+    //             .name = "Voxel injection",
+    //             .textures = {
+    //                 {
+    //                     geometry_volume_handle,
+    //                     {
+    //                         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+    //                         VK_IMAGE_LAYOUT_GENERAL
+    //                     },
+    //                 }
+    //             },
+    //             .buffers = {
+    //                 {cascade_data_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT}},
+    //                 {primitive_id_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT}}
+    //             },
+    //             .execute = [&, primitive_ids = std::move(primitive_ids), textures = std::move(textures),
+    //                 primitive_id_buffer = primitive_id_buffer](
+    //             CommandBuffer& commands
+    //         ) {
+    //                 commands.update_buffer(
+    //                     primitive_id_buffer, primitive_ids.data(), primitive_ids.size() * sizeof(uint32_t), 0
+    //                 );
+    // 
+    //                 const auto set = *backend.create_frame_descriptor_builder()
+    //                                          .bind_buffer(
+    //                                              0, {.buffer = cascade_data_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //                                              VK_SHADER_STAGE_COMPUTE_BIT
+    //                                          )
+    //                                          .bind_buffer(
+    //                                              1, {.buffer = primitive_id_buffer}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+    //                                              VK_SHADER_STAGE_COMPUTE_BIT
+    //                                          )
+    //                                          .bind_buffer(
+    //                                              2, {.buffer = scene.get_primitive_buffer()},
+    //                                              VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+    //                                          )
+    //                                          .bind_image(
+    //                                              3, {
+    //                                                  .image = geometry_volume_handle,
+    //                                                  .image_layout = VK_IMAGE_LAYOUT_GENERAL
+    //                                              }, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+    //                                          )
+    //                                          .bind_image_array(
+    //                                              4, textures, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+    //                                              VK_SHADER_STAGE_COMPUTE_BIT
+    //                                          )
+    //                                          .build();
+    // 
+    //                 commands.bind_descriptor_set(0, set);
+    //                 commands.set_push_constant(0, static_cast<uint32_t>(textures.size()));
+    //                 commands.set_push_constant(1, cascade_idx);
+    //                 commands.bind_shader(inject_voxels_into_gv_shader);
+    // 
+    //                 commands.dispatch(32, 32, 32);
+    // 
+    //                 commands.clear_descriptor_set(0);
+    //             }
+    //         }
+    //     );
+    // 
+    //     allocator.destroy_buffer(primitive_id_buffer);
+    // }
 }
 
 void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {

@@ -8,32 +8,36 @@
 #include "render/backend/resource_upload_queue.hpp"
 #include "shared/vertex_data.hpp"
 
+constexpr uint32_t max_num_meshes = 65536;
 constexpr const uint32_t max_num_vertices = 100000000;
 constexpr const uint32_t max_num_indices = 100000000;
 
 static std::shared_ptr<spdlog::logger> logger;
 
-MeshStorage::MeshStorage(ResourceAllocator& allocator_in, ResourceUploadQueue& queue_in) :
-    allocator{&allocator_in}, upload_queue{&queue_in} {
+MeshStorage::MeshStorage(RenderBackend& backend_in, ResourceUploadQueue& queue_in) :
+    backend{ &backend_in }, upload_queue{ &queue_in }, mesh_draw_args_upload_buffer{ *backend } {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("MeshStorage");
         logger->set_level(spdlog::level::info);
     }
 
-    vertex_position_buffer = allocator_in.create_buffer(
+    auto& allocator = backend->get_global_allocator();
+    vertex_position_buffer = allocator.create_buffer(
         "Vertex position buffer",
         max_num_vertices * sizeof(VertexPosition),
         BufferUsage::VertexBuffer
     );
-    vertex_data_buffer = allocator_in.create_buffer(
+    vertex_data_buffer = allocator.create_buffer(
         "Vertex data buffer",
         max_num_vertices * sizeof(StandardVertexData),
         BufferUsage::VertexBuffer
     );
-    index_buffer = allocator_in.create_buffer(
+    index_buffer = allocator.create_buffer(
         "Index buffer", max_num_indices * sizeof(uint32_t),
         BufferUsage::IndexBuffer
     );
+
+    mesh_draw_args_buffer = allocator.create_buffer("Mesh draw args buffer", sizeof(VkDrawIndexedIndirectCommand) * max_num_meshes, BufferUsage::StorageBuffer);
 
     const auto vertex_block_create_info = VmaVirtualBlockCreateInfo{
         .size = max_num_vertices,
@@ -47,9 +51,11 @@ MeshStorage::MeshStorage(ResourceAllocator& allocator_in, ResourceUploadQueue& q
 }
 
 MeshStorage::~MeshStorage() {
-    allocator->destroy_buffer(vertex_position_buffer);
-    allocator->destroy_buffer(vertex_data_buffer);
-    allocator->destroy_buffer(index_buffer);
+    auto& allocator = backend->get_global_allocator();
+    allocator.destroy_buffer(vertex_position_buffer);
+    allocator.destroy_buffer(vertex_data_buffer);
+    allocator.destroy_buffer(index_buffer);
+    allocator.destroy_buffer(mesh_draw_args_buffer);
 
     // Yeet all the meshes, even if not explicitly destroyed
     vmaClearVirtualBlock(vertex_block);
@@ -132,7 +138,8 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
 
     mesh.average_triangle_area = average_triangle_area;
 
-    mesh.point_cloud_buffer = allocator->create_buffer(
+    auto& allocator = backend->get_global_allocator();
+    mesh.point_cloud_buffer = allocator.create_buffer(
         fmt::format("Mesh point cloud"), sizeof(StandardVertex) * point_cloud.size(), BufferUsage::StorageBuffer
     );
     upload_queue->upload_to_buffer(mesh.point_cloud_buffer, std::span{point_cloud}, 0);
@@ -140,7 +147,22 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
     mesh.sh_points_buffer = generate_sh_point_cloud(point_cloud);
     mesh.num_points = static_cast<uint32_t>(point_cloud.size());
 
-    return meshes.add_object(std::move(mesh));
+    const auto handle = meshes.add_object(std::move(mesh));
+
+    if(mesh_draw_args_upload_buffer.is_full()) {
+        auto graph = backend->create_render_graph();
+        flush_mesh_draw_arg_uploads(graph);
+        backend->execute_graph(std::move(graph));
+    }
+
+    mesh_draw_args_upload_buffer.add_data(
+        handle.index, {
+            .indexCount = handle->num_indices, .instanceCount = 1, .firstIndex = static_cast<uint32_t>(handle->first_index),
+            .vertexOffset = static_cast<int32_t>(handle->first_vertex), .firstInstance = 0
+        }
+    );
+
+    return handle;
 }
 
 void MeshStorage::free_mesh(const MeshHandle mesh) {
@@ -148,6 +170,12 @@ void MeshStorage::free_mesh(const MeshHandle mesh) {
     vmaVirtualFree(index_block, mesh->index_allocation);
 
     meshes.free_object(mesh);
+}
+
+void MeshStorage::flush_mesh_draw_arg_uploads(RenderGraph& graph) {
+    if (mesh_draw_args_upload_buffer.get_size() > 0) {
+        mesh_draw_args_upload_buffer.flush_to_buffer(graph, mesh_draw_args_buffer);
+    }
 }
 
 BufferHandle MeshStorage::get_vertex_position_buffer() const {
@@ -160,6 +188,10 @@ BufferHandle MeshStorage::get_vertex_data_buffer() const {
 
 BufferHandle MeshStorage::get_index_buffer() const {
     return index_buffer;
+}
+
+BufferHandle MeshStorage::get_draw_args_buffer() const {
+    return mesh_draw_args_buffer;
 }
 
 /**
@@ -222,7 +254,8 @@ std::pair<std::vector<StandardVertex>, float> MeshStorage::generate_surface_poin
     // We want a number of samples with a fixed density
     // We want one sample per 0.1 m^2
     // So the number of samples is the total area divided by 0.1
-    const auto num_samples = static_cast<size_t>(glm::ceil(area_accumulator / 0.1));
+    auto num_samples = static_cast<size_t>(glm::ceil(area_accumulator / 0.1));
+    num_samples = glm::min(num_samples, 65536ull);
 
     auto points = std::vector<StandardVertex>{};
     points.reserve(num_samples);
@@ -302,7 +335,7 @@ StandardVertex MeshStorage::interpolate_vertex(
 
 // Vector to SH - from https://ericpolman.com/2016/06/28/light-propagation-volumes/
 
-/*Spherical harmonics coefficients – precomputed*/
+/*Spherical harmonics coefficients precomputed*/
 // 1 / 2sqrt(pi)
 #define SH_c0 0.282094792f
 // sqrt(3/pi) / 2
@@ -331,8 +364,11 @@ BufferHandle MeshStorage::generate_sh_point_cloud(const std::vector<StandardVert
         sh_points.emplace_back(glm::vec4{point.position, 1.f}, sh);
     }
 
-    const auto sh_buffer_handle = allocator->create_buffer("SH Point Cloud", sizeof(ShPoint) * sh_points.size(), BufferUsage::StorageBuffer);
-    upload_queue->upload_to_buffer(sh_buffer_handle, std::span{ sh_points }, 0);
+    auto& allocator = backend->get_global_allocator();
+    const auto sh_buffer_handle = allocator.create_buffer(
+        "SH Point Cloud", sizeof(ShPoint) * sh_points.size(), BufferUsage::StorageBuffer
+    );
+    upload_queue->upload_to_buffer(sh_buffer_handle, std::span{sh_points}, 0);
 
     return sh_buffer_handle;
 }

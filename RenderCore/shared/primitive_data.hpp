@@ -20,13 +20,20 @@ layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer Ma
 
 #endif
 
+#define PRIMITIVE_TYPE_SOLID 0
+#define PRIMITIVE_TYPE_CUTOUT 1
+#define PRIMITIVE_TYPE_TRANSPARENT 2
+
 struct PrimitiveDataGPU {
     mat4 model;
     mat4 inverse_model;
 
+    vec4 bounding_sphere;
+
     MATERIAL_BUFFER_REFERENCE material_id;
 
-    uvec2 data; 
+    uint mesh_id;
+    uint type;  // See the PRIMITIVE_TYPE_ defines above
 };
 
 #endif

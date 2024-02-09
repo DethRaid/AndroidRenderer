@@ -134,6 +134,14 @@ public:
     void draw_indexed_indirect(BufferHandle indirect_buffer);
 
     /**
+     * \brief Draws many meshes, pulling draw commands from the indirect buffer
+     * \param indirect_buffer Buffer of indirect draw commands
+     * \param count_buffer Buffer with the count of objects to draw
+     * \param max_count Maximum number of objects to draw. Larger values may incur performance penalties on some platforms
+     */
+    void draw_indexed_indirect(BufferHandle indirect_buffer, BufferHandle count_buffer, uint32_t max_count);
+
+    /**
      * Draws a single triangle
      *
      * Intended for use with a pipeline that renders a fullscreen triangle, such as a postprocessing
@@ -180,7 +188,7 @@ public:
 
     void end() const;
 
-#if TRACY_ENABLE
+#if defined(TRACY_ENABLE)
     tracy::VkCtx* const get_tracy_context() const;
 #endif
 
@@ -203,13 +211,17 @@ private:
 
     uint32_t current_subpass = 0;
 
-    std::array<uint32_t, 8> push_constants = {0, 0, 0, 0, 0, 0, 0, 0};
+    std::array<uint32_t, 128> push_constants = {};
 
     std::array<VkDescriptorSet, 8> descriptor_sets = {};
 
     VkPipelineBindPoint current_bind_point = {};
 
     VkPipelineLayout current_pipeline_layout = VK_NULL_HANDLE;
+
+    VkShaderStageFlags push_constant_shader_stages = 0;
+
+    uint32_t num_push_constants_in_current_pipeline = 0;
 
     bool are_bindings_dirty = false;
 

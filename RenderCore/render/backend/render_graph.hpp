@@ -3,6 +3,7 @@
 #include "render/backend/command_buffer.hpp"
 #include "render/backend/render_pass.hpp"
 
+class ResourceAccessTracker;
 class RenderBackend;
 
 /**
@@ -60,7 +61,7 @@ public:
      */
     void execute_post_submit_tasks();
 
-    void set_resource_usage(TextureHandle texture, const TextureUsageToken& usage, bool skip_barrier = false);
+    void set_resource_usage(TextureHandle texture_handle, const TextureUsageToken& texture_usage_token, bool skip_barrier = true) const;
 
     /**
      * \brief Retrieves the most recent usage token for the given texture
@@ -70,23 +71,9 @@ public:
 private:
     RenderBackend& backend;
 
+    ResourceAccessTracker& access_tracker;
+
     CommandBuffer cmds;
 
-    BufferUsageMap initial_buffer_usages;
-
-    BufferUsageMap last_buffer_usages;
-
-    TextureUsageMap initial_texture_usages;
-
-    TextureUsageMap last_texture_usages;
-
-    std::vector<VkBufferMemoryBarrier2> buffer_barriers;
-
-    std::vector<VkImageMemoryBarrier2> image_barriers;
-
     std::vector<std::function<void()>> post_submit_lambdas;
-
-    void set_resource_usage(BufferHandle buffer, VkPipelineStageFlags2 pipeline_stage, VkAccessFlags2 access);
-    
-    void issue_barriers(const CommandBuffer& cmds);
 };

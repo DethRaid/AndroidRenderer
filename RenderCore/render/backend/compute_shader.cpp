@@ -32,6 +32,13 @@ ComputeShader::create(const RenderBackend& backend, const std::string& name, con
     std::unordered_map<uint32_t, DescriptorSetInfo> descriptor_sets;
     std::vector<VkPushConstantRange> push_constants;
     collect_bindings(instructions, name, VK_SHADER_STAGE_COMPUTE_BIT, descriptor_sets, push_constants);
+
+    // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
+    uint32_t num_push_constants = 0;
+    for(const auto& range : push_constants) {
+        const auto max_used_byte = range.offset + range.size;
+        num_push_constants = std::max(num_push_constants, max_used_byte / 4u);
+    }
     
     auto layouts = std::vector<VkDescriptorSetLayout>{};
     layouts.reserve(descriptor_sets.size());
@@ -134,5 +141,5 @@ ComputeShader::create(const RenderBackend& backend, const std::string& name, con
     backend.set_object_name(pipeline, name);
     backend.set_object_name(pipeline_layout, layout_name);
 
-    return ComputeShader{.layout = pipeline_layout, .pipeline = pipeline};
+    return ComputeShader{.layout = pipeline_layout, .pipeline = pipeline, .num_push_constants = num_push_constants};
 }
