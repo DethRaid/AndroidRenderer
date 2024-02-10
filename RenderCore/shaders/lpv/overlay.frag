@@ -5,7 +5,7 @@
 #include "common/spherical_harmonics.glsl"
 #include "common/brdf.glsl"
 #include "shared/lpv.hpp"
-#include "shared/view_info.hpp"
+#include "shared/view_data.hpp"
 
 // Gbuffer textures
 
@@ -24,7 +24,7 @@ layout(set = 1, binding = 3) uniform LpvCascadeBuffer {
 };
 
 layout(set = 1, binding = 4) uniform ViewUniformBuffer {
-    ViewInfo view_info;
+    ViewDataGPU view_info;
 };
 
 layout(push_constant) uniform Constants {
@@ -84,7 +84,10 @@ void main() {
     surface.emission = emission_sample.rgb;
     surface.location = worldspace_position.xyz;
 
-    mediump vec4 normal_coefficients = dir_to_sh(-surface.normal);
+    vec3 lpv_normal = -surface.normal;
+    lpv_normal.x *= -1;
+
+    mediump vec4 normal_coefficients = dir_to_sh(lpv_normal);
 
     mediump float weights_total = 0;
     mediump float cascade_weights[4] = float[](0, 0, 0, 0);

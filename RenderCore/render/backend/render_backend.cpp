@@ -75,7 +75,7 @@ VkBool32 VKAPI_ATTR debug_callback(
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
         spdlog::error("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
         if (cvar_break_on_validation_error.Get() != 0) {
-           SAH_BREAKPOINT;
+            SAH_BREAKPOINT;
         }
         break;
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_FLAG_BITS_MAX_ENUM_EXT:
@@ -86,7 +86,7 @@ VkBool32 VKAPI_ATTR debug_callback(
     return VK_FALSE;
 }
 
-RenderBackend::RenderBackend() : resource_access_synchronizer { *this } {
+RenderBackend::RenderBackend() : resource_access_synchronizer{*this} {
     logger = SystemInterface::get().get_logger("RenderBackend");
     logger->set_level(spdlog::level::trace);
 
@@ -286,20 +286,16 @@ void RenderBackend::create_instance_and_device() {
         .maintenance4 = VK_TRUE,
     };
 
-    auto phys_device_builder = vkb::PhysicalDeviceSelector{ instance }
-        .set_surface(surface)
-        .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
-#if defined(_WIN32)
-        .add_desired_extension(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME)
-        .add_desired_extension(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME)
-#endif
-        .set_required_features(required_features)
-        .set_required_features_11(required_1_1_features)
-        .set_required_features_12(required_1_2_features)
-        .set_required_features_13(required_1_3_features)
-        .set_minimum_version(1, 1);
+    auto phys_device_builder = vkb::PhysicalDeviceSelector{instance}
+                               .set_surface(surface)
+                               .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
+                               .set_required_features(required_features)
+                               .set_required_features_11(required_1_1_features)
+                               .set_required_features_12(required_1_2_features)
+                               .set_required_features_13(required_1_3_features)
+                               .set_minimum_version(1, 1);
 
-    if(supports_raytracing) {
+    if (supports_raytracing) {
         phys_device_builder.add_required_extension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
         phys_device_builder.add_required_extension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
         phys_device_builder.add_required_extension(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
@@ -312,7 +308,13 @@ void RenderBackend::create_instance_and_device() {
         throw std::runtime_error{error_message};
     }
     physical_device = phys_device_ret.value();
-    
+
+    physical_device.enable_extension_if_present(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
+    physical_device.enable_extension_if_present(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME);
+
+    supports_nv_diagnostics_config = physical_device.is_extension_present(
+        VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME
+    );
 
     auto acceleration_structure_features = VkPhysicalDeviceAccelerationStructureFeaturesKHR{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
@@ -330,13 +332,12 @@ void RenderBackend::create_instance_and_device() {
 
     auto device_builder = vkb::DeviceBuilder{physical_device};
 
-    if(supports_raytracing) {
+    if (supports_raytracing) {
         device_builder.add_pNext(&acceleration_structure_features);
         device_builder.add_pNext(&rt_pipeline_features);
     }
 
     // Set up device creation info for Aftermath feature flag configuration.
-#if defined(_WIN32)
     auto aftermath_flags = static_cast<VkDeviceDiagnosticsConfigFlagsNV>(
         VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_RESOURCE_TRACKING_BIT_NV |
         VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_AUTOMATIC_CHECKPOINTS_BIT_NV |
@@ -348,13 +349,9 @@ void RenderBackend::create_instance_and_device() {
         .flags = aftermath_flags
     };
 
-    const auto& extensions = physical_device.get_extensions();
-    if (std::find(
-        extensions.begin(), extensions.end(), VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME
-    ) != extensions.end()) {
+    if (supports_nv_diagnostics_config) {
         device_builder.add_pNext(&device_diagnostics_info);
     }
-#endif
 
     auto device_ret = device_builder.build();
     if (!device_ret) {
@@ -439,7 +436,7 @@ void RenderBackend::advance_frame() {
     ZoneScoped;
 
     total_num_frames++;
-    if(total_num_frames % 100 == 0) {
+    if (total_num_frames % 100 == 0) {
         allocator->report_memory_usage();
     }
 
@@ -698,11 +695,18 @@ PipelineCache& RenderBackend::get_pipeline_cache() const {
 TextureDescriptorPool& RenderBackend::get_texture_descriptor_pool() const { return *texture_descriptor_pool; }
 
 CommandBuffer RenderBackend::create_graphics_command_buffer(const std::string& name) {
-    return CommandBuffer{graphics_command_allocators[cur_frame_idx].allocate_command_buffer(fmt::format("{} for frame {}", name, cur_frame_idx)), *this};
+    return CommandBuffer{
+        graphics_command_allocators[cur_frame_idx].allocate_command_buffer(
+            fmt::format("{} for frame {}", name, cur_frame_idx)
+        ),
+        *this
+    };
 }
 
 VkCommandBuffer RenderBackend::create_transfer_command_buffer(const std::string& name) {
-    return transfer_command_allocators[cur_frame_idx].allocate_command_buffer(fmt::format("{} for frame {}", name, cur_frame_idx));
+    return transfer_command_allocators[cur_frame_idx].allocate_command_buffer(
+        fmt::format("{} for frame {}", name, cur_frame_idx)
+    );
 }
 
 void RenderBackend::create_command_pools() {
@@ -711,7 +715,7 @@ void RenderBackend::create_command_pools() {
     }
 
     for (auto& command_pool : transfer_command_allocators) {
-        command_pool = CommandAllocator{ *this, transfer_queue_family_index};
+        command_pool = CommandAllocator{*this, transfer_queue_family_index};
     }
 }
 
@@ -858,7 +862,9 @@ void RenderBackend::create_default_resources() {
     );
 }
 
-void RenderBackend::set_object_name(const uint64_t object_handle, const VkObjectType object_type, const std::string& name) const {
+void RenderBackend::set_object_name(
+    const uint64_t object_handle, const VkObjectType object_type, const std::string& name
+) const {
     if (vkSetDebugUtilsObjectNameEXT != nullptr) {
         const auto name_info = VkDebugUtilsObjectNameInfoEXT{
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,

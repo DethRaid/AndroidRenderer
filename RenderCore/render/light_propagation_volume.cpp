@@ -29,7 +29,7 @@ static auto cvar_lpv_cell_size = AutoCVar_Float{
 
 static auto cvar_lpv_num_cascades = AutoCVar_Int{
     "r.LPV.NumCascades",
-    "Number of cascades in the light propagation volume", 1
+    "Number of cascades in the light propagation volume", 4
 };
 
 static auto cvar_lpv_num_propagation_steps = AutoCVar_Int{
@@ -79,21 +79,6 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
             .magFilter = VK_FILTER_LINEAR,
             .minFilter = VK_FILTER_LINEAR,
-            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
-            .anisotropyEnable = VK_TRUE,
-            .maxAnisotropy = 16,
-            .maxLod = 16,
-            .borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
-        }
-    );
-    linear_sampler = backend.get_global_allocator().get_sampler(
-        {
-            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-            .magFilter = VK_FILTER_NEAREST,
-            .minFilter = VK_FILTER_NEAREST,
             .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
             .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
             .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
@@ -314,7 +299,7 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
         const auto offset = view_position + view.get_forward() * offset_distance;
 
         // Round to the cell size to prevent flickering
-        const auto snapped_offset = glm::round(offset / glm::vec3{cell_size}) * cell_size;
+        const auto snapped_offset = glm::round(offset / glm::vec3{cell_size * 2.f}) * cell_size * 2.f;
 
         const auto scale_factor = 1.0f / cascade_size;
 
