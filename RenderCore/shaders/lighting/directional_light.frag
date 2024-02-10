@@ -3,7 +3,7 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "shared/sun_light_constants.hpp"
-#include "shared/view_info.hpp"
+#include "shared/view_data.hpp"
 #include "common/brdf.glsl"
 
 #define PI 3.1415927
@@ -30,7 +30,7 @@ layout(set = 1, binding = 1) uniform DirectionalLightUbo {
 };
 
 layout(set = 1, binding = 2) uniform ViewUniformBuffer {
-    ViewInfo view_info;
+    ViewDataGPU view_info;
 };
 
 // Texcoord from the vertex shader
@@ -140,4 +140,6 @@ void main() {
     // } else {
     //     lighting = vec4(1, 0, 1, 1);
     // }
+
+    // lighting = vec4(ndotl.xxx, 1.0);
 }
