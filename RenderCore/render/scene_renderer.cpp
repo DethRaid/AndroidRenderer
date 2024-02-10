@@ -317,14 +317,12 @@ void SceneRenderer::render() {
                 gbuffer_depth_handle,
             },
             .clear_values = std::vector{
-                // Clear color targets to black, clear depth to 1.f
+                // Clear color targets to black
                 VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
                 VkClearValue{.color = {.float32 = {0.5f, 0.5f, 1.f, 0}}},
                 VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
                 VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
                 VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
-
-                VkClearValue{.depthStencil = {.depth = 1.f}},
             },
             .subpasses = {
                 Subpass{

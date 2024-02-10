@@ -491,6 +491,8 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
     auto attachments = std::vector<VkAttachmentDescription2>{};
     attachments.reserve(total_num_attachments);
 
+    auto attachment_index = 0u;
+
     for (const auto& render_target : pass.attachments) {
         const auto& render_target_actual = get_texture(render_target);
 
@@ -500,7 +502,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             load_action = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             store_action = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         }
-        if (!pass.clear_values.empty()) {
+        if (pass.clear_values.size() > attachment_index) {
             load_action = VK_ATTACHMENT_LOAD_OP_CLEAR;
         }
 
@@ -528,6 +530,8 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
                 .finalLayout = layout,
             }
         );
+        
+        attachment_index++;
     }
 
     auto attachment_references = std::vector<std::vector<VkAttachmentReference2>>{};

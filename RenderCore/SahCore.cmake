@@ -40,6 +40,7 @@ add_library(SahCore STATIC ${SOURCES})
 target_compile_definitions(SahCore PUBLIC
         VK_NO_PROTOTYPES
         GLM_FORCE_DEPTH_ZERO_TO_ONE
+        GLM_ENABLE_EXPERIMENTAL
         # TRACY_ENABLE
         )
 
@@ -60,17 +61,17 @@ target_include_directories(SahCore PUBLIC
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-format-security")
 target_link_libraries(SahCore PUBLIC
-        glm
+        glm::glm-header-only
         imgui
         magic_enum::magic_enum
-        spdlog
+        spdlog::spdlog
         spirv-reflect-static
         stb
         fastgltf::fastgltf
         tl::optional
         Tracy::TracyClient
         vk-bootstrap
-        VulkanMemoryAllocator
+        GPUOpen::VulkanMemoryAllocator
         volk::volk_headers
         KTX::ktx
         )
