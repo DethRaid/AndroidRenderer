@@ -2,6 +2,7 @@
 
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
+#extension GL_ARB_shader_draw_parameters : enable
 
 #include "shared/primitive_data.hpp"
 #include "shared/view_data.hpp"
@@ -36,7 +37,7 @@ layout(location = 3) out mediump vec4 color_out;
 layout(location = 4) flat out uint primitive_id;
 
 void main() {
-    primitive_id = primitive_id_buffer.primitive_ids[0];
+    primitive_id = primitive_id_buffer.primitive_ids[gl_DrawID];
     PrimitiveDataGPU data = primitive_data_buffer.primitive_datas[primitive_id];
 
     gl_Position = camera_data.projection * camera_data.view * data.model * vec4(position_in, 1.f);
