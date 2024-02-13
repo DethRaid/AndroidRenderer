@@ -1,5 +1,7 @@
 #pragma once
 
+#include <imgui.h>
+
 #include "render/bloomer.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/scene_view.hpp"
@@ -54,7 +56,9 @@ public:
     void translate_player(const glm::vec3& movement);
 
     void rotate_player(float delta_pitch, float delta_yaw);
-    
+
+    void set_imgui_commands(ImDrawData* im_draw_data);
+
 private:
     RenderBackend backend;
 

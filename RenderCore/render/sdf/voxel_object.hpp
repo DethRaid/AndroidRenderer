@@ -16,5 +16,5 @@ struct VoxelObject {
     /**
      * Texture that stores the SH representation of this object
      */
-    TextureHandle sh_texture;
+    TextureHandle voxels;
 };

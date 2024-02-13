@@ -1,7 +1,7 @@
 #include <spdlog/logger.h>
 #include <spdlog/sinks/android_sink.h>
 
-#include "gltf/gltf_model.hpp"
+#include "model_import/gltf_model.hpp"
 #include "render/scene_renderer.hpp"
 #include "render/backend/render_graph.hpp"
 #include "core/system_interface.hpp"
@@ -579,4 +579,8 @@ void SceneRenderer::translate_player(const glm::vec3& movement) {
 
 void SceneRenderer::rotate_player(const float delta_pitch, const float delta_yaw) {
     player_view.rotate(delta_pitch, delta_yaw);
+}
+
+void SceneRenderer::set_imgui_commands(ImDrawData* im_draw_data) {
+    ui_phase.set_imgui_draw_data(im_draw_data);
 }

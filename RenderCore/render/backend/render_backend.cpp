@@ -162,7 +162,7 @@ void RenderBackend::create_instance_and_device() {
     auto instance_builder = vkb::InstanceBuilder{vkGetInstanceProcAddr}
                             .set_app_name("Renderer")
                             .set_engine_name("Sarah")
-                            .set_app_version(0, 5, 0)
+                            .set_app_version(0, 6, 0)
                             .require_api_version(1, 3, 0)
 #if defined(_WIN32 )
             .enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
@@ -295,19 +295,21 @@ void RenderBackend::create_instance_and_device() {
                                .set_required_features_13(required_1_3_features)
                                .set_minimum_version(1, 1);
 
-    if (supports_raytracing) {
-        phys_device_builder.add_required_extension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
-        phys_device_builder.add_required_extension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-        phys_device_builder.add_required_extension(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
-        phys_device_builder.add_required_extension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
-    }
-
     auto phys_device_ret = phys_device_builder.select();
     if (!phys_device_ret) {
         const auto error_message = fmt::format("Could not select device: {}", phys_device_ret.error().message());
         throw std::runtime_error{error_message};
     }
     physical_device = phys_device_ret.value();
+
+    // physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    // physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+    // physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
+    // physical_device.enable_extension_if_present(VK_KHR_RAY_QUERY_EXTENSION_NAME);
+    // physical_device.enable_extension_if_present(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
+    // physical_device.enable_extension_if_present(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+    // 
+    // supports_raytracing = physical_device.is_extension_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
 
     physical_device.enable_extension_if_present(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME);
@@ -355,6 +357,7 @@ void RenderBackend::create_instance_and_device() {
 
     auto device_ret = device_builder.build();
     if (!device_ret) {
+        const auto message = fmt::format("Could not create logical device: {}", device_ret.error().message());
         throw std::runtime_error{"Could not build logical device"};
     }
     device = *device_ret;

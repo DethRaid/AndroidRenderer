@@ -43,6 +43,7 @@ static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
     0.1
 };
 
+// Big TODO: If we use the voxels, we need to change a bunch of code because the voxels are not SH voxels (and they probably never will be)
 static auto cvar_lpv_build_gv_mode = AutoCVar_Enum<GvBuildMode>{
     "r.LPV.GvBuildMode",
     "How to build the geometry volume.\n0 = Disable\n1 = Use the RSM depth buffer and last frame's depth buffer\n2 = Use voxels from the renderer's voxel cache",
@@ -742,11 +743,11 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
         for (const auto& primitive : primitives) {
             primitive_ids.push_back(primitive.index);
             const auto& mesh = primitive->mesh;
-            const auto& voxel = voxel_cache.get_voxel_for_mesh(mesh);
+            const auto& voxel = voxel_cache.get_voxel_for_primitive(primitive);
             textures.emplace_back(
                 vkutil::DescriptorBuilder::ImageInfo{
                     .sampler = backend.get_default_sampler(),
-                    .image = voxel.sh_texture,
+                    .image = voxel.voxels,
                     .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 }
             );
@@ -936,7 +937,7 @@ void LightPropagationVolume::build_geometry_volume_from_point_clouds(
     //         textures.emplace_back(
     //             vkutil::DescriptorBuilder::ImageInfo{
     //                 .sampler = backend.get_default_sampler(),
-    //                 .image = voxel.sh_texture,
+    //                 .image = voxel.voxels,
     //                 .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     //             }
     //         );

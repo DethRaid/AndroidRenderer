@@ -31,9 +31,15 @@ void UiPhase::render(CommandBuffer& commands, const SceneTransform& view, const 
 
     upscale_scene_color(commands, bloom_texture);
 
-    // TODO: render UI
+    // TODO: render in-game UI
+
+    render_imgui_items(commands);
 
     commands.end_label();
+}
+
+void UiPhase::set_imgui_draw_data(ImDrawData* im_draw_data) {
+    imgui_draw_data = im_draw_data;
 }
 
 void UiPhase::upscale_scene_color(CommandBuffer& commands, const TextureHandle bloom_texture) {
@@ -63,6 +69,10 @@ void UiPhase::upscale_scene_color(CommandBuffer& commands, const TextureHandle b
     commands.draw_triangle();
 
     commands.clear_descriptor_set(0);
+}
+
+void UiPhase::render_imgui_items(CommandBuffer& commands) {
+    
 }
 
 void UiPhase::create_upscale_pipeline() {

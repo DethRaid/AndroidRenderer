@@ -8,6 +8,7 @@
 #include "input/input_manager.hpp"
 #include "render/scene_renderer.hpp"
 #include "render/render_scene.hpp"
+#include "ui/debug_menu.hpp"
 
 class SystemInterface;
 
@@ -46,6 +47,8 @@ private:
     InputManager input;
 
     fastgltf::Parser parser;
+
+    DebugMenu debug_menu;
 
     void update_delta_time();
 };

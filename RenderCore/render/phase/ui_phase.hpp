@@ -1,5 +1,7 @@
 #pragma once
 
+#include <imgui.h>
+
 #include "render/backend/handles.hpp"
 #include "render/backend/graphics_pipeline.hpp"
 
@@ -17,6 +19,9 @@ public:
     void set_resources(TextureHandle scene_color_in);
 
     void render(CommandBuffer& commands, const SceneTransform& view, TextureHandle bloom_texture);
+
+    void set_imgui_draw_data(ImDrawData* im_draw_data);
+
 private:
     SceneRenderer& scene_renderer;
 
@@ -24,9 +29,13 @@ private:
 
     VkSampler bilinear_sampler;
 
+    ImDrawData* imgui_draw_data = nullptr;
+
     void create_upscale_pipeline();
 
     void upscale_scene_color(CommandBuffer& commands, TextureHandle bloom_texture);
+
+    void render_imgui_items(CommandBuffer& commands);
 
     GraphicsPipelineHandle upsample_pipeline;
 };

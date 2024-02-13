@@ -5,14 +5,14 @@
  *
  * Controls the entire lighting environment: Indirect lighting, point light accuracy, mesh light accuracy, even directional light
  */
-enum class LightingQuality {
+enum class LightingMethod {
     /**
-     * \brief LPV indirect illumination, LPV mesh lights, analytical directional light
+     * \brief LPV indirect illumination and mesh lights. Suitable for low-end devices
      */
-    Low,
+    LightPropagationVolume,
 
     /**
-     * \brief Raytraced one-bounce indirect illumination, raytraced mesh lights, raytraced directional light
+     * \brief Surfel-based GI
      */
-    High,
+    SurfelGI,
 };

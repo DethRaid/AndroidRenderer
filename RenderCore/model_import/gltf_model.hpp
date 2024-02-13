@@ -46,7 +46,7 @@ public:
      *
      * @param scene Storage to add primitives to
      */
-    void add_primitives(RenderScene& scene, RenderBackend& backend);
+    void add_primitives(SceneRenderer& renderer, RenderScene& scene);
 
     void add_to_scene(RenderScene& scene, SceneRenderer& scene_renderer);
 

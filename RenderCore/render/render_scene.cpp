@@ -5,7 +5,7 @@
 #include "render/backend/render_backend.hpp"
 #include "console/cvars.hpp"
 #include "core/box.hpp"
-#include "gltf/gltf_model.hpp"
+#include "model_import/gltf_model.hpp"
 
 constexpr const uint32_t max_num_primitives = 65536;
 

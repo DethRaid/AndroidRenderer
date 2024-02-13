@@ -4,11 +4,12 @@
 
 #include "application.hpp"
 
+#include <imgui.h>
 #include <magic_enum.hpp>
 #include <tracy/Tracy.hpp>
 
 #include "system_interface.hpp"
-#include "gltf/gltf_model.hpp"
+#include "model_import/gltf_model.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
@@ -91,11 +92,27 @@ void Application::update_resolution() const {
 void Application::tick() {
     update_delta_time();
 
+    // Input
+
     SystemInterface::get().poll_input(input);
 
     input.dispatch_callbacks();
 
+    // UI
+
+    ImGui::NewFrame();
+
+    debug_menu.draw();
+
+    ImGui::Render();
+
+    // Rendering
+
+    scene_renderer->set_imgui_commands(ImGui::GetDrawData());
+
     scene_renderer->render();
+
+    // TODO: Would be nice if we had UI as a separate render thing... for now the "scene" renderer does it
 }
 
 void Application::update_player_location(const glm::vec3& movement_axis) const {

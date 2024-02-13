@@ -1,61 +1,49 @@
 #version 460
 
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_buffer_reference_uvec2 : enable
+#extension GL_EXT_shader_image_load_formatted : enable
 
 #include "common/spherical_harmonics.glsl"
+#include "shared/primitive_data.hpp"
+#include "shared/basic_pbr_material.hpp"
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer FrustumMatricesBuffer {
+    mat4 world_to_bounds;
+};
+
+layout(push_constant) uniform Constants {
+    uint primitive_id;
+};
+
+layout(set = 0, binding = 0) uniform image3D voxels;
+layout(set = 0, binding = 1) readonly buffer PrimitiveDataBuffer {
+    PrimitiveDataGPU primitive_datas[];
+};
+
+layout(set = 1, binding = 0) uniform sampler2D textures_rgba8[];
 
 layout(location = 0) in vec3 position_in;
-layout(location = 1) in vec3 normal_in;
-
-// Scene SH
-layout(set = 0, binding = 1, r32ui) uniform uimage3D voxels_xy;
-layout(set = 0, binding = 2, r32ui) uniform uimage3D voxels_zw;
-
-// Count of SHes
-// layout(set = 0, binding = 2, r32ui) uniform uimage3D sample_counts;
-
-uint packInt2x16(ivec2 value) {
-    uint result = (value.x << 16) | (value.y & 0x0000FFFF) & 0x7FFFFFFF;
-    if(value.x < 0) {
-        result |= 0x80000000;
-    }
-    if(value.y < 0) {
-        result |= 0x00008000;
-    }
-    return result;
-}
+layout(location = 1) in mediump vec2 texcoord_in;
+layout(location = 2) in mediump vec4 color_in;
 
 void main() {
-    ivec3 dimensions = imageSize(voxels_xy);
+    PrimitiveDataGPU primitive = primitive_datas[primitive_id];
+    BasicPbrMaterialGpu material = primitive.material_id.material;
+
+    mediump vec4 base_color_sample = texture(textures_rgba8[nonuniformEXT(material.base_color_texture_index)], texcoord_in);
+    mediump vec4 tinted_base_color = base_color_sample * material.base_color_tint * color_in;
+
+    ivec3 dimensions = imageSize(voxels);
     vec3 voxel_position = (position_in * 0.5 + 0.5) * dimensions;
     ivec3 texel = ivec3(round(voxel_position));
-    
-    // We want the SH of the surface - the surface is solid in the opposite direction of the normal
-    vec4 sh = dir_to_sh(-normal_in);
 
-    uint xy = packHalf2x16(sh.xy);
-    uint zw = packHalf2x16(sh.zw);
-
-    imageStore(voxels_xy, texel, xy.xxxx);
-    imageStore(voxels_zw, texel, zw.xxxx);
-
-    // Funky math to convert the SH to 16-bit fixed-point
-    // We chose a representation with 10 bits in front of the decimal point, 5 bits behind, and one bit for the sign. 
-    // This will hopefully give enough range for all the SHes we want to combine, while still allowing a bit of precision
-    // ivec4 sh_int = ivec4(round(sh * 8));
-
-    // Convert XY to a uint, and ZW to a uint
-    // uint xy = packInt2x16(sh_int.xy);
-    // uint zw = packInt2x16(sh_int.zw);
-
-    // We do a minor amount of overflow
-    // imageAtomicAdd(voxels_xy, texel, xy);
-    // imageAtomicAdd(voxels_zw, texel, zw);
-
-    // imageAtomicAdd(sample_counts, texel, 1);
+    imageStore(voxels, texel, tinted_base_color);
 }
 
-
+// I'll try spinning, that's a good trick!
+// Except on Mali where it crashes :(
 // bool spinning = true;
 // while(spinning) {
 //     // Try to write 1 to the data
@@ -71,4 +59,3 @@ void main() {
 //         spinning = false;
 //     }
 // }
-

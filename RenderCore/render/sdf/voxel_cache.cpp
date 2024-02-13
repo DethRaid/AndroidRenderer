@@ -8,39 +8,51 @@
 
 AutoCVar_Int cvar_enable_voxelizer{ "r.voxel.Enable", "Whether or not to voxelize meshes and use those voxels for various purposes", 0};
 
-AutoCVar_Float cvar_voxel_size{"r.voxel.VoxelSize", "Resolution, in world units, of one side of a mesh voxel", 0.5};
+AutoCVar_Float cvar_voxel_size{"r.voxel.VoxelSize", "Resolution, in world units, of one side of a mesh voxel", 0.25};
 
 VoxelCache::VoxelCache(RenderBackend& backend_in) : backend{ backend_in }, voxelizer{ backend } {}
 
 VoxelCache::~VoxelCache() {
     auto& allocator = backend.get_global_allocator();
     for(const auto& [mesh_index, voxel_object] : voxels) {
-        allocator.destroy_texture(voxel_object.sh_texture);
+        allocator.destroy_texture(voxel_object.voxels);
     }
 
     voxels.clear();
 }
 
-void VoxelCache::build_voxels_for_mesh(const MeshHandle mesh, const MeshStorage& meshes) {
+VoxelObject VoxelCache::build_voxels_for_mesh(const MeshPrimitiveHandle primitive, const MeshStorage& meshes, const BufferHandle primitive_data_buffer) {
+    const auto key = make_key(primitive);
+
+    if(auto itr = voxels.find(key); itr != voxels.end()) {
+        return itr->second;
+    }
+
+    const auto mesh = primitive->mesh;
     const auto num_voxels = glm::uvec3{ glm::ceil(mesh->bounds / cvar_voxel_size.GetFloat()) };
 
-    const auto num_triangles = mesh->num_indices / 3;
-    voxelizer.init_resources(num_voxels, num_triangles);
-
     auto graph = RenderGraph{ backend };
-    voxelizer.voxelize_mesh(graph, mesh, meshes);
+    const auto voxel_texture = voxelizer.voxelize_primitive(graph, primitive, meshes, primitive_data_buffer, cvar_voxel_size.GetFloat());
     graph.finish();
 
     auto obj = VoxelObject{
         .worldspace_size = glm::vec3{num_voxels},
-        .sh_texture = voxelizer.extract_texture(),
+        .voxels = voxel_texture,
     };
 
-    voxels.emplace(mesh.index, obj);
+    voxels.emplace(key, obj);
 
-    voxelizer.deinit_resources(backend.get_global_allocator());
+    return obj;
 }
 
-const VoxelObject& VoxelCache::get_voxel_for_mesh(const MeshHandle mesh) const {
-    return voxels.at(mesh.index);
+const VoxelObject& VoxelCache::get_voxel_for_primitive(const MeshPrimitiveHandle primitive) const {
+    return voxels.at(make_key(primitive));
+}
+
+uint64_t VoxelCache::make_key(const MeshPrimitiveHandle primitive) {
+    uint64_t key = 0;
+    key |= primitive->mesh.index;
+    key |= static_cast<uint64_t>(primitive->material.index) << 32;
+
+    return key;
 }

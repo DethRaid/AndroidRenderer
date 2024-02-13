@@ -4,10 +4,12 @@ layout(triangles) in;
 layout(triangle_strip, max_vertices = 3) out;
 
 layout(location = 0) in vec3 position_in[3];
-layout(location = 1) in vec3 normal_in[3];
+layout(location = 1) in vec2 texcoord_in[3];
+layout(location = 2) in mediump vec4 color_in[3];
 
 layout(location = 0) out vec3 position_out;
-layout(location = 1) out vec3 normal_out;
+layout(location = 1) out vec2 texcoord_out;
+layout(location = 2) out mediump vec4 color_out;
 
 void main() {
     vec3 min_bounds = min(min(position_in[0], position_in[1]), position_in[2]);
@@ -31,7 +33,8 @@ void main() {
         }
 
         position_out = position_in[vertex_index];
-        normal_out = normal_in[vertex_index];
+        texcoord_out = texcoord_in[vertex_index];
+        color_out = color_in[vertex_index];
         
         EmitVertex();
     }

@@ -86,7 +86,8 @@ glm::vec4 GltfModel::get_bounding_sphere() const { return bounding_sphere; }
 
 const fastgltf::Asset& GltfModel::get_gltf_data() const { return *model; }
 
-void GltfModel::add_primitives(RenderScene& scene, RenderBackend& backend) {
+void GltfModel::add_primitives(SceneRenderer& renderer, RenderScene& scene) {
+    auto& backend = renderer.get_backend();
     auto graph = RenderGraph{backend};
     traverse_nodes(
         [&](const fastgltf::Node& node, const glm::mat4& node_to_world) {
@@ -113,6 +114,13 @@ void GltfModel::add_primitives(RenderScene& scene, RenderBackend& backend) {
                             .material = imported_material,
                         }
                     );
+
+                    auto& mesh_storage = renderer.get_mesh_storage();
+                    auto voxel_cache_maybe = renderer.get_voxel_cache();
+                    voxel_cache_maybe.map(
+                        [&](VoxelCache& voxel_cache) { voxel_cache.build_voxels_for_mesh(handle, mesh_storage, scene.get_primitive_buffer()); }
+                    );
+
                     node_primitives.emplace_back(handle);
                 }
                 scene_primitives.insert(scene_primitives.end(), node_primitives.begin(), node_primitives.end());
@@ -123,7 +131,7 @@ void GltfModel::add_primitives(RenderScene& scene, RenderBackend& backend) {
 }
 
 void GltfModel::add_to_scene(RenderScene& scene, SceneRenderer& scene_renderer) {
-    add_primitives(scene, scene_renderer.get_backend());
+    add_primitives(scene_renderer, scene);
 }
 
 void GltfModel::import_resources_for_model(SceneRenderer& renderer) {
@@ -287,7 +295,6 @@ void GltfModel::import_meshes(SceneRenderer& renderer) {
     ZoneScoped;
 
     auto& mesh_storage = renderer.get_mesh_storage();
-    auto voxel_cache_maybe = renderer.get_voxel_cache();
 
     gltf_primitive_to_mesh_primitive.reserve(512);
 
@@ -310,9 +317,6 @@ void GltfModel::import_meshes(SceneRenderer& renderer) {
 
             if (mesh_maybe) {
                 imported_primitives.emplace_back(*mesh_maybe);
-                voxel_cache_maybe.map(
-                    [&](VoxelCache& voxel_cache) { voxel_cache.build_voxels_for_mesh(*mesh_maybe, mesh_storage); }
-                );
             } else {
                 logger->error(
                     "Could not import mesh primitive {} in mesh {}", primitive_idx,
