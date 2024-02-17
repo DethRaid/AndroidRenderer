@@ -1,9 +1,13 @@
 #pragma once
 
+#include <array>
+
 #include <imgui.h>
 
 #include "render/backend/handles.hpp"
 #include "render/backend/graphics_pipeline.hpp"
+#include "render/backend/render_graph.hpp"
+#include "render/backend/resource_upload_queue.hpp"
 
 class CommandBuffer;
 class SceneTransform;
@@ -18,7 +22,9 @@ public:
 
     void set_resources(TextureHandle scene_color_in);
 
-    void render(CommandBuffer& commands, const SceneTransform& view, TextureHandle bloom_texture);
+    void add_data_upload_passes(ResourceUploadQueue& queue) const;
+
+    void render(CommandBuffer& commands, const SceneTransform& view, TextureHandle bloom_texture) const;
 
     void set_imgui_draw_data(ImDrawData* im_draw_data);
 
@@ -31,11 +37,16 @@ private:
 
     ImDrawData* imgui_draw_data = nullptr;
 
-    void create_upscale_pipeline();
+    BufferHandle index_buffer;
+    BufferHandle vertex_buffer;
 
-    void upscale_scene_color(CommandBuffer& commands, TextureHandle bloom_texture);
+    void create_pipelines();
 
-    void render_imgui_items(CommandBuffer& commands);
+    void upscale_scene_color(CommandBuffer& commands, TextureHandle bloom_texture) const;
+
+    void render_imgui_items(CommandBuffer& commands) const;
 
     GraphicsPipelineHandle upsample_pipeline;
+
+    GraphicsPipelineHandle imgui_pipeline;
 };

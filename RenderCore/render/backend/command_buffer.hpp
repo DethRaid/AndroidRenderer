@@ -8,6 +8,7 @@
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyVulkan.hpp>
 
+#include "glm/vec2.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/graphics_pipeline.hpp"
@@ -105,6 +106,8 @@ public:
      * Ends the current render pass
      */
     void end_render_pass();
+
+    void set_scissor_rect(const glm::ivec2& upper_left, const glm::ivec2& lower_right) const;
 
     /**
      * Binds as vertex buffer to a specified vertex input

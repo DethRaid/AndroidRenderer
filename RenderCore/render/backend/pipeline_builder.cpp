@@ -1,5 +1,6 @@
 #include "pipeline_builder.hpp"
 
+#include <imgui.h>
 #include <magic_enum.hpp>
 #include <span>
 #include <spirv_reflect.h>
@@ -11,19 +12,31 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-constexpr uint32_t variable_size_array_max_size = 65536;
+constexpr uint32_t VARIABLE_SIZE_ARRAY_MAX_SIZE = 65536;
 
-constexpr const auto vertex_position_input_binding = VkVertexInputBindingDescription{
+static std::string POSITION_VERTEX_ATTRIBUTE_NAME = "position_in";
+static std::string TEXCOORD_VERTEX_ATTRIBUTE_NAME = "texcoord_in";
+static std::string NORMAL_VERTEX_ATTRIBUTE_NAME = "normal_in";
+static std::string TANGENT_VERTEX_ATTRIBUTE_NAME = "tangent_in";
+static std::string COLOR_VERTEX_ATTRIBUTE_NAME = "color_in";
+
+constexpr const auto VERTEX_POSITION_INPUT_BINDING = VkVertexInputBindingDescription{
     .binding = 0,
     .stride = sizeof(VertexPosition),
     .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
 };
 
-constexpr const auto vertex_data_input_binding = VkVertexInputBindingDescription{
+constexpr const auto VERTEX_DATA_INPUT_BINDING = VkVertexInputBindingDescription{
     .binding = 1,
     .stride = sizeof(StandardVertexData),
     .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
 
+};
+
+constexpr auto IMGUI_VERTEX_INPUT_BINDING = VkVertexInputBindingDescription{
+    .binding = 0,
+    .stride = sizeof(ImDrawVert),
+    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
 };
 
 // Positions
@@ -66,6 +79,27 @@ constexpr const auto vertex_color_attribute = VkVertexInputAttributeDescription{
     .offset = offsetof(StandardVertexData, color),
 };
 
+constexpr auto IMGUI_VERTEX_POSITION_ATTRIBUTE = VkVertexInputAttributeDescription{
+    .location = 0,
+    .binding = 0,
+    .format = VK_FORMAT_R32G32_SFLOAT,
+    .offset = offsetof(ImDrawVert, pos)
+};
+
+constexpr auto IMGUI_VERTEX_TEXCOORD_ATTRIBUTE = VkVertexInputAttributeDescription{
+    .location = 1,
+    .binding = 0,
+    .format = VK_FORMAT_R32G32_SFLOAT,
+    .offset = offsetof(ImDrawVert, uv)
+};
+
+constexpr auto IMGUI_VERTEX_COLOR_ATTRIBUTE = VkVertexInputAttributeDescription{
+    .location = 2,
+    .binding = 0,
+    .format = VK_FORMAT_R8G8B8A8_UNORM,
+    .offset = offsetof(ImDrawVert, col)
+};
+
 VkDescriptorType to_vk_type(SpvReflectDescriptorType type);
 
 /**
@@ -98,7 +132,7 @@ bool collect_vertex_attributes(
     std::vector<VkVertexInputAttributeDescription>& vertex_attributes
 );
 
-GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cache{ cache_in } {
+GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cache{cache_in} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
         logger->set_level(spdlog::level::warn);
@@ -106,15 +140,27 @@ GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cach
 
     set_depth_state({});
     set_raster_state({});
+    set_blend_state(
+        0, {
+            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+            VK_COLOR_COMPONENT_A_BIT
+        }
+    );
 }
 
-GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_name(std::string_view name_in) {
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_name(const std::string_view name_in) {
     name = name_in;
 
     return *this;
 }
 
-GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_topology(VkPrimitiveTopology topology_in) {
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_ia_preset(const InputAssemblerPreset preset_in) {
+    input_assembler_preset = preset_in;
+
+    return *this;
+}
+
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_topology(const VkPrimitiveTopology topology_in) {
     topology = topology_in;
 
     return *this;
@@ -122,12 +168,12 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_topology(VkPrimitiveTopolo
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::filesystem::path& vertex_path) {
     if (vertex_shader) {
-        throw std::runtime_error{ "Vertex shader already loaded set" };
+        throw std::runtime_error{"Vertex shader already loaded set"};
     }
     const auto vertex_shader_maybe = SystemInterface::get().load_file(vertex_path);
 
     if (!vertex_shader_maybe) {
-        throw std::runtime_error{ "Could not load vertex shader" };
+        throw std::runtime_error{"Could not load vertex shader"};
     }
 
     vertex_shader = *vertex_shader_maybe;
@@ -138,7 +184,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
     if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
-        throw std::runtime_error{ "Could not perform reflection on vertex shader" };
+        throw std::runtime_error{"Could not perform reflection on vertex shader"};
     }
 
     bool has_error = false;
@@ -149,7 +195,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
     uint32_t set_count;
     auto result = shader_module.EnumerateDescriptorSets(&set_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto sets = std::vector<SpvReflectDescriptorSet*>{ set_count };
+    auto sets = std::vector<SpvReflectDescriptorSet*>{set_count};
     result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -162,7 +208,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
     uint32_t constant_count;
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{ constant_count };
+    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{constant_count};
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, spv_push_constants.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -171,34 +217,17 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
         push_constants
     );
 
-    // Collect inputs
-    uint32_t input_count;
-    result = shader_module.EnumerateInputVariables(&input_count, nullptr);
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_vertex_inputs = std::vector<SpvReflectInterfaceVariable*>{ input_count };
-    result = shader_module.EnumerateInputVariables(&input_count, spv_vertex_inputs.data());
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
-
-    vertex_inputs.clear();
-    vertex_inputs.reserve(spv_vertex_inputs.size());
-    vertex_attributes.clear();
-    vertex_attributes.reserve(spv_vertex_inputs.size());
-    has_error |= collect_vertex_attributes(
-        vertex_path, spv_vertex_inputs, vertex_inputs,
-        vertex_attributes
-    );
-
     return *this;
 }
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std::filesystem::path& geometry_path) {
     if (geometry_shader) {
-        throw std::runtime_error{ "Geometry shader already set!" };
+        throw std::runtime_error{"Geometry shader already set!"};
     }
 
     const auto geometry_shader_maybe = SystemInterface::get().load_file(geometry_path);
     if (!geometry_shader_maybe) {
-        throw std::runtime_error{ "Could not load geometry shader" };
+        throw std::runtime_error{"Could not load geometry shader"};
     }
 
     geometry_shader = *geometry_shader_maybe;
@@ -209,7 +238,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
     if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
-        throw std::runtime_error{ "Could not perform reflection on geometry shader" };
+        throw std::runtime_error{"Could not perform reflection on geometry shader"};
     }
 
     bool has_error = false;
@@ -220,7 +249,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
     uint32_t set_count;
     auto result = shader_module.EnumerateDescriptorSets(&set_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto sets = std::vector<SpvReflectDescriptorSet*>{ set_count };
+    auto sets = std::vector<SpvReflectDescriptorSet*>{set_count};
     result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -233,7 +262,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
     uint32_t constant_count;
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{ constant_count };
+    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{constant_count};
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, spv_push_constants.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -247,13 +276,13 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_fragment_shader(const std::filesystem::path& fragment_path) {
     if (fragment_shader) {
-        throw std::runtime_error{ "Fragment shader already set" };
+        throw std::runtime_error{"Fragment shader already set"};
     }
 
     const auto fragment_shader_maybe = SystemInterface::get().load_file(fragment_path);
 
     if (!fragment_shader_maybe) {
-        throw std::runtime_error{ "Could not load fragment shader" };
+        throw std::runtime_error{"Could not load fragment shader"};
     }
 
     fragment_shader = *fragment_shader_maybe;
@@ -309,7 +338,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::add_blend_flag(VkPipelineColor
 
 GraphicsPipelineBuilder&
 GraphicsPipelineBuilder::set_blend_state(
-    uint32_t color_target_index,
+    const uint32_t color_target_index,
     const VkPipelineColorBlendAttachmentState& blend
 ) {
     if (blends.size() <= color_target_index) {
@@ -321,7 +350,29 @@ GraphicsPipelineBuilder::set_blend_state(
     return *this;
 }
 
-GraphicsPipelineHandle GraphicsPipelineBuilder::build() const {
+GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
+    switch (input_assembler_preset) {
+    case InputAssemblerPreset::Position:
+        vertex_inputs = {VERTEX_POSITION_INPUT_BINDING};
+        vertex_attributes = {vertex_position_attribute};
+        break;
+
+    case InputAssemblerPreset::SeparatePositionAndData:
+        vertex_inputs = {VERTEX_POSITION_INPUT_BINDING, VERTEX_DATA_INPUT_BINDING};
+        vertex_attributes = {
+            vertex_position_attribute, vertex_normal_attribute, vertex_tangent_attribute, vertex_texcoord_attribute,
+            vertex_color_attribute
+        };
+        break;
+
+    case InputAssemblerPreset::ImGUI:
+        vertex_inputs = {IMGUI_VERTEX_INPUT_BINDING};
+        vertex_attributes = {
+            IMGUI_VERTEX_POSITION_ATTRIBUTE, IMGUI_VERTEX_TEXCOORD_ATTRIBUTE, IMGUI_VERTEX_COLOR_ATTRIBUTE
+        };
+        break;
+    }
+
     return cache.create_pipeline(*this);
 }
 
@@ -338,7 +389,7 @@ bool collect_descriptor_sets(
             // the new shader stage
             auto& set_info = itr->second;
             auto& known_bindings = set_info.bindings;
-            for (auto* binding : std::span{ set->bindings, set->bindings + set->binding_count }) {
+            for (auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
                 const auto vk_type = to_vk_type(binding->descriptor_type);
                 if (auto binding_itr = known_bindings.find(binding->binding); binding_itr !=
                     known_bindings.end()) {
@@ -385,7 +436,7 @@ bool collect_descriptor_sets(
                         VkDescriptorSetLayoutBinding{
                             .binding = binding->binding,
                             .descriptorType = vk_type,
-                            .descriptorCount = binding->count > 0 ? binding->count : variable_size_array_max_size,
+                            .descriptorCount = binding->count > 0 ? binding->count : VARIABLE_SIZE_ARRAY_MAX_SIZE,
                             .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
                             .pImmutableSamplers = nullptr
                         }
@@ -400,7 +451,7 @@ bool collect_descriptor_sets(
             // The set is new. Construct new bindings for it and add them all
             auto set_info = DescriptorSetInfo{};
             logger->trace("Adding new descriptor set {}", set->set);
-            for (auto* binding : std::span{ set->bindings, set->bindings + set->binding_count }) {
+            for (auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
                 logger->trace(
                     "Adding new descriptor {}.{} with count {} for shader stage {}",
                     set->set,
@@ -413,7 +464,7 @@ bool collect_descriptor_sets(
                     VkDescriptorSetLayoutBinding{
                         .binding = binding->binding,
                         .descriptorType = to_vk_type(binding->descriptor_type),
-                        .descriptorCount = binding->count > 0 ? binding->count : variable_size_array_max_size,
+                        .descriptorCount = binding->count > 0 ? binding->count : VARIABLE_SIZE_ARRAY_MAX_SIZE,
                         .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
                         .pImmutableSamplers = nullptr
                     }
@@ -493,7 +544,7 @@ bool collect_bindings(
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
     if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
-        throw std::runtime_error{ "Could not perform reflection on shader" };
+        throw std::runtime_error{"Could not perform reflection on shader"};
     }
 
     bool has_error = false;
@@ -502,7 +553,7 @@ bool collect_bindings(
     uint32_t set_count;
     auto result = shader_module.EnumerateDescriptorSets(&set_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto sets = std::vector<SpvReflectDescriptorSet*>{ set_count };
+    auto sets = std::vector<SpvReflectDescriptorSet*>{set_count};
     result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -512,7 +563,7 @@ bool collect_bindings(
     uint32_t constant_count;
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{ constant_count };
+    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{constant_count};
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, spv_push_constants.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -524,6 +575,123 @@ bool collect_bindings(
     return has_error;
 }
 
+VkFormat to_vk_format(SpvReflectFormat format) {
+    switch (format) {
+    case SPV_REFLECT_FORMAT_R16_UINT:
+        return VK_FORMAT_R16_UINT;
+
+    case SPV_REFLECT_FORMAT_R16_SINT:
+        return VK_FORMAT_R16_SINT;
+
+    case SPV_REFLECT_FORMAT_R16_SFLOAT:
+        return VK_FORMAT_R16_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_R16G16_UINT:
+        return VK_FORMAT_R16G16_UINT;
+
+    case SPV_REFLECT_FORMAT_R16G16_SINT:
+        return VK_FORMAT_R16G16_SINT;
+
+    case SPV_REFLECT_FORMAT_R16G16_SFLOAT:
+        return VK_FORMAT_R16G16_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_R16G16B16_UINT:
+        return VK_FORMAT_R16G16B16_UINT;
+
+    case SPV_REFLECT_FORMAT_R16G16B16_SINT:
+        return VK_FORMAT_R16G16B16_SINT;
+
+    case SPV_REFLECT_FORMAT_R16G16B16_SFLOAT:
+        return VK_FORMAT_R16G16B16_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_R16G16B16A16_UINT:
+        return VK_FORMAT_R16G16B16A16_UINT;
+
+    case SPV_REFLECT_FORMAT_R16G16B16A16_SINT:
+        return VK_FORMAT_R16G16B16A16_SINT;
+
+    case SPV_REFLECT_FORMAT_R16G16B16A16_SFLOAT:
+        return VK_FORMAT_R16G16B16A16_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_R32_UINT:
+        return VK_FORMAT_R32_UINT;
+
+    case SPV_REFLECT_FORMAT_R32_SINT:
+        return VK_FORMAT_R32_SINT;
+
+    case SPV_REFLECT_FORMAT_R32_SFLOAT:
+        return VK_FORMAT_R32_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_R32G32_UINT:
+        return VK_FORMAT_R32G32_UINT;
+
+    case SPV_REFLECT_FORMAT_R32G32_SINT:
+        return VK_FORMAT_R32G32_SINT;
+
+    case SPV_REFLECT_FORMAT_R32G32_SFLOAT:
+        return VK_FORMAT_R32G32_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_R32G32B32_UINT:
+        return VK_FORMAT_R32G32B32_UINT;
+
+    case SPV_REFLECT_FORMAT_R32G32B32_SINT:
+        return VK_FORMAT_R32G32B32_SINT;
+
+    case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT:
+        return VK_FORMAT_R32G32B32_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_R32G32B32A32_UINT:
+        return VK_FORMAT_R32G32B32A32_UINT;
+
+    case SPV_REFLECT_FORMAT_R32G32B32A32_SINT:
+        return VK_FORMAT_R32G32B32A32_SINT;
+
+    case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT:
+        return VK_FORMAT_R32G32B32A32_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_R64_UINT:
+        return VK_FORMAT_R64_UINT;
+
+    case SPV_REFLECT_FORMAT_R64_SINT:
+        return VK_FORMAT_R64_SINT;
+
+    case SPV_REFLECT_FORMAT_R64_SFLOAT:
+        return VK_FORMAT_R64_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_R64G64_UINT:
+        return VK_FORMAT_R64G64_UINT;
+
+    case SPV_REFLECT_FORMAT_R64G64_SINT:
+        return VK_FORMAT_R64G64_SINT;
+
+    case SPV_REFLECT_FORMAT_R64G64_SFLOAT:
+        return VK_FORMAT_R64G64_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_R64G64B64_UINT:
+        return VK_FORMAT_R64G64B64_UINT;
+
+    case SPV_REFLECT_FORMAT_R64G64B64_SINT:
+        return VK_FORMAT_R64G64B64_SINT;
+
+    case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT:
+        return VK_FORMAT_R64G64B64_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_R64G64B64A64_UINT:
+        return VK_FORMAT_R64G64B64A64_UINT;
+
+    case SPV_REFLECT_FORMAT_R64G64B64A64_SINT:
+        return VK_FORMAT_R64G64B64A64_SINT;
+
+    case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT:
+        return VK_FORMAT_R64G64B64A64_SFLOAT;
+
+    case SPV_REFLECT_FORMAT_UNDEFINED:
+        [[fallthrough]];
+    default:
+        return VK_FORMAT_UNDEFINED;
+    }
+}
+
 bool collect_vertex_attributes(
     const std::filesystem::path& shader_path,
     const std::vector<SpvReflectInterfaceVariable*>& inputs,
@@ -531,105 +699,48 @@ bool collect_vertex_attributes(
     std::vector<VkVertexInputAttributeDescription>& vertex_attributes
 ) {
     bool has_error = false;
+    bool needs_data_buffer = false;
 
     for (const auto* input : inputs) {
-        if (input->location == 0) {
-            // Vertex?
-            if (input->format != SPV_REFLECT_FORMAT_R32G32B32_SFLOAT) {
-                logger->error(
-                    "Vertex input at location 0 should be position, but it's in the wrong format"
-                );
-                has_error = true;
-            } else {
-                vertex_inputs.emplace_back(vertex_position_input_binding);
-                vertex_attributes.emplace_back(vertex_position_attribute);
-            }
-        } else if (input->location == 1) {
-            // Normal?
-            if (input->format != SPV_REFLECT_FORMAT_R32G32B32_SFLOAT) {
-                logger->error(
-                    "Vertex input at location 1 should be normals, but it's in the wrong format"
-                );
-                has_error = true;
-            } else {
-                if (std::find_if(
-                    vertex_inputs.begin(), vertex_inputs.end(),
-                    [&](const VkVertexInputBindingDescription& input_binding) {
-                        return input_binding.binding ==
-                            vertex_data_input_binding.binding;
-                    }
-                ) == vertex_inputs.cend()) {
-                    vertex_inputs.emplace_back(vertex_data_input_binding);
-                }
+        if (input->name == POSITION_VERTEX_ATTRIBUTE_NAME) {
+            vertex_inputs.emplace_back(VERTEX_POSITION_INPUT_BINDING);
+            auto& attribute = vertex_attributes.emplace_back(vertex_position_attribute);
+            attribute.location = input->location;
+            attribute.format = to_vk_format(input->format);
+        } else if (input->name == NORMAL_VERTEX_ATTRIBUTE_NAME) {
+            needs_data_buffer = true;
 
-                vertex_attributes.emplace_back(vertex_normal_attribute);
-            }
-        } else if (input->location == 2) {
-            // Tangent?
-            if (input->format != SPV_REFLECT_FORMAT_R32G32B32_SFLOAT) {
-                logger->error(
-                    "Vertex input at location 2 should be tangents, but it's in the wrong format"
-                );
-                has_error = true;
-            } else {
-                if (std::find_if(
-                    vertex_inputs.begin(), vertex_inputs.end(),
-                    [&](const VkVertexInputBindingDescription& input_binding) {
-                        return input_binding.binding ==
-                            vertex_data_input_binding.binding;
-                    }
-                ) == vertex_inputs.cend()) {
-                    vertex_inputs.emplace_back(vertex_data_input_binding);
-                }
+            auto& attribute = vertex_attributes.emplace_back(vertex_normal_attribute);
+            attribute.location = input->location;
+            attribute.format = to_vk_format(input->format);
+        } else if (input->name == TANGENT_VERTEX_ATTRIBUTE_NAME) {
+            needs_data_buffer = true;
 
-                vertex_attributes.emplace_back(vertex_tangent_attribute);
-            }
-        } else if (input->location == 3) {
-            // Texcoord?
-            if (input->format != SPV_REFLECT_FORMAT_R32G32_SFLOAT) {
-                logger->error(
-                    "Vertex input at location 3 should be texcoords, but it's in the wrong format"
-                );
-                has_error = true;
-            } else {
-                if (std::find_if(
-                    vertex_inputs.begin(), vertex_inputs.end(),
-                    [&](const VkVertexInputBindingDescription& input_binding) {
-                        return input_binding.binding ==
-                            vertex_data_input_binding.binding;
-                    }
-                ) == vertex_inputs.cend()) {
-                    vertex_inputs.emplace_back(vertex_data_input_binding);
-                }
+            auto& attribute = vertex_attributes.emplace_back(vertex_tangent_attribute);
+            attribute.location = input->location;
+            attribute.format = to_vk_format(input->format);
+        } else if (input->name == TEXCOORD_VERTEX_ATTRIBUTE_NAME) {
+            needs_data_buffer = true;
 
-                vertex_attributes.emplace_back(vertex_texcoord_attribute);
-            }
-        } else if (input->location == 4) {
-            // Texcoord?
-            if (input->format != SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT) {
-                logger->error(
-                    "Vertex input at location 4 should be colors, but it's in the wrong format"
-                );
-                has_error = true;
-            } else {
-                if (std::find_if(
-                    vertex_inputs.begin(), vertex_inputs.end(),
-                    [&](const VkVertexInputBindingDescription& input_binding) {
-                        return input_binding.binding ==
-                            vertex_data_input_binding.binding;
-                    }
-                ) == vertex_inputs.cend()) {
-                    vertex_inputs.emplace_back(vertex_data_input_binding);
-                }
+            auto& attribute = vertex_attributes.emplace_back(vertex_texcoord_attribute);
+            attribute.location = input->location;
+            attribute.format = to_vk_format(input->format);
+        } else if (input->name == COLOR_VERTEX_ATTRIBUTE_NAME) {
+            needs_data_buffer = true;
 
-                vertex_attributes.emplace_back(vertex_color_attribute);
-            }
+            auto& attribute = vertex_attributes.emplace_back(vertex_color_attribute);
+            attribute.location = input->location;
+            attribute.format = to_vk_format(input->format);
         } else if (input->location != -1) {
             // -1 is used for some builtin things i guess
             // I can't
             logger->error("Vertex input {} unrecognized", input->location);
             has_error = true;
         }
+    }
+
+    if (needs_data_buffer) {
+        vertex_inputs.emplace_back(VERTEX_DATA_INPUT_BINDING);
     }
 
     return has_error;

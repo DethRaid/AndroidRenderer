@@ -200,6 +200,17 @@ void CommandBuffer::end_render_pass() {
     vkCmdEndRenderPass(commands);
 }
 
+void CommandBuffer::set_scissor_rect(const glm::ivec2& upper_left, const glm::ivec2& lower_right) const {
+    const auto scissor_rect = VkRect2D{
+        .offset = {.x = upper_left.x, .y = upper_left.y},
+        .extent = {
+            .width = static_cast<uint32_t>(lower_right.x - upper_left.x),
+            .height = static_cast<uint32_t>(lower_right.y - upper_left.y)
+        }
+    };
+    vkCmdSetScissor(commands, 0, 1, &scissor_rect);
+}
+
 void CommandBuffer::bind_vertex_buffer(const uint32_t binding_index, const BufferHandle buffer) const {
     const auto& allocator = backend->get_global_allocator();
     const auto& buffer_actual = allocator.get_buffer(buffer);

@@ -30,6 +30,8 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
 
     last_frame_start_time = std::chrono::high_resolution_clock::now();
 
+    debug_menu = std::make_unique<DebugUI>(scene_renderer->get_backend().get_global_allocator());
+
     logger->info("HELLO HUMAN");
 }
 
@@ -90,6 +92,8 @@ void Application::update_resolution() const {
 }
 
 void Application::tick() {
+    ZoneScoped;
+
     update_delta_time();
 
     // Input
@@ -98,13 +102,11 @@ void Application::tick() {
 
     input.dispatch_callbacks();
 
+    // TODO: Gameplay
+
     // UI
 
-    ImGui::NewFrame();
-
-    debug_menu.draw();
-
-    ImGui::Render();
+    debug_menu->draw();
 
     // Rendering
 

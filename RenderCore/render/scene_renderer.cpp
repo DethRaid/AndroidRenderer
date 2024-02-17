@@ -123,6 +123,8 @@ void SceneRenderer::render() {
 
     logger->debug("Beginning frame");
 
+    ui_phase.add_data_upload_passes(backend.get_upload_queue());
+
     const auto gbuffer_depth_handle = depth_culling_phase.get_depth_buffer();
 
     lighting_pass.set_gbuffer(

@@ -165,8 +165,10 @@ void Win32SystemInterface::set_cursor_position(const glm::vec2 new_position) {
     raw_cursor_input = new_position - glm::vec2{ half_window_size };
 }
 
-void Win32SystemInterface::set_focus(bool focused_in) {
+void Win32SystemInterface::set_focus(const bool focused_in) {
     focused = focused_in;
 }
+
+GLFWwindow* Win32SystemInterface::get_glfw_window() const { return window; }
 
 #endif

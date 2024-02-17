@@ -48,7 +48,7 @@ private:
 
     fastgltf::Parser parser;
 
-    DebugMenu debug_menu;
+    std::unique_ptr<DebugUI> debug_menu;
 
     void update_delta_time();
 };

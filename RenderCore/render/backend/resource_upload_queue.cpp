@@ -155,7 +155,7 @@ void ResourceUploadQueue::flush_pending_uploads() {
                 .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                 .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                 .buffer = buffer.buffer,
-                .offset = job.offset,
+                .offset = job.dest_offset,
                 .size = job.data.size(),
             }
         );
@@ -167,7 +167,7 @@ void ResourceUploadQueue::flush_pending_uploads() {
                 .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                 .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT,
                 .buffer = buffer.buffer,
-                .offset = job.offset,
+                .offset = job.dest_offset,
                 .size = job.data.size(),
             }
         );
@@ -247,7 +247,7 @@ void ResourceUploadQueue::flush_pending_uploads() {
         const auto& buffer = allocator.get_buffer(job.buffer);
         const auto region = VkBufferCopy{
             .srcOffset = cur_offset,
-            .dstOffset = job.offset,
+            .dstOffset = job.dest_offset,
             .size = job.data.size(),
         };
         vkCmdCopyBuffer(cmds, staging_buffer_actual.buffer, buffer.buffer, 1, &region);

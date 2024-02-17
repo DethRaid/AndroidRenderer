@@ -10,6 +10,8 @@
 #include <spdlog/logger.h>
 #include <tl/optional.hpp>
 
+#include "GLFW/glfw3.h"
+
 #if defined(__ANDROID__)
 #include <game-activity/native_app_glue/android_native_app_glue.h>
 
@@ -128,6 +130,8 @@ public:
     void set_cursor_position(glm::vec2 new_position);
 
     void set_focus(bool focused_in);
+
+    GLFWwindow* get_glfw_window() const;
 
 private:
     GLFWwindow* window = nullptr;

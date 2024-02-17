@@ -31,7 +31,7 @@ struct KtxUploadJob {
 struct BufferUploadJob {
     BufferHandle buffer;
     std::vector<uint8_t> data;
-    uint32_t offset;
+    uint32_t dest_offset;
 };
 
 /**
@@ -44,10 +44,10 @@ public:
     explicit ResourceUploadQueue(RenderBackend& backend_in);
 
     template<typename DataType>
-    void upload_to_buffer(BufferHandle buffer, std::span<const DataType> data, uint32_t offset);
+    void upload_to_buffer(BufferHandle buffer, std::span<const DataType> data, uint32_t dest_offset = 0);
 
     template<typename DataType>
-    void upload_to_buffer(BufferHandle buffer, std::span<DataType> data, uint32_t offset);
+    void upload_to_buffer(BufferHandle buffer, std::span<DataType> data, uint32_t dest_offset = 0);
 
     void enqueue(KtxUploadJob&& job);
 
@@ -83,26 +83,24 @@ private:
 };
 
 template <typename DataType>
-void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<const DataType> data, const uint32_t offset) {
+void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<const DataType> data, const uint32_t dest_offset) {
     auto job = BufferUploadJob{
             .buffer = buffer,
-            .data = {},
-            .offset = offset,
+            .data = std::vector<uint8_t>(data.size() * sizeof(DataType)),
+            .dest_offset = dest_offset,
     };
-    job.data.resize(data.size() * sizeof(DataType));
     std::memcpy(job.data.data(), data.data(), data.size() * sizeof(DataType));
 
     enqueue(std::move(job));
 }
 
 template <typename DataType>
-void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<DataType> data, const uint32_t offset) {
+void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<DataType> data, const uint32_t dest_offset) {
     auto job = BufferUploadJob{
             .buffer = buffer,
-            .data = {},
-            .offset = offset,
+            .data = std::vector<uint8_t>(data.size() * sizeof(DataType)),
+            .dest_offset = dest_offset,
     };
-    job.data.resize(data.size() * sizeof(DataType));
     std::memcpy(job.data.data(), data.data(), data.size() * sizeof(DataType));
 
     enqueue(std::move(job));

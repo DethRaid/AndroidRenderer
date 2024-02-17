@@ -63,6 +63,23 @@ struct RasterState {
     bool depth_clamp_enable = false;
 };
 
+enum class InputAssemblerPreset {
+    /**
+     * \brief Position in one buffer, nothing in the other. Uncompressed
+     */
+    Position,
+
+    /**
+     * \brief Puts position and data into separate buffers. Uncompressed vertex data (for now)
+     */
+    SeparatePositionAndData,
+
+    /**
+     * \brief Position and data is in the same buffer. Matches layout of ImDrawData
+     */
+    ImGUI,
+};
+
 class GraphicsPipelineBuilder {
     friend class PipelineCache;
 
@@ -70,6 +87,8 @@ public:
     explicit GraphicsPipelineBuilder(PipelineCache& cache_in);
 
     GraphicsPipelineBuilder& set_name(std::string_view name_in);
+
+    GraphicsPipelineBuilder& set_ia_preset(InputAssemblerPreset preset_in);
 
     GraphicsPipelineBuilder& set_topology(VkPrimitiveTopology topology_in);
 
@@ -105,7 +124,7 @@ public:
 
     GraphicsPipelineBuilder& set_blend_state(uint32_t color_target_index, const VkPipelineColorBlendAttachmentState& blend);
 
-    GraphicsPipelineHandle build() const;
+    GraphicsPipelineHandle build();
 
 private:
     PipelineCache& cache;
@@ -150,5 +169,7 @@ private:
     std::vector<VkVertexInputAttributeDescription> vertex_attributes;
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    InputAssemblerPreset input_assembler_preset = InputAssemblerPreset::SeparatePositionAndData;
 };
 

@@ -3,11 +3,20 @@
 #include "render/backend/command_buffer.hpp"
 #include "render/scene_renderer.hpp"
 
+constexpr static uint32_t MAX_IMGUI_INDICES = 65535;
+constexpr static uint32_t MAX_IMGUI_VERTICES = 65535;
+
 UiPhase::UiPhase(SceneRenderer& renderer_in) :
     scene_renderer{renderer_in}, scene_color{scene_renderer.get_backend().get_white_texture_handle()} {
-    create_upscale_pipeline();
 
-    bilinear_sampler = renderer_in.get_backend().get_global_allocator().get_sampler(
+    create_pipelines();
+
+    auto& allocator = renderer_in.get_backend().get_global_allocator();
+
+    vertex_buffer = allocator.create_buffer("ImGUI vertex buffer", sizeof(ImDrawVert) * MAX_IMGUI_VERTICES, BufferUsage::VertexBuffer);
+    index_buffer = allocator.create_buffer("ImGUI index buffer", sizeof(uint32_t) * MAX_IMGUI_INDICES, BufferUsage::IndexBuffer);
+
+    bilinear_sampler = allocator.get_sampler(
         {
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
             .magFilter = VK_FILTER_LINEAR,
@@ -20,11 +29,42 @@ UiPhase::UiPhase(SceneRenderer& renderer_in) :
     );
 }
 
-void UiPhase::set_resources(TextureHandle scene_color_in) {
+void UiPhase::set_resources(const TextureHandle scene_color_in) {
     scene_color = scene_color_in;
 }
 
-void UiPhase::render(CommandBuffer& commands, const SceneTransform& view, const TextureHandle bloom_texture) {
+void UiPhase::add_data_upload_passes(ResourceUploadQueue& queue) const {
+    ZoneScoped;
+
+    if (imgui_draw_data->TotalIdxCount > MAX_IMGUI_INDICES || imgui_draw_data->TotalVtxCount > MAX_IMGUI_VERTICES) {
+        throw std::runtime_error{ "Too many ImGUI elements! Draw less UI please" };
+    }
+
+    if(imgui_draw_data->TotalIdxCount == 0 || imgui_draw_data->TotalVtxCount == 0) {
+        return;
+    }
+
+    auto indices_data = std::vector<uint32_t>(imgui_draw_data->TotalIdxCount);
+    auto vertices_data = std::vector<ImDrawVert>(imgui_draw_data->TotalVtxCount);
+
+    auto* index_ptr = indices_data.data();
+    auto* vertex_ptr = vertices_data.data();
+
+    for (const auto* imgui_command_list : std::span{
+             imgui_draw_data->CmdLists, static_cast<size_t>(imgui_draw_data->CmdListsCount)
+        }) {
+        std::memcpy(index_ptr, imgui_command_list->IdxBuffer.Data, imgui_command_list->IdxBuffer.size_in_bytes());
+        std::memcpy(vertex_ptr, imgui_command_list->VtxBuffer.Data, imgui_command_list->VtxBuffer.size_in_bytes());
+
+        index_ptr += imgui_command_list->IdxBuffer.size();
+        vertex_ptr += imgui_command_list->VtxBuffer.size();
+    }
+
+    queue.upload_to_buffer(vertex_buffer, std::span{ indices_data });
+    queue.upload_to_buffer(index_buffer, std::span{ indices_data });
+}
+
+void UiPhase::render(CommandBuffer& commands, const SceneTransform& view, const TextureHandle bloom_texture) const {
     GpuZoneScopedN(commands, "UiPhase::render");
 
     commands.begin_label(__func__);
@@ -42,7 +82,7 @@ void UiPhase::set_imgui_draw_data(ImDrawData* im_draw_data) {
     imgui_draw_data = im_draw_data;
 }
 
-void UiPhase::upscale_scene_color(CommandBuffer& commands, const TextureHandle bloom_texture) {
+void UiPhase::upscale_scene_color(CommandBuffer& commands, const TextureHandle bloom_texture) const {
     auto& backend = scene_renderer.get_backend();
 
     const auto set = backend.create_frame_descriptor_builder()
@@ -63,7 +103,7 @@ void UiPhase::upscale_scene_color(CommandBuffer& commands, const TextureHandle b
                             .build();
 
     commands.bind_descriptor_set(0, *set);
-    
+
     commands.bind_pipeline(upsample_pipeline);
 
     commands.draw_triangle();
@@ -71,11 +111,36 @@ void UiPhase::upscale_scene_color(CommandBuffer& commands, const TextureHandle b
     commands.clear_descriptor_set(0);
 }
 
-void UiPhase::render_imgui_items(CommandBuffer& commands) {
-    
+void UiPhase::render_imgui_items(CommandBuffer& commands) const {
+    if (imgui_draw_data->TotalIdxCount == 0) {
+        return;
+    }
+
+    commands.bind_vertex_buffer(0, vertex_buffer);
+    commands.bind_index_buffer(index_buffer);
+
+    commands.bind_pipeline(imgui_pipeline);
+
+    for (const auto* imgui_command_list : std::span{
+             imgui_draw_data->CmdLists, static_cast<size_t>(imgui_draw_data->CmdListsCount)
+         }) {
+        const auto display_pos = glm::ivec2{imgui_draw_data->DisplayPos.x, imgui_draw_data->DisplayPos.y};
+
+        for (const auto& cmd : imgui_command_list->CmdBuffer) {
+            const auto scissor_start = glm::ivec2{cmd.ClipRect.x, cmd.ClipRect.y} - display_pos;
+            const auto scissor_end = glm::ivec2{cmd.ClipRect.z, cmd.ClipRect.w} - display_pos;
+            commands.set_scissor_rect(scissor_start, scissor_end);
+
+            if (cmd.UserCallback) {
+                cmd.UserCallback(imgui_command_list, &cmd);
+            } else {
+                commands.draw_indexed(cmd.ElemCount, 1, cmd.IdxOffset, cmd.VtxOffset, 0);
+            }
+        }
+    }
 }
 
-void UiPhase::create_upscale_pipeline() {
+void UiPhase::create_pipelines() {
     upsample_pipeline = scene_renderer.get_backend()
                                       .begin_building_pipeline("Scene Upscale")
                                       .set_vertex_shader("shaders/common/fullscreen.vert.spv")
@@ -95,4 +160,12 @@ void UiPhase::create_upscale_pipeline() {
                                           }
                                       )
                                       .build();
+
+    imgui_pipeline = scene_renderer
+                     .get_backend()
+                     .begin_building_pipeline("ImGUI")
+                     .set_vertex_shader("shaders/ui/imgui.vert.spv")
+                     .set_fragment_shader("shaders/ui/imgui.frag.spv")
+                     .set_depth_state({.enable_depth_test = false, .enable_depth_write = false})
+                     .build();
 }
