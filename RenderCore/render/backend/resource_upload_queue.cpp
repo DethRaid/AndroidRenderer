@@ -178,7 +178,7 @@ void ResourceUploadQueue::flush_pending_uploads() {
         return;
     }
 
-    logger->info("Creating a staging buffer of size {}", total_size);
+    // logger->info("Creating a staging buffer of size {}", total_size);
 
     auto staging_buffer = allocator.create_buffer(
         "Upload staging buffer", total_size,

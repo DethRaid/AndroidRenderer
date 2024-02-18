@@ -449,7 +449,6 @@ void RenderBackend::advance_frame() {
     {
         ZoneScopedN("Wait for previous frame");
         vkWaitForFences(device, 1, &frame_fences[cur_frame_idx], VK_TRUE, std::numeric_limits<uint64_t>::max());
-        logger->trace("Waited for the submission fence for frame {}", cur_frame_idx);
     }
 
     graphics_command_allocators[cur_frame_idx].reset();

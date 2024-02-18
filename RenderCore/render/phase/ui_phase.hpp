@@ -20,7 +20,7 @@ class UiPhase {
 public:
     explicit UiPhase(SceneRenderer& renderer_in);
 
-    void set_resources(TextureHandle scene_color_in);
+    void set_resources(TextureHandle scene_color_in, glm::uvec2 render_resolution_in);
 
     void add_data_upload_passes(ResourceUploadQueue& queue) const;
 
@@ -32,6 +32,8 @@ private:
     SceneRenderer& scene_renderer;
 
     TextureHandle scene_color = TextureHandle::None;
+
+    glm::uvec2 render_resolution;
 
     VkSampler bilinear_sampler;
 

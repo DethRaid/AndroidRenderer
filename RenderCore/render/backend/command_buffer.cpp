@@ -220,13 +220,6 @@ void CommandBuffer::bind_vertex_buffer(const uint32_t binding_index, const Buffe
     vkCmdBindVertexBuffers(commands, binding_index, 1, &buffer_actual.buffer, &offset);
 }
 
-void CommandBuffer::bind_index_buffer(const BufferHandle buffer) const {
-    const auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(buffer);
-
-    vkCmdBindIndexBuffer(commands, buffer_actual.buffer, 0, VK_INDEX_TYPE_UINT32);
-}
-
 void CommandBuffer::draw(
     const uint32_t num_vertices, const uint32_t num_instances, const uint32_t first_vertex,
     const uint32_t first_instance
@@ -464,6 +457,12 @@ void CommandBuffer::end_label() const {
 
 void CommandBuffer::end() const {
     vkEndCommandBuffer(commands);
+}
+
+void CommandBuffer::bind_index_buffer(const BufferHandle buffer, const VkIndexType index_type) const {
+    const auto& allocator = backend->get_global_allocator();
+    const auto& buffer_actual = allocator.get_buffer(buffer);
+    vkCmdBindIndexBuffer(commands, buffer_actual.buffer, 0, index_type);
 }
 
 void CommandBuffer::commit_bindings() {

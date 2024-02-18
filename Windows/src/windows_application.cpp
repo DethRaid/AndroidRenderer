@@ -39,8 +39,6 @@ int main(const int argc, const char** argv) {
         ZoneScopedN("Frame");
 
         application.tick();
-
-        glfwPollEvents();
     }
     
     glfwTerminate();

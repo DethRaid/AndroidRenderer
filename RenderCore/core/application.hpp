@@ -27,7 +27,7 @@ public:
 
     void update_player_location(const glm::vec3& movement_axis) const;
 
-    void update_player_rotation(const glm::vec2& rotation_input);
+    void update_player_rotation(const glm::vec2& rotation_input) const;
 
     SceneRenderer& get_renderer() const;
 
@@ -49,6 +49,8 @@ private:
     fastgltf::Parser parser;
 
     std::unique_ptr<DebugUI> debug_menu;
+
+    bool flycam_enabled = false;
 
     void update_delta_time();
 };

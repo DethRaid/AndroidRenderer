@@ -291,7 +291,11 @@ void SceneRenderer::render() {
     // Gbuffers, lighting, and translucency
 
     const auto visible_objects_buffer = depth_culling_phase.get_visible_objects();
-    const auto& [draw_commands, draw_count, primitive_ids] = depth_culling_phase.translate_visibility_list_to_draw_commands(render_graph, visible_objects_buffer, scene->get_primitive_buffer(), scene->get_total_num_primitives(), meshes.get_draw_args_buffer());
+    const auto& [draw_commands, draw_count, primitive_ids] = depth_culling_phase.
+        translate_visibility_list_to_draw_commands(
+            render_graph, visible_objects_buffer, scene->get_primitive_buffer(), scene->get_total_num_primitives(),
+            meshes.get_draw_args_buffer()
+        );
 
     render_graph.add_render_pass(
         RenderPass{
@@ -560,7 +564,7 @@ void SceneRenderer::create_scene_render_targets() {
         swapchain_images.push_back(swapchain_image);
     }
 
-    ui_phase.set_resources(lit_scene_handle);
+    ui_phase.set_resources(lit_scene_handle, glm::uvec2{swapchain.extent.width, swapchain.extent.height});
 }
 
 MeshStorage& SceneRenderer::get_mesh_storage() {

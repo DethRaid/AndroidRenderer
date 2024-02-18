@@ -181,7 +181,7 @@ VkPipeline PipelineCache::get_pipeline(
     }
 
     if (pipeline->pipeline != VK_NULL_HANDLE) {
-        logger->warn("Recompiling pipeline. {} This is cringe", pipeline->pipeline_name);
+        // logger->warn("Recompiling pipeline. {} This is cringe", pipeline->pipeline_name);
     }
 
     auto stages = std::vector{pipeline->vertex_stage};
@@ -280,7 +280,7 @@ VkPipeline PipelineCache::get_pipeline(
     pipeline->last_renderpass = active_render_pass;
     pipeline->last_subpass_index = active_subpass;
 
-    logger->warn("Compiling pipeline {}", pipeline->pipeline_name);
+    // logger->warn("Compiling pipeline {}", pipeline->pipeline_name);
 
     return pipeline->pipeline;
 }

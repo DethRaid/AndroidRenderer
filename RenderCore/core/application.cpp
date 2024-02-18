@@ -18,6 +18,8 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
     spdlog::set_level(spdlog::level::trace);
     spdlog::flush_on(spdlog::level::warn);
 
+    SystemInterface::get().set_input_manager(input);
+
     scene_renderer = std::make_unique<SceneRenderer>();
     scene = std::make_unique<RenderScene>(
         scene_renderer->get_backend(), scene_renderer->get_mesh_storage(), scene_renderer->get_material_storage()
@@ -25,6 +27,17 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
 
     scene_renderer->set_scene(*scene);
 
+    input.add_input_event_callback([&](const InputEvent& event) { switch (event.button) {
+    case InputButtons::FlycamEnabled:
+        if(event.action == InputAction::Pressed) {
+            logger->trace("Enabling the flycam");
+            flycam_enabled = true;
+        } else {
+            logger->trace("Disabling the flycam");
+            flycam_enabled = false;
+        }
+        break;
+    } });
     input.add_player_movement_callback([&](const glm::vec3& movement) { update_player_location(movement); });
     input.add_player_rotation_callback([&](const glm::vec2& rotation) { update_player_rotation(rotation); });
 
@@ -118,12 +131,22 @@ void Application::tick() {
 }
 
 void Application::update_player_location(const glm::vec3& movement_axis) const {
+    if(!flycam_enabled) {
+        scene_renderer->translate_player({0.f, 0.f, 0.f});
+        return;
+    }
+
     const auto movement = movement_axis * player_movement_speed * static_cast<float>(delta_time);
 
     scene_renderer->translate_player(movement);
 }
 
-void Application::update_player_rotation(const glm::vec2& rotation_input) {
+void Application::update_player_rotation(const glm::vec2& rotation_input) const {
+    if (!flycam_enabled) {
+        scene_renderer->rotate_player(0.f, 0.f);
+        return;
+    }
+
     const auto rotation = rotation_input * player_rotation_speed * static_cast<float>(delta_time);
 
     scene_renderer->rotate_player(rotation.y, rotation.x);

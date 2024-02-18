@@ -5,10 +5,10 @@
 #include <span>
 
 #include <volk.h>
+#include <glm/vec2.hpp>
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyVulkan.hpp>
 
-#include "glm/vec2.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/graphics_pipeline.hpp"
@@ -117,9 +117,12 @@ public:
      */
     void bind_vertex_buffer(uint32_t binding_index, BufferHandle buffer) const;
 
+    template <typename IndexType = uint32_t>
     void bind_index_buffer(BufferHandle buffer) const;
-    
-    void draw(uint32_t num_vertices, uint32_t num_instances = 1, uint32_t first_vertex = 0, uint32_t first_instance = 0);
+
+    void draw(
+        uint32_t num_vertices, uint32_t num_instances = 1, uint32_t first_vertex = 0, uint32_t first_instance = 0
+    );
 
     void draw_indexed(
         uint32_t num_indices, uint32_t num_instances, uint32_t first_index, uint32_t first_vertex,
@@ -182,7 +185,7 @@ public:
     void reset_event(VkEvent event, VkPipelineStageFlags stages) const;
 
     void set_event(VkEvent event, const std::vector<BufferBarrier>& buffers);
-    
+
     void wait_event(VkEvent);
 
     void begin_label(const std::string& event_name) const;
@@ -236,12 +239,28 @@ private:
      */
     std::unordered_map<VkEvent, std::vector<VkBufferMemoryBarrier2>> event_buffer_barriers;
 
+    void bind_index_buffer(BufferHandle buffer, VkIndexType index_type) const;
+
     void commit_bindings();
 };
 
 template <typename DataType>
 void CommandBuffer::update_buffer(BufferHandle buffer, const DataType& data, const uint32_t offset) {
     update_buffer(buffer, &data, sizeof(DataType), offset);
+}
+
+template <typename IndexType>
+void CommandBuffer::bind_index_buffer(const BufferHandle buffer) const {
+    auto index_type = VK_INDEX_TYPE_NONE_KHR;
+    if constexpr (sizeof(IndexType) == sizeof(uint32_t)) {
+        index_type = VK_INDEX_TYPE_UINT32;
+    } else if constexpr (sizeof(IndexType) == sizeof(uint16_t)) {
+        index_type = VK_INDEX_TYPE_UINT16;
+    } else {
+        throw std::runtime_error{"Invalid index type"};
+    }
+
+    bind_index_buffer(buffer, index_type);
 }
 
 

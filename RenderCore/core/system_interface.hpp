@@ -4,13 +4,11 @@
 #include <memory>
 #include <vector>
 
-#include <glm/fwd.hpp>
+#include <GLFW/glfw3.h>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <spdlog/logger.h>
 #include <tl/optional.hpp>
-
-#include "GLFW/glfw3.h"
 
 #if defined(__ANDROID__)
 #include <game-activity/native_app_glue/android_native_app_glue.h>
@@ -70,6 +68,10 @@ public:
     virtual void poll_input(InputManager& input) = 0;
 
     virtual glm::uvec2 get_resolution() = 0;
+
+    void set_input_manager(InputManager& input_in);
+
+    InputManager* input = nullptr;
 };
 
 #if defined(__ANDROID__)
@@ -143,6 +145,8 @@ private:
     glm::vec3 raw_player_movement_axis = glm::vec3{0};
 
     glm::vec2 raw_cursor_input = {};
+
+    glm::vec2 last_cursor_position = {};
 
     bool focused = true;
 };

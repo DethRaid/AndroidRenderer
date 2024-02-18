@@ -329,11 +329,6 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
 
         cascade.min_bounds = snapped_offset - glm::vec3{half_cascade_size};
         cascade.max_bounds = snapped_offset + glm::vec3{half_cascade_size};
-
-        logger->info(
-            "Cascade {} original offset {}, {}, {}, snapped offset {}, {}, {}", cascade_index, offset.x, offset.y,
-            offset.z, snapped_offset.x, snapped_offset.y, snapped_offset.z
-        );
     }
 }
 
@@ -341,8 +336,8 @@ void LightPropagationVolume::update_buffers(CommandBuffer& commands) const {
     auto cascade_matrices = std::vector<LPVCascadeMatrices>{};
     cascade_matrices.reserve(cascades.size());
     for (const auto& cascade : cascades) {
-        cascade_matrices.push_back(
-            {
+        cascade_matrices.emplace_back(
+            LPVCascadeMatrices{
                 .rsm_vp = cascade.rsm_vp,
                 .inverse_rsm_vp = glm::inverse(cascade.rsm_vp),
                 .world_to_cascade = cascade.world_to_cascade,

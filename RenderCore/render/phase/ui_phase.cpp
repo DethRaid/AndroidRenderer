@@ -8,13 +8,16 @@ constexpr static uint32_t MAX_IMGUI_VERTICES = 65535;
 
 UiPhase::UiPhase(SceneRenderer& renderer_in) :
     scene_renderer{renderer_in}, scene_color{scene_renderer.get_backend().get_white_texture_handle()} {
-
     create_pipelines();
 
     auto& allocator = renderer_in.get_backend().get_global_allocator();
 
-    vertex_buffer = allocator.create_buffer("ImGUI vertex buffer", sizeof(ImDrawVert) * MAX_IMGUI_VERTICES, BufferUsage::VertexBuffer);
-    index_buffer = allocator.create_buffer("ImGUI index buffer", sizeof(uint32_t) * MAX_IMGUI_INDICES, BufferUsage::IndexBuffer);
+    vertex_buffer = allocator.create_buffer(
+        "ImGUI vertex buffer", sizeof(ImDrawVert) * MAX_IMGUI_VERTICES, BufferUsage::VertexBuffer
+    );
+    index_buffer = allocator.create_buffer(
+        "ImGUI index buffer", sizeof(ImDrawIdx) * MAX_IMGUI_INDICES, BufferUsage::IndexBuffer
+    );
 
     bilinear_sampler = allocator.get_sampler(
         {
@@ -29,39 +32,36 @@ UiPhase::UiPhase(SceneRenderer& renderer_in) :
     );
 }
 
-void UiPhase::set_resources(const TextureHandle scene_color_in) {
+void UiPhase::set_resources(const TextureHandle scene_color_in, const glm::uvec2 render_resolution_in) {
     scene_color = scene_color_in;
+
+    render_resolution = render_resolution_in;
 }
 
 void UiPhase::add_data_upload_passes(ResourceUploadQueue& queue) const {
     ZoneScoped;
 
     if (imgui_draw_data->TotalIdxCount > MAX_IMGUI_INDICES || imgui_draw_data->TotalVtxCount > MAX_IMGUI_VERTICES) {
-        throw std::runtime_error{ "Too many ImGUI elements! Draw less UI please" };
+        throw std::runtime_error{"Too many ImGUI elements! Draw less UI please"};
     }
 
-    if(imgui_draw_data->TotalIdxCount == 0 || imgui_draw_data->TotalVtxCount == 0) {
+    if (imgui_draw_data->TotalIdxCount == 0 || imgui_draw_data->TotalVtxCount == 0) {
         return;
     }
 
-    auto indices_data = std::vector<uint32_t>(imgui_draw_data->TotalIdxCount);
-    auto vertices_data = std::vector<ImDrawVert>(imgui_draw_data->TotalVtxCount);
-
-    auto* index_ptr = indices_data.data();
-    auto* vertex_ptr = vertices_data.data();
+    auto indices_byte_offset = 0u;
+    auto vertices_bytes_offset = 0u;
 
     for (const auto* imgui_command_list : std::span{
              imgui_draw_data->CmdLists, static_cast<size_t>(imgui_draw_data->CmdListsCount)
-        }) {
-        std::memcpy(index_ptr, imgui_command_list->IdxBuffer.Data, imgui_command_list->IdxBuffer.size_in_bytes());
-        std::memcpy(vertex_ptr, imgui_command_list->VtxBuffer.Data, imgui_command_list->VtxBuffer.size_in_bytes());
+         }) {
 
-        index_ptr += imgui_command_list->IdxBuffer.size();
-        vertex_ptr += imgui_command_list->VtxBuffer.size();
+        queue.upload_to_buffer(index_buffer, std::span{ imgui_command_list->IdxBuffer.Data, static_cast<size_t>(imgui_command_list->IdxBuffer.size()) }, indices_byte_offset);
+        queue.upload_to_buffer(vertex_buffer, std::span{ imgui_command_list->VtxBuffer.Data, static_cast<size_t>(imgui_command_list->VtxBuffer.size()) }, vertices_bytes_offset);
+
+        indices_byte_offset += imgui_command_list->IdxBuffer.size_in_bytes();
+        vertices_bytes_offset += imgui_command_list->VtxBuffer.size();
     }
-
-    queue.upload_to_buffer(vertex_buffer, std::span{ indices_data });
-    queue.upload_to_buffer(index_buffer, std::span{ indices_data });
 }
 
 void UiPhase::render(CommandBuffer& commands, const SceneTransform& view, const TextureHandle bloom_texture) const {
@@ -117,7 +117,10 @@ void UiPhase::render_imgui_items(CommandBuffer& commands) const {
     }
 
     commands.bind_vertex_buffer(0, vertex_buffer);
-    commands.bind_index_buffer(index_buffer);
+    commands.bind_index_buffer<ImDrawIdx>(index_buffer);
+
+    commands.set_push_constant(0, render_resolution.x);
+    commands.set_push_constant(1, render_resolution.y);
 
     commands.bind_pipeline(imgui_pipeline);
 
@@ -164,8 +167,10 @@ void UiPhase::create_pipelines() {
     imgui_pipeline = scene_renderer
                      .get_backend()
                      .begin_building_pipeline("ImGUI")
+                     .set_ia_preset(InputAssemblerPreset::ImGUI)
                      .set_vertex_shader("shaders/ui/imgui.vert.spv")
                      .set_fragment_shader("shaders/ui/imgui.frag.spv")
                      .set_depth_state({.enable_depth_test = false, .enable_depth_write = false})
+                     .set_raster_state({.cull_mode = VK_CULL_MODE_NONE})
                      .build();
 }

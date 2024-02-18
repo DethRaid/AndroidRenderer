@@ -47,15 +47,18 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                                          : VK_FRONT_FACE_CLOCKWISE);
 
     // Depth prepass
-    const auto depth_prepass_pipeline = backend.begin_building_pipeline(fmt::format("{} depth prepass", new_material.name))
-        .set_vertex_shader("shaders/deferred/basic.vert.spv")
-        .set_raster_state(
-            {
-                .cull_mode = cull_mode,
-                .front_face = front_face
-            }
-        )
-        .build();
+    const auto depth_prepass_pipeline = backend.begin_building_pipeline(
+                                                   fmt::format("{} depth prepass", new_material.name)
+                                               )
+                                               .set_ia_preset(InputAssemblerPreset::Position)
+                                               .set_vertex_shader("shaders/deferred/basic.vert.spv")
+                                               .set_raster_state(
+                                                   {
+                                                       .cull_mode = cull_mode,
+                                                       .front_face = front_face
+                                                   }
+                                               )
+                                               .build();
     proxy.pipelines.emplace(ScenePassType::DepthPrepass, depth_prepass_pipeline);
 
     // gbuffer
@@ -99,6 +102,7 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
 
     // Shadow
     const auto shadow_pipeline = backend.begin_building_pipeline(fmt::format("{} SHADOW", new_material.name))
+                                        .set_ia_preset(InputAssemblerPreset::Position)
                                         .set_vertex_shader("shaders/lighting/shadow.vert.spv")
                                         .set_raster_state(
                                             {

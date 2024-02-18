@@ -14,7 +14,6 @@
 #include "render/backend/command_allocator.hpp"
 #include "render/backend/pipeline_builder.hpp"
 #include "render/backend/resource_upload_queue.hpp"
-#include "render/backend/command_buffer.hpp"
 #include "render/backend/constants.hpp"
 #include "render/backend/compute_shader.hpp"
 
