@@ -50,7 +50,6 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
     const auto depth_prepass_pipeline = backend.begin_building_pipeline(
                                                    fmt::format("{} depth prepass", new_material.name)
                                                )
-                                               .set_ia_preset(InputAssemblerPreset::Position)
                                                .set_vertex_shader("shaders/deferred/basic.vert.spv")
                                                .set_raster_state(
                                                    {
@@ -102,7 +101,6 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
 
     // Shadow
     const auto shadow_pipeline = backend.begin_building_pipeline(fmt::format("{} SHADOW", new_material.name))
-                                        .set_ia_preset(InputAssemblerPreset::Position)
                                         .set_vertex_shader("shaders/lighting/shadow.vert.spv")
                                         .set_raster_state(
                                             {

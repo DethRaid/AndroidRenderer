@@ -4,9 +4,10 @@
 
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
+#include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
 
-static bool g_MouseJustPressed[5] = { false, false, false, false, false };
+static bool g_MouseJustPressed[5] = {false, false, false, false, false};
 
 #if defined(_WIN32)
 #include <GLFW/glfw3.h>
@@ -18,9 +19,13 @@ static GLFWcharfun prev_char_callback;
 
 std::array<GLFWcursor*, ImGuiMouseCursor_COUNT> mouse_cursors = {};
 
-static const char* get_clipboard_text(void* user_data) { return glfwGetClipboardString(static_cast<GLFWwindow*>(user_data)); }
+static const char* get_clipboard_text(void* user_data) {
+    return glfwGetClipboardString(static_cast<GLFWwindow*>(user_data));
+}
 
-static void set_clipboard_text(void* user_data, const char* text) { glfwSetClipboardString(static_cast<GLFWwindow*>(user_data), text); }
+static void set_clipboard_text(void* user_data, const char* text) {
+    glfwSetClipboardString(static_cast<GLFWwindow*>(user_data), text);
+}
 
 void mouse_button_callback(GLFWwindow* window, const int button, const int action, const int mods) {
     if (prev_mouse_button_callback != nullptr) {
@@ -84,7 +89,7 @@ void char_callback(GLFWwindow* window, const unsigned int c) {
 }
 #endif
 
-DebugUI::DebugUI(ResourceAllocator& allocator_in) : allocator{allocator_in} {
+DebugUI::DebugUI(RenderBackend& backend_in) : allocator{backend_in.get_global_allocator()} {
     ImGui::CreateContext();
 
 #if defined(_WIN32)
@@ -143,14 +148,15 @@ DebugUI::DebugUI(ResourceAllocator& allocator_in) : allocator{allocator_in} {
     prev_char_callback = glfwSetCharCallback(window, char_callback);
 #endif
 
-    create_font_texture();
+    create_font_texture(backend_in);
 }
 
 void DebugUI::draw() {
     auto& io = ImGui::GetIO();
     IM_ASSERT(
         io.Fonts->IsBuilt() &&
-        "Font atlas not built! It is generally built by the renderer back-end. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
+        "Font atlas not built! It is generally built by the renderer back-end. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame()."
+    );
 
     // Setup display size (every frame to accommodate for window resizing)
     int w, h;
@@ -161,8 +167,10 @@ void DebugUI::draw() {
 #endif
     io.DisplaySize = ImVec2(static_cast<float>(w), static_cast<float>(h));
     if (w > 0 && h > 0) {
-        io.DisplayFramebufferScale = ImVec2(static_cast<float>(display_w) / static_cast<float>(w),
-            static_cast<float>(display_h) / static_cast<float>(h));
+        io.DisplayFramebufferScale = ImVec2(
+            static_cast<float>(display_w) / static_cast<float>(w),
+            static_cast<float>(display_h) / static_cast<float>(h)
+        );
     }
 
     // Setup time step
@@ -184,15 +192,30 @@ void DebugUI::draw() {
     ImGui::Render();
 }
 
-void DebugUI::create_font_texture() {
+void DebugUI::create_font_texture(RenderBackend& backend) {
     const auto& io = ImGui::GetIO();
     unsigned char* pixels;
     int width, height;
-    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+    io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
 
-    font_atlas_handle = allocator.create_texture("Dear ImGUI Font Atlas", VK_FORMAT_R8G8B8A8_UNORM, { width,height }, 1, TextureUsage::StaticImage);
+    font_atlas_handle = allocator.create_texture(
+        "Dear ImGUI Font Atlas", VK_FORMAT_R8_UNORM, {width, height}, 1, TextureUsage::StaticImage
+    );
 
-    io.Fonts->TexID = reinterpret_cast<ImTextureID>(static_cast<uint64_t>(font_atlas_handle));
+    auto& upload_queue = backend.get_upload_queue();
+    upload_queue.enqueue(TextureUploadJob{.destination = font_atlas_handle, .mip = 0, .data = std::vector(pixels, pixels + static_cast<ptrdiff_t>(width * height))});
+
+    font_atlas_descriptor_set = *backend.create_persistent_descriptor_builder()
+                                        .bind_image(
+                                            0, {
+                                                .sampler = backend.get_default_sampler(), .image = font_atlas_handle,
+                                                .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                            }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                            VK_SHADER_STAGE_FRAGMENT_BIT
+                                        )
+                                        .build();
+
+    io.Fonts->TexID = reinterpret_cast<ImTextureID>(font_atlas_descriptor_set);
 }
 
 #if defined(_WIN32)
@@ -224,7 +247,8 @@ void DebugUI::update_mouse_pos_and_buttons() const {
 
 void DebugUI::update_mouse_cursor() const {
     auto& io = ImGui::GetIO();
-    if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) || glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED) {
+    if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) || glfwGetInputMode(window, GLFW_CURSOR) ==
+        GLFW_CURSOR_DISABLED) {
         return;
     }
 
@@ -235,7 +259,9 @@ void DebugUI::update_mouse_cursor() const {
     } else {
         // Show OS mouse cursor
         // FIXME-PLATFORM: Unfocused windows seems to fail changing the mouse cursor with GLFW 3.2, but 3.3 works here.
-        glfwSetCursor(window, mouse_cursors[imgui_cursor] ? mouse_cursors[imgui_cursor] : mouse_cursors[ImGuiMouseCursor_Arrow]);
+        glfwSetCursor(
+            window, mouse_cursors[imgui_cursor] ? mouse_cursors[imgui_cursor] : mouse_cursors[ImGuiMouseCursor_Arrow]
+        );
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
 }
@@ -255,4 +281,3 @@ void DebugUI::draw_debug_menu() {
 
     ImGui::End();
 }
-

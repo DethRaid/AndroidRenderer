@@ -55,12 +55,19 @@ void UiPhase::add_data_upload_passes(ResourceUploadQueue& queue) const {
     for (const auto* imgui_command_list : std::span{
              imgui_draw_data->CmdLists, static_cast<size_t>(imgui_draw_data->CmdListsCount)
          }) {
-
-        queue.upload_to_buffer(index_buffer, std::span{ imgui_command_list->IdxBuffer.Data, static_cast<size_t>(imgui_command_list->IdxBuffer.size()) }, indices_byte_offset);
-        queue.upload_to_buffer(vertex_buffer, std::span{ imgui_command_list->VtxBuffer.Data, static_cast<size_t>(imgui_command_list->VtxBuffer.size()) }, vertices_bytes_offset);
+        queue.upload_to_buffer(
+            index_buffer, std::span{
+                imgui_command_list->IdxBuffer.Data, static_cast<size_t>(imgui_command_list->IdxBuffer.size())
+            }, indices_byte_offset
+        );
+        queue.upload_to_buffer(
+            vertex_buffer, std::span{
+                imgui_command_list->VtxBuffer.Data, static_cast<size_t>(imgui_command_list->VtxBuffer.size())
+            }, vertices_bytes_offset
+        );
 
         indices_byte_offset += imgui_command_list->IdxBuffer.size_in_bytes();
-        vertices_bytes_offset += imgui_command_list->VtxBuffer.size();
+        vertices_bytes_offset += imgui_command_list->VtxBuffer.size_in_bytes();
     }
 }
 
@@ -124,22 +131,38 @@ void UiPhase::render_imgui_items(CommandBuffer& commands) const {
 
     commands.bind_pipeline(imgui_pipeline);
 
+    auto first_vertex = 0u;
+    auto first_index = 0u;
+
     for (const auto* imgui_command_list : std::span{
              imgui_draw_data->CmdLists, static_cast<size_t>(imgui_draw_data->CmdListsCount)
          }) {
-        const auto display_pos = glm::ivec2{imgui_draw_data->DisplayPos.x, imgui_draw_data->DisplayPos.y};
+        const auto display_pos = glm::vec2{imgui_draw_data->DisplayPos.x, imgui_draw_data->DisplayPos.y};
 
         for (const auto& cmd : imgui_command_list->CmdBuffer) {
-            const auto scissor_start = glm::ivec2{cmd.ClipRect.x, cmd.ClipRect.y} - display_pos;
-            const auto scissor_end = glm::ivec2{cmd.ClipRect.z, cmd.ClipRect.w} - display_pos;
+            const auto scissor_start = glm::vec2{cmd.ClipRect.x, cmd.ClipRect.y} - display_pos;
+            const auto scissor_end = glm::vec2{cmd.ClipRect.z, cmd.ClipRect.w} - display_pos;
             commands.set_scissor_rect(scissor_start, scissor_end);
+
+            if (cmd.GetTexID() != nullptr) {
+                commands.bind_descriptor_set(0, static_cast<VkDescriptorSet>(cmd.GetTexID()));
+                commands.set_push_constant(2, 1u);
+            } else {
+                commands.set_push_constant(2, 0u);
+            }
+
+            first_vertex += cmd.VtxOffset;
+            first_index += cmd.IdxOffset;
 
             if (cmd.UserCallback) {
                 cmd.UserCallback(imgui_command_list, &cmd);
             } else {
-                commands.draw_indexed(cmd.ElemCount, 1, cmd.IdxOffset, cmd.VtxOffset, 0);
+                commands.draw_indexed(cmd.ElemCount, 1, cmd.IdxOffset + first_index, cmd.VtxOffset + first_vertex, 0);
             }
         }
+
+        first_index += imgui_command_list->IdxBuffer.size();
+        first_vertex += imgui_command_list->VtxBuffer.size();
     }
 }
 
@@ -167,10 +190,23 @@ void UiPhase::create_pipelines() {
     imgui_pipeline = scene_renderer
                      .get_backend()
                      .begin_building_pipeline("ImGUI")
-                     .set_ia_preset(InputAssemblerPreset::ImGUI)
+                     .use_imgui_vertex_layout()
                      .set_vertex_shader("shaders/ui/imgui.vert.spv")
                      .set_fragment_shader("shaders/ui/imgui.frag.spv")
                      .set_depth_state({.enable_depth_test = false, .enable_depth_write = false})
                      .set_raster_state({.cull_mode = VK_CULL_MODE_NONE})
+                     .set_blend_state(
+                         0, {
+                             .blendEnable = VK_TRUE,
+                             .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                             .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                             .colorBlendOp = VK_BLEND_OP_ADD,
+                             .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                             .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                             .alphaBlendOp = VK_BLEND_OP_ADD,
+                             .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                             VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+                         }
+                     )
                      .build();
 }

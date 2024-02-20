@@ -20,84 +20,90 @@ static std::string NORMAL_VERTEX_ATTRIBUTE_NAME = "normal_in";
 static std::string TANGENT_VERTEX_ATTRIBUTE_NAME = "tangent_in";
 static std::string COLOR_VERTEX_ATTRIBUTE_NAME = "color_in";
 
-constexpr const auto VERTEX_POSITION_INPUT_BINDING = VkVertexInputBindingDescription{
-    .binding = 0,
-    .stride = sizeof(VertexPosition),
-    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+static auto standard_vertex_layout = VertexLayout{
+    .input_bindings = {
+        {
+            .binding = 0,
+            .stride = sizeof(VertexPosition),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        },
+        {
+            .binding = 1,
+            .stride = sizeof(StandardVertexData),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+
+        }
+    },
+    .attributes = {
+        {
+            POSITION_VERTEX_ATTRIBUTE_NAME, {
+                .binding = 0,
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
+                .offset = 0,
+            }
+        },
+        {
+            NORMAL_VERTEX_ATTRIBUTE_NAME, {
+                .binding = 1,
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
+                .offset = offsetof(StandardVertexData, normal),
+            }
+        },
+        {
+            TANGENT_VERTEX_ATTRIBUTE_NAME, {
+                .binding = 1,
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
+                .offset = offsetof(StandardVertexData, tangent),
+            }
+        },
+        {
+            TEXCOORD_VERTEX_ATTRIBUTE_NAME, {
+                .binding = 1,
+                .format = VK_FORMAT_R32G32_SFLOAT,
+                .offset = offsetof(StandardVertexData, texcoord),
+            }
+        },
+        {
+            COLOR_VERTEX_ATTRIBUTE_NAME, {
+                .binding = 1,
+                .format = VK_FORMAT_R8G8B8A8_UNORM,
+                .offset = offsetof(StandardVertexData, color),
+            }
+        },
+    }
 };
 
-constexpr const auto VERTEX_DATA_INPUT_BINDING = VkVertexInputBindingDescription{
-    .binding = 1,
-    .stride = sizeof(StandardVertexData),
-    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-
-};
-
-constexpr auto IMGUI_VERTEX_INPUT_BINDING = VkVertexInputBindingDescription{
-    .binding = 0,
-    .stride = sizeof(ImDrawVert),
-    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-};
-
-// Positions
-constexpr const auto vertex_position_attribute = VkVertexInputAttributeDescription{
-    .location = 0,
-    .binding = 0,
-    .format = VK_FORMAT_R32G32B32_SFLOAT,
-    .offset = 0,
-};
-
-// Normals
-constexpr const auto vertex_normal_attribute = VkVertexInputAttributeDescription{
-    .location = 1,
-    .binding = 1,
-    .format = VK_FORMAT_R32G32B32_SFLOAT,
-    .offset = offsetof(StandardVertexData, normal),
-};
-
-// Tangents
-constexpr const auto vertex_tangent_attribute = VkVertexInputAttributeDescription{
-    .location = 2,
-    .binding = 1,
-    .format = VK_FORMAT_R32G32B32_SFLOAT,
-    .offset = offsetof(StandardVertexData, tangent),
-};
-
-// Texcoord
-constexpr const auto vertex_texcoord_attribute = VkVertexInputAttributeDescription{
-    .location = 3,
-    .binding = 1,
-    .format = VK_FORMAT_R32G32_SFLOAT,
-    .offset = offsetof(StandardVertexData, texcoord),
-};
-
-// Color
-constexpr const auto vertex_color_attribute = VkVertexInputAttributeDescription{
-    .location = 4,
-    .binding = 1,
-    .format = VK_FORMAT_R8G8B8A8_UNORM,
-    .offset = offsetof(StandardVertexData, color),
-};
-
-constexpr auto IMGUI_VERTEX_POSITION_ATTRIBUTE = VkVertexInputAttributeDescription{
-    .location = 0,
-    .binding = 0,
-    .format = VK_FORMAT_R32G32_SFLOAT,
-    .offset = offsetof(ImDrawVert, pos)
-};
-
-constexpr auto IMGUI_VERTEX_TEXCOORD_ATTRIBUTE = VkVertexInputAttributeDescription{
-    .location = 1,
-    .binding = 0,
-    .format = VK_FORMAT_R32G32_SFLOAT,
-    .offset = offsetof(ImDrawVert, uv)
-};
-
-constexpr auto IMGUI_VERTEX_COLOR_ATTRIBUTE = VkVertexInputAttributeDescription{
-    .location = 2,
-    .binding = 0,
-    .format = VK_FORMAT_R8G8B8A8_UNORM,
-    .offset = offsetof(ImDrawVert, col)
+static auto imgui_vertex_layout = VertexLayout{
+    .input_bindings = {
+        {
+            .binding = 0,
+            .stride = sizeof(ImDrawVert),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+        }
+    },
+    .attributes = {
+        {
+            POSITION_VERTEX_ATTRIBUTE_NAME, {
+                .binding = 0,
+                .format = VK_FORMAT_R32G32_SFLOAT,
+                .offset = offsetof(ImDrawVert, pos)
+            }
+        },
+        {
+            TEXCOORD_VERTEX_ATTRIBUTE_NAME, {
+                .binding = 0,
+                .format = VK_FORMAT_R32G32_SFLOAT,
+                .offset = offsetof(ImDrawVert, uv)
+            }
+        },
+        {
+            COLOR_VERTEX_ATTRIBUTE_NAME, {
+                .binding = 0,
+                .format = VK_FORMAT_R8G8B8A8_UNORM,
+                .offset = offsetof(ImDrawVert, col)
+            }
+        },
+    },
 };
 
 VkDescriptorType to_vk_type(SpvReflectDescriptorType type);
@@ -125,11 +131,12 @@ bool collect_push_constants(
     std::vector<VkPushConstantRange>& push_constants
 );
 
-bool collect_vertex_attributes(
-    const std::filesystem::path& shader_path,
+void collect_vertex_attributes(
+    const VertexLayout& vertex_layout,
     const std::vector<SpvReflectInterfaceVariable*>& inputs,
-    std::vector<VkVertexInputBindingDescription>& vertex_inputs,
-    std::vector<VkVertexInputAttributeDescription>& vertex_attributes
+    std::vector<VkVertexInputAttributeDescription>& vertex_attributes,
+    bool& needs_position_buffer,
+    bool& needs_data_buffer
 );
 
 GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cache{cache_in} {
@@ -138,6 +145,7 @@ GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cach
         logger->set_level(spdlog::level::warn);
     }
 
+    use_standard_vertex_layout();
     set_depth_state({});
     set_raster_state({});
     set_blend_state(
@@ -154,10 +162,18 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_name(const std::string_vie
     return *this;
 }
 
-GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_ia_preset(const InputAssemblerPreset preset_in) {
-    input_assembler_preset = preset_in;
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_layout(VertexLayout& layout) {
+    vertex_layout = &layout;
 
     return *this;
+}
+
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::use_standard_vertex_layout() {
+    return set_vertex_layout(standard_vertex_layout);
+}
+
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::use_imgui_vertex_layout() {
+    return set_vertex_layout(imgui_vertex_layout);
 }
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_topology(const VkPrimitiveTopology topology_in) {
@@ -215,6 +231,18 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
     has_error |= collect_push_constants(
         vertex_path, spv_push_constants, VK_SHADER_STAGE_VERTEX_BIT,
         push_constants
+    );
+
+    // Collect inputs
+    uint32_t input_count;
+    result = shader_module.EnumerateInputVariables(&input_count, nullptr);
+    assert(result == SPV_REFLECT_RESULT_SUCCESS);
+    auto spv_vertex_inputs = std::vector<SpvReflectInterfaceVariable*>{input_count};
+    result = shader_module.EnumerateInputVariables(&input_count, spv_vertex_inputs.data());
+    assert(result == SPV_REFLECT_RESULT_SUCCESS);
+
+    collect_vertex_attributes(
+        *vertex_layout, spv_vertex_inputs, vertex_attributes, need_position_buffer, need_data_buffer
     );
 
     return *this;
@@ -351,27 +379,13 @@ GraphicsPipelineBuilder::set_blend_state(
 }
 
 GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
-    switch (input_assembler_preset) {
-    case InputAssemblerPreset::Position:
-        vertex_inputs = {VERTEX_POSITION_INPUT_BINDING};
-        vertex_attributes = {vertex_position_attribute};
-        break;
+    vertex_inputs.clear();
+    vertex_inputs.reserve(2);
 
-    case InputAssemblerPreset::SeparatePositionAndData:
-        vertex_inputs = {VERTEX_POSITION_INPUT_BINDING, VERTEX_DATA_INPUT_BINDING};
-        vertex_attributes = {
-            vertex_position_attribute, vertex_normal_attribute, vertex_tangent_attribute, vertex_texcoord_attribute,
-            vertex_color_attribute
-        };
-        break;
-
-    case InputAssemblerPreset::ImGUI:
-        vertex_inputs = {IMGUI_VERTEX_INPUT_BINDING};
-        vertex_attributes = {
-            IMGUI_VERTEX_POSITION_ATTRIBUTE, IMGUI_VERTEX_TEXCOORD_ATTRIBUTE, IMGUI_VERTEX_COLOR_ATTRIBUTE
-        };
-        break;
+    if (vertex_layout == nullptr) {
+        throw std::runtime_error{"Vertex layout is required!"};
     }
+    vertex_inputs = vertex_layout->input_bindings;
 
     return cache.create_pipeline(*this);
 }
@@ -575,173 +589,35 @@ bool collect_bindings(
     return has_error;
 }
 
-VkFormat to_vk_format(SpvReflectFormat format) {
-    switch (format) {
-    case SPV_REFLECT_FORMAT_R16_UINT:
-        return VK_FORMAT_R16_UINT;
-
-    case SPV_REFLECT_FORMAT_R16_SINT:
-        return VK_FORMAT_R16_SINT;
-
-    case SPV_REFLECT_FORMAT_R16_SFLOAT:
-        return VK_FORMAT_R16_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_R16G16_UINT:
-        return VK_FORMAT_R16G16_UINT;
-
-    case SPV_REFLECT_FORMAT_R16G16_SINT:
-        return VK_FORMAT_R16G16_SINT;
-
-    case SPV_REFLECT_FORMAT_R16G16_SFLOAT:
-        return VK_FORMAT_R16G16_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_R16G16B16_UINT:
-        return VK_FORMAT_R16G16B16_UINT;
-
-    case SPV_REFLECT_FORMAT_R16G16B16_SINT:
-        return VK_FORMAT_R16G16B16_SINT;
-
-    case SPV_REFLECT_FORMAT_R16G16B16_SFLOAT:
-        return VK_FORMAT_R16G16B16_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_R16G16B16A16_UINT:
-        return VK_FORMAT_R16G16B16A16_UINT;
-
-    case SPV_REFLECT_FORMAT_R16G16B16A16_SINT:
-        return VK_FORMAT_R16G16B16A16_SINT;
-
-    case SPV_REFLECT_FORMAT_R16G16B16A16_SFLOAT:
-        return VK_FORMAT_R16G16B16A16_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_R32_UINT:
-        return VK_FORMAT_R32_UINT;
-
-    case SPV_REFLECT_FORMAT_R32_SINT:
-        return VK_FORMAT_R32_SINT;
-
-    case SPV_REFLECT_FORMAT_R32_SFLOAT:
-        return VK_FORMAT_R32_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_R32G32_UINT:
-        return VK_FORMAT_R32G32_UINT;
-
-    case SPV_REFLECT_FORMAT_R32G32_SINT:
-        return VK_FORMAT_R32G32_SINT;
-
-    case SPV_REFLECT_FORMAT_R32G32_SFLOAT:
-        return VK_FORMAT_R32G32_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_R32G32B32_UINT:
-        return VK_FORMAT_R32G32B32_UINT;
-
-    case SPV_REFLECT_FORMAT_R32G32B32_SINT:
-        return VK_FORMAT_R32G32B32_SINT;
-
-    case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT:
-        return VK_FORMAT_R32G32B32_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_R32G32B32A32_UINT:
-        return VK_FORMAT_R32G32B32A32_UINT;
-
-    case SPV_REFLECT_FORMAT_R32G32B32A32_SINT:
-        return VK_FORMAT_R32G32B32A32_SINT;
-
-    case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT:
-        return VK_FORMAT_R32G32B32A32_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_R64_UINT:
-        return VK_FORMAT_R64_UINT;
-
-    case SPV_REFLECT_FORMAT_R64_SINT:
-        return VK_FORMAT_R64_SINT;
-
-    case SPV_REFLECT_FORMAT_R64_SFLOAT:
-        return VK_FORMAT_R64_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_R64G64_UINT:
-        return VK_FORMAT_R64G64_UINT;
-
-    case SPV_REFLECT_FORMAT_R64G64_SINT:
-        return VK_FORMAT_R64G64_SINT;
-
-    case SPV_REFLECT_FORMAT_R64G64_SFLOAT:
-        return VK_FORMAT_R64G64_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_R64G64B64_UINT:
-        return VK_FORMAT_R64G64B64_UINT;
-
-    case SPV_REFLECT_FORMAT_R64G64B64_SINT:
-        return VK_FORMAT_R64G64B64_SINT;
-
-    case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT:
-        return VK_FORMAT_R64G64B64_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_R64G64B64A64_UINT:
-        return VK_FORMAT_R64G64B64A64_UINT;
-
-    case SPV_REFLECT_FORMAT_R64G64B64A64_SINT:
-        return VK_FORMAT_R64G64B64A64_SINT;
-
-    case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT:
-        return VK_FORMAT_R64G64B64A64_SFLOAT;
-
-    case SPV_REFLECT_FORMAT_UNDEFINED:
-        [[fallthrough]];
-    default:
-        return VK_FORMAT_UNDEFINED;
-    }
-}
-
-bool collect_vertex_attributes(
-    const std::filesystem::path& shader_path,
+void collect_vertex_attributes(
+    const VertexLayout& vertex_layout,
     const std::vector<SpvReflectInterfaceVariable*>& inputs,
-    std::vector<VkVertexInputBindingDescription>& vertex_inputs,
-    std::vector<VkVertexInputAttributeDescription>& vertex_attributes
+    std::vector<VkVertexInputAttributeDescription>& vertex_attributes,
+    bool& needs_position_buffer,
+    bool& needs_data_buffer
 ) {
-    bool has_error = false;
-    bool needs_data_buffer = false;
-
+    needs_position_buffer = false;
+    needs_data_buffer = false;
     for (const auto* input : inputs) {
-        if (input->name == POSITION_VERTEX_ATTRIBUTE_NAME) {
-            vertex_inputs.emplace_back(VERTEX_POSITION_INPUT_BINDING);
-            auto& attribute = vertex_attributes.emplace_back(vertex_position_attribute);
+        if (auto itr = vertex_layout.attributes.find(input->name); itr != vertex_layout.attributes.end()) {
+            auto& attribute = vertex_attributes.emplace_back(itr->second);
             attribute.location = input->location;
-            attribute.format = to_vk_format(input->format);
+        } 
+
+        if (input->name == POSITION_VERTEX_ATTRIBUTE_NAME) {
+            needs_position_buffer = true;
         } else if (input->name == NORMAL_VERTEX_ATTRIBUTE_NAME) {
             needs_data_buffer = true;
-
-            auto& attribute = vertex_attributes.emplace_back(vertex_normal_attribute);
-            attribute.location = input->location;
-            attribute.format = to_vk_format(input->format);
         } else if (input->name == TANGENT_VERTEX_ATTRIBUTE_NAME) {
             needs_data_buffer = true;
-
-            auto& attribute = vertex_attributes.emplace_back(vertex_tangent_attribute);
-            attribute.location = input->location;
-            attribute.format = to_vk_format(input->format);
         } else if (input->name == TEXCOORD_VERTEX_ATTRIBUTE_NAME) {
             needs_data_buffer = true;
-
-            auto& attribute = vertex_attributes.emplace_back(vertex_texcoord_attribute);
-            attribute.location = input->location;
-            attribute.format = to_vk_format(input->format);
         } else if (input->name == COLOR_VERTEX_ATTRIBUTE_NAME) {
             needs_data_buffer = true;
-
-            auto& attribute = vertex_attributes.emplace_back(vertex_color_attribute);
-            attribute.location = input->location;
-            attribute.format = to_vk_format(input->format);
         } else if (input->location != -1) {
             // -1 is used for some builtin things i guess
             // I can't
             logger->error("Vertex input {} unrecognized", input->location);
-            has_error = true;
         }
     }
-
-    if (needs_data_buffer) {
-        vertex_inputs.emplace_back(VERTEX_DATA_INPUT_BINDING);
-    }
-
-    return has_error;
 }

@@ -1,16 +1,16 @@
 #pragma once
 
-#include <array>
-
+#include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
 #include "render/backend/handles.hpp"
 
+class RenderBackend;
 class ResourceAllocator;
 
 class DebugUI {
 public:
-    explicit DebugUI(ResourceAllocator& allocator_in);
+    explicit DebugUI(RenderBackend& backend_in);
 
     void draw();
 
@@ -27,7 +27,9 @@ private:
 
     bool imgui_demo_open = true;
 
-    void create_font_texture();
+    VkDescriptorSet font_atlas_descriptor_set;
+
+    void create_font_texture(RenderBackend& backend);
 
 #if defined(_WIN32)
     void update_mouse_pos_and_buttons() const;

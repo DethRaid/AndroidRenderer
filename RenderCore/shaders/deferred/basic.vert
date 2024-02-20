@@ -28,7 +28,7 @@ layout(location = 0) in vec3 position_in;
 layout(location = 1) in vec3 normal_in;
 layout(location = 2) in vec3 tangent_in;
 layout(location = 3) in vec2 texcoord_in;
-layout(location = 4) in vec4 color_in;
+layout(location = 4) in lowp vec4 color_in;
 
 layout(location = 0) out mediump vec3 normal_out;
 layout(location = 1) out mediump vec3 tangent_out;

@@ -22,6 +22,11 @@ bool collect_bindings(const std::vector<uint8_t>& shader_instructions, const std
     VkShaderStageFlagBits shader_stage, std::unordered_map<uint32_t, DescriptorSetInfo>&
     descriptor_sets, std::vector<VkPushConstantRange>& push_constants);
 
+struct VertexLayout {
+    std::vector<VkVertexInputBindingDescription> input_bindings;
+    std::unordered_map<std::string, VkVertexInputAttributeDescription> attributes;
+};
+
 /**
  * Depth/stencil state struct with sane defaults
  *
@@ -63,23 +68,6 @@ struct RasterState {
     bool depth_clamp_enable = false;
 };
 
-enum class InputAssemblerPreset {
-    /**
-     * \brief Position in one buffer, nothing in the other. Uncompressed
-     */
-    Position,
-
-    /**
-     * \brief Puts position and data into separate buffers. Uncompressed vertex data (for now)
-     */
-    SeparatePositionAndData,
-
-    /**
-     * \brief Position and data is in the same buffer. Matches layout of ImDrawData
-     */
-    ImGUI,
-};
-
 class GraphicsPipelineBuilder {
     friend class PipelineCache;
 
@@ -88,7 +76,11 @@ public:
 
     GraphicsPipelineBuilder& set_name(std::string_view name_in);
 
-    GraphicsPipelineBuilder& set_ia_preset(InputAssemblerPreset preset_in);
+    GraphicsPipelineBuilder& set_vertex_layout(VertexLayout& layout);
+
+    GraphicsPipelineBuilder& use_standard_vertex_layout();
+
+    GraphicsPipelineBuilder& use_imgui_vertex_layout();
 
     GraphicsPipelineBuilder& set_topology(VkPrimitiveTopology topology_in);
 
@@ -165,11 +157,13 @@ private:
     VkPipelineColorBlendStateCreateFlags blend_flags = {};
     std::vector<VkPipelineColorBlendAttachmentState> blends = {};
 
+    bool need_position_buffer = false;
+    bool need_data_buffer = false;
     std::vector<VkVertexInputBindingDescription> vertex_inputs;
     std::vector<VkVertexInputAttributeDescription> vertex_attributes;
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-    InputAssemblerPreset input_assembler_preset = InputAssemblerPreset::SeparatePositionAndData;
+    VertexLayout* vertex_layout;
 };
 

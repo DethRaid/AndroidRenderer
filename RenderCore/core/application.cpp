@@ -43,7 +43,7 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
 
     last_frame_start_time = std::chrono::high_resolution_clock::now();
 
-    debug_menu = std::make_unique<DebugUI>(scene_renderer->get_backend().get_global_allocator());
+    debug_menu = std::make_unique<DebugUI>(scene_renderer->get_backend());
 
     logger->info("HELLO HUMAN");
 }
