@@ -151,9 +151,6 @@ void UiPhase::render_imgui_items(CommandBuffer& commands) const {
                 commands.set_push_constant(2, 0u);
             }
 
-            first_vertex += cmd.VtxOffset;
-            first_index += cmd.IdxOffset;
-
             if (cmd.UserCallback) {
                 cmd.UserCallback(imgui_command_list, &cmd);
             } else {
