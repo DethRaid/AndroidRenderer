@@ -39,6 +39,7 @@ void main() {
     vec3 voxel_position = (position_in * 0.5 + 0.5) * dimensions;
     ivec3 texel = ivec3(round(voxel_position));
 
+    // In theory, the GPU will only rasterize one triangle for each output pixel and there won't be issues with overwriting data. In practice, this is probably UB
     imageStore(voxels, texel, tinted_base_color);
 }
 

@@ -41,7 +41,7 @@ TextureHandle MeshVoxelizer::voxelize_primitive(
     auto* bounds_frustum_matrix = allocator.map_buffer<glm::mat4>(frustums_buffer);
     *bounds_frustum_matrix = glm::ortho(-bounds.x, bounds.x, bounds.y, -bounds.y, bounds.z, -bounds.z);
 
-    graph.add_render_pass(
+    graph.begin_render_pass(
         {
             .name = "Vozelization",
             .textures = {
@@ -54,47 +54,50 @@ TextureHandle MeshVoxelizer::voxelize_primitive(
                     }
                 }
             },
-            .buffers = {},
-            .subpasses = {
-                {
-                    .name = "Voxelization", .execute = [=, this](CommandBuffer& commands) {
-                        const auto set = backend->create_frame_descriptor_builder()
-                                                .bind_image(
-                                                    0, {.image = voxels, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                                                    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                                    VK_SHADER_STAGE_FRAGMENT_BIT
-                                                )
-                                                .bind_buffer(
-                                                    1, {.buffer = primitive_buffer}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-                                                )
-                                                .bind_buffer(
-                                                    2, {.buffer = frustums_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                    VK_SHADER_STAGE_VERTEX_BIT
-                                                )
-                                                .build();
+            .buffers = {}
+        }
+    );
 
-                        commands.bind_vertex_buffer(0, mesh_storage.get_vertex_position_buffer());
-                        commands.bind_vertex_buffer(1, mesh_storage.get_vertex_data_buffer());
-                        commands.bind_index_buffer(mesh_storage.get_index_buffer());
+    graph.add_subpass(
+        {
+            .name = "Voxelization", .execute = [=, this](CommandBuffer& commands) {
+                const auto set = backend->create_frame_descriptor_builder()
+                                        .bind_image(
+                                            0, {.image = voxels, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                                            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                            VK_SHADER_STAGE_FRAGMENT_BIT
+                                        )
+                                        .bind_buffer(
+                                            1, {.buffer = primitive_buffer}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+                                        )
+                                        .bind_buffer(
+                                            2, {.buffer = frustums_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                            VK_SHADER_STAGE_VERTEX_BIT
+                                        )
+                                        .build();
 
-                        commands.bind_descriptor_set(0, *set);
-                        commands.bind_descriptor_set(1, backend->get_texture_descriptor_pool().get_descriptor_set());
+                commands.bind_vertex_buffer(0, mesh_storage.get_vertex_position_buffer());
+                commands.bind_vertex_buffer(1, mesh_storage.get_vertex_data_buffer());
+                commands.bind_index_buffer(mesh_storage.get_index_buffer());
 
-                        commands.set_push_constant(0, primitive.index);
+                commands.bind_descriptor_set(0, *set);
+                commands.bind_descriptor_set(1, backend->get_texture_descriptor_pool().get_descriptor_set());
 
-                        commands.bind_pipeline(voxelization_pipeline);
+                commands.set_push_constant(0, primitive.index);
 
-                        const auto& mesh = primitive->mesh;
-                        commands.draw_indexed(
-                            mesh->num_indices, 1, static_cast<uint32_t>(mesh->first_index),
-                            static_cast<uint32_t>(mesh->first_vertex), 0
-                        );
-                    }
-                }
+                commands.bind_pipeline(voxelization_pipeline);
+
+                const auto& mesh = primitive->mesh;
+                commands.draw_indexed(
+                    mesh->num_indices, 1, static_cast<uint32_t>(mesh->first_index),
+                    static_cast<uint32_t>(mesh->first_vertex), 0
+                );
             }
         }
     );
+
+    graph.end_render_pass();
 
     return voxels;
 }

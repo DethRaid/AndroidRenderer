@@ -38,8 +38,12 @@ public:
     void add_copy_pass(ImageCopyPass&& pass);
 
     void add_compute_pass(ComputePass&& pass);
+    
+    void begin_render_pass(RenderPassBeginInfo&& begin_info);
 
-    void add_render_pass(RenderPass&& pass);
+    void add_subpass(Subpass&& subpass);
+
+    void end_render_pass();
 
     void add_present_pass(PresentPass&& pass);
 
@@ -76,4 +80,8 @@ private:
     CommandBuffer cmds;
 
     std::vector<std::function<void()>> post_submit_lambdas;
+
+    std::optional<RenderPass> current_render_pass;
+
+    void add_render_pass(RenderPass&& pass);
 };

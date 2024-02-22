@@ -14,6 +14,8 @@
 #include "render/phase/lighting_phase.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
 #include "sdf/voxel_cache.hpp"
+#include "visualizers/visualizer_type.hpp"
+#include "visualizers/voxel_visualizer.hpp"
 
 class GltfModel;
 
@@ -118,7 +120,13 @@ private:
 
     UiPhase ui_phase;
 
+    RenderVisualization active_visualization = RenderVisualization::None;
+
+    VoxelVisualizer voxel_visualizer;
+
     void create_shadow_render_targets();
     
     void create_scene_render_targets();
+
+    void draw_debug_visualizers(RenderGraph& render_graph);
 };

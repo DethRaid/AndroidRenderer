@@ -11,10 +11,7 @@
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 
-static AutoCVar_Int cvar_scatter_buffer_size = {
-    "r.PrimitiveUpload.BatchSize",
-    "Number of primitives to upload in one batch", 1024
-};
+constexpr inline auto scatter_buffer_size = 1024u;
 
 template <typename DataType>
 class ScatterUploadBuffer {
@@ -63,7 +60,7 @@ void ScatterUploadBuffer<DataType>::add_data(uint32_t destination_index, DataTyp
 
     if (scatter_indices == BufferHandle::None) {
         scatter_indices = allocator.create_buffer(
-            "Primitive scatter indices", cvar_scatter_buffer_size.Get(),
+            "Primitive scatter indices", scatter_buffer_size,
             BufferUsage::StagingBuffer
         );
     }
@@ -75,7 +72,7 @@ void ScatterUploadBuffer<DataType>::add_data(uint32_t destination_index, DataTyp
     if (scatter_data == BufferHandle::None) {
         scatter_data = allocator.create_buffer(
             "Primitive scatter data",
-            cvar_scatter_buffer_size.Get() * sizeof(DataType),
+            scatter_buffer_size * sizeof(DataType),
             BufferUsage::StagingBuffer
         );
     }
@@ -93,7 +90,7 @@ uint32_t ScatterUploadBuffer<DataType>::get_size() const {
 
 template <typename DataType>
 bool ScatterUploadBuffer<DataType>::is_full() const {
-    return scatter_buffer_count >= cvar_scatter_buffer_size.Get();
+    return scatter_buffer_count >= scatter_buffer_size;
 }
 
 template <typename DataType>

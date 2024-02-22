@@ -382,8 +382,8 @@ void LightPropagationVolume::inject_indirect_sun_light(
             }
         );
 
-        graph.add_render_pass(
-            RenderPass{
+        graph.begin_render_pass(
+            {
                 .name = "Render RSM and generate VPLs",
                 .buffers = {
                     {
@@ -408,107 +408,110 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         }
                     }
                 },
-                .attachments = {
+                .color_attachments = {
                     cascade.flux_target,
                     cascade.normals_target,
-                    cascade.depth_target,
                 },
-                .clear_values = {
+                .color_clear_values = {
                     VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
                     VkClearValue{.color = {.float32 = {0.5, 0.5, 1.0, 0}}},
-                    VkClearValue{.depthStencil = {.depth = 1.f}}
                 },
-                .subpasses = {
-                    Subpass{
-                        .name = "RSM",
-                        .color_attachments = {0, 1},
-                        .depth_attachment = 2,
-                        .execute = [&](CommandBuffer& commands) {
-                            GpuZoneScopedN(commands, "Render RSM")
-                            auto global_set = *backend.create_frame_descriptor_builder()
-                                                      .bind_buffer(
-                                                          0, {.buffer = cascade_data_buffer},
-                                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                          VK_SHADER_STAGE_VERTEX_BIT
-                                                      )
-                                                      .bind_buffer(
-                                                          1, {.buffer = scene.get_sun_light().get_constant_buffer()},
-                                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                          VK_SHADER_STAGE_FRAGMENT_BIT
-                                                      )
-                                                      .build();
+                .depth_attachment = cascade.depth_target,
+                .depth_clear_value = VkClearValue{.depthStencil = {.depth = 1.f}}
+            }
+        );
+        graph.add_subpass(
+            Subpass{
+                .name = "RSM",
+                .color_attachments = {0, 1},
+                .use_depth_attachment = true,
+                .execute = [&](CommandBuffer& commands) {
+                    GpuZoneScopedN(commands, "Render RSM")
+                    auto global_set = *backend.create_frame_descriptor_builder()
+                                              .bind_buffer(
+                                                  0, {.buffer = cascade_data_buffer},
+                                                  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                  VK_SHADER_STAGE_VERTEX_BIT
+                                              )
+                                              .bind_buffer(
+                                                  1, {.buffer = scene.get_sun_light().get_constant_buffer()},
+                                                  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                  VK_SHADER_STAGE_FRAGMENT_BIT
+                                              )
+                                              .build();
 
-                            commands.bind_descriptor_set(0, global_set);
+                    commands.bind_descriptor_set(0, global_set);
 
-                            commands.set_push_constant(4, cascade_index);
+                    commands.set_push_constant(4, cascade_index);
 
-                            rsm_drawer.draw(commands);
+                    rsm_drawer.draw(commands);
 
-                            commands.clear_descriptor_set(0);
-                        }
-                    },
-                    Subpass{
-                        .name = "VPL Generation",
-                        .input_attachments = {0, 1, 2},
-                        .execute = [&](CommandBuffer& commands) {
-                            GpuZoneScopedN(commands, "VPL Generation")
-                            const auto sampler = backend.get_default_sampler();
-
-                            const auto set = backend.create_frame_descriptor_builder()
-                                                    .bind_image(
-                                                        0,
-                                                        {
-                                                            .sampler = sampler, .image = cascade.flux_target,
-                                                            .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                                        },
-                                                        VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                                                        VK_SHADER_STAGE_FRAGMENT_BIT
-                                                    )
-                                                    .bind_image(
-                                                        1,
-                                                        {
-                                                            .sampler = sampler, .image = cascade.normals_target,
-                                                            .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                                        },
-                                                        VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                                                        VK_SHADER_STAGE_FRAGMENT_BIT
-                                                    )
-                                                    .bind_image(
-                                                        2,
-                                                        {
-                                                            .sampler = sampler, .image = cascade.depth_target,
-                                                            .image_layout =
-                                                            VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
-                                                        },
-                                                        VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                                                        VK_SHADER_STAGE_FRAGMENT_BIT
-                                                    )
-                                                    .bind_buffer(
-                                                        3, {.buffer = cascade_data_buffer},
-                                                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                        VK_SHADER_STAGE_FRAGMENT_BIT
-                                                    )
-                                                    .build();
-
-                            commands.bind_descriptor_set(0, *set);
-
-                            commands.bind_buffer_reference(0, cascade.count_buffer);
-                            commands.bind_buffer_reference(2, cascade.vpl_buffer);
-
-                            commands.set_push_constant(4, cascade_index);
-
-                            commands.bind_pipeline(vpl_pipeline);
-
-                            commands.draw_triangle();
-
-                            commands.clear_descriptor_set(0);
-                        },
-                    }
+                    commands.clear_descriptor_set(0);
                 }
             }
         );
+        graph.add_subpass(
+            {
+                .name = "VPL Generation",
+                .input_attachments = {0, 1, 2},
+                .execute = [&](CommandBuffer& commands) {
+                    GpuZoneScopedN(commands, "VPL Generation")
+                    const auto sampler = backend.get_default_sampler();
 
-        graph.add_render_pass(
+                    const auto set = backend.create_frame_descriptor_builder()
+                                            .bind_image(
+                                                0,
+                                                {
+                                                    .sampler = sampler, .image = cascade.flux_target,
+                                                    .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                                },
+                                                VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                                                VK_SHADER_STAGE_FRAGMENT_BIT
+                                            )
+                                            .bind_image(
+                                                1,
+                                                {
+                                                    .sampler = sampler, .image = cascade.normals_target,
+                                                    .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                                },
+                                                VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                                                VK_SHADER_STAGE_FRAGMENT_BIT
+                                            )
+                                            .bind_image(
+                                                2,
+                                                {
+                                                    .sampler = sampler, .image = cascade.depth_target,
+                                                    .image_layout =
+                                                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+                                                },
+                                                VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                                                VK_SHADER_STAGE_FRAGMENT_BIT
+                                            )
+                                            .bind_buffer(
+                                                3, {.buffer = cascade_data_buffer},
+                                                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                VK_SHADER_STAGE_FRAGMENT_BIT
+                                            )
+                                            .build();
+
+                    commands.bind_descriptor_set(0, *set);
+
+                    commands.bind_buffer_reference(0, cascade.count_buffer);
+                    commands.bind_buffer_reference(2, cascade.vpl_buffer);
+
+                    commands.set_push_constant(4, cascade_index);
+
+                    commands.bind_pipeline(vpl_pipeline);
+
+                    commands.draw_triangle();
+
+                    commands.clear_descriptor_set(0);
+                },
+            }
+        );
+        graph.end_render_pass();
+
+        graph.begin_render_pass(
             {
                 .name = "VPL Injection",
                 .buffers = {
@@ -516,38 +519,39 @@ void LightPropagationVolume::inject_indirect_sun_light(
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
                     {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
                 },
-                .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
-                .subpasses = {
-                    {
-                        .name = "VPL Injection",
-                        .color_attachments = {0, 1, 2},
-                        .execute = [&](CommandBuffer& commands) {
-                            GpuZoneScopedN(commands, "VPL Injection")
+                .color_attachments = {lpv_a_red, lpv_a_green, lpv_a_blue}
+            }
+        );
+        graph.add_subpass(
+            {
+                .name = "VPL Injection",
+                .color_attachments = {0, 1, 2},
+                .execute = [&](CommandBuffer& commands) {
+                    GpuZoneScopedN(commands, "VPL Injection")
 
-                            const auto set = *backend.create_frame_descriptor_builder()
-                                                     .bind_buffer(
-                                                         0, {.buffer = cascade_data_buffer},
-                                                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                         VK_SHADER_STAGE_VERTEX_BIT
-                                                     )
-                                                     .build();
+                    const auto set = *backend.create_frame_descriptor_builder()
+                                             .bind_buffer(
+                                                 0, {.buffer = cascade_data_buffer},
+                                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                 VK_SHADER_STAGE_VERTEX_BIT
+                                             )
+                                             .build();
 
-                            commands.bind_descriptor_set(0, set);
+                    commands.bind_descriptor_set(0, set);
 
-                            commands.bind_buffer_reference(0, cascade.vpl_buffer);
-                            commands.set_push_constant(2, cascade_index);
-                            commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
+                    commands.bind_buffer_reference(0, cascade.vpl_buffer);
+                    commands.set_push_constant(2, cascade_index);
+                    commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
 
-                            commands.bind_pipeline(vpl_injection_pipeline);
+                    commands.bind_pipeline(vpl_injection_pipeline);
 
-                            commands.draw_indirect(cascade.count_buffer);
+                    commands.draw_indirect(cascade.count_buffer);
 
-                            commands.clear_descriptor_set(0);
-                        }
-                    }
+                    commands.clear_descriptor_set(0);
                 }
             }
         );
+        graph.end_render_pass();
 
         if (cvar_lpv_build_gv_mode.Get() == GvBuildMode::DepthBuffers) {
             inject_rsm_depth_into_cascade_gv(graph, cascade, cascade_index);
@@ -570,7 +574,7 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
             continue;
         }
 
-        graph.add_render_pass(
+        graph.begin_render_pass(
             {
                 .name = "VPL Injection",
                 .buffers = {
@@ -578,44 +582,45 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
                     {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
                 },
-                .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
-                .subpasses = {
-                    {
-                        .name = "VPL Injection",
-                        .color_attachments = {0, 1, 2},
-                        .execute = [&](CommandBuffer& commands) {
-                            GpuZoneScopedN(commands, "VPL Injection")
+                .color_attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
+            }
+        );
+        graph.add_subpass(
+            {
+                .name = "VPL Injection",
+                .color_attachments = {0, 1, 2},
+                .execute = [&](CommandBuffer& commands) {
+                    GpuZoneScopedN(commands, "VPL Injection")
 
-                            const auto set = *backend.create_frame_descriptor_builder()
-                                                     .bind_buffer(
-                                                         0, {.buffer = cascade_data_buffer},
-                                                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                         VK_SHADER_STAGE_VERTEX_BIT
-                                                     )
-                                                     .build();
+                    const auto set = *backend.create_frame_descriptor_builder()
+                                             .bind_buffer(
+                                                 0, {.buffer = cascade_data_buffer},
+                                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                 VK_SHADER_STAGE_VERTEX_BIT
+                                             )
+                                             .build();
 
-                            commands.bind_descriptor_set(0, set);
+                    commands.bind_descriptor_set(0, set);
 
-                            commands.set_push_constant(2, cascade_index);
-                            commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
+                    commands.set_push_constant(2, cascade_index);
+                    commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
 
-                            commands.bind_pipeline(vpl_injection_pipeline);
+                    commands.bind_pipeline(vpl_injection_pipeline);
 
-                            for (const auto& primitive : primitives) {
-                                if (!primitive->material->first.emissive) {
-                                    continue;
-                                }
-
-                                commands.bind_buffer_reference(0, primitive->emissive_points_buffer);
-                                commands.draw(primitive->mesh->num_points);
-                            }
-
-                            commands.clear_descriptor_set(0);
+                    for (const auto& primitive : primitives) {
+                        if (!primitive->material->first.emissive) {
+                            continue;
                         }
+
+                        commands.bind_buffer_reference(0, primitive->emissive_points_buffer);
+                        commands.draw(primitive->mesh->num_points);
                     }
+
+                    commands.clear_descriptor_set(0);
                 }
             }
         );
+        graph.end_render_pass();
     }
 
     graph.end_label();
@@ -821,8 +826,8 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
     RenderGraph& graph, const TextureHandle depth_buffer, const TextureHandle normal_target,
     const BufferHandle view_uniform_buffer, const glm::uvec2 resolution
 ) {
-    graph.add_render_pass(
-        RenderPass{
+    graph.begin_render_pass(
+        {
             .name = "Inject RSM depth into GV",
             .textures = {
                 {
@@ -840,58 +845,59 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
                     }
                 }
             },
-            .attachments = {geometry_volume_handle},
-            .subpasses = {
-                Subpass{
-                    .name = "Inject RSM depth into GV",
-                    .color_attachments = {0},
-                    .execute = [&](CommandBuffer& commands) {
-                        GpuZoneScopedN(commands, "Inject RSM depth into GV")
+            .color_attachments = {geometry_volume_handle},
+        }
+    );
+    graph.add_subpass(
+        {
+            .name = "Inject RSM depth into GV",
+            .color_attachments = {0},
+            .execute = [&](CommandBuffer& commands) {
+                GpuZoneScopedN(commands, "Inject RSM depth into GV")
 
-                        const auto effective_resolution = resolution / glm::uvec2{2};
+                const auto effective_resolution = resolution / glm::uvec2{2};
 
-                        const auto sampler = backend.get_default_sampler();
-                        const auto set = *backend.create_frame_descriptor_builder()
-                                                 .bind_image(
-                                                     0, {
-                                                         .sampler = sampler, .image = normal_target,
-                                                         .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                                     }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                                     VK_SHADER_STAGE_VERTEX_BIT
-                                                 )
-                                                 .bind_image(
-                                                     1, {
-                                                         .sampler = sampler, .image = depth_buffer,
-                                                         .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                                     }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                                     VK_SHADER_STAGE_VERTEX_BIT
-                                                 )
-                                                 .bind_buffer(
-                                                     2, {.buffer = cascade_data_buffer},
-                                                     VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT
-                                                 )
-                                                 .bind_buffer(
-                                                     3, {.buffer = view_uniform_buffer},
-                                                     VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
-                                                 )
-                                                 .build();
+                const auto sampler = backend.get_default_sampler();
+                const auto set = *backend.create_frame_descriptor_builder()
+                                         .bind_image(
+                                             0, {
+                                                 .sampler = sampler, .image = normal_target,
+                                                 .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                             }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                             VK_SHADER_STAGE_VERTEX_BIT
+                                         )
+                                         .bind_image(
+                                             1, {
+                                                 .sampler = sampler, .image = depth_buffer,
+                                                 .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                             }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                             VK_SHADER_STAGE_VERTEX_BIT
+                                         )
+                                         .bind_buffer(
+                                             2, {.buffer = cascade_data_buffer},
+                                             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT
+                                         )
+                                         .bind_buffer(
+                                             3, {.buffer = view_uniform_buffer},
+                                             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                         )
+                                         .build();
 
-                        commands.bind_descriptor_set(0, set);
+                commands.bind_descriptor_set(0, set);
 
-                        commands.set_push_constant(0, effective_resolution.x);
-                        commands.set_push_constant(1, effective_resolution.y);
-                        commands.set_push_constant(2, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
+                commands.set_push_constant(0, effective_resolution.x);
+                commands.set_push_constant(1, effective_resolution.y);
+                commands.set_push_constant(2, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
 
-                        commands.bind_pipeline(inject_scene_depth_into_gv_pipeline);
+                commands.bind_pipeline(inject_scene_depth_into_gv_pipeline);
 
-                        commands.draw(effective_resolution.x * effective_resolution.y / 4);
+                commands.draw(effective_resolution.x * effective_resolution.y / 4);
 
-                        commands.clear_descriptor_set(0);
-                    }
-                }
+                commands.clear_descriptor_set(0);
             }
         }
     );
+    graph.end_render_pass();
 }
 
 void LightPropagationVolume::build_geometry_volume_from_point_clouds(
@@ -1128,8 +1134,8 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
 
     const auto rsm_resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
 
-    graph.add_render_pass(
-        RenderPass{
+    graph.begin_render_pass(
+        {
             .name = "Inject RSM depth into GV",
             .textures = {
                 {
@@ -1147,56 +1153,57 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
                     }
                 }
             },
-            .attachments = {geometry_volume_handle},
-            .subpasses = {
-                Subpass{
-                    .name = "Inject RSM depth into GV",
-                    .color_attachments = {0},
-                    .execute = [&](CommandBuffer& commands) {
-                        GpuZoneScopedN(commands, "Inject RSM depth into GV")
+            .color_attachments = {geometry_volume_handle}
+        }
+    );
+    graph.add_subpass(
+        {
+            .name = "Inject RSM depth into GV",
+            .color_attachments = {0},
+            .execute = [&](CommandBuffer& commands) {
+                GpuZoneScopedN(commands, "Inject RSM depth into GV")
 
-                        const auto sampler = backend.get_default_sampler();
-                        const auto set = *backend.create_frame_descriptor_builder()
-                                                 .bind_image(
-                                                     0, {
-                                                         .sampler = sampler, .image = cascade.normals_target,
-                                                         .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                                     }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                                     VK_SHADER_STAGE_VERTEX_BIT
-                                                 )
-                                                 .bind_image(
-                                                     1, {
-                                                         .sampler = sampler, .image = cascade.depth_target,
-                                                         .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                                     }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                                     VK_SHADER_STAGE_VERTEX_BIT
-                                                 )
-                                                 .bind_buffer(
-                                                     2, {.buffer = cascade_data_buffer},
-                                                     VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
-                                                 )
-                                                 .bind_buffer(
-                                                     3, {.buffer = view_matrices},
-                                                     VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
-                                                 )
-                                                 .build();
+                const auto sampler = backend.get_default_sampler();
+                const auto set = *backend.create_frame_descriptor_builder()
+                                         .bind_image(
+                                             0, {
+                                                 .sampler = sampler, .image = cascade.normals_target,
+                                                 .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                             }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                             VK_SHADER_STAGE_VERTEX_BIT
+                                         )
+                                         .bind_image(
+                                             1, {
+                                                 .sampler = sampler, .image = cascade.depth_target,
+                                                 .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                             }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                             VK_SHADER_STAGE_VERTEX_BIT
+                                         )
+                                         .bind_buffer(
+                                             2, {.buffer = cascade_data_buffer},
+                                             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                         )
+                                         .bind_buffer(
+                                             3, {.buffer = view_matrices},
+                                             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                         )
+                                         .build();
 
-                        commands.bind_descriptor_set(0, set);
+                commands.bind_descriptor_set(0, set);
 
-                        commands.set_push_constant(0, cascade_index);
-                        commands.set_push_constant(1, rsm_resolution.x);
-                        commands.set_push_constant(2, rsm_resolution.y);
+                commands.set_push_constant(0, cascade_index);
+                commands.set_push_constant(1, rsm_resolution.x);
+                commands.set_push_constant(2, rsm_resolution.y);
 
-                        commands.bind_pipeline(inject_rsm_depth_into_gv_pipeline);
+                commands.bind_pipeline(inject_rsm_depth_into_gv_pipeline);
 
-                        commands.draw(rsm_resolution.x * rsm_resolution.y);
+                commands.draw(rsm_resolution.x * rsm_resolution.y);
 
-                        commands.clear_descriptor_set(0);
-                    }
-                }
+                commands.clear_descriptor_set(0);
             }
         }
     );
+    graph.end_render_pass();
 
     allocator.destroy_buffer(view_matrices);
 }
