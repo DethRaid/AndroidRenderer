@@ -80,6 +80,24 @@ void RenderGraph::add_compute_pass(ComputePass&& pass) {
     }
 }
 
+void RenderGraph::begin_render_pass(const RenderPassBeginInfo& begin_info) {
+    current_render_pass = RenderPass{
+        .name = begin_info.name,
+        .textures = begin_info.textures,
+        .buffers = begin_info.buffers,
+        .attachments = begin_info.attachments,
+        .clear_values = begin_info.clear_values,
+        .view_mask = begin_info.view_mask
+    };
+}
+
+void RenderGraph::add_subpass(Subpass&& subpass) { current_render_pass->subpasses.emplace_back(subpass); }
+
+void RenderGraph::end_render_pass() {
+    add_render_pass(std::move(*current_render_pass));
+    current_render_pass = std::nullopt;
+}
+
 void RenderGraph::add_render_pass(RenderPass&& pass) {
     logger->debug("Adding render pass {}", pass.name);
 
@@ -96,31 +114,37 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
         access_tracker.set_resource_usage(texture_token.first, texture_token.second);
     }
 
-    // Update state tracking for attachment images
-    for(const auto& attachment : pass.color_attachments) {
-        access_tracker.set_resource_usage(
-            attachment,
-            TextureUsageToken{
-                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-            }
-        );
-    }
-
-    if(pass.depth_attachment) {
-        access_tracker.set_resource_usage(
-            *pass.depth_attachment,
-            TextureUsageToken{
-                VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-            }
-        );
+    // Update state tracking for attachment images, and collect attachments for the framebuffer
+    auto render_targets = std::vector<TextureHandle>{};
+    render_targets.reserve(pass.attachments.size());
+    auto depth_target = std::optional<TextureHandle>{};
+    for (const auto& render_target : pass.attachments) {
+        const auto& render_target_actual = allocator.get_texture(render_target);
+        if (is_depth_format(render_target_actual.create_info.format)) {
+            depth_target = render_target;
+            access_tracker.set_resource_usage(
+                render_target,
+                TextureUsageToken{
+                    VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                    VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                }
+            );
+        } else {
+            render_targets.push_back(render_target);
+            access_tracker.set_resource_usage(
+                render_target,
+                TextureUsageToken{
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                }
+            );
+        }
     }
 
     // Create framebuffer
-    auto framebuffer = Framebuffer::create(backend, pass.color_attachments, pass.depth_attachment, render_pass);
+    auto framebuffer = Framebuffer::create(backend, render_targets, depth_target, render_pass);
 
     // Begin label, issue and clear barriers, begin render pass proper
 
@@ -128,12 +152,7 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
 
     access_tracker.issue_barriers(cmds);
 
-    // Intentional copy
-    auto clear_values = pass.color_clear_values;
-    if(pass.depth_clear_value) {
-        clear_values.push_back(*pass.depth_clear_value);
-    }
-    cmds.begin_render_pass(render_pass, framebuffer, clear_values);
+    cmds.begin_render_pass(render_pass, framebuffer, pass.clear_values);
 
     auto first_subpass = true;
 
@@ -156,11 +175,12 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     cmds.end_label();
 
 
+    // TODO: Without this, we get a sync val error about write-after-write on a color attachment. With this, we get an error about resetting an in-use command pool ?
     // If the renderpass has more than one subpass, update the resource access tracker with the final state of all input attachments
     if (pass.subpasses.size() > 1) {
         for (const auto& subpass : pass.subpasses) {
             for (const auto input_attachment_idx : subpass.input_attachments) {
-                const auto& input_attachment = pass.color_attachments[input_attachment_idx];
+                const auto& input_attachment = pass.attachments[input_attachment_idx];
                 const auto& attachment_actual = allocator.get_texture(input_attachment);
                 if (is_depth_format(attachment_actual.create_info.format)) {
                     access_tracker.set_resource_usage(
@@ -184,28 +204,6 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     // Don't issue barriers for input attachment. Renderpasses have the necessary barriers between subpasses
 
     backend.get_global_allocator().destroy_framebuffer(std::move(framebuffer));
-}
-
-void RenderGraph::begin_render_pass(RenderPassBeginInfo&& begin_info) {
-    current_render_pass = RenderPass{
-        .name = begin_info.name,
-        .textures = begin_info.textures,
-        .buffers = begin_info.buffers,
-        .color_attachments = begin_info.color_attachments,
-        .color_clear_values = begin_info.color_clear_values,
-        .depth_attachment = begin_info.depth_attachment,
-        .depth_clear_value = begin_info.depth_clear_value,
-        .view_mask = begin_info.view_mask
-    };
-}
-
-void RenderGraph::add_subpass(Subpass&& subpass) {
-    current_render_pass->subpasses.emplace_back(std::move(subpass));
-}
-
-void RenderGraph::end_render_pass() {
-    add_render_pass(std::move(*current_render_pass));
-    current_render_pass = std::nullopt;
 }
 
 void RenderGraph::add_present_pass(PresentPass&& pass) {

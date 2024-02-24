@@ -39,7 +39,7 @@ public:
 
     void add_compute_pass(ComputePass&& pass);
     
-    void begin_render_pass(RenderPassBeginInfo&& begin_info);
+    void begin_render_pass(const RenderPassBeginInfo& begin_info);
 
     void add_subpass(Subpass&& subpass);
 

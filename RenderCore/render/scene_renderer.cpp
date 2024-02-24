@@ -247,15 +247,15 @@ void SceneRenderer::render() {
     render_graph.begin_render_pass(
         {
             .name = "CSM sun shadow",
-            .depth_attachment = shadowmap_handle,
-            .depth_clear_value = VkClearValue{.depthStencil = {.depth = 1.f}}
+            .attachments = {shadowmap_handle},
+            .clear_values = {VkClearValue{.depthStencil = {.depth = 1.f}}}
         }
     );
 
     render_graph.add_subpass(
         Subpass{
             .name = "Sun shadow",
-            .use_depth_attachment = true,
+            .depth_attachment = 0,
             .execute = [&](CommandBuffer& commands) {
                 GpuZoneScopedN(commands, "Sun Shadow")
 
@@ -314,7 +314,7 @@ void SceneRenderer::render() {
                 {draw_count, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
                 {primitive_ids, {VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
             },
-            .color_attachments = std::vector{
+            .attachments = std::vector{
                 gbuffer_color_handle,
                 gbuffer_normals_handle,
                 gbuffer_data_handle,
@@ -322,7 +322,7 @@ void SceneRenderer::render() {
                 lit_scene_handle,
                 gbuffer_depth_handle,
             },
-            .color_clear_values = std::vector{
+            .clear_values = std::vector{
                 // Clear color targets to black
                 VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
                 VkClearValue{.color = {.float32 = {0.5f, 0.5f, 1.f, 0}}},
@@ -337,7 +337,7 @@ void SceneRenderer::render() {
         {
             .name = "Gbuffer",
             .color_attachments = {0, 1, 2, 3},
-            .use_depth_attachment = true,
+            .depth_attachment = 5,
             .execute = [&](CommandBuffer& commands) {
                 GpuZoneScopedN(commands, "GBuffer")
 
@@ -361,8 +361,7 @@ void SceneRenderer::render() {
     render_graph.add_subpass(
         {
             .name = "Lighting",
-            .input_attachments = {0, 1, 2, 3},
-            .use_depth_attachment = true,
+            .input_attachments = {0, 1, 2, 3, 5},
             .color_attachments = {4},
             .execute = [&](CommandBuffer& commands) {
                 lighting_pass.render(commands, player_view, lpv);
@@ -405,7 +404,7 @@ void SceneRenderer::render() {
                     }
                 }
             },
-            .color_attachments = {swapchain_image}, });
+            .attachments = {swapchain_image}, });
 
     render_graph.add_subpass({
                     .name = "UI",
@@ -584,7 +583,7 @@ void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
         break;
 
     case RenderVisualization::VoxelizedMeshes:
-        voxel_visualizer.render(render_graph, *scene, lit_scene_handle);
+        voxel_visualizer.render(render_graph, *scene, lit_scene_handle, player_view.get_buffer());
         break;
     }
 }

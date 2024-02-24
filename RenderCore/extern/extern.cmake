@@ -135,3 +135,9 @@ elseif(WIN32)
 endif()
 
 find_package(ktx)
+
+# Slang
+add_library(slang INTERFACE)
+target_include_directories(slang INTERFACE "${CMAKE_CURRENT_LIST_DIR}/slang/include")
+target_link_directories(slang INTERFACE "${CMAKE_CURRENT_LIST_DIR}/swlang/lib/windows-x64/release")
+target_link_libraries(slang INTERFACE slang)

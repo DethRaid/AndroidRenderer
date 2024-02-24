@@ -121,7 +121,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
 
         // Draw last frame's visible objects
 
-        graph.add_render_pass(
+        graph.begin_render_pass(
             {
                 .name = "Rasterize last frame's visible objects",
                 .buffers = {
@@ -133,24 +133,25 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
                     {primitive_id_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
                 },
                 .attachments = {depth_buffer},
-                .clear_values = {{.depthStencil = {.depth = 1.f}}},
-                .subpasses = {
-                    {
-                        .name = "Rasterize",
-                        .depth_attachment = 0,
-                        .execute = [&](CommandBuffer& commands) {
-                            GpuZoneScopedN(commands, "Rasterize last frame's visible objects");
+                .clear_values = {{.depthStencil = {.depth = 1.f}}}
+            }
+        );
+        graph.add_subpass(
+            {
+                .name = "Rasterize",
+                .depth_attachment = 0,
+                .execute = [&](CommandBuffer& commands) {
+                    GpuZoneScopedN(commands, "Rasterize last frame's visible objects");
 
-                            commands.bind_descriptor_set(0, view_descriptor);
+                    commands.bind_descriptor_set(0, view_descriptor);
 
-                            drawer.draw_indirect(
-                                commands, draw_commands_buffer, draw_count_buffer, primitive_id_buffer
-                            );
-                        }
-                    }
+                    drawer.draw_indirect(
+                        commands, draw_commands_buffer, draw_count_buffer, primitive_id_buffer
+                    );
                 }
             }
         );
+        graph.end_render_pass();
     }
 
     // Build Hi-Z pyramid
@@ -228,7 +229,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
 
         // Draw them
 
-        graph.add_render_pass(
+        graph.begin_render_pass(
             {
                 .name = "Rasterize this frame's visible objects",
                 .buffers = {
@@ -239,24 +240,25 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
                     {draw_count_buffer, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
                     {primitive_id_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
                 },
-                .attachments = {depth_buffer},
-                .subpasses = {
-                    {
-                        .name = "Rasterize",
-                        .depth_attachment = 0,
-                        .execute = [&](CommandBuffer& commands) {
-                            GpuZoneScopedN(commands, "Rasterize last frame's visible objects");
+                .attachments = {depth_buffer}
+            }
+        );
+        graph.add_subpass(
+            {
+                .name = "Rasterize",
+                .depth_attachment = 0,
+                .execute = [&](CommandBuffer& commands) {
+                    GpuZoneScopedN(commands, "Rasterize last frame's visible objects");
 
-                            commands.bind_descriptor_set(0, view_descriptor);
+                    commands.bind_descriptor_set(0, view_descriptor);
 
-                            drawer.draw_indirect(
-                                commands, draw_commands_buffer, draw_count_buffer, primitive_id_buffer
-                            );
-                        }
-                    }
+                    drawer.draw_indirect(
+                        commands, draw_commands_buffer, draw_count_buffer, primitive_id_buffer
+                    );
                 }
             }
         );
+        graph.end_render_pass();
     }
 
     graph.end_label();

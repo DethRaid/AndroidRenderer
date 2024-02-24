@@ -385,7 +385,20 @@ GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
     if (vertex_layout == nullptr) {
         throw std::runtime_error{"Vertex layout is required!"};
     }
-    vertex_inputs = vertex_layout->input_bindings;
+
+    // If we have one vertex input, all attributes pull from it
+    // If we have two vertex buffers, position is input 0 and data is input 1
+    // If we have more than two index buffers, we give up and cry in a corner
+    if (vertex_layout->input_bindings.size() == 1 && (need_position_buffer || need_data_buffer)) {
+        vertex_inputs.push_back(vertex_layout->input_bindings.at(0));
+    } else {
+        if (need_position_buffer) {
+            vertex_inputs.push_back(vertex_layout->input_bindings.at(0));
+        }
+        if (need_data_buffer) {
+            vertex_inputs.push_back(vertex_layout->input_bindings.at(1));
+        }
+    }
 
     return cache.create_pipeline(*this);
 }
@@ -602,7 +615,7 @@ void collect_vertex_attributes(
         if (auto itr = vertex_layout.attributes.find(input->name); itr != vertex_layout.attributes.end()) {
             auto& attribute = vertex_attributes.emplace_back(itr->second);
             attribute.location = input->location;
-        } 
+        }
 
         if (input->name == POSITION_VERTEX_ATTRIBUTE_NAME) {
             needs_position_buffer = true;

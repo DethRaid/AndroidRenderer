@@ -4,10 +4,11 @@
 #include <unordered_map>
 #include <functional>
 #include <vector>
-#include <optional>
-
+#include <tl/optional.hpp>
 #include <glm/vec4.hpp>
 
+#include "framebuffer.hpp"
+#include "render/backend/buffer_state.hpp"
 #include "render/backend/texture_state.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/buffer_usage_token.hpp"
@@ -18,7 +19,7 @@ class CommandBuffer;
 struct AttachmentBinding {
     TextureHandle texture;
     TextureState state;
-    std::optional<glm::vec4> clear_color;
+    tl::optional<glm::vec4> clear_color;
 };
 
 struct ComputePass {
@@ -65,31 +66,11 @@ struct Subpass {
     std::vector<uint32_t> color_attachments;
 
     /**
-     * Whether or not to use the depth attachment from the enclosing renderpass
+     * Index of the depth attachment. This index refers to the render targets in the parent render pass
      */
-    bool use_depth_attachment;
+    tl::optional<uint32_t> depth_attachment = tl::nullopt;
 
     std::function<void(CommandBuffer&)> execute;
-};
-
-struct RenderPass {
-    std::string name;
-
-    std::unordered_map<TextureHandle, TextureUsageToken> textures;
-
-    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
-    
-    std::vector<TextureHandle> color_attachments;
-
-    std::vector<VkClearValue> color_clear_values;
-
-    std::optional<TextureHandle> depth_attachment = std::nullopt;
-
-    std::optional<VkClearValue> depth_clear_value = std::nullopt;
-
-    std::optional<uint32_t> view_mask;
-
-    std::vector<Subpass> subpasses;
 };
 
 struct RenderPassBeginInfo {
@@ -99,15 +80,27 @@ struct RenderPassBeginInfo {
 
     std::unordered_map<BufferHandle, BufferUsageToken> buffers;
 
-    std::vector<TextureHandle> color_attachments;
+    std::vector<TextureHandle> attachments;
 
-    std::vector<VkClearValue> color_clear_values;
+    std::vector<VkClearValue> clear_values;
 
-    std::optional<TextureHandle> depth_attachment = std::nullopt;
+    tl::optional<uint32_t> view_mask;
+};
 
-    std::optional<VkClearValue> depth_clear_value = std::nullopt;
+struct RenderPass {
+    std::string name;
 
-    std::optional<uint32_t> view_mask;
+    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+
+    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+    
+    std::vector<TextureHandle> attachments;
+
+    std::vector<VkClearValue> clear_values;
+
+    tl::optional<uint32_t> view_mask;
+
+    std::vector<Subpass> subpasses;
 };
 
 struct PresentPass {

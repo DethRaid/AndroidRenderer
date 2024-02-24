@@ -166,7 +166,6 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                                    }
                                                )
                                                .build();
-
     inject_scene_depth_into_gv_pipeline = backend.begin_building_pipeline("Inject scene depth into GV")
                                                  .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
                                                  .set_vertex_shader("shaders/lpv/inject_scene_depth_into_gv.vert.spv")
@@ -408,23 +407,23 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         }
                     }
                 },
-                .color_attachments = {
+                .attachments = {
                     cascade.flux_target,
                     cascade.normals_target,
+                    cascade.depth_target
                 },
-                .color_clear_values = {
+                .clear_values = {
                     VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
                     VkClearValue{.color = {.float32 = {0.5, 0.5, 1.0, 0}}},
+                    VkClearValue{.depthStencil = {.depth = 1.f}},
                 },
-                .depth_attachment = cascade.depth_target,
-                .depth_clear_value = VkClearValue{.depthStencil = {.depth = 1.f}}
             }
         );
         graph.add_subpass(
             Subpass{
                 .name = "RSM",
                 .color_attachments = {0, 1},
-                .use_depth_attachment = true,
+                .depth_attachment = 2,
                 .execute = [&](CommandBuffer& commands) {
                     GpuZoneScopedN(commands, "Render RSM")
                     auto global_set = *backend.create_frame_descriptor_builder()
@@ -519,7 +518,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
                     {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
                 },
-                .color_attachments = {lpv_a_red, lpv_a_green, lpv_a_blue}
+                .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue}
             }
         );
         graph.add_subpass(
@@ -582,7 +581,7 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
                     {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
                 },
-                .color_attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
+                .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
             }
         );
         graph.add_subpass(
@@ -845,7 +844,7 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
                     }
                 }
             },
-            .color_attachments = {geometry_volume_handle},
+            .attachments = {geometry_volume_handle},
         }
     );
     graph.add_subpass(
@@ -1153,7 +1152,7 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
                     }
                 }
             },
-            .color_attachments = {geometry_volume_handle}
+            .attachments = {geometry_volume_handle}
         }
     );
     graph.add_subpass(

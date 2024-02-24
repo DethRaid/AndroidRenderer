@@ -380,8 +380,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
         break;
 
     case BufferUsage::IndirectBuffer:
-        vk_usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-            VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+        vk_usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
 
@@ -421,7 +420,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
 
     buffer.name = name;
     buffer.create_info = create_info;
-
+    
     const auto info = VkBufferDeviceAddressInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
         .buffer = buffer.buffer
@@ -429,7 +428,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
     const auto va = vkGetBufferDeviceAddress(device, &info);
     buffer.address.x = static_cast<uint32_t>(va & 0xFFFFFFFF);
     buffer.address.y = static_cast<uint32_t>((va >> 32) & 0xFFFFFFFF);
-
+    
     const auto handle = buffers.add_object(std::move(buffer));
     return static_cast<BufferHandle>(handle.index);
 }
@@ -487,14 +486,14 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
 
     logger->debug("Creating render pass {}", pass.name);
 
-    const auto total_num_attachments = pass.color_attachments.size() + (pass.depth_attachment ? 1 : 0);
+    const auto total_num_attachments = pass.attachments.size();
 
     auto attachments = std::vector<VkAttachmentDescription2>{};
     attachments.reserve(total_num_attachments);
 
     auto attachment_index = 0u;
 
-    for (const auto& render_target : pass.color_attachments) {
+    for (const auto& render_target : pass.attachments) {
         const auto& render_target_actual = get_texture(render_target);
 
         auto load_action = VK_ATTACHMENT_LOAD_OP_LOAD;
@@ -503,11 +502,14 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             load_action = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             store_action = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         }
-        if (pass.color_clear_values.size() > attachment_index) {
+        if (pass.clear_values.size() > attachment_index) {
             load_action = VK_ATTACHMENT_LOAD_OP_CLEAR;
         }
 
-        const auto layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        auto layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        if (is_depth_format(render_target_actual.create_info.format)) {
+            layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        }
 
         logger->debug("RenderPass attachment {} is {}", attachments.size(), render_target_actual.name);
         logger->debug(
@@ -528,46 +530,8 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
                 .finalLayout = layout,
             }
         );
-
+        
         attachment_index++;
-    }
-
-    auto depth_attachment_index = 0u;
-    if (pass.depth_attachment) {
-        const auto& depth_attachment_actual = get_texture(*pass.depth_attachment);
-
-        auto load_action = VK_ATTACHMENT_LOAD_OP_LOAD;
-        auto store_action = VK_ATTACHMENT_STORE_OP_STORE;
-        if (depth_attachment_actual.is_transient) {
-            load_action = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            store_action = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        }
-        if (pass.depth_clear_value) {
-            load_action = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        }
-
-        const auto layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-        logger->debug("RenderPass attachment {} is {}", attachments.size(), depth_attachment_actual.name);
-        logger->debug(
-            "\tloadOp={} initialLayout={}", magic_enum::enum_name(load_action), magic_enum::enum_name(layout)
-        );
-        logger->debug(
-            "\tstoreOp={} finalLayout={}", magic_enum::enum_name(store_action), magic_enum::enum_name(layout)
-        );
-
-        depth_attachment_index = attachments.size();
-        attachments.emplace_back(
-            VkAttachmentDescription2{
-                .sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
-                .format = depth_attachment_actual.create_info.format,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = load_action,
-                .storeOp = store_action,
-                .initialLayout = layout,
-                .finalLayout = layout,
-            }
-        );
     }
 
     auto attachment_references = std::vector<std::vector<VkAttachmentReference2>>{};
@@ -585,15 +549,21 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
         };
 
-        auto& input_attachment_references = attachment_references.emplace_back();
-        input_attachment_references.reserve(subpass.input_attachments.size() + (subpass.use_depth_attachment ? 1 : 0));
-
         if (!subpass.input_attachments.empty()) {
+            auto& input_attachment_references = attachment_references.emplace_back();
+            input_attachment_references.reserve(subpass.input_attachments.size());
             for (const auto& input_attachment_index : subpass.input_attachments) {
-                const auto input_attachment_handle = pass.color_attachments[input_attachment_index];
+                const auto input_attachment_handle = pass.attachments[input_attachment_index];
                 const auto& input_attachment_actual = get_texture(input_attachment_handle);
                 if (is_depth_format(input_attachment_actual.create_info.format)) {
-                    
+                    input_attachment_references.emplace_back(
+                        VkAttachmentReference2{
+                            .sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
+                            .attachment = input_attachment_index,
+                            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                            .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT
+                        }
+                    );
                 } else {
                     input_attachment_references.emplace_back(
                         VkAttachmentReference2{
@@ -605,21 +575,9 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
                     );
                 }
             }
+            description.inputAttachmentCount = static_cast<uint32_t>(input_attachment_references.size());
+            description.pInputAttachments = input_attachment_references.data();
         }
-
-        if(subpass.use_depth_attachment) {
-            input_attachment_references.emplace_back(
-                VkAttachmentReference2{
-                    .sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
-                    .attachment = depth_attachment_index,
-                    .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-                    .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT
-                }
-            );
-        }
-
-        description.inputAttachmentCount = static_cast<uint32_t>(input_attachment_references.size());
-        description.pInputAttachments = input_attachment_references.data();
 
         if (!subpass.color_attachments.empty()) {
             auto& color_attachment_references = attachment_references.emplace_back();
@@ -638,14 +596,14 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             description.pColorAttachments = color_attachment_references.data();
         }
 
-        if (subpass.use_depth_attachment) {
+        if (subpass.depth_attachment) {
             auto& depth_attachment_references = attachment_references.emplace_back();
             depth_attachment_references.reserve(1);
 
             depth_attachment_references.emplace_back(
                 VkAttachmentReference2{
                     .sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
-                    .attachment = depth_attachment_index,
+                    .attachment = *subpass.depth_attachment,
                     .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                     .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT
                 }
@@ -654,9 +612,11 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             description.pDepthStencilAttachment = depth_attachment_references.data();
         }
 
-        if(pass.view_mask) {
-            description.viewMask = *pass.view_mask;
-        }
+        pass.view_mask.map(
+            [&](const uint32_t view_mask) {
+                description.viewMask = view_mask;
+            }
+        );
 
         subpasses.emplace_back(description);
 
@@ -681,7 +641,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
                     ) != previous_subpass.color_attachments.end()) {
                         it = input_attachments_unproduced.erase(it);
                         is_color_producer = true;
-                    } else if (previous_subpass.use_depth_attachment) {
+                    } else if (previous_subpass.depth_attachment && *previous_subpass.depth_attachment == *it) {
                         it = input_attachments_unproduced.erase(it);
                         is_depth_producer = true;
                     } else {

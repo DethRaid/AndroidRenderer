@@ -273,6 +273,10 @@ void DebugUI::draw_debug_menu() {
         return;
     }
 
+    if(ImGui::CollapsingHeader("Visualizers")) {
+        //ImGui::RadioButton()
+    }
+
     auto cvars = CVarSystem::Get();
 
     ImGui::Text("cvars");

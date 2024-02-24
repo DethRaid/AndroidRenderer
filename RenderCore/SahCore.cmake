@@ -64,6 +64,7 @@ target_link_libraries(SahCore PUBLIC
         glm::glm-header-only
         imgui
         magic_enum::magic_enum
+        slang
         spdlog::spdlog
         spirv-reflect-static
         stb
