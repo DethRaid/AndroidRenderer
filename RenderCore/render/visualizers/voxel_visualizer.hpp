@@ -11,7 +11,7 @@ class VoxelVisualizer {
 public:
     explicit VoxelVisualizer(RenderBackend& backend_in);
 
-    void render(RenderGraph& render_graph, RenderScene& scene, TextureHandle output_image, BufferHandle view_uniform_buffer);
+    void render(RenderGraph& render_graph, const RenderScene& scene, TextureHandle output_image, BufferHandle view_uniform_buffer);
 
 private:
     RenderBackend& backend;

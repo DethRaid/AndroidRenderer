@@ -757,6 +757,12 @@ vkutil::DescriptorBuilder RenderBackend::create_frame_descriptor_builder() {
     return vkutil::DescriptorBuilder::begin(*this, frame_descriptor_allocators[cur_frame_idx]);
 }
 
+DescriptorSet RenderBackend::begin_building_descriptor_set(
+    const GraphicsPipelineHandle pipeline, const uint32_t descriptor_set_index
+) {
+    return DescriptorSet(*this, pipeline->get_descriptor_set_info(descriptor_set_index));
+}
+
 VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
     auto semaphore = VkSemaphore{};
 

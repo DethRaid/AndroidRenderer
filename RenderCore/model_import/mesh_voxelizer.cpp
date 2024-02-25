@@ -32,7 +32,7 @@ TextureHandle MeshVoxelizer::voxelize_primitive(
     auto& allocator = backend->get_global_allocator();
 
     const auto voxels = allocator.create_volume_texture(
-        "Mesh voxel buffer", VK_FORMAT_A2R10G10B10_UNORM_PACK32, voxel_texture_resolution, 1, TextureUsage::StorageImage
+        "Mesh voxel buffer", VK_FORMAT_R8G8B8A8_UNORM, voxel_texture_resolution, 1, TextureUsage::StorageImage
     );
 
     const auto frustums_buffer = allocator.create_buffer(
@@ -54,13 +54,19 @@ TextureHandle MeshVoxelizer::voxelize_primitive(
                     }
                 }
             },
-            .buffers = {}
+            .buffers = {
+                {
+                    primitive_buffer,
+                    {.stage = VK_SHADER_STAGE_FRAGMENT_BIT, .access = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT}
+                },
+                {frustums_buffer, {.stage = VK_SHADER_STAGE_VERTEX_BIT, .access = VK_ACCESS_2_UNIFORM_READ_BIT}}
+            }
         }
     );
 
     graph.add_subpass(
         {
-            .name = "Voxelization", .execute = [=, this](CommandBuffer& commands) {
+            .name = "Voxelization", .execute = [=, this, &mesh_storage](CommandBuffer& commands) {
                 const auto set = backend->create_frame_descriptor_builder()
                                         .bind_image(
                                             0, {.image = voxels, .image_layout = VK_IMAGE_LAYOUT_GENERAL},

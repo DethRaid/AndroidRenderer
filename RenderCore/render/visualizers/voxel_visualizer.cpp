@@ -25,23 +25,23 @@ VoxelVisualizer::VoxelVisualizer(RenderBackend& backend_in) : backend{backend_in
     };
     constexpr auto index_data = std::array<uint16_t, 36>{
         // Bottom
-        0, 1, 4,
-        4, 1, 5,
+        0, 4, 1,
+        4, 5, 1,
         // Top
-        2, 6, 3,
-        3, 6, 7,
+        2, 3, 6,
+        3, 7, 6,
         // Front
-        6, 4, 7,
-        7, 4, 5,
+        6, 7, 4,
+        7, 5, 4,
         // Right
-        7, 5, 3,
-        3, 5, 1,
+        7, 3, 5,
+        3, 1, 5,
         // Back
-        3, 1, 2,
-        2, 1, 0,
+        3, 2, 1,
+        2, 0, 1,
         // Left
-        4, 6, 0,
-        0, 6, 2
+        4, 0, 6,
+        0, 2, 6,
     };
 
     cube_vertex_buffer = allocator.create_buffer(
@@ -54,7 +54,7 @@ VoxelVisualizer::VoxelVisualizer(RenderBackend& backend_in) : backend{backend_in
 }
 
 void VoxelVisualizer::render(
-    RenderGraph& render_graph, RenderScene& scene, TextureHandle output_image, BufferHandle view_uniform_buffer
+    RenderGraph& render_graph, const RenderScene& scene, TextureHandle output_image, BufferHandle view_uniform_buffer
 ) {
     // Draw one cube for each primitive in the scene. Draw their front faces. The vertex shader scales the box to match
     // the primitive's bounding box and calculates the worldspace view vector. The fragment shader raymarches along the
@@ -67,36 +67,15 @@ void VoxelVisualizer::render(
     // testing. Draw their back faces, then send a ray towards the front face, then raymarch from the hit position (or
     // the near plane) away from the camera. Disable, but more complex
 
-    const auto descriptor = *backend.create_frame_descriptor_builder()
-                                    .bind_buffer(
-                                        0, {.buffer = view_uniform_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                        VK_SHADER_STAGE_ALL_GRAPHICS
-                                    )
-                                    .bind_buffer(
-                                        0, {.buffer = scene.get_primitive_buffer()}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                        VK_SHADER_STAGE_ALL_GRAPHICS
-                                    )
-                                    .build();
+    const auto descriptor_set = backend.begin_building_descriptor_set(visualization_pipeline, 1)
+                                       .bind(0, view_uniform_buffer)
+                                       .bind(1, scene.get_primitive_buffer())
+                                       .finalize();
 
     render_graph.begin_render_pass(
         {
             .name = "Voxel Visualization",
-            .textures = {},
             .buffers = {
-                {
-                    view_uniform_buffer,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                        .access = VK_ACCESS_2_UNIFORM_READ_BIT
-                    }
-                },
-                {
-                    scene.get_primitive_buffer(),
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                        .access = VK_ACCESS_2_SHADER_STORAGE_READ_BIT
-                    }
-                },
                 {
                     cube_index_buffer,
                     {
@@ -112,6 +91,7 @@ void VoxelVisualizer::render(
                     }
                 },
             },
+            .descriptor_sets = {descriptor_set},
             .attachments = {output_image}
         }
     );
@@ -119,10 +99,10 @@ void VoxelVisualizer::render(
         {
             .name = "Subpass",
             .color_attachments = {0},
-            .execute = [=, this](CommandBuffer& commands) {
+            .execute = [=, this, &scene](CommandBuffer& commands) {
                 commands.bind_pipeline(visualization_pipeline);
 
-                commands.bind_descriptor_set(1, descriptor);
+                commands.bind_descriptor_set(1, descriptor_set.get_vk_descriptor_set());
 
                 commands.bind_index_buffer<uint16_t>(cube_index_buffer);
                 commands.bind_vertex_buffer(0, cube_vertex_buffer);

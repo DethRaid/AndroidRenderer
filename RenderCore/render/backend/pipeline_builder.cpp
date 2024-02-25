@@ -460,12 +460,15 @@ bool collect_descriptor_sets(
                     // This binding is new! Create it and add it
                     known_bindings.emplace(
                         binding->binding,
-                        VkDescriptorSetLayoutBinding{
-                            .binding = binding->binding,
-                            .descriptorType = vk_type,
-                            .descriptorCount = binding->count > 0 ? binding->count : VARIABLE_SIZE_ARRAY_MAX_SIZE,
-                            .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
-                            .pImmutableSamplers = nullptr
+                        DescriptorInfo{
+                            {
+                                .binding = binding->binding,
+                                .descriptorType = vk_type,
+                                .descriptorCount = binding->count > 0 ? binding->count : VARIABLE_SIZE_ARRAY_MAX_SIZE,
+                                .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
+                                .pImmutableSamplers = nullptr
+                            },
+                            (binding->decoration_flags & SPV_REFLECT_DECORATION_NON_WRITABLE) != 0
                         }
                     );
 
@@ -488,12 +491,15 @@ bool collect_descriptor_sets(
                 );
                 set_info.bindings.emplace(
                     binding->binding,
-                    VkDescriptorSetLayoutBinding{
-                        .binding = binding->binding,
-                        .descriptorType = to_vk_type(binding->descriptor_type),
-                        .descriptorCount = binding->count > 0 ? binding->count : VARIABLE_SIZE_ARRAY_MAX_SIZE,
-                        .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
-                        .pImmutableSamplers = nullptr
+                    DescriptorInfo{
+                        {
+                            .binding = binding->binding,
+                            .descriptorType = to_vk_type(binding->descriptor_type),
+                            .descriptorCount = binding->count > 0 ? binding->count : VARIABLE_SIZE_ARRAY_MAX_SIZE,
+                            .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
+                            .pImmutableSamplers = nullptr
+                        },
+                        (binding->decoration_flags & SPV_REFLECT_DECORATION_NON_WRITABLE) != 0
                     }
                 );
 

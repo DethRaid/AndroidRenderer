@@ -13,6 +13,7 @@
 #include "render/backend/handles.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/texture_usage_token.hpp"
+#include "render/backend/descriptor_set_builder.hpp"
 
 class CommandBuffer;
 
@@ -80,6 +81,13 @@ struct RenderPassBeginInfo {
 
     std::unordered_map<BufferHandle, BufferUsageToken> buffers;
 
+    /**
+     * \brief Descriptor sets that contain sync info we use
+     *
+     * I need a better name for this
+     */
+    std::vector<DescriptorSet> descriptor_sets;
+
     std::vector<TextureHandle> attachments;
 
     std::vector<VkClearValue> clear_values;
@@ -93,6 +101,8 @@ struct RenderPass {
     std::unordered_map<TextureHandle, TextureUsageToken> textures;
 
     std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+
+    std::vector<DescriptorSet> descriptor_sets;
     
     std::vector<TextureHandle> attachments;
 

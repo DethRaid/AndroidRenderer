@@ -28,12 +28,18 @@ struct PrimitiveDataGPU {
     mat4 model;
     mat4 inverse_model;
 
-    vec4 bounding_sphere;
+    // Bounds (xyz) and radius (w) of the mesh
+    vec4 bounds_and_radius;
 
     MATERIAL_BUFFER_REFERENCE material_id;
 
     uint mesh_id;
     uint type;  // See the PRIMITIVE_TYPE_ defines above
+
+    uint voxel_texture_idx;
+    uint PADDING0;
+    uint PADDING1;
+    uint PADDING2;
 };
 
 #endif

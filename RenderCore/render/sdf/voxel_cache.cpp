@@ -6,7 +6,7 @@
 #include "render/backend/render_backend.hpp"
 #include "render/backend/render_graph.hpp"
 
-AutoCVar_Int cvar_enable_voxelizer{ "r.voxel.Enable", "Whether or not to voxelize meshes and use those voxels for various purposes", 0};
+AutoCVar_Int cvar_enable_voxelizer{ "r.voxel.Enable", "Whether or not to voxelize meshes and use those voxels for various purposes", 1};
 
 AutoCVar_Float cvar_voxel_size{"r.voxel.VoxelSize", "Resolution, in world units, of one side of a mesh voxel", 0.25};
 
@@ -34,6 +34,8 @@ VoxelObject VoxelCache::build_voxels_for_mesh(const MeshPrimitiveHandle primitiv
     auto graph = RenderGraph{ backend };
     const auto voxel_texture = voxelizer.voxelize_primitive(graph, primitive, meshes, primitive_data_buffer, cvar_voxel_size.GetFloat());
     graph.finish();
+
+    backend.execute_graph(std::move(graph));
 
     auto obj = VoxelObject{
         .worldspace_size = glm::vec3{num_voxels},

@@ -103,22 +103,21 @@ void GltfModel::add_primitives(SceneRenderer& renderer, RenderScene& scene) {
                         *gltf_primitive.materialIndex
                     );
 
-                    const auto bounds_radius = glm::max(glm::max(imported_mesh->bounds.x, imported_mesh->bounds.y), imported_mesh->bounds.z);
+                    const auto radius_ = glm::max(
+                        glm::max(imported_mesh->bounds.x, imported_mesh->bounds.y), imported_mesh->bounds.z
+                    );
 
-                    const auto handle = scene.add_primitive(
+                    auto handle = scene.add_primitive(
                         graph, {
                             .data = PrimitiveDataGPU{
-                                .model = node_to_world, .inverse_model = glm::inverse(node_to_world), .bounding_sphere = {0.f, 0.f, 0.f, bounds_radius},
+                                .model = node_to_world, .inverse_model = glm::inverse(node_to_world),
+                                .bounds_and_radius = {
+                                    imported_mesh->bounds.x, imported_mesh->bounds.y, imported_mesh->bounds.z, radius_
+                                },
                             },
                             .mesh = imported_mesh,
                             .material = imported_material,
                         }
-                    );
-
-                    auto& mesh_storage = renderer.get_mesh_storage();
-                    auto voxel_cache_maybe = renderer.get_voxel_cache();
-                    voxel_cache_maybe.map(
-                        [&](VoxelCache& voxel_cache) { voxel_cache.build_voxels_for_mesh(handle, mesh_storage, scene.get_primitive_buffer()); }
                     );
 
                     node_primitives.emplace_back(handle);
@@ -276,7 +275,6 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
             material.emission_sampler = to_vk_sampler(sampler, backend);
 
             material.emissive = true;
-
         } else {
             material.emission_texture = backend.get_white_texture_handle();
             material.emission_sampler = backend.get_default_sampler();
@@ -436,7 +434,9 @@ void GltfModel::import_single_texture(
 
     std::visit(
         Visitor{
-            [&](const auto&) { /* I'm just here so I don't get a compiler error */ },
+            [&](const auto&) {
+                /* I'm just here so I don't get a compiler error */
+            },
             [&](const fastgltf::sources::BufferView& buffer_view) {
                 const auto& real_buffer_view = model->bufferViews[buffer_view.bufferViewIndex];
                 const auto& buffer = model->buffers[real_buffer_view.bufferIndex];
@@ -599,13 +599,15 @@ read_vertex_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& mo
     const auto num_vertices = positions_accessor.count;
 
     auto vertices = std::vector<StandardVertex>();
-    vertices.resize(num_vertices, StandardVertex{
-        .position = glm::vec3{},
-        .normal = glm::vec3{ 0, 0, 1 },
-        .tangent = glm::vec3{ 1, 0, 0 },
-        .texcoord = {},
-        .color = glm::packUnorm4x8(glm::vec4{ 1, 1, 1, 1 }),
-    });
+    vertices.resize(
+        num_vertices, StandardVertex{
+            .position = glm::vec3{},
+            .normal = glm::vec3{0, 0, 1},
+            .tangent = glm::vec3{1, 0, 0},
+            .texcoord = {},
+            .color = glm::packUnorm4x8(glm::vec4{1, 1, 1, 1}),
+        }
+    );
 
     copy_vertex_data_to_vector(primitive.attributes, model, vertices.data());
 

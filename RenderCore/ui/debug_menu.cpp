@@ -1,11 +1,14 @@
 #include "debug_menu.hpp"
 
 #include <imgui.h>
+#include <magic_enum.hpp>
 
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
+#include "render/scene_renderer.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
+#include "render/visualizers/visualizer_type.hpp"
 
 static bool g_MouseJustPressed[5] = {false, false, false, false, false};
 
@@ -89,7 +92,8 @@ void char_callback(GLFWwindow* window, const unsigned int c) {
 }
 #endif
 
-DebugUI::DebugUI(RenderBackend& backend_in) : allocator{backend_in.get_global_allocator()} {
+DebugUI::DebugUI(SceneRenderer& renderer_in) : renderer{renderer_in},
+                                               allocator{renderer_in.get_backend().get_global_allocator()} {
     ImGui::CreateContext();
 
 #if defined(_WIN32)
@@ -148,7 +152,7 @@ DebugUI::DebugUI(RenderBackend& backend_in) : allocator{backend_in.get_global_al
     prev_char_callback = glfwSetCharCallback(window, char_callback);
 #endif
 
-    create_font_texture(backend_in);
+    create_font_texture();
 }
 
 void DebugUI::draw() {
@@ -192,7 +196,9 @@ void DebugUI::draw() {
     ImGui::Render();
 }
 
-void DebugUI::create_font_texture(RenderBackend& backend) {
+
+
+void DebugUI::create_font_texture() {
     const auto& io = ImGui::GetIO();
     unsigned char* pixels;
     int width, height;
@@ -202,8 +208,14 @@ void DebugUI::create_font_texture(RenderBackend& backend) {
         "Dear ImGUI Font Atlas", VK_FORMAT_R8_UNORM, {width, height}, 1, TextureUsage::StaticImage
     );
 
+    auto& backend = renderer.get_backend();
     auto& upload_queue = backend.get_upload_queue();
-    upload_queue.enqueue(TextureUploadJob{.destination = font_atlas_handle, .mip = 0, .data = std::vector(pixels, pixels + static_cast<ptrdiff_t>(width * height))});
+    upload_queue.enqueue(
+        TextureUploadJob{
+            .destination = font_atlas_handle, .mip = 0,
+            .data = std::vector(pixels, pixels + static_cast<ptrdiff_t>(width * height))
+        }
+    );
 
     font_atlas_descriptor_set = *backend.create_persistent_descriptor_builder()
                                         .bind_image(
@@ -268,20 +280,24 @@ void DebugUI::update_mouse_cursor() const {
 #endif
 
 void DebugUI::draw_debug_menu() {
-    if (!ImGui::Begin("Debug", &is_debug_menu_open)) {
+    if (ImGui::Begin("Debug", &is_debug_menu_open)) {
+        if (ImGui::CollapsingHeader("Visualizers")) {
+            for (auto visualizer : magic_enum::enum_values<RenderVisualization>()) {
+                const auto name = magic_enum::enum_name(visualizer);
+                const auto name_str = std::string{ name }; // This is so sad
+                if (ImGui::Selectable(name_str.c_str(), selected_visualizer == visualizer)) {
+                    selected_visualizer = visualizer;
+                }
+            }
+
+            renderer.set_active_visualizer(selected_visualizer);
+        }
+
+        if (ImGui::CollapsingHeader("cvars")) {
+            auto cvars = CVarSystem::Get();
+            cvars->DrawImguiEditor();
+        }
+
         ImGui::End();
-        return;
     }
-
-    if(ImGui::CollapsingHeader("Visualizers")) {
-        //ImGui::RadioButton()
-    }
-
-    auto cvars = CVarSystem::Get();
-
-    ImGui::Text("cvars");
-
-    cvars->DrawImguiEditor();
-
-    ImGui::End();
 }

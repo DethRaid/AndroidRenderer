@@ -714,7 +714,7 @@ GvBuildMode LightPropagationVolume::get_build_mode() const {
 }
 
 void LightPropagationVolume::build_geometry_volume_from_voxels(
-    RenderGraph& render_graph, const RenderScene& scene, const VoxelCache& voxel_cache
+    RenderGraph& render_graph, const RenderScene& scene
 ) {
     /*
      * For each cascade:
@@ -723,6 +723,7 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
      */
 
     auto& allocator = backend.get_global_allocator();
+    auto& voxel_cache = scene.get_voxel_cache();
 
     const auto num_cascades = cvar_lpv_num_cascades.Get();
     for (auto cascade_idx = 0u; cascade_idx < num_cascades; cascade_idx++) {

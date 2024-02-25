@@ -85,6 +85,7 @@ void RenderGraph::begin_render_pass(const RenderPassBeginInfo& begin_info) {
         .name = begin_info.name,
         .textures = begin_info.textures,
         .buffers = begin_info.buffers,
+        .descriptor_sets = begin_info.descriptor_sets,
         .attachments = begin_info.attachments,
         .clear_values = begin_info.clear_values,
         .view_mask = begin_info.view_mask
@@ -104,6 +105,10 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     auto& allocator = backend.get_global_allocator();
 
     const auto render_pass = allocator.get_render_pass(pass);
+
+    for(const auto& set : pass.descriptor_sets) {
+        set.get_resource_usage_information(pass.textures, pass.buffers);
+    }
 
     // Update state tracking, accumulating barrier for buffers and non-attachment images
     for (const auto& buffer_token : pass.buffers) {
@@ -144,7 +149,7 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     }
 
     // Create framebuffer
-    auto framebuffer = Framebuffer::create(backend, render_targets, depth_target, render_pass);
+    Framebuffer framebuffer = Framebuffer::create(backend, render_targets, depth_target, render_pass);
 
     // Begin label, issue and clear barriers, begin render pass proper
 

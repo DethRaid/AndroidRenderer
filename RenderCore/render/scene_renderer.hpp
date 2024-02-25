@@ -14,6 +14,7 @@
 #include "render/phase/lighting_phase.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
 #include "sdf/voxel_cache.hpp"
+#include "ui/debug_menu.hpp"
 #include "visualizers/visualizer_type.hpp"
 #include "visualizers/voxel_visualizer.hpp"
 
@@ -50,8 +51,6 @@ public:
 
     MeshStorage& get_mesh_storage();
 
-    tl::optional<VoxelCache&> get_voxel_cache() const;
-
     /**
      * Translates the player's location
      */
@@ -60,6 +59,8 @@ public:
     void rotate_player(float delta_pitch, float delta_yaw);
 
     void set_imgui_commands(ImDrawData* im_draw_data);
+
+    void set_active_visualizer(RenderVisualization visualizer);
 
 private:
     RenderBackend backend;
@@ -75,11 +76,6 @@ private:
     MipChainGenerator mip_chain_generator;
 
     Bloomer bloomer;
-
-    /**
-     * Cache of voxel representations of static meshes
-     */
-    std::unique_ptr<VoxelCache> voxel_cache = nullptr;
 
     RenderScene* scene = nullptr;
 

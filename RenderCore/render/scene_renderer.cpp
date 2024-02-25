@@ -60,10 +60,6 @@ SceneRenderer::SceneRenderer() :
 
     set_render_resolution(render_resolution);
 
-    if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
-        voxel_cache = std::make_unique<VoxelCache>(backend);
-    }
-
     if (cvar_use_lpv.Get()) {
         lpv = std::make_unique<LightPropagationVolume>(backend);
     }
@@ -220,8 +216,8 @@ void SceneRenderer::render() {
 
         const auto build_mode = lpv->get_build_mode();
 
-        if (voxel_cache && build_mode == GvBuildMode::Voxels) {
-            lpv->build_geometry_volume_from_voxels(render_graph, *scene, *voxel_cache);
+        if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && build_mode == GvBuildMode::Voxels) {
+            lpv->build_geometry_volume_from_voxels(render_graph, *scene);
         } else if (build_mode == GvBuildMode::DepthBuffers) {
             lpv->build_geometry_volume_from_scene_view(
                 render_graph, depth_buffer_mip_chain, normal_target_mip_chain, player_view.get_buffer(),
@@ -389,7 +385,9 @@ void SceneRenderer::render() {
 
     const auto swapchain_index = backend.get_current_swapchain_index();
     const auto& swapchain_image = swapchain_images.at(swapchain_index);
-    render_graph.begin_render_pass({ .name = "UI",
+    render_graph.begin_render_pass(
+        {
+            .name = "UI",
             .textures = {
                 {
                     lit_scene_handle, {
@@ -404,15 +402,19 @@ void SceneRenderer::render() {
                     }
                 }
             },
-            .attachments = {swapchain_image}, });
+            .attachments = {swapchain_image},
+        }
+    );
 
-    render_graph.add_subpass({
-                    .name = "UI",
-                    .color_attachments = {0},
-                    .execute = [&](CommandBuffer& commands) {
-                        ui_phase.render(commands, player_view, bloomer.get_bloom_tex());
-                    }
-        });
+    render_graph.add_subpass(
+        {
+            .name = "UI",
+            .color_attachments = {0},
+            .execute = [&](CommandBuffer& commands) {
+                ui_phase.render(commands, player_view, bloomer.get_bloom_tex());
+            }
+        }
+    );
 
     render_graph.end_render_pass();
 
@@ -583,21 +585,15 @@ void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
         break;
 
     case RenderVisualization::VoxelizedMeshes:
-        voxel_visualizer.render(render_graph, *scene, lit_scene_handle, player_view.get_buffer());
+        if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
+            voxel_visualizer.render(render_graph, *scene, lit_scene_handle, player_view.get_buffer());
+        }
         break;
     }
 }
 
 MeshStorage& SceneRenderer::get_mesh_storage() {
     return meshes;
-}
-
-tl::optional<VoxelCache&> SceneRenderer::get_voxel_cache() const {
-    if (voxel_cache) {
-        return *voxel_cache;
-    } else {
-        return tl::nullopt;
-    }
 }
 
 void SceneRenderer::translate_player(const glm::vec3& movement) {
@@ -610,4 +606,8 @@ void SceneRenderer::rotate_player(const float delta_pitch, const float delta_yaw
 
 void SceneRenderer::set_imgui_commands(ImDrawData* im_draw_data) {
     ui_phase.set_imgui_draw_data(im_draw_data);
+}
+
+void SceneRenderer::set_active_visualizer(const RenderVisualization visualizer) {
+    active_visualization = visualizer;
 }

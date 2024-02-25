@@ -88,7 +88,7 @@ public:
     GvBuildMode get_build_mode() const;
 
     void build_geometry_volume_from_voxels(
-        RenderGraph& render_graph, const RenderScene& scene, const VoxelCache& voxel_cache
+        RenderGraph& render_graph, const RenderScene& scene
     );
 
     /**

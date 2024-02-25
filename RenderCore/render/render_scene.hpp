@@ -6,6 +6,7 @@
 #include "render/scene_primitive.hpp"
 #include "render/backend/scatter_upload_buffer.hpp"
 #include "render/sun_light.hpp"
+#include "sdf/voxel_cache.hpp"
 
 class MaterialStorage;
 class MeshStorage;
@@ -15,7 +16,7 @@ class RenderBackend;
 /**
  * A scene that can be rendered!
  *
- * Contains lots of wonderful things
+ * Contains lots of wonderful things - meshes, materials, ray tracing acceleration structure, emissive point clouds, voxelized meshes, and more!
  */
 class RenderScene {
 public:
@@ -47,6 +48,8 @@ public:
 
     RaytracingScene& get_raytracing_scene();
 
+    VoxelCache& get_voxel_cache() const;
+
 private:
     RenderBackend& backend;
 
@@ -55,6 +58,11 @@ private:
     MaterialStorage& materials;
 
     tl::optional<RaytracingScene> raytracing_scene;
+
+    /**
+     * Cache of voxel representations of static meshes
+     */
+    std::unique_ptr<VoxelCache> voxel_cache = nullptr;
 
     SunLight sun;
 

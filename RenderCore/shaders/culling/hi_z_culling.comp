@@ -137,9 +137,9 @@ void main() {
 
     PrimitiveDataGPU instance_to_cull = primitive_data_buffer.primitive_datas[primitive_id];
 
-    vec3 center = instance_to_cull.bounding_sphere.xyz;
+    vec3 center = vec3(0, 0, 0);
     center = (view_data_buffer.view_data.view * instance_to_cull.model * vec4(center, 1.f)).xyz;
-    float radius = instance_to_cull.bounding_sphere.w + 2.f;
+    float radius = instance_to_cull.bounds_and_radius.w + 2.f;
 
     bool visible = is_in_frustum(center, radius);
     if(!visible) {

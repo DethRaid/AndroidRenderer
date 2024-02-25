@@ -159,6 +159,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
     pipeline.vertex_attributes = pipeline_builder.vertex_attributes;
 
     pipeline.create_pipeline_layout(backend, pipeline_builder.descriptor_sets, pipeline_builder.push_constants);
+    pipeline.descriptor_sets = pipeline_builder.descriptor_sets;
 
     // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
     pipeline.num_push_constants = 0;

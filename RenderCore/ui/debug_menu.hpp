@@ -4,18 +4,21 @@
 #include <GLFW/glfw3.h>
 
 #include "render/backend/handles.hpp"
+#include "render/visualizers/visualizer_type.hpp"
 
-class RenderBackend;
+class SceneRenderer;
 class ResourceAllocator;
 
 class DebugUI {
 public:
-    explicit DebugUI(RenderBackend& backend_in);
+    explicit DebugUI(SceneRenderer& renderer_in);
 
     void draw();
 
 private:
     GLFWwindow* window = nullptr;
+
+    SceneRenderer& renderer;
 
     ResourceAllocator& allocator;
 
@@ -29,7 +32,9 @@ private:
 
     VkDescriptorSet font_atlas_descriptor_set;
 
-    void create_font_texture(RenderBackend& backend);
+    RenderVisualization selected_visualizer;
+
+    void create_font_texture();
 
 #if defined(_WIN32)
     void update_mouse_pos_and_buttons() const;

@@ -18,7 +18,6 @@ void GraphicsPipeline::create_pipeline_layout(
     const std::vector<VkPushConstantRange>& push_constants
 ) {
     // Create descriptor sets
-    auto descriptor_set_layouts = std::vector<VkDescriptorSetLayout>{};
     descriptor_set_layouts.reserve(descriptor_set_infos.size());
 
     for (const auto& [set_index, set_info] : descriptor_set_infos) {
@@ -80,6 +79,10 @@ VkPipelineLayout GraphicsPipeline::get_layout() const {
 
 uint32_t GraphicsPipeline::get_num_push_constants() const { return num_push_constants; }
 VkShaderStageFlags GraphicsPipeline::get_push_constant_shader_stages() const { return push_constant_stages; }
+
+const DescriptorSetInfo& GraphicsPipeline::get_descriptor_set_info(const uint32_t set_index) const {
+    return descriptor_sets.at(set_index);
+}
 
 VkDescriptorType to_vk_type(SpvReflectDescriptorType type) {
     switch (type) {

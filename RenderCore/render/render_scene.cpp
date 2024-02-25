@@ -32,6 +32,10 @@ RenderScene::RenderScene(RenderBackend& backend_in, MeshStorage& meshes_in, Mate
         const auto bytes = *SystemInterface::get().load_file("shaders/util/emissive_point_cloud.comp.spv");
         emissive_point_cloud_shader = *backend.create_compute_shader("Generate emissive point cloud", bytes);
     }
+
+    if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
+        voxel_cache = std::make_unique<VoxelCache>(backend);
+    }
 }
 
 PooledObject<MeshPrimitive>
@@ -47,10 +51,6 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
 
     auto handle = mesh_primitives.add_object(std::move(primitive));
 
-    if (primitive_upload_buffer.is_full()) {
-        primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
-    }
-    primitive_upload_buffer.add_data(handle.index, handle->data);
 
     total_num_primitives++;
 
@@ -72,7 +72,20 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
         new_emissive_objects.push_back(handle);
     }
 
+    if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
+        const auto obj = voxel_cache->build_voxels_for_mesh(
+            handle, meshes, primitive_data_buffer
+        );
+
+        handle->data.voxel_texture_idx = static_cast<uint32_t>(obj.voxels);
+    }
+
     raytracing_scene.map([&](RaytracingScene& rt_scene) { rt_scene.add_primitive(handle); });
+
+    if (primitive_upload_buffer.is_full()) {
+        primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
+    }
+    primitive_upload_buffer.add_data(handle.index, handle->data);
 
     return handle;
 }
@@ -139,6 +152,8 @@ const MeshStorage& RenderScene::get_meshes() const {
 }
 
 RaytracingScene& RenderScene::get_raytracing_scene() { return *raytracing_scene; }
+
+VoxelCache& RenderScene::get_voxel_cache() const { return *voxel_cache; }
 
 BufferHandle RenderScene::generate_vpls_for_primitive(
     RenderGraph& graph, const PooledObject<MeshPrimitive>& primitive

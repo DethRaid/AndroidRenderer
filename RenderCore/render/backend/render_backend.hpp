@@ -6,6 +6,7 @@
 #include <VkBootstrap.h>
 #include <tracy/TracyVulkan.hpp>
 
+#include "descriptor_set_builder.hpp"
 #include "render/backend/render_graph.hpp"
 #include "render/backend/resource_access_synchronizer.hpp"
 #include "render/backend/texture_descriptor_pool.hpp"
@@ -116,6 +117,8 @@ public:
      * Callers should make no effort to save these descriptors
      */
     vkutil::DescriptorBuilder create_frame_descriptor_builder();
+
+    DescriptorSet begin_building_descriptor_set(GraphicsPipelineHandle pipeline, uint32_t descriptor_set_index);
 
     CommandBuffer create_graphics_command_buffer(const std::string& name);
 
