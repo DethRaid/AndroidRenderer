@@ -6,6 +6,7 @@
 #include <VkBootstrap.h>
 #include <tracy/TracyVulkan.hpp>
 
+#include "descriptor_set_allocator.hpp"
 #include "descriptor_set_builder.hpp"
 #include "render/backend/render_graph.hpp"
 #include "render/backend/resource_access_synchronizer.hpp"
@@ -59,7 +60,7 @@ public:
 
     bool supports_bc() const;
 
-    vkb::Device get_device() const;
+    const vkb::Device& get_device() const;
 
     bool has_separate_transfer_queue() const;
 
@@ -72,9 +73,6 @@ public:
     void add_transfer_barrier(const VkImageMemoryBarrier2& barrier);
 
     GraphicsPipelineBuilder begin_building_pipeline(std::string_view name) const;
-
-    tl::optional<ComputeShader>
-    create_compute_shader(const std::string& name, const std::vector<uint8_t>& instructions) const;
 
     uint32_t get_current_gpu_frame() const;
 
@@ -109,16 +107,14 @@ public:
      *
      * Callers should save and re-used these descriptors
      */
-    vkutil::DescriptorBuilder create_persistent_descriptor_builder();
+    DescriptorSetAllocator& get_persistent_descriptor_allocator();
 
     /**
      * Creates a descriptor builder for descriptors that can be blown away after this frame
      *
      * Callers should make no effort to save these descriptors
      */
-    vkutil::DescriptorBuilder create_frame_descriptor_builder();
-
-    DescriptorSet begin_building_descriptor_set(GraphicsPipelineHandle pipeline, uint32_t descriptor_set_index);
+    DescriptorSetAllocator& get_transient_descriptor_allocator();
 
     CommandBuffer create_graphics_command_buffer(const std::string& name);
 
@@ -202,9 +198,9 @@ private:
     VkCommandBuffer tracy_command_buffer = VK_NULL_HANDLE;
     TracyVkCtx tracy_context = nullptr;
 
-    vkutil::DescriptorAllocator global_descriptor_allocator;
+    DescriptorSetAllocator global_descriptor_allocator;
 
-    std::array<vkutil::DescriptorAllocator, num_in_flight_frames> frame_descriptor_allocators;
+    std::array<DescriptorSetAllocator, num_in_flight_frames> frame_descriptor_allocators;
 
     vkutil::DescriptorLayoutCache descriptor_layout_cache;
 

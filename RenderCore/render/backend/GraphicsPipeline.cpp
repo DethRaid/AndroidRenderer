@@ -1,5 +1,6 @@
 #include "graphics_pipeline.hpp"
 
+#include <magic_enum.hpp>
 #include <spirv_reflect.h>
 #include <spdlog/logger.h>
 #include <tracy/Tracy.hpp>
@@ -7,7 +8,6 @@
 #include <spdlog/sinks/android_sink.h>
 
 #include "render/backend/render_backend.hpp"
-#include "magic_enum.hpp"
 #include "core/system_interface.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;

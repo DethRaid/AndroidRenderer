@@ -81,7 +81,7 @@ private:
 
     std::vector<MeshPrimitiveHandle> new_emissive_objects;
 
-    ComputeShader emissive_point_cloud_shader;
+    ComputePipelineHandle emissive_point_cloud_shader;
 
     BufferHandle generate_vpls_for_primitive(RenderGraph& graph, const MeshPrimitiveHandle& primitive);
 };

@@ -41,7 +41,8 @@ target_compile_definitions(SahCore PUBLIC
         VK_NO_PROTOTYPES
         GLM_FORCE_DEPTH_ZERO_TO_ONE
         GLM_ENABLE_EXPERIMENTAL
-        # TRACY_ENABLE
+        _SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING
+        TRACY_ENABLE
         )
 
 if(WIN32)
@@ -105,3 +106,9 @@ foreach(shader IN LISTS SHADERS)
     string(REPLACE "/" "\\" source_path_msvc "${source_path_relative}")
     source_group("${source_path_msvc}" FILES "${shader}")
 endforeach()
+
+get_target_property(SAH_INCLUDES SahCore INCLUDE_DIRECTORIES)
+foreach(dir ${SAH_INCLUDES})
+  message(STATUS "include='${dir}'")
+endforeach()
+

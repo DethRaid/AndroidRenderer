@@ -73,11 +73,11 @@ private:
      */
     BufferHandle visible_objects = BufferHandle::None;
 
-    ComputeShader visibility_list_to_draw_commands;
+    ComputePipelineHandle visibility_list_to_draw_commands;
 
     MipChainGenerator downsampler;
 
     TextureDescriptorPool& texture_descriptor_pool;
 
-    ComputeShader hi_z_culling_shader;
+    ComputePipelineHandle hi_z_culling_shader;
 };

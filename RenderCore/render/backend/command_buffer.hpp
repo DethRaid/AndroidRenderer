@@ -9,6 +9,7 @@
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyVulkan.hpp>
 
+#include "compute_shader.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/graphics_pipeline.hpp"
@@ -155,7 +156,7 @@ public:
      */
     void draw_triangle();
 
-    void bind_shader(const ComputeShader& shader);
+    void bind_pipeline(const ComputePipelineHandle& pipeline);
 
     void bind_pipeline(const GraphicsPipelineHandle& pipeline);
 

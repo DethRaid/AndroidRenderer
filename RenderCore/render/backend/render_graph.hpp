@@ -37,7 +37,10 @@ public:
      */
     void add_copy_pass(ImageCopyPass&& pass);
 
-    void add_compute_pass(ComputePass&& pass);
+    [[deprecated("Use add_compute_dispatch")]]
+    void add_pass(ComputePass&& pass);
+
+    void add_compute_dispatch(const ComputeDispatch& dispatch_info);
     
     void begin_render_pass(const RenderPassBeginInfo& begin_info);
 
@@ -45,7 +48,7 @@ public:
 
     void end_render_pass();
 
-    void add_present_pass(PresentPass&& pass);
+    void add_finish_frame_and_present_pass(const PresentPass& pass);
 
     void begin_label(const std::string& label);
 

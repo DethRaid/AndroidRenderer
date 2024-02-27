@@ -194,6 +194,7 @@ namespace vkutil {
 
     vkutil::DescriptorBuilder
     DescriptorBuilder::begin(RenderBackend& backend, vkutil::DescriptorAllocator& allocator) {
+        ZoneScoped;
         return DescriptorBuilder{backend, allocator};
     }
 
@@ -246,6 +247,7 @@ namespace vkutil {
     DescriptorBuilder& DescriptorBuilder::bind_image(
         const uint32_t binding, const ImageInfo& info, const VkDescriptorType type, const VkShaderStageFlags stage_flags
     ) {
+        ZoneScoped;
         auto& allocator = backend.get_global_allocator();
         const auto& image_actual = allocator.get_texture(info.image);
         auto image_view = image_actual.image_view;
@@ -331,6 +333,7 @@ namespace vkutil {
         uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags,
         uint32_t count
     ) {
+        ZoneScoped;
         VkDescriptorSetLayoutBinding newBinding{};
 
         newBinding.descriptorCount = count;
@@ -423,7 +426,10 @@ namespace vkutil {
         RenderBackend& backend_in,
         vkutil::DescriptorAllocator& allocator_in
     ) :
-        backend{backend_in}, cache{backend.get_descriptor_cache()}, alloc{allocator_in} { }
+        backend{backend_in}, cache{backend.get_descriptor_cache()}, alloc{allocator_in} {
+        writes.reserve(32);
+        bindings.reserve(32);
+    }
 
 
     bool DescriptorLayoutCache::DescriptorLayoutInfo::operator==(

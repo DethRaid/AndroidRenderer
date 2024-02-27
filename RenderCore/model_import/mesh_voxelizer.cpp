@@ -2,8 +2,21 @@
 
 #include "glm/ext/matrix_clip_space.hpp"
 #include "render/mesh_storage.hpp"
+#include "render/backend/pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
 #include "shared/view_data.hpp"
+#include "shared/voxelizer_compute_pass_parameters.hpp"
+
+enum class VoxelizationMethod {
+    RasterPipeline,
+    ComputeShaders,
+};
+
+static AutoCVar_Enum<VoxelizationMethod> cvar_voxelization_method{
+    "r.voxels.VoxelizationMethod",
+    "How to voxelize meshes - raster pipeline or compute pipeline",
+    VoxelizationMethod::ComputeShaders
+};
 
 MeshVoxelizer::MeshVoxelizer(RenderBackend& backend_in) : backend{&backend_in} {
     voxelization_pipeline = backend->begin_building_pipeline("Voxelizer")
@@ -19,12 +32,15 @@ MeshVoxelizer::MeshVoxelizer(RenderBackend& backend_in) : backend{&backend_in} {
                                    )
                                    .set_raster_state({.cull_mode = VK_CULL_MODE_NONE})
                                    .build();
+
+    compute_voxelization_pipeline = backend->get_pipeline_cache()
+                                           .create_pipeline("shaders/voxelizer/voxelizer.comp.spv");
 }
 
-TextureHandle MeshVoxelizer::voxelize_primitive(
+TextureHandle MeshVoxelizer::voxelize_with_raster(
     RenderGraph& graph, const MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
-    const BufferHandle primitive_buffer, const float voxel_size, const Mode mode
-) {
+    const BufferHandle primitive_buffer, const float voxel_size
+) const {
     // Create a 3D texture big enough to hold the mesh's bounding sphere. There will be some wasted space, maybe we can copy to a smaller texture at some point?
     const auto bounds = primitive->mesh->bounds;
     const auto voxel_texture_resolution = glm::uvec3{bounds * 2.f * voxel_size};
@@ -67,27 +83,29 @@ TextureHandle MeshVoxelizer::voxelize_primitive(
     graph.add_subpass(
         {
             .name = "Voxelization", .execute = [=, this, &mesh_storage](CommandBuffer& commands) {
-                const auto set = backend->create_frame_descriptor_builder()
-                                        .bind_image(
-                                            0, {.image = voxels, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                                            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                            VK_SHADER_STAGE_FRAGMENT_BIT
-                                        )
-                                        .bind_buffer(
-                                            1, {.buffer = primitive_buffer}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-                                        )
-                                        .bind_buffer(
-                                            2, {.buffer = frustums_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                            VK_SHADER_STAGE_VERTEX_BIT
-                                        )
-                                        .build();
+                const auto set = *vkutil::DescriptorBuilder::begin(
+                                      *backend, backend->get_transient_descriptor_allocator()
+                                  )
+                                  .bind_image(
+                                      0, {.image = voxels, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                      VK_SHADER_STAGE_FRAGMENT_BIT
+                                  )
+                                  .bind_buffer(
+                                      1, {.buffer = primitive_buffer}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+                                  )
+                                  .bind_buffer(
+                                      2, {.buffer = frustums_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                      VK_SHADER_STAGE_VERTEX_BIT
+                                  )
+                                  .build();
 
                 commands.bind_vertex_buffer(0, mesh_storage.get_vertex_position_buffer());
                 commands.bind_vertex_buffer(1, mesh_storage.get_vertex_data_buffer());
                 commands.bind_index_buffer(mesh_storage.get_index_buffer());
 
-                commands.bind_descriptor_set(0, *set);
+                commands.bind_descriptor_set(0, set);
                 commands.bind_descriptor_set(1, backend->get_texture_descriptor_pool().get_descriptor_set());
 
                 commands.set_push_constant(0, primitive.index);
@@ -106,4 +124,73 @@ TextureHandle MeshVoxelizer::voxelize_primitive(
     graph.end_render_pass();
 
     return voxels;
+}
+
+TextureHandle MeshVoxelizer::voxelize_with_compute(
+    RenderGraph& graph, const MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
+    const BufferHandle primitive_buffer,
+    const float voxel_size
+) const {
+    // Implementation of https://bronsonzgeb.com/index.php/2021/05/22/gpu-mesh-voxelizer-part-1/
+    // Naive compute-based voxelizer that tests every triangle against every voxel. Not ideal but potentially good enough
+
+    // Create a 3D texture big enough to hold the mesh's bounding box. There will be some wasted space, maybe we can copy to a smaller texture at some point?
+    const auto bounds = primitive->mesh->bounds;
+    const auto voxel_texture_resolution = glm::uvec3{glm::ceil(bounds * 2.f * voxel_size)};
+
+    auto& allocator = backend->get_global_allocator();
+
+    const auto voxels_color = allocator.create_volume_texture(
+        "Mesh voxel colors", VK_FORMAT_R8G8B8A8_UNORM, voxel_texture_resolution, 1, TextureUsage::StorageImage
+    );
+
+    const auto voxels_normal = allocator.create_volume_texture(
+        "Mesh voxel normals", VK_FORMAT_R8G8B8A8_UNORM, voxel_texture_resolution, 1, TextureUsage::StorageImage
+    );
+
+    const auto pass_constants_buffer = allocator.create_buffer(
+        "Voxelizer frustums", sizeof(VoxelizerComputePassParameters), BufferUsage::StagingBuffer
+    );
+    auto* pass_parameters_buffer = allocator.map_buffer<VoxelizerComputePassParameters>(pass_constants_buffer);
+    *pass_parameters_buffer = VoxelizerComputePassParameters{
+        .bounds_min = glm::vec4{-bounds, 0.f},
+        .half_cell_size = voxel_size * 0.5f
+    };
+
+    auto descriptor_set = backend->get_transient_descriptor_allocator()
+                                 .create_set(compute_voxelization_pipeline, 0)
+                                 .bind(0, mesh_storage.get_vertex_position_buffer())
+                                 .bind(1, mesh_storage.get_vertex_data_buffer())
+                                 .bind(2, mesh_storage.get_index_buffer())
+                                 .bind(3, primitive_buffer)
+                                 .bind(4, voxels_color)
+                                 .bind(5, voxels_normal)
+                                 .bind(6, pass_constants_buffer)
+                                 .finalize();
+
+    graph.add_compute_dispatch(
+        {
+            .name = "Voxelize",
+            .descriptor_sets = {descriptor_set},
+            .num_workgroups = voxel_texture_resolution,
+            .compute_shader = compute_voxelization_pipeline
+        }
+    );
+
+    return voxels_color;
+}
+
+TextureHandle MeshVoxelizer::voxelize_primitive(
+    RenderGraph& graph, const MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
+    const BufferHandle primitive_buffer, const float voxel_size, const Mode mode
+) const {
+    switch (cvar_voxelization_method.Get()) {
+    case VoxelizationMethod::RasterPipeline:
+        return voxelize_with_raster(graph, primitive, mesh_storage, primitive_buffer, voxel_size);
+
+    case VoxelizationMethod::ComputeShaders:
+        return voxelize_with_compute(graph, primitive, mesh_storage, primitive_buffer, voxel_size);
+    }
+
+    return TextureHandle::None;
 }

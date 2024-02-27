@@ -150,13 +150,13 @@ private:
 
     GraphicsPipelineHandle vpl_pipeline;
 
-    ComputeShader clear_lpv_shader;
+    ComputePipelineHandle clear_lpv_shader;
 
-    ComputeShader inject_voxels_into_gv_shader;
+    ComputePipelineHandle inject_voxels_into_gv_shader;
 
     GraphicsPipelineHandle vpl_injection_pipeline;
 
-    ComputeShader propagation_shader;
+    ComputePipelineHandle propagation_shader;
 
     std::vector<CascadeData> cascades;
     BufferHandle cascade_data_buffer = BufferHandle::None;

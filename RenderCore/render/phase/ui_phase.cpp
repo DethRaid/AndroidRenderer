@@ -92,7 +92,9 @@ void UiPhase::set_imgui_draw_data(ImDrawData* im_draw_data) {
 void UiPhase::upscale_scene_color(CommandBuffer& commands, const TextureHandle bloom_texture) const {
     auto& backend = scene_renderer.get_backend();
 
-    const auto set = backend.create_frame_descriptor_builder()
+    const auto set = *vkutil::DescriptorBuilder::begin(
+        backend, backend.get_transient_descriptor_allocator()
+    )
                             .bind_image(
                                 0,
                                 {
@@ -109,7 +111,7 @@ void UiPhase::upscale_scene_color(CommandBuffer& commands, const TextureHandle b
                             )
                             .build();
 
-    commands.bind_descriptor_set(0, *set);
+    commands.bind_descriptor_set(0, set);
 
     commands.bind_pipeline(upsample_pipeline);
 

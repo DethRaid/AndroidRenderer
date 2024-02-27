@@ -1,6 +1,7 @@
 #pragma once
 
 #include "render/scene_primitive.hpp"
+#include "render/backend/compute_shader.hpp"
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
@@ -37,16 +38,31 @@ public:
      *
      * \param graph RenderGraph to use to execute the voxelization
      * \param primitive The primitive to voxelize
+     * \param mesh_storage The storage for mesh data, like vertex and index buffers
+     * \param primitive_buffer The buffer that stores all the primitive infos on the GPU
      * \param mode How to voxelize the mesh
      * \param voxel_size Size of one edge of a voxel, in modelspace
      */
     TextureHandle voxelize_primitive(
         RenderGraph& graph, MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
         BufferHandle primitive_buffer, float voxel_size = 0.25, Mode mode = Mode::ColorOnly
-    );
+    ) const;
 
 private:
     RenderBackend* backend;
 
     GraphicsPipelineHandle voxelization_pipeline;
+
+    ComputePipelineHandle compute_voxelization_pipeline;
+
+    TextureHandle voxelize_with_raster(
+        RenderGraph& graph, MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
+        BufferHandle primitive_buffer,
+        float voxel_size
+    ) const;
+
+    TextureHandle voxelize_with_compute(
+        RenderGraph& graph, MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
+        BufferHandle primitive_buffer, float voxel_size
+    ) const;
 };

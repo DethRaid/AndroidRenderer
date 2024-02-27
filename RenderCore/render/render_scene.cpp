@@ -1,6 +1,7 @@
 #include "render_scene.hpp"
 
 #include "raytracing_scene.hpp"
+#include "backend/pipeline_cache.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/render_backend.hpp"
 #include "console/cvars.hpp"
@@ -28,10 +29,8 @@ RenderScene::RenderScene(RenderBackend& backend_in, MeshStorage& meshes_in, Mate
         raytracing_scene.emplace(RaytracingScene{backend, *this});
     }
 
-    {
-        const auto bytes = *SystemInterface::get().load_file("shaders/util/emissive_point_cloud.comp.spv");
-        emissive_point_cloud_shader = *backend.create_compute_shader("Generate emissive point cloud", bytes);
-    }
+    auto& pipeline_cache = backend.get_pipeline_cache();
+    emissive_point_cloud_shader = pipeline_cache.create_pipeline("shaders/util/emissive_point_cloud.comp.spv");
 
     if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
         voxel_cache = std::make_unique<VoxelCache>(backend);
@@ -162,7 +161,7 @@ BufferHandle RenderScene::generate_vpls_for_primitive(
         "Primitive emission buffer", primitive->mesh->num_points * sizeof(glm::vec4), BufferUsage::StorageBuffer
     );
 
-    graph.add_compute_pass(
+    graph.add_pass(
         {
             .name = "Build emissive points",
             .buffers = {
@@ -185,7 +184,7 @@ BufferHandle RenderScene::generate_vpls_for_primitive(
 
                 commands.bind_descriptor_set(0, backend.get_texture_descriptor_pool().get_descriptor_set());
 
-                commands.bind_shader(emissive_point_cloud_shader);
+                commands.bind_pipeline(emissive_point_cloud_shader);
 
                 commands.dispatch((primitive->mesh->num_points + 95) / 96, 1, 1);
 

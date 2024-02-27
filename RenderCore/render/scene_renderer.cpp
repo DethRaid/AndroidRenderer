@@ -45,9 +45,11 @@ SceneRenderer::SceneRenderer() :
     meshes{backend, backend.get_upload_queue()}, mip_chain_generator{backend}, bloomer{backend},
     depth_culling_phase{backend}, lighting_pass{backend}, ui_phase{*this}, voxel_visualizer{backend} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
+    logger->set_level(spdlog::level::debug);
 
     // player_view.set_position(glm::vec3{2.f, -1.f, 3.0f});
-    player_view.set_position(glm::vec3{7.f, 1.f, 0.0f});
+    player_view.rotate(0, glm::radians(90.f));
+    player_view.set_position(glm::vec3{-7.f, 1.f, 0.0f});
 
     const auto render_resolution = SystemInterface::get().get_resolution();
 
@@ -117,7 +119,7 @@ void SceneRenderer::render() {
 
     backend.advance_frame();
 
-    logger->debug("Beginning frame");
+    logger->trace("Beginning frame");
 
     ui_phase.add_data_upload_passes(backend.get_upload_queue());
 
@@ -140,14 +142,14 @@ void SceneRenderer::render() {
     render_graph.set_resource_usage(depth_buffer_mip_chain, last_frame_depth_usage, true);
     render_graph.set_resource_usage(normal_target_mip_chain, last_frame_normal_usage, true);
 
-    render_graph.add_compute_pass(
+    render_graph.add_pass(
         {
             .name = "Tracy Collect",
             .execute = [&](const CommandBuffer& commands) { backend.collect_tracy_data(commands); }
         }
     );
 
-    render_graph.add_compute_pass(
+    render_graph.add_pass(
         ComputePass{
             .name = "Begin Frame",
             .execute = [&](CommandBuffer& commands) {
@@ -257,13 +259,15 @@ void SceneRenderer::render() {
 
                 auto& sun = scene->get_sun_light();
 
-                auto global_set = *backend.create_frame_descriptor_builder()
-                                          .bind_buffer(
-                                              0, {
-                                                  .buffer = sun.get_constant_buffer()
-                                              }, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
-                                          )
-                                          .build();
+                auto global_set = *vkutil::DescriptorBuilder::begin(
+                                       backend, backend.get_transient_descriptor_allocator()
+                                   )
+                                   .bind_buffer(
+                                       0, {
+                                           .buffer = sun.get_constant_buffer()
+                                       }, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                   )
+                                   .build();
 
                 commands.bind_descriptor_set(0, global_set);
 
@@ -337,13 +341,15 @@ void SceneRenderer::render() {
             .execute = [&](CommandBuffer& commands) {
                 GpuZoneScopedN(commands, "GBuffer")
 
-                auto global_set = *backend.create_frame_descriptor_builder()
-                                          .bind_buffer(
-                                              0, {
-                                                  .buffer = player_view.get_buffer()
-                                              }, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
-                                          )
-                                          .build();
+                auto global_set = *vkutil::DescriptorBuilder::begin(
+                                       backend, backend.get_transient_descriptor_allocator()
+                                   )
+                                   .bind_buffer(
+                                       0, {
+                                           .buffer = player_view.get_buffer()
+                                       }, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                   )
+                                   .build();
 
                 commands.bind_descriptor_set(0, global_set);
 
@@ -421,7 +427,7 @@ void SceneRenderer::render() {
     mip_chain_generator.fill_mip_chain(render_graph, gbuffer_depth_handle, depth_buffer_mip_chain);
     mip_chain_generator.fill_mip_chain(render_graph, gbuffer_normals_handle, normal_target_mip_chain);
 
-    render_graph.add_present_pass(
+    render_graph.add_finish_frame_and_present_pass(
         {
             .swapchain_image = swapchain_image
         }

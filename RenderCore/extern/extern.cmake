@@ -7,8 +7,6 @@ set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(OPTIONAL_BUILD_PACKAGE OFF CACHE BOOL "" FORCE)
 set(OPTIONAL_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
-set(TRACY_ENABLE OFF CACHE BOOL "" FORCE)
-
 set(SPIRV_REFLECT_EXECUTABLE OFF CACHE BOOL "" FORCE)
 set(SPIRV_REFLECT_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SPIRV_REFLECT_STATIC_LIB ON CACHE BOOL "" FORCE)
@@ -57,7 +55,7 @@ FetchContent_Declare(
 FetchContent_Declare(
         fetch_tracy
         GIT_REPOSITORY  https://github.com/wolfpld/tracy.git
-        GIT_TAG         v0.9.1
+        GIT_TAG         v0.10
 )
 FetchContent_Declare(
         fetch_volk
@@ -141,3 +139,4 @@ add_library(slang INTERFACE)
 target_include_directories(slang INTERFACE "${CMAKE_CURRENT_LIST_DIR}/slang/include")
 target_link_directories(slang INTERFACE "${CMAKE_CURRENT_LIST_DIR}/swlang/lib/windows-x64/release")
 target_link_libraries(slang INTERFACE slang)
+

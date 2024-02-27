@@ -57,7 +57,8 @@ target_glsl_shaders(SahWindows
         COMPILE_OPTIONS --target-env vulkan1.3 -V -g -o -Od -I${SHADER_INCLUDE_DIR} -I${SHADER_DIR} -I${EXTERN_DIR})
 
 target_link_libraries(SahWindows PUBLIC
-        SahCore)
+        SahCore
+        )
 
 add_custom_target(gltf_compression
         python ${CMAKE_CURRENT_LIST_DIR}/../Tools/optimize_gltf.py ${CMAKE_CURRENT_LIST_DIR}/../Windows/build/Debug

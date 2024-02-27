@@ -1,10 +1,13 @@
 #pragma once
 
+#include <array>
 #include <string>
 #include <unordered_map>
 #include <functional>
 #include <vector>
+
 #include <tl/optional.hpp>
+#include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
 #include "framebuffer.hpp"
@@ -14,6 +17,7 @@
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/texture_usage_token.hpp"
 #include "render/backend/descriptor_set_builder.hpp"
+#include "render/backend/compute_shader.hpp"
 
 class CommandBuffer;
 
@@ -37,6 +41,36 @@ struct ComputePass {
      * scissor are set to the dimensions of the render targets, no need to do that manually
      */
     std::function<void(CommandBuffer&)> execute;
+};
+
+/**
+ * \brief Describes a pass that dispatches a compute shader in a specific way
+ */
+struct ComputeDispatch {
+    /**
+     * \brief Name of this dispatch, for debugging 
+     */
+    std::string name;
+
+    /**
+     * \brief Descriptor sets to bind for this pass. Must contain one entry for every descriptor set that the shader needs
+     */
+    std::vector<DescriptorSet> descriptor_sets;
+
+    /**
+     * \brief Push constants for this dispatch. Feel free to reinterpret_cast push_constants.data() into your own type
+     */
+    std::array<uint32_t, 8> push_constants;
+
+    /**
+     * \brief Number of workgroups to dispatch
+     */
+    glm::uvec3 num_workgroups;
+
+    /**
+     * \brief Compute shader to dispatch
+     */
+    ComputePipelineHandle compute_shader;
 };
 
 struct TransitionPass {

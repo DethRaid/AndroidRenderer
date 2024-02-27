@@ -7,21 +7,18 @@
 #include "render/mesh_drawer.hpp"
 #include "render/mesh_storage.hpp"
 #include "render/render_scene.hpp"
+#include "render/backend/pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
 
 DepthCullingPhase::DepthCullingPhase(RenderBackend& backend) :
     backend{backend}, allocator{backend.get_global_allocator()}, downsampler{backend},
     texture_descriptor_pool{backend.get_texture_descriptor_pool()} {
-    {
-        const auto bytes = *SystemInterface::get().load_file("shaders/util/visibility_list_to_draw_commands.comp.spv");
-        visibility_list_to_draw_commands = *backend.create_compute_shader("Visibility list to draw commands", bytes);
-    }
-    {
-        const auto bytes = *SystemInterface::get().load_file("shaders/culling/hi_z_culling.comp.spv");
-        hi_z_culling_shader = *backend.create_compute_shader("Hi-Z culling", bytes);
-    }
+    auto& pipeline_cache = backend.get_pipeline_cache();
 
+    visibility_list_to_draw_commands = pipeline_cache.create_pipeline("shaders/util/visibility_list_to_draw_commands.comp.spv");
+
+    hi_z_culling_shader = pipeline_cache.create_pipeline("shaders/culling/hi_z_culling.comp.spv");
 
     //add a extension struct to enable Min mode
     VkSamplerReductionModeCreateInfoEXT create_info_reduction = {
@@ -93,7 +90,9 @@ void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
 void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, const BufferHandle view_data_buffer) {
     graph.begin_label("Depth/culling pass");
 
-    const auto view_descriptor = *backend.create_frame_descriptor_builder()
+    const auto view_descriptor = *vkutil::DescriptorBuilder::begin(
+        backend, backend.get_transient_descriptor_allocator()
+    )
                                          .bind_buffer(
                                              0, {.buffer = view_data_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                              VK_SHADER_STAGE_VERTEX_BIT
@@ -170,7 +169,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
         "New visibility mask", sizeof(uint32_t) * num_primitives, BufferUsage::StorageBuffer
     );
 
-    graph.add_compute_pass(
+    graph.add_pass(
         {
             .name = "HiZ Culling",
             .textures = {
@@ -203,7 +202,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
                 commands.set_push_constant(10, num_primitives);
                 commands.set_push_constant(11, hi_z_index);
 
-                commands.bind_shader(hi_z_culling_shader);
+                commands.bind_pipeline(hi_z_culling_shader);
 
                 commands.dispatch((num_primitives + 95) / 96, 1, 1);
 
@@ -280,7 +279,7 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
         "Primitive ID", sizeof(uint32_t) * num_primitives, BufferUsage::StorageBuffer
     );
 
-    graph.add_compute_pass(
+    graph.add_pass(
         {
             .name = "Clear draw count",
             .buffers = {{draw_count_buffer, {VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT}}},
@@ -290,7 +289,7 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
         }
     );
 
-    graph.add_compute_pass(
+    graph.add_pass(
         ComputePass{
             .name = "Translate visibility list",
             .buffers = {
@@ -315,7 +314,7 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
 
                 commands.set_push_constant(12, num_primitives);
 
-                commands.bind_shader(visibility_list_to_draw_commands);
+                commands.bind_pipeline(visibility_list_to_draw_commands);
 
                 commands.dispatch((num_primitives + 95) / 96, 1, 1);
             }

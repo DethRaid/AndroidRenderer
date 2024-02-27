@@ -15,35 +15,6 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-static AutoCVar_Int cvar_enable_validation_layers{
-    "r.vulkan.EnableValidationLayers",
-    "Whether to enable Vulkan validation layers", 0
-};
-
-static AutoCVar_Int cvar_enable_best_practices_layer{
-    "r.vulkan.EnableBestPractices",
-    "Whether to enable the best practices validation layer. It can be useful, but it complains a lot about libktx",
-    0
-};
-
-static AutoCVar_Int cvar_enable_gpu_assisted_validation{
-    "r.vulkan.EnableGpuAssistedValidation",
-    "Whether to enable GPU-assisted validation. Helpful when using bindless techniques, but incurs a performance penalty",
-    1
-};
-
-static AutoCVar_Int cvar_break_on_validation_warning{
-    "r.vulkan.BreakOnValidationWarning",
-    "Whether to issue a breakpoint when the validation layers detect a warning",
-    0
-};
-
-static AutoCVar_Int cvar_break_on_validation_error{
-    "r.vulkan.BreakOnValidationError",
-    "Whether to issue a breakpoint when the validation layers detect an error",
-    1
-};
-
 VkBool32 VKAPI_ATTR debug_callback(
     const VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     const VkDebugUtilsMessageTypeFlagsEXT message_type,
@@ -67,16 +38,10 @@ VkBool32 VKAPI_ATTR debug_callback(
             callback_data->messageIdNumber != 0x8728e724
         ) {
             spdlog::warn("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-            if (cvar_break_on_validation_warning.Get() != 0) {
-                SAH_BREAKPOINT;
-            }
         }
         break;
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
         spdlog::error("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-        if (cvar_break_on_validation_error.Get() != 0) {
-            SAH_BREAKPOINT;
-        }
         break;
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_FLAG_BITS_MAX_ENUM_EXT:
         spdlog::info("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
@@ -86,9 +51,12 @@ VkBool32 VKAPI_ATTR debug_callback(
     return VK_FALSE;
 }
 
-RenderBackend::RenderBackend() : resource_access_synchronizer{*this} {
+RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_descriptor_allocator{*this},
+                                 frame_descriptor_allocators{
+                                     DescriptorSetAllocator{*this}, DescriptorSetAllocator{*this}
+                                 } {
     logger = SystemInterface::get().get_logger("RenderBackend");
-    logger->set_level(spdlog::level::trace);
+    logger->set_level(spdlog::level::debug);
 
     const auto volk_result = volkInitialize();
     if (volk_result != VK_SUCCESS) {
@@ -174,31 +142,11 @@ void RenderBackend::create_instance_and_device() {
     cvar_enable_gpu_assisted_validation.Set(0);
 #endif
 
-    if (cvar_enable_validation_layers.Get()) {
 #if defined(__ANDROID__)
         // Only enable the debug utils extension when we have validation layers. Apparently the validation layer
         // provides that extension on Android
         instance_builder.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
-        instance_builder.enable_validation_layers(true)
-                        .request_validation_layers(true)
-                        .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT)
-                        .set_debug_callback(debug_callback);
-
-        if (cvar_enable_best_practices_layer.Get()) {
-            instance_builder.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT);
-        }
-
-        if (cvar_enable_gpu_assisted_validation.Get()) {
-            instance_builder.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT)
-                            .add_validation_feature_enable(
-                                VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT
-                            );
-        }
-    } else {
-        instance_builder.enable_validation_layers(false)
-                        .request_validation_layers(false);
-    }
 
     auto instance_ret = instance_builder.build();
     if (!instance_ret) {
@@ -415,7 +363,7 @@ bool RenderBackend::supports_etc2() const { return physical_device.features.text
 
 bool RenderBackend::supports_bc() const { return physical_device.features.textureCompressionBC; }
 
-vkb::Device RenderBackend::get_device() const {
+const vkb::Device& RenderBackend::get_device() const {
     return device;
 }
 
@@ -671,13 +619,8 @@ ResourceAllocator& RenderBackend::get_global_allocator() const {
     return *allocator;
 }
 
-GraphicsPipelineBuilder RenderBackend::begin_building_pipeline(std::string_view name) const {
-    return GraphicsPipelineBuilder{*pipeline_cache}.set_name(name).set_depth_state({});
-}
-
-tl::optional<ComputeShader>
-RenderBackend::create_compute_shader(const std::string& name, const std::vector<uint8_t>& instructions) const {
-    return ComputeShader::create(*this, name, instructions);
+GraphicsPipelineBuilder RenderBackend::begin_building_pipeline(const std::string_view name) const {
+    return GraphicsPipelineBuilder{*pipeline_cache}.set_name(name);
 }
 
 uint32_t RenderBackend::get_current_gpu_frame() const {
@@ -749,18 +692,12 @@ void RenderBackend::present() {
     last_submission_semaphores.clear();
 }
 
-vkutil::DescriptorBuilder RenderBackend::create_persistent_descriptor_builder() {
-    return vkutil::DescriptorBuilder::begin(*this, global_descriptor_allocator);
+DescriptorSetAllocator& RenderBackend::get_persistent_descriptor_allocator() {
+    return global_descriptor_allocator;
 }
 
-vkutil::DescriptorBuilder RenderBackend::create_frame_descriptor_builder() {
-    return vkutil::DescriptorBuilder::begin(*this, frame_descriptor_allocators[cur_frame_idx]);
-}
-
-DescriptorSet RenderBackend::begin_building_descriptor_set(
-    const GraphicsPipelineHandle pipeline, const uint32_t descriptor_set_index
-) {
-    return DescriptorSet(*this, pipeline->get_descriptor_set_info(descriptor_set_index));
+DescriptorSetAllocator& RenderBackend::get_transient_descriptor_allocator() {
+    return frame_descriptor_allocators[cur_frame_idx];
 }
 
 VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
@@ -805,6 +742,7 @@ uint32_t RenderBackend::get_current_swapchain_index() const {
 }
 
 vkutil::DescriptorLayoutCache& RenderBackend::get_descriptor_cache() {
+    ZoneScoped;
     return descriptor_layout_cache;
 }
 

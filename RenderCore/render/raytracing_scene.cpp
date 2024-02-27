@@ -116,7 +116,7 @@ void RaytracingScene::commit_blas_builds() {
     const auto& scratch_buffer_actual = allocator.get_buffer(scratch_buffer);
 
     auto graph = RenderGraph{backend};
-    graph.add_compute_pass(
+    graph.add_pass(
         {
             .name = "Build BLASes",
             .buffers = {

@@ -282,13 +282,15 @@ void CommandBuffer::draw_triangle() {
     vkCmdDraw(commands, 3, 1, 0, 0);
 }
 
-void CommandBuffer::bind_shader(const ComputeShader& shader) {
+void CommandBuffer::bind_pipeline(const ComputePipelineHandle& pipeline) {
     current_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
-    current_pipeline_layout = shader.layout;
-    num_push_constants_in_current_pipeline = shader.num_push_constants;
+
+    current_pipeline_layout = pipeline->layout;
+
+    num_push_constants_in_current_pipeline = pipeline->num_push_constants;
     push_constant_shader_stages = VK_SHADER_STAGE_COMPUTE_BIT;
 
-    vkCmdBindPipeline(commands, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline);
+    vkCmdBindPipeline(commands, current_bind_point, pipeline->pipeline);
 
     are_bindings_dirty = true;
 }

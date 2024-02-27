@@ -27,7 +27,7 @@ RenderGraph::RenderGraph(RenderBackend& backend_in) : backend{backend_in},
 }
 
 void RenderGraph::add_transition_pass(TransitionPass&& pass) {
-    add_compute_pass(
+    add_pass(
         {
             .name = "Transition pass", .textures = pass.textures, .buffers = pass.buffers,
             .execute = [](CommandBuffer&) {}
@@ -36,7 +36,7 @@ void RenderGraph::add_transition_pass(TransitionPass&& pass) {
 }
 
 void RenderGraph::add_copy_pass(ImageCopyPass&& pass) {
-    add_compute_pass(
+    add_pass(
         {
             .name = pass.name,
             .textures = {
@@ -56,7 +56,7 @@ void RenderGraph::add_copy_pass(ImageCopyPass&& pass) {
     );
 }
 
-void RenderGraph::add_compute_pass(ComputePass&& pass) {
+void RenderGraph::add_pass(ComputePass&& pass) {
     if (!pass.name.empty()) {
         logger->debug("Adding compute pass {}", pass.name);
 
@@ -80,6 +80,49 @@ void RenderGraph::add_compute_pass(ComputePass&& pass) {
     }
 }
 
+void RenderGraph::add_compute_dispatch(const ComputeDispatch& dispatch_info) {
+    if (!dispatch_info.name.empty()) {
+        logger->debug("Adding compute pass {}", dispatch_info.name);
+
+        cmds.begin_label(dispatch_info.name);
+    }
+
+    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+
+    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+
+    for(const auto& descriptor_set : dispatch_info.descriptor_sets) {
+        descriptor_set.get_resource_usage_information(textures, buffers);
+    }
+
+    for (const auto& buffer_token : buffers) {
+        access_tracker.set_resource_usage(buffer_token.first, buffer_token.second.stage, buffer_token.second.access);
+    }
+
+    for (const auto& texture_token : textures) {
+        access_tracker.set_resource_usage(texture_token.first, texture_token.second);
+    }
+
+    access_tracker.issue_barriers(cmds);
+
+    cmds.bind_pipeline(dispatch_info.compute_shader);
+
+    for(auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+        const auto vk_set = dispatch_info.descriptor_sets.at(i).get_vk_descriptor_set();
+        cmds.bind_descriptor_set(i, vk_set);
+    }
+    
+    for(auto i = 0u; i < dispatch_info.push_constants.size(); i++) {
+        cmds.set_push_constant(i, dispatch_info.push_constants[i]);
+    }    
+
+    cmds.dispatch(dispatch_info.num_workgroups.x, dispatch_info.num_workgroups.y, dispatch_info.num_workgroups.z);
+
+    if (!dispatch_info.name.empty()) {
+        cmds.end_label();
+    }
+}
+
 void RenderGraph::begin_render_pass(const RenderPassBeginInfo& begin_info) {
     current_render_pass = RenderPass{
         .name = begin_info.name,
@@ -92,7 +135,7 @@ void RenderGraph::begin_render_pass(const RenderPassBeginInfo& begin_info) {
     };
 }
 
-void RenderGraph::add_subpass(Subpass&& subpass) { current_render_pass->subpasses.emplace_back(subpass); }
+void RenderGraph::add_subpass(Subpass&& subpass) { current_render_pass->subpasses.emplace_back(std::move(subpass)); }
 
 void RenderGraph::end_render_pass() {
     add_render_pass(std::move(*current_render_pass));
@@ -211,7 +254,7 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     backend.get_global_allocator().destroy_framebuffer(std::move(framebuffer));
 }
 
-void RenderGraph::add_present_pass(PresentPass&& pass) {
+void RenderGraph::add_finish_frame_and_present_pass(const PresentPass& pass) {
     add_transition_pass(
         {
             .textures = {
@@ -232,7 +275,7 @@ void RenderGraph::add_present_pass(PresentPass&& pass) {
 }
 
 void RenderGraph::begin_label(const std::string& label) {
-    add_compute_pass(
+    add_pass(
         {
             .execute = [label = std::move(label)](const CommandBuffer& commands) {
                 commands.begin_label(label);
@@ -242,7 +285,7 @@ void RenderGraph::begin_label(const std::string& label) {
 }
 
 void RenderGraph::end_label() {
-    add_compute_pass(
+    add_pass(
         {
             .execute = [](const CommandBuffer& commands) {
                 commands.end_label();

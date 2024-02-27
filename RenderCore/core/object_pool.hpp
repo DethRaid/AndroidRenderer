@@ -25,6 +25,8 @@ struct PooledObject {
     operator bool() const;
 
     bool operator!() const;
+
+    bool is_valid() const;
 };
 
 template <typename ObjectType>
@@ -79,12 +81,17 @@ ObjectType& PooledObject<ObjectType>::operator*() const {
 
 template <typename ObjectType>
 PooledObject<ObjectType>::operator bool() const {
-    return index != 0xFFFFFFFF && pool != nullptr;
+    return is_valid();
 }
 
 template <typename ObjectType>
 bool PooledObject<ObjectType>::operator!() const {
     return !operator bool();
+}
+
+template <typename ObjectType>
+bool PooledObject<ObjectType>::is_valid() const {
+    return index != 0xFFFFFFFF && pool != nullptr;
 }
 
 template <typename ObjectType>

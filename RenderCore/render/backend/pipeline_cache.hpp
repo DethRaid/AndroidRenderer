@@ -1,5 +1,8 @@
 #pragma once
 
+#include <span>
+
+#include "compute_shader.hpp"
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/pipeline_builder.hpp"
 #include "core/object_pool.hpp"
@@ -14,7 +17,11 @@ public:
 
     GraphicsPipelineHandle create_pipeline(const GraphicsPipelineBuilder& pipeline_builder);
 
+    ComputePipelineHandle create_pipeline(const std::string& shader_file_path);
+
     VkPipeline get_pipeline(GraphicsPipelineHandle pipeline, VkRenderPass active_render_pass, uint32_t active_subpass) const;
+
+    VkPipeline get_pipeline(ComputePipelineHandle pipeline);
 
 private:
     RenderBackend& backend;
@@ -22,4 +29,6 @@ private:
     VkPipelineCache vk_pipeline_cache = VK_NULL_HANDLE;
 
     ObjectPool<GraphicsPipeline> pipelines;
+
+    ObjectPool<ComputeShader> compute_pipelines;
 };

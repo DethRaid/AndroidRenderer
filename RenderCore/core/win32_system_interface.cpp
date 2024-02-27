@@ -107,10 +107,11 @@ std::shared_ptr<spdlog::logger> Win32SystemInterface::get_logger(const std::stri
 }
 
 tl::optional<std::vector<uint8_t>> Win32SystemInterface::load_file(const std::filesystem::path& filepath) {
+    // TODO: Integrate physfs and add the executable's directory to the search paths
     std::ifstream file{ filepath, std::ios::binary };
 
     if (!file.is_open()) {
-        spdlog::error("Could not open file {}", filepath.string());
+        spdlog::warn("Could not open file {}", filepath.string());
         return tl::nullopt;
     }
 

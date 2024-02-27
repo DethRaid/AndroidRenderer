@@ -2,15 +2,19 @@
 
 #include <spdlog/fmt/bundled/format.h>
 
-#include "render_backend.hpp"
-#include "utils.hpp"
+#include "render/backend/descriptor_set_allocator.hpp"
+#include "render/backend/render_backend.hpp"
+#include "render/backend/utils.hpp"
 
 static bool is_buffer_type(VkDescriptorType vk_descriptor);
 
 static bool is_texture_type(VkDescriptorType vk_descriptor);
 
-DescriptorSet::DescriptorSet(RenderBackend& backend_in, DescriptorSetInfo set_info_in) : backend{backend_in},
-    set_info{std::move(set_info_in)} {}
+static VkImageLayout to_image_layout(VkDescriptorType descriptor_type, bool is_depth);
+
+DescriptorSet::DescriptorSet(
+    RenderBackend& backend_in, DescriptorSetAllocator& allocator_in, DescriptorSetInfo set_info_in
+) : backend{backend_in}, allocator{allocator_in}, set_info{std::move(set_info_in)} {}
 
 DescriptorSet& DescriptorSet::bind(const uint32_t binding_index, const BufferHandle buffer) {
 #ifndef _NDEBUG
@@ -78,7 +82,8 @@ DescriptorSet& DescriptorSet::bind(
 }
 
 DescriptorSet& DescriptorSet::finalize() {
-    auto builder = backend.create_frame_descriptor_builder();
+    auto builder = vkutil::DescriptorBuilder::begin(backend, allocator);
+    auto& resources = backend.get_global_allocator();
     for (const auto& [binding, resource] : bindings) {
         const auto& binding_info = set_info.bindings.at(binding);
         if (is_buffer_type(binding_info.descriptorType)) {
@@ -86,8 +91,14 @@ DescriptorSet& DescriptorSet::finalize() {
                 binding, {.buffer = resource.buffer}, binding_info.descriptorType, binding_info.stageFlags
             );
         } else if (is_texture_type(binding_info.descriptorType)) {
+            const auto& texture_actual = resources.get_texture(resource.texture);
             builder.bind_image(
-                binding, {.image = resource.texture}, binding_info.descriptorType, binding_info.stageFlags
+                binding, {
+                    .image = resource.texture,
+                    .image_layout = to_image_layout(
+                        binding_info.descriptorType, is_depth_format(texture_actual.create_info.format)
+                    )
+                }, binding_info.descriptorType, binding_info.stageFlags
             );
         }
     }
@@ -139,40 +150,40 @@ VkAccessFlags2 to_vk_access(const VkDescriptorType& descriptor_type, const bool 
 VkPipelineStageFlags2 to_pipeline_stage(const VkShaderStageFlags stage_flags) {
     VkPipelineStageFlags2 flags = 0;
 
-    if (stage_flags | VK_SHADER_STAGE_VERTEX_BIT) {
+    if (stage_flags & VK_SHADER_STAGE_VERTEX_BIT) {
         flags |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
     }
-    if (stage_flags | VK_SHADER_STAGE_GEOMETRY_BIT) {
+    if (stage_flags & VK_SHADER_STAGE_GEOMETRY_BIT) {
         flags |= VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT;
     }
-    if (stage_flags | VK_SHADER_STAGE_FRAGMENT_BIT) {
+    if (stage_flags & VK_SHADER_STAGE_FRAGMENT_BIT) {
         flags |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
     }
-    if (stage_flags | VK_SHADER_STAGE_COMPUTE_BIT) {
+    if (stage_flags & VK_SHADER_STAGE_COMPUTE_BIT) {
         flags |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
     }
-    if (stage_flags | VK_SHADER_STAGE_RAYGEN_BIT_KHR) {
+    if (stage_flags & VK_SHADER_STAGE_RAYGEN_BIT_KHR) {
         flags |= VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
     }
-    if (stage_flags | VK_SHADER_STAGE_ANY_HIT_BIT_KHR) {
+    if (stage_flags & VK_SHADER_STAGE_ANY_HIT_BIT_KHR) {
         flags |= VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
     }
-    if (stage_flags | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR) {
+    if (stage_flags & VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR) {
         flags |= VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
     }
-    if (stage_flags | VK_SHADER_STAGE_MISS_BIT_KHR) {
+    if (stage_flags & VK_SHADER_STAGE_MISS_BIT_KHR) {
         flags |= VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
     }
-    if (stage_flags | VK_SHADER_STAGE_INTERSECTION_BIT_KHR) {
+    if (stage_flags & VK_SHADER_STAGE_INTERSECTION_BIT_KHR) {
         flags |= VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
     }
-    if (stage_flags | VK_SHADER_STAGE_CALLABLE_BIT_KHR) {
+    if (stage_flags & VK_SHADER_STAGE_CALLABLE_BIT_KHR) {
         flags |= VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
     }
-    if (stage_flags | VK_SHADER_STAGE_TASK_BIT_EXT) {
+    if (stage_flags & VK_SHADER_STAGE_TASK_BIT_EXT) {
         flags |= VK_PIPELINE_STAGE_2_TASK_SHADER_BIT_EXT;
     }
-    if (stage_flags | VK_SHADER_STAGE_MESH_BIT_EXT) {
+    if (stage_flags & VK_SHADER_STAGE_MESH_BIT_EXT) {
         flags |= VK_PIPELINE_STAGE_2_MESH_SHADER_BIT_EXT;
     }
 
@@ -239,18 +250,18 @@ VkDescriptorSet DescriptorSet::get_vk_descriptor_set() const { return descriptor
 
 bool is_buffer_type(const VkDescriptorType vk_descriptor) {
     return
-        ((vk_descriptor & VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER) != 0) ||
-        ((vk_descriptor & VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER) != 0) ||
-        ((vk_descriptor & VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) != 0) ||
-        ((vk_descriptor & VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) != 0) ||
-        ((vk_descriptor & VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC) != 0) ||
-        ((vk_descriptor & VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC) != 0);
+        vk_descriptor == VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER ||
+        vk_descriptor == VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER ||
+        vk_descriptor == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ||
+        vk_descriptor == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER ||
+        vk_descriptor == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
+        vk_descriptor == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
 }
 
 bool is_texture_type(const VkDescriptorType vk_descriptor) {
     return
-        ((vk_descriptor & VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) != 0) ||
-        ((vk_descriptor & VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE) != 0) ||
-        ((vk_descriptor & VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) != 0) ||
-        ((vk_descriptor & VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) != 0);
+        vk_descriptor == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
+        vk_descriptor == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE ||
+        vk_descriptor == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ||
+        vk_descriptor == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 }

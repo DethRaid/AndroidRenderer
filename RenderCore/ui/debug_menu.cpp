@@ -197,7 +197,6 @@ void DebugUI::draw() {
 }
 
 
-
 void DebugUI::create_font_texture() {
     const auto& io = ImGui::GetIO();
     unsigned char* pixels;
@@ -217,15 +216,18 @@ void DebugUI::create_font_texture() {
         }
     );
 
-    font_atlas_descriptor_set = *backend.create_persistent_descriptor_builder()
-                                        .bind_image(
-                                            0, {
-                                                .sampler = backend.get_default_sampler(), .image = font_atlas_handle,
-                                                .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                            }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                            VK_SHADER_STAGE_FRAGMENT_BIT
-                                        )
-                                        .build();
+    font_atlas_descriptor_set = *vkutil::DescriptorBuilder::begin(
+                                     backend, backend.get_persistent_descriptor_allocator()
+                                 )
+                                 .bind_image(
+                                     0, {
+                                         .sampler = backend.get_default_sampler(),
+                                         .image = font_atlas_handle,
+                                         .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                     }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                     VK_SHADER_STAGE_FRAGMENT_BIT
+                                 )
+                                 .build();
 
     io.Fonts->TexID = reinterpret_cast<ImTextureID>(font_atlas_descriptor_set);
 }
@@ -284,7 +286,7 @@ void DebugUI::draw_debug_menu() {
         if (ImGui::CollapsingHeader("Visualizers")) {
             for (auto visualizer : magic_enum::enum_values<RenderVisualization>()) {
                 const auto name = magic_enum::enum_name(visualizer);
-                const auto name_str = std::string{ name }; // This is so sad
+                const auto name_str = std::string{name}; // This is so sad
                 if (ImGui::Selectable(name_str.c_str(), selected_visualizer == visualizer)) {
                     selected_visualizer = visualizer;
                 }

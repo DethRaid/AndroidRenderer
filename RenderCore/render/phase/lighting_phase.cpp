@@ -34,8 +34,9 @@ void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, 
 
     GpuZoneScopedN(commands, "LightingPhase::render")
 
-    auto gbuffers_descriptor_set = VkDescriptorSet{};
-    backend.create_frame_descriptor_builder()
+    auto gbuffers_descriptor_set = *vkutil::DescriptorBuilder::begin(
+        backend, backend.get_transient_descriptor_allocator()
+    )
            .bind_image(
                0,
                {.sampler = {}, .image = gbuffer.color, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
@@ -61,7 +62,7 @@ void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, 
                {.sampler = {}, .image = gbuffer.depth, .image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL},
                VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT
            )
-           .build(gbuffers_descriptor_set);
+           .build();
 
     add_sun_lighting(commands, gbuffers_descriptor_set, view);
 
@@ -121,8 +122,9 @@ LightingPhase::add_sun_lighting(
 
     commands.bind_descriptor_set(0, gbuffers_descriptor_set);
 
-    auto sun_descriptor_set = VkDescriptorSet{};
-    backend.create_frame_descriptor_builder()
+    auto sun_descriptor_set = *vkutil::DescriptorBuilder::begin(
+        backend, backend.get_transient_descriptor_allocator()
+    )
            .bind_image(
                0,
                {.sampler = sampler, .image = shadowmap, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
@@ -136,7 +138,7 @@ LightingPhase::add_sun_lighting(
                2, {.buffer = view.get_buffer(), .offset = 0, .range = sizeof(ViewDataGPU)},
                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT
            )
-           .build(sun_descriptor_set);
+           .build();
     commands.bind_descriptor_set(1, sun_descriptor_set);
 
     commands.draw_triangle();

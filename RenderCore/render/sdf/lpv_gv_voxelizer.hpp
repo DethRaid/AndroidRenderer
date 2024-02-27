@@ -69,17 +69,17 @@ private:
 
     BufferHandle cell_bitmask = BufferHandle::None;
 
-    ComputeShader texture_clear_shader;
+    ComputePipelineHandle texture_clear_shader;
 
-    ComputeShader transform_verts_shader;
+    ComputePipelineHandle transform_verts_shader;
 
-    ComputeShader coarse_binning_shader;
+    ComputePipelineHandle coarse_binning_shader;
 
-    ComputeShader fine_binning_shader;
+    ComputePipelineHandle fine_binning_shader;
 
-    ComputeShader rasterize_primitives_shader;
+    ComputePipelineHandle rasterize_primitives_shader;
 
-    ComputeShader normalize_gv_shader;
+    ComputePipelineHandle normalize_gv_shader;
 
     RenderBackend* backend;
 };

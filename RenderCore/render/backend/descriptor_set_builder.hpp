@@ -3,22 +3,14 @@
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/texture_usage_token.hpp"
 #include "render/backend/handles.hpp"
+#include "render/backend/descriptor_set_info.hpp"
 
+class DescriptorSetAllocator;
 class RenderBackend;
-
-struct DescriptorInfo : VkDescriptorSetLayoutBinding {
-    bool is_read_only = false;
-};
-
-struct DescriptorSetInfo {
-    std::unordered_map<uint32_t, DescriptorInfo> bindings;
-
-    bool has_variable_count_binding = false;
-};
 
 class DescriptorSet {
 public:
-    explicit DescriptorSet(RenderBackend& backend_in, DescriptorSetInfo set_info_in);
+    explicit DescriptorSet(RenderBackend& backend_in, DescriptorSetAllocator& allocator_in, DescriptorSetInfo set_info_in);
 
     DescriptorSet& bind(uint32_t binding_index, BufferHandle buffer);
 
@@ -39,9 +31,11 @@ public:
 private:
     RenderBackend& backend;
 
+    DescriptorSetAllocator& allocator;
+
     DescriptorSetInfo set_info;
 
-    VkDescriptorSet descriptor_set;
+    VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
 
     struct BoundResource {
         union {

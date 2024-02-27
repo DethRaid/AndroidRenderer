@@ -21,8 +21,8 @@ private:
 
     TextureHandle bloom_tex = TextureHandle::None;
 
-    ComputeShader downsample_shader;
-    ComputeShader upsample_shader;
+    ComputePipelineHandle downsample_shader;
+    ComputePipelineHandle upsample_shader;
 
     VkSampler bilinear_sampler;
 

@@ -5,6 +5,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include "pipeline_cache.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/render_graph.hpp"
@@ -34,28 +35,22 @@ private:
     BufferHandle scatter_indices = BufferHandle::None;
     BufferHandle scatter_data = BufferHandle::None;
 
-    static ComputeShader scatter_shader;
+    static ComputePipelineHandle scatter_shader;
 };
 
 template <typename DataType>
-ComputeShader ScatterUploadBuffer<DataType>::scatter_shader;
+ComputePipelineHandle ScatterUploadBuffer<DataType>::scatter_shader;
 
 template <typename DataType>
 ScatterUploadBuffer<DataType>::ScatterUploadBuffer(RenderBackend& backend_in) : backend{&backend_in} {
-    if (scatter_shader.pipeline == VK_NULL_HANDLE) {
-        const auto shader_maybe = SystemInterface::get().load_file("shaders/scatter_upload.comp.spv");
-
-        if (!shader_maybe || shader_maybe->empty()) {
-            spdlog::error("Could not load compute shader shaders/scatter_upload.comp.spv");
-            throw std::runtime_error{"Could not load compute shader shaders/scatter_upload.comp.spv"};
-        }
-
-        scatter_shader = *backend->create_compute_shader("shaders/scatter_upload.comp.spv", *shader_maybe);
+    if (!scatter_shader.is_valid()) {
+        auto& pipeline_cache = backend->get_pipeline_cache();
+        scatter_shader = pipeline_cache.create_pipeline("shaders/scatter_upload.comp.spv");
     }
 }
 
 template <typename DataType>
-void ScatterUploadBuffer<DataType>::add_data(uint32_t destination_index, DataType data) {
+void ScatterUploadBuffer<DataType>::add_data(const uint32_t destination_index, DataType data) {
     auto& allocator = backend->get_global_allocator();
 
     if (scatter_indices == BufferHandle::None) {
@@ -102,7 +97,7 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHa
 
     auto& resources = backend->get_global_allocator();
 
-    graph.add_compute_pass(
+    graph.add_pass(
         ComputePass{
             .name = "Flush scatter buffer",
             .buffers = {
@@ -122,7 +117,7 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHa
                 commands.set_push_constant(6, scatter_buffer_count);
                 commands.set_push_constant(7, static_cast<uint32_t>(sizeof(DataType)));
 
-                commands.bind_shader(scatter_shader);
+                commands.bind_pipeline(scatter_shader);
 
                 // Add 1 because integer division is fun
                 commands.dispatch(scatter_buffer_count / 32 + 1, 1, 1);

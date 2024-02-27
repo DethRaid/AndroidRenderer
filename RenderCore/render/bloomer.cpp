@@ -1,5 +1,6 @@
 #include "bloomer.hpp"
 
+#include "backend/pipeline_cache.hpp"
 #include "console/cvars.hpp"
 #include "render/backend/render_backend.hpp"
 #include "core/system_interface.hpp"
@@ -14,14 +15,10 @@ Bloomer::Bloomer(RenderBackend& backend_in) : backend{backend_in} {
         logger->set_level(spdlog::level::info);
     }
 
-    {
-        const auto bytes = SystemInterface::get().load_file("shaders/postprocessing/bloom_downsample.comp.spv");
-        downsample_shader = *backend.create_compute_shader("Bloom Downsample", *bytes);
-    }
-    {
-        const auto bytes = SystemInterface::get().load_file("shaders/postprocessing/bloom_upsample.comp.spv");
-        upsample_shader = *backend.create_compute_shader("Bloom Upsample", *bytes);
-    }
+    auto& pipeline_cache = backend.get_pipeline_cache();
+
+    downsample_shader = pipeline_cache.create_pipeline("shaders/postprocessing/bloom_downsample.comp.spv");
+    upsample_shader = pipeline_cache.create_pipeline("shaders/postprocessing/bloom_upsample.comp.spv");
 
     bilinear_sampler = backend.get_global_allocator().get_sampler(
         {
@@ -41,7 +38,7 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
         create_bloom_tex(scene_color);
     }
 
-    graph.add_compute_pass(
+    graph.add_pass(
         {
             .name = "Bloom 0",
             .textures = {
@@ -61,7 +58,9 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                 }
             },
             .execute = [&](CommandBuffer& commands) {
-                auto set = *backend.create_frame_descriptor_builder()
+                auto set = *vkutil::DescriptorBuilder::begin(
+                        backend, backend.get_transient_descriptor_allocator()
+                    )
                                    .bind_image(
                                        0, {
                                            .sampler = bilinear_sampler, .image = scene_color,
@@ -75,14 +74,14 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                                    .build();
 
                 commands.bind_descriptor_set(0, set);
-                commands.bind_shader(downsample_shader);
+                commands.bind_pipeline(downsample_shader);
 
                 commands.dispatch((bloom_tex_resolution.x + 7) / 8, (bloom_tex_resolution.y + 7) / 8, 1);
             }
         }
     );
 
-    graph.add_compute_pass(
+    graph.add_pass(
         {
             .name = "Bloom",
             .execute = [&](CommandBuffer& commands) {
@@ -91,7 +90,7 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                 const auto& bloom_texture_actual = backend.get_global_allocator().get_texture(bloom_tex);
                 auto dispatch_size = bloom_tex_resolution;
 
-                commands.bind_shader(downsample_shader);
+                commands.bind_pipeline(downsample_shader);
 
                 // We gonna rock down to electric avenue
                 for (auto pass = 0u; pass < cvar_num_bloom_mips.Get() - 1; pass++) {
@@ -139,7 +138,9 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                         }
                     );
 
-                    backend.create_frame_descriptor_builder()
+                    vkutil::DescriptorBuilder::begin(
+                        backend, backend.get_transient_descriptor_allocator()
+                    )
                            .bind_image(
                                0, {
                                    .sampler = bilinear_sampler, .image = bloom_tex,

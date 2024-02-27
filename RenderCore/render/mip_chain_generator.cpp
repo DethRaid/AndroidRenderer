@@ -1,6 +1,7 @@
 #include "mip_chain_generator.hpp"
 
 #define A_CPU
+#include "backend/pipeline_cache.hpp"
 #include "extern/spd/ffx_a.h"
 #include "extern/spd/ffx_spd.h"
 
@@ -11,23 +12,26 @@ MipChainGenerator::MipChainGenerator(RenderBackend& backend_in) : backend{backen
     // TODO: We need a shader templating system. This will let us build the mip chain generation shaders with a custom
     // texture format and reduction filter
 
-    {
-        const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_R16F.comp.spv");
-        shaders.emplace(VK_FORMAT_R16_SFLOAT, *backend.create_compute_shader("Mip Chain Generator R16F", bytes));
-    }
-    {
-        const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_RGBA16F.comp.spv");
-        shaders.emplace(VK_FORMAT_R16G16B16A16_SFLOAT, *backend.create_compute_shader("Mip Chain Generator RGBA16F", bytes));
-    }
-    {
-        const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_B10G11R11F.comp.spv");
-        shaders.emplace(VK_FORMAT_B10G11R11_UFLOAT_PACK32, *backend.create_compute_shader("Mip Chain Generator B10G11R11F", bytes));
-    }
+    auto& pipeline_cache = backend.get_pipeline_cache();
 
-    {
-        const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_D32F_min.comp.spv");
-        shaders.emplace(VK_FORMAT_R32_SFLOAT, *backend.create_compute_shader("Mip Chain Generator D32F", bytes));
-    }
+    shaders.emplace(
+        VK_FORMAT_R16_SFLOAT, pipeline_cache.create_pipeline("shaders/util/mip_chain_generator_R16F.comp.spv")
+    );
+
+    shaders.emplace(
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        pipeline_cache.create_pipeline("shaders/util/mip_chain_generator_RGBA16F.comp.spv")
+    );
+
+    shaders.emplace(
+        VK_FORMAT_B10G11R11_UFLOAT_PACK32, pipeline_cache.create_pipeline(
+            "shaders/util/mip_chain_generator_B10G11R11F.comp.spv"
+        )
+    );
+
+    shaders.emplace(
+        VK_FORMAT_R32_SFLOAT, pipeline_cache.create_pipeline("shaders/util/mip_chain_generator_D32F_min.comp.spv")
+    );
 
     auto& allocator = backend.get_global_allocator();
     counter_buffer = allocator.create_buffer("SPD Counter Buffer", sizeof(uint32_t) * 6, BufferUsage::StorageBuffer);
@@ -45,7 +49,7 @@ MipChainGenerator::MipChainGenerator(RenderBackend& backend_in) : backend{backen
 void MipChainGenerator::fill_mip_chain(
     RenderGraph& graph, const TextureHandle src_texture, const TextureHandle dest_texture
 ) {
-    graph.add_compute_pass(
+    graph.add_pass(
         {
             .name = "Clear counter",
             .buffers = {
@@ -62,7 +66,7 @@ void MipChainGenerator::fill_mip_chain(
             }
         }
     );
-    graph.add_compute_pass(
+    graph.add_pass(
         {
             .name = "Downsample",
             .textures = {
@@ -120,8 +124,9 @@ void MipChainGenerator::fill_mip_chain(
                     );
                 }
 
-                auto set = VkDescriptorSet{};
-                backend.create_frame_descriptor_builder()
+                auto set = *vkutil::DescriptorBuilder::begin(
+                    backend, backend.get_transient_descriptor_allocator()
+                )
                        .bind_image(
                            0, {
                                .sampler = sampler,
@@ -130,13 +135,14 @@ void MipChainGenerator::fill_mip_chain(
                            }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT
                        )
                        .bind_image(
-                           1, uavs.data(), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, static_cast<int32_t>(uavs.size())
+                           1, uavs.data(), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+                           static_cast<int32_t>(uavs.size())
                        )
-                       .build(set);
+                       .build();
 
                 commands.bind_descriptor_set(0, set);
 
-                commands.bind_shader(shader);
+                commands.bind_pipeline(shader);
 
                 varAU2(dispatch_thread_group_count_xy);
                 varAU2(work_group_offset);
