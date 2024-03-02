@@ -28,11 +28,11 @@ LightingPhase::LightingPhase(RenderBackend& backend_in) : backend{backend_in} {
 }
 
 void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, const std::unique_ptr<LightPropagationVolume>& lpv) {
+    ZoneScoped;
+
     if (scene == nullptr) {
         return;
     }
-
-    GpuZoneScopedN(commands, "LightingPhase::render")
 
     auto gbuffers_descriptor_set = *vkutil::DescriptorBuilder::begin(
         backend, backend.get_transient_descriptor_allocator()

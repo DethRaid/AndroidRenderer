@@ -65,7 +65,7 @@ MeshStorage::~MeshStorage() {
 }
 
 tl::optional<MeshHandle> MeshStorage::add_mesh(
-    const std::span<const StandardVertex> vertices, const std::span<const uint32_t> indices, const glm::vec3& bounds
+    const std::span<const StandardVertex> vertices, const std::span<const uint32_t> indices, const Box& bounds
 ) {
     auto mesh = Mesh{};
 
@@ -152,6 +152,7 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
     if(mesh_draw_args_upload_buffer.is_full()) {
         auto graph = backend->create_render_graph();
         flush_mesh_draw_arg_uploads(graph);
+        graph.finish();
         backend->execute_graph(std::move(graph));
     }
 

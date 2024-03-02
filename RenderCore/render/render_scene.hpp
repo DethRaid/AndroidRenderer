@@ -24,7 +24,7 @@ public:
 
     MeshPrimitiveHandle add_primitive(RenderGraph& graph, MeshPrimitive primitive);
 
-    void flush_primitive_upload(RenderGraph& graph);
+    void pre_frame(RenderGraph& graph);
     
     const std::vector<MeshPrimitiveHandle>& get_solid_primitives() const;
 
@@ -82,6 +82,12 @@ private:
     std::vector<MeshPrimitiveHandle> new_emissive_objects;
 
     ComputePipelineHandle emissive_point_cloud_shader;
+
+    VkSampler voxel_sampler;
+
+    std::vector<MeshPrimitiveHandle> new_primitives;
+
+    void create_voxel_cache();
 
     BufferHandle generate_vpls_for_primitive(RenderGraph& graph, const MeshPrimitiveHandle& primitive);
 };

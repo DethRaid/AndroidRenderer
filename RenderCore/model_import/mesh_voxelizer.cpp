@@ -37,13 +37,13 @@ MeshVoxelizer::MeshVoxelizer(RenderBackend& backend_in) : backend{&backend_in} {
                                            .create_pipeline("shaders/voxelizer/voxelizer.comp.spv");
 }
 
-TextureHandle MeshVoxelizer::voxelize_with_raster(
+VoxelTextures MeshVoxelizer::voxelize_with_raster(
     RenderGraph& graph, const MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
     const BufferHandle primitive_buffer, const float voxel_size
 ) const {
     // Create a 3D texture big enough to hold the mesh's bounding sphere. There will be some wasted space, maybe we can copy to a smaller texture at some point?
     const auto bounds = primitive->mesh->bounds;
-    const auto voxel_texture_resolution = glm::uvec3{bounds * 2.f * voxel_size};
+    const auto voxel_texture_resolution = glm::uvec3{(bounds.max - bounds.min) * voxel_size} + 1u;
 
     auto& allocator = backend->get_global_allocator();
 
@@ -55,7 +55,7 @@ TextureHandle MeshVoxelizer::voxelize_with_raster(
         "Voxelizer frustums", sizeof(glm::mat4), BufferUsage::StagingBuffer
     );
     auto* bounds_frustum_matrix = allocator.map_buffer<glm::mat4>(frustums_buffer);
-    *bounds_frustum_matrix = glm::ortho(-bounds.x, bounds.x, bounds.y, -bounds.y, bounds.z, -bounds.z);
+    *bounds_frustum_matrix = glm::ortho(bounds.min.x, bounds.max.x, bounds.max.y, bounds.min.y, bounds.max.z, bounds.min.z);
 
     graph.begin_render_pass(
         {
@@ -82,7 +82,8 @@ TextureHandle MeshVoxelizer::voxelize_with_raster(
 
     graph.add_subpass(
         {
-            .name = "Voxelization", .execute = [=, this, &mesh_storage](CommandBuffer& commands) {
+            .name = "Voxelization",
+            .execute = [=, this, &mesh_storage](CommandBuffer& commands) {
                 const auto set = *vkutil::DescriptorBuilder::begin(
                                       *backend, backend->get_transient_descriptor_allocator()
                                   )
@@ -123,10 +124,10 @@ TextureHandle MeshVoxelizer::voxelize_with_raster(
 
     graph.end_render_pass();
 
-    return voxels;
+    return {.color_texture = voxels};
 }
 
-TextureHandle MeshVoxelizer::voxelize_with_compute(
+VoxelTextures MeshVoxelizer::voxelize_with_compute(
     RenderGraph& graph, const MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
     const BufferHandle primitive_buffer,
     const float voxel_size
@@ -136,7 +137,7 @@ TextureHandle MeshVoxelizer::voxelize_with_compute(
 
     // Create a 3D texture big enough to hold the mesh's bounding box. There will be some wasted space, maybe we can copy to a smaller texture at some point?
     const auto bounds = primitive->mesh->bounds;
-    const auto voxel_texture_resolution = glm::uvec3{glm::ceil(bounds * 2.f * voxel_size)};
+    const auto voxel_texture_resolution = glm::uvec3{ (bounds.max - bounds.min) * voxel_size } + 1u;
 
     auto& allocator = backend->get_global_allocator();
 
@@ -145,7 +146,7 @@ TextureHandle MeshVoxelizer::voxelize_with_compute(
     );
 
     const auto voxels_normal = allocator.create_volume_texture(
-        "Mesh voxel normals", VK_FORMAT_R8G8B8A8_UNORM, voxel_texture_resolution, 1, TextureUsage::StorageImage
+        "Mesh voxel normals", VK_FORMAT_R16G16B16A16_SNORM, voxel_texture_resolution, 1, TextureUsage::StorageImage
     );
 
     const auto pass_constants_buffer = allocator.create_buffer(
@@ -153,7 +154,7 @@ TextureHandle MeshVoxelizer::voxelize_with_compute(
     );
     auto* pass_parameters_buffer = allocator.map_buffer<VoxelizerComputePassParameters>(pass_constants_buffer);
     *pass_parameters_buffer = VoxelizerComputePassParameters{
-        .bounds_min = glm::vec4{-bounds, 0.f},
+        .bounds_min = glm::vec4{bounds.min, 0.f},
         .half_cell_size = voxel_size * 0.5f
     };
 
@@ -177,10 +178,10 @@ TextureHandle MeshVoxelizer::voxelize_with_compute(
         }
     );
 
-    return voxels_color;
+    return { .color_texture = voxels_color, .normals_texture = voxels_normal };
 }
 
-TextureHandle MeshVoxelizer::voxelize_primitive(
+VoxelTextures MeshVoxelizer::voxelize_primitive(
     RenderGraph& graph, const MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
     const BufferHandle primitive_buffer, const float voxel_size, const Mode mode
 ) const {
@@ -192,5 +193,5 @@ TextureHandle MeshVoxelizer::voxelize_primitive(
         return voxelize_with_compute(graph, primitive, mesh_storage, primitive_buffer, voxel_size);
     }
 
-    return TextureHandle::None;
+    return {};
 }

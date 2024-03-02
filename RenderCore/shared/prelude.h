@@ -7,6 +7,8 @@
 
 #include <glm/glm.hpp>
 
+using u16vec2 = glm::u16vec2;
+
 using uint = uint32_t;
 using uvec2 = glm::uvec2;
 using uvec4 = glm::uvec4;

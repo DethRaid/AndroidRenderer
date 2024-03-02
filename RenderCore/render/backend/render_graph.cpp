@@ -73,7 +73,12 @@ void RenderGraph::add_pass(ComputePass&& pass) {
 
     access_tracker.issue_barriers(cmds);
 
-    pass.execute(cmds);
+    {
+        ZoneTransientN(zone, pass.name.c_str(), true);
+        TracyVkZoneTransient(cmds.get_tracy_context(), vk_zone, cmds.get_vk_commands(), pass.name.c_str(), true);
+
+        pass.execute(cmds);
+    }
 
     if (!pass.name.empty()) {
         cmds.end_label();

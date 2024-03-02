@@ -8,6 +8,11 @@
 class MeshStorage;
 class RenderGraph;
 
+struct VoxelTextures {
+    TextureHandle color_texture;
+    TextureHandle normals_texture;
+};
+
 /**
  * \brief Voxelizes a mesh, using all the things from https://developer.nvidia.com/content/basics-gpu-voxelization
  *
@@ -43,7 +48,7 @@ public:
      * \param mode How to voxelize the mesh
      * \param voxel_size Size of one edge of a voxel, in modelspace
      */
-    TextureHandle voxelize_primitive(
+    VoxelTextures voxelize_primitive(
         RenderGraph& graph, MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
         BufferHandle primitive_buffer, float voxel_size = 0.25, Mode mode = Mode::ColorOnly
     ) const;
@@ -55,13 +60,13 @@ private:
 
     ComputePipelineHandle compute_voxelization_pipeline;
 
-    TextureHandle voxelize_with_raster(
+    VoxelTextures voxelize_with_raster(
         RenderGraph& graph, MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
         BufferHandle primitive_buffer,
         float voxel_size
     ) const;
 
-    TextureHandle voxelize_with_compute(
+    VoxelTextures voxelize_with_compute(
         RenderGraph& graph, MeshPrimitiveHandle primitive, const MeshStorage& mesh_storage,
         BufferHandle primitive_buffer, float voxel_size
     ) const;

@@ -27,7 +27,7 @@ public:
     ~MeshStorage();
 
     tl::optional<MeshHandle> add_mesh(
-        std::span<const StandardVertex> vertices, std::span<const uint32_t> indices, const glm::vec3& bounds
+        std::span<const StandardVertex> vertices, std::span<const uint32_t> indices, const Box& bounds
     );
 
     void free_mesh(MeshHandle mesh);

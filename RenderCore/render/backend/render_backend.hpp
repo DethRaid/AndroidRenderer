@@ -164,6 +164,8 @@ public:
     void set_object_name(VulkanType object, const std::string& name) const;
 
 private:
+    bool is_first_frame = true;
+
     uint32_t cur_frame_idx = 0;
     uint64_t total_num_frames = 0;
 

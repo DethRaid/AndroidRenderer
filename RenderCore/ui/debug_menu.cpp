@@ -198,6 +198,7 @@ void DebugUI::draw() {
 
 
 void DebugUI::create_font_texture() {
+    ZoneScoped;
     const auto& io = ImGui::GetIO();
     unsigned char* pixels;
     int width, height;
@@ -272,7 +273,6 @@ void DebugUI::update_mouse_cursor() const {
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
     } else {
         // Show OS mouse cursor
-        // FIXME-PLATFORM: Unfocused windows seems to fail changing the mouse cursor with GLFW 3.2, but 3.3 works here.
         glfwSetCursor(
             window, mouse_cursors[imgui_cursor] ? mouse_cursors[imgui_cursor] : mouse_cursors[ImGuiMouseCursor_Arrow]
         );

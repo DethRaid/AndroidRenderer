@@ -33,11 +33,11 @@ RenderScene::RenderScene(RenderBackend& backend_in, MeshStorage& meshes_in, Mate
     emissive_point_cloud_shader = pipeline_cache.create_pipeline("shaders/util/emissive_point_cloud.comp.spv");
 
     if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
-        voxel_cache = std::make_unique<VoxelCache>(backend);
+        create_voxel_cache();
     }
 }
 
-PooledObject<MeshPrimitive>
+MeshPrimitiveHandle
 RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
     auto& allocator = backend.get_global_allocator();
 
@@ -71,14 +71,6 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
         new_emissive_objects.push_back(handle);
     }
 
-    if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
-        const auto obj = voxel_cache->build_voxels_for_mesh(
-            handle, meshes, primitive_data_buffer
-        );
-
-        handle->data.voxel_texture_idx = static_cast<uint32_t>(obj.voxels);
-    }
-
     raytracing_scene.map([&](RaytracingScene& rt_scene) { rt_scene.add_primitive(handle); });
 
     if (primitive_upload_buffer.is_full()) {
@@ -86,13 +78,37 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
     }
     primitive_upload_buffer.add_data(handle.index, handle->data);
 
+    new_primitives.push_back(handle);
+
     return handle;
 }
 
-void RenderScene::flush_primitive_upload(RenderGraph& graph) {
+void RenderScene::pre_frame(RenderGraph& graph) {
     primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
-}
 
+    if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
+        for (auto& handle : new_primitives) {
+            const auto obj = voxel_cache->build_voxels_for_mesh(
+                handle, meshes, primitive_data_buffer, graph
+            );
+
+            auto& texture_descriptors = backend.get_texture_descriptor_pool();
+            handle->data.voxels_color_srv = texture_descriptors.create_texture_srv(
+                obj.voxels_color, voxel_sampler
+            );
+            handle->data.voxels_normal_srv = texture_descriptors.create_texture_srv(obj.voxels_color, voxel_sampler);
+            handle->data.voxel_size_xy = glm::u16vec2{obj.worldspace_size.x, obj.worldspace_size.y};
+            handle->data.voxel_size_zw = glm::u16vec2{obj.worldspace_size.z, 0u};
+
+            primitive_upload_buffer.add_data(handle.index, handle->data);
+        }
+    }
+
+    // Gotta flush it again now that we have the SRVs. Kinda annoying but all well
+    primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
+
+    new_primitives.clear();
+}
 
 const std::vector<PooledObject<MeshPrimitive>>& RenderScene::get_solid_primitives() const {
     return solid_primitives;
@@ -121,8 +137,8 @@ std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
         const auto matrix = primitive->data.model;
         const auto mesh_bounds = primitive->mesh->bounds;
 
-        const auto max_mesh_bounds = mesh_bounds * 0.5f;
-        const auto min_mesh_bounds = -max_mesh_bounds;
+        const auto max_mesh_bounds = mesh_bounds.max;
+        const auto min_mesh_bounds = mesh_bounds.min;
         const auto min_primitive_bounds = matrix * glm::vec4{min_mesh_bounds, 1.f};
         const auto max_primitive_bounds = matrix * glm::vec4{max_mesh_bounds, 1.f};
 
@@ -153,6 +169,25 @@ const MeshStorage& RenderScene::get_meshes() const {
 RaytracingScene& RenderScene::get_raytracing_scene() { return *raytracing_scene; }
 
 VoxelCache& RenderScene::get_voxel_cache() const { return *voxel_cache; }
+
+void RenderScene::create_voxel_cache() {
+    voxel_cache = std::make_unique<VoxelCache>(backend);
+
+    voxel_sampler = backend.get_global_allocator().get_sampler(
+        {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .anisotropyEnable = VK_TRUE,
+            .maxAnisotropy = 16.f,
+            .maxLod = 16.f,
+        }
+    );
+}
 
 BufferHandle RenderScene::generate_vpls_for_primitive(
     RenderGraph& graph, const PooledObject<MeshPrimitive>& primitive

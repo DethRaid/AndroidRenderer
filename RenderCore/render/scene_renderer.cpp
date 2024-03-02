@@ -153,8 +153,6 @@ void SceneRenderer::render() {
         ComputePass{
             .name = "Begin Frame",
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Begin Frame")
-
                 auto& sun = scene->get_sun_light();
                 sun.update_shadow_cascades(player_view);
                 sun.update_buffer(commands);
@@ -171,7 +169,7 @@ void SceneRenderer::render() {
 
     material_storage.flush_material_buffer(render_graph);
 
-    scene->flush_primitive_upload(render_graph);
+    scene->pre_frame(render_graph);
 
     meshes.flush_mesh_draw_arg_uploads(render_graph);
 
@@ -255,8 +253,6 @@ void SceneRenderer::render() {
             .name = "Sun shadow",
             .depth_attachment = 0,
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Sun Shadow")
-
                 auto& sun = scene->get_sun_light();
 
                 auto global_set = *vkutil::DescriptorBuilder::begin(
@@ -339,8 +335,6 @@ void SceneRenderer::render() {
             .color_attachments = {0, 1, 2, 3},
             .depth_attachment = 5,
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "GBuffer")
-
                 auto global_set = *vkutil::DescriptorBuilder::begin(
                                        backend, backend.get_transient_descriptor_allocator()
                                    )
@@ -439,6 +433,8 @@ void SceneRenderer::render() {
     last_frame_normal_usage = render_graph.get_last_usage_token(normal_target_mip_chain);
 
     backend.execute_graph(std::move(render_graph));
+
+    backend.flush_batched_command_buffers();
 }
 
 RenderBackend& SceneRenderer::get_backend() {

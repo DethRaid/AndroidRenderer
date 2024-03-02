@@ -11,6 +11,7 @@
 #include <tracy/Tracy.hpp>
 #include <fastgltf_parser.hpp>
 
+#include "core/box.hpp"
 #include "core/issue_breakpoint.hpp"
 #include "core/percent_encoding.hpp"
 #include "core/visitor.hpp"
@@ -29,7 +30,7 @@ read_vertex_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& mo
 static std::vector<uint32_t>
 read_index_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& model);
 
-static glm::vec3 read_mesh_bounds(const fastgltf::Primitive& primitive, const fastgltf::Asset& model);
+static Box read_mesh_bounds(const fastgltf::Primitive& primitive, const fastgltf::Asset& model);
 
 static void copy_vertex_data_to_vector(
     const std::unordered_map<std::string, std::size_t>& attributes,
@@ -86,9 +87,7 @@ glm::vec4 GltfModel::get_bounding_sphere() const { return bounding_sphere; }
 
 const fastgltf::Asset& GltfModel::get_gltf_data() const { return *model; }
 
-void GltfModel::add_primitives(SceneRenderer& renderer, RenderScene& scene) {
-    auto& backend = renderer.get_backend();
-    auto graph = RenderGraph{backend};
+void GltfModel::add_primitives(SceneRenderer& renderer, RenderScene& scene, RenderGraph& graph) {
     traverse_nodes(
         [&](const fastgltf::Node& node, const glm::mat4& node_to_world) {
             if (node.meshIndex) {
@@ -103,17 +102,17 @@ void GltfModel::add_primitives(SceneRenderer& renderer, RenderScene& scene) {
                         *gltf_primitive.materialIndex
                     );
 
-                    const auto radius_ = glm::max(
-                        glm::max(imported_mesh->bounds.x, imported_mesh->bounds.y), imported_mesh->bounds.z
+                    const auto& bounds = imported_mesh->bounds;
+                    const auto radius = glm::max(
+                        glm::max(bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y), bounds.max.z - bounds.min.z
                     );
 
                     auto handle = scene.add_primitive(
                         graph, {
                             .data = PrimitiveDataGPU{
                                 .model = node_to_world, .inverse_model = glm::inverse(node_to_world),
-                                .bounds_and_radius = {
-                                    imported_mesh->bounds.x, imported_mesh->bounds.y, imported_mesh->bounds.z, radius_
-                                },
+                                .bounds_min_and_radius = {bounds.min, radius},
+                                .bounds_max = {bounds.max, 0.f}
                             },
                             .mesh = imported_mesh,
                             .material = imported_material,
@@ -130,7 +129,13 @@ void GltfModel::add_primitives(SceneRenderer& renderer, RenderScene& scene) {
 }
 
 void GltfModel::add_to_scene(RenderScene& scene, SceneRenderer& scene_renderer) {
-    add_primitives(scene_renderer, scene);
+    auto& backend = scene_renderer.get_backend();
+    auto graph = RenderGraph{backend};
+
+    add_primitives(scene_renderer, scene, graph);
+
+    graph.finish();
+    backend.execute_graph(std::move(graph));
 }
 
 void GltfModel::import_resources_for_model(SceneRenderer& renderer) {
@@ -643,18 +648,13 @@ read_index_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& mod
     return indices;
 }
 
-glm::vec3 read_mesh_bounds(const fastgltf::Primitive& primitive, const fastgltf::Asset& model) {
+Box read_mesh_bounds(const fastgltf::Primitive& primitive, const fastgltf::Asset& model) {
     const auto position_attribute_idx = primitive.attributes.at("POSITION");
     const auto& position_accessor = model.accessors[position_attribute_idx];
     const auto* min = std::get_if<std::vector<double>>(&position_accessor.min);
     const auto* max = std::get_if<std::vector<double>>(&position_accessor.max);
 
-    auto bounds = glm::vec3{};
-    bounds.x = static_cast<float>(max->at(0) - min->at(0));
-    bounds.y = static_cast<float>(max->at(1) - min->at(1));
-    bounds.z = static_cast<float>(max->at(2) - min->at(2));
-
-    return bounds;
+    return {.min = glm::make_vec3(min->data()), .max = glm::make_vec3(max->data())};
 }
 
 void copy_vertex_data_to_vector(

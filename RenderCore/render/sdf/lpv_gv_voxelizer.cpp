@@ -111,7 +111,9 @@ void ThreeDeeRasterizer::deinit_resources(ResourceAllocator& allocator) {
 }
 
 void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh, const MeshStorage& meshes) {
-    const auto scale = mesh->bounds / 2.f;
+    ZoneScoped;
+
+    const auto scale = (mesh->bounds.max - mesh->bounds.min) * 0.5f;
 
     constexpr auto bias_mat = glm::mat4{
         0.5f, 0.0f, 0.0f, 0.0f,
@@ -228,8 +230,6 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
                 },
             },
             .execute = [&, this](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Transform primitives")
-
                 commands.bind_descriptor_set(0, triangle_shader_set);
 
                 commands.bind_pipeline(transform_verts_shader);
@@ -268,8 +268,6 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
                 }
             },
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Bin Triangles Low Res")
-
                 const auto set = *vkutil::DescriptorBuilder::begin(
                                       *backend, backend->get_transient_descriptor_allocator()
                                   )
@@ -330,8 +328,6 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
                 }
             },
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Bin Triangles High Res")
-
                 const auto set = *vkutil::DescriptorBuilder::begin(
                                       *backend, backend->get_transient_descriptor_allocator()
                                   )
@@ -402,7 +398,6 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
                 }
             },
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Rasterize triangles")
                 const auto set = *vkutil::DescriptorBuilder::begin(
                                       *backend, backend->get_transient_descriptor_allocator()
                                   )

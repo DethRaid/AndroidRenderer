@@ -88,6 +88,8 @@ void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
 }
 
 void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, const BufferHandle view_data_buffer) {
+    ZoneScoped;
+
     graph.begin_label("Depth/culling pass");
 
     const auto view_descriptor = *vkutil::DescriptorBuilder::begin(
@@ -137,11 +139,9 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
         );
         graph.add_subpass(
             {
-                .name = "Rasterize",
+                .name = "Rasterize last frame's visible objects",
                 .depth_attachment = 0,
                 .execute = [&](CommandBuffer& commands) {
-                    GpuZoneScopedN(commands, "Rasterize last frame's visible objects");
-
                     commands.bind_descriptor_set(0, view_descriptor);
 
                     drawer.draw_indirect(
@@ -188,8 +188,6 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
                 {this_frame_visible_objects, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
             },
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "HiZ Culling");
-
                 commands.bind_descriptor_set(0, texture_descriptor_pool.get_descriptor_set());
 
                 commands.bind_buffer_reference(0, primitive_buffer);
@@ -247,8 +245,6 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
                 .name = "Rasterize",
                 .depth_attachment = 0,
                 .execute = [&](CommandBuffer& commands) {
-                    GpuZoneScopedN(commands, "Rasterize last frame's visible objects");
-
                     commands.bind_descriptor_set(0, view_descriptor);
 
                     drawer.draw_indirect(

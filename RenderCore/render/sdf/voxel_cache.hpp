@@ -5,6 +5,7 @@
 #include "render/sdf/lpv_gv_voxelizer.hpp"
 #include "render/mesh_handle.hpp"
 #include "render/sdf/voxel_object.hpp"
+#include "shared/voxel_object_gpu.hpp"
 
 class RenderBackend;
 
@@ -20,7 +21,7 @@ public:
     /**
      * Creates a voxel volume for the given mesh
      */
-    VoxelObject build_voxels_for_mesh(MeshPrimitiveHandle primitive, const MeshStorage& meshes, BufferHandle primitive_data_buffer);
+    VoxelObject build_voxels_for_mesh(MeshPrimitiveHandle primitive, const MeshStorage& meshes, BufferHandle primitive_data_buffer, RenderGraph& graph);
 
     const VoxelObject& get_voxel_for_primitive(MeshPrimitiveHandle primitive) const;
 

@@ -12,13 +12,11 @@ class RenderBackend;
  * Can automatically handle resource transitions
  *
  * Render passes are always executed in the order they're received. Intended usage is for you to make a new render
- * graph each frame, add passes to it, then submit it to the backend for execution
+ * graph each frame, add passes to it, then submit it to the backend for execution. Passes may not run until the end of
+ * the frame, but they'll always run the same frame your submit the graph
  *
  * This render graph does not allocate resources. Resource allocation should be handled with the ResourceAllocator
  * class
- *
- * This render graph does not create render passes or subpasses. Individual passes are free to use render passes or
- * subpasses as they with, within the limits of what Vulkan allows
  */
 class RenderGraph {
 public:

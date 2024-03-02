@@ -2,6 +2,7 @@
 
 #include <spdlog/sinks/android_sink.h>
 #include <spdlog/logger.h>
+#include <vulkan/vk_enum_string_helper.h>
 
 #include "render_backend.hpp"
 #include "core/system_interface.hpp"
@@ -99,7 +100,10 @@ void CommandAllocator::return_command_buffer(const VkCommandBuffer buffer) {
 
 void CommandAllocator::reset() {
     const auto device = backend->get_device();
-    vkResetCommandPool(device, command_pool, 0);
+    const auto result = vkResetCommandPool(device, command_pool, 0);
+    if(result != VK_SUCCESS) {
+        logger->error("Resetting command pool failed: {}", string_VkResult(result));
+    }
 
     available_command_buffers.insert(available_command_buffers.end(), command_buffers.begin(), command_buffers.end());
 

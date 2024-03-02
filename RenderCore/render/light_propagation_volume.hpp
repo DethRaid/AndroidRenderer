@@ -85,7 +85,7 @@ public:
 
     void clear_volume(RenderGraph& render_graph);
 
-    GvBuildMode get_build_mode() const;
+    static GvBuildMode get_build_mode();
 
     void build_geometry_volume_from_voxels(
         RenderGraph& render_graph, const RenderScene& scene

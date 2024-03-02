@@ -96,8 +96,6 @@ void MipChainGenerator::fill_mip_chain(
                 }
             },
             .execute = [=, this](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Generate mip chain")
-
                 auto& allocator = backend.get_global_allocator();
                 const auto& src_texture_actual = allocator.get_texture(src_texture);
                 const auto& dest_texture_actual = allocator.get_texture(dest_texture);

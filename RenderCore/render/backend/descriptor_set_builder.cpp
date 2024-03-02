@@ -6,9 +6,13 @@
 #include "render/backend/render_backend.hpp"
 #include "render/backend/utils.hpp"
 
-static bool is_buffer_type(VkDescriptorType vk_descriptor);
+static bool is_buffer_type(VkDescriptorType vk_type);
 
-static bool is_texture_type(VkDescriptorType vk_descriptor);
+static bool is_texture_type(VkDescriptorType vk_type);
+
+static bool is_combined_image_sampler(VkDescriptorType vk_type);
+
+static bool is_acceleration_structure(VkDescriptorType vk_type);
 
 static VkImageLayout to_image_layout(VkDescriptorType descriptor_type, bool is_depth);
 
@@ -58,6 +62,28 @@ DescriptorSet& DescriptorSet::bind(const uint32_t binding_index, const TextureHa
     return *this;
 }
 
+DescriptorSet& DescriptorSet::bind(uint32_t binding_index, TextureHandle texture, VkSampler vk_sampler) {
+#ifndef _NDEBUG
+    auto itr = set_info.bindings.find(binding_index);
+    if (itr == set_info.bindings.end()) {
+        throw std::runtime_error{
+            fmt::format(
+                "Tried to bind a resource to binding {}, but that does not exist in this descriptor set", binding_index
+            )
+        };
+    }
+
+    if (!is_combined_image_sampler(itr->second.descriptorType)) {
+        throw std::runtime_error{ fmt::format("Binding {} is not a combined image/sampler binding!", binding_index) };
+    }
+#endif
+
+    bindings[binding_index].combined_image_sampler = { texture, vk_sampler };
+
+    return *this;
+    
+}
+
 DescriptorSet& DescriptorSet::bind(
     const uint32_t binding_index, const AccelerationStructureHandle acceleration_structure
 ) {
@@ -71,7 +97,7 @@ DescriptorSet& DescriptorSet::bind(
         };
     }
 
-    if (!is_texture_type(itr->second.descriptorType)) {
+    if (!is_acceleration_structure(itr->second.descriptorType)) {
         throw std::runtime_error{fmt::format("Binding {} is not a acceleration structure binding!", binding_index)};
     }
 #endif
@@ -90,6 +116,7 @@ DescriptorSet& DescriptorSet::finalize() {
             builder.bind_buffer(
                 binding, {.buffer = resource.buffer}, binding_info.descriptorType, binding_info.stageFlags
             );
+
         } else if (is_texture_type(binding_info.descriptorType)) {
             const auto& texture_actual = resources.get_texture(resource.texture);
             builder.bind_image(
@@ -100,6 +127,22 @@ DescriptorSet& DescriptorSet::finalize() {
                     )
                 }, binding_info.descriptorType, binding_info.stageFlags
             );
+
+        } else if(is_combined_image_sampler(binding_info.descriptorType)) {
+            const auto& texture_actual = resources.get_texture(resource.combined_image_sampler.texture);
+            builder.bind_image(
+                binding, {
+                    .sampler = resource.combined_image_sampler.sampler,
+                    .image = resource.texture,
+                    .image_layout = to_image_layout(
+                        binding_info.descriptorType, is_depth_format(texture_actual.create_info.format)
+                    )
+                }, binding_info.descriptorType, binding_info.stageFlags
+            );
+
+            
+        } else {
+            throw std::runtime_error{ "Unknown descriptor type!" };
         }
     }
 
@@ -242,26 +285,48 @@ void DescriptorSet::get_resource_usage_information(
                     .layout = to_image_layout(binding_info.descriptorType, is_depth)
                 };
             }
+        } else if(is_combined_image_sampler(binding_info.descriptorType)) {
+            const auto& texture_handle = resource.combined_image_sampler.texture;
+            if (auto itr = texture_usages.find(texture_handle); itr != texture_usages.end()) {
+                itr->second.access |= to_vk_access(binding_info.descriptorType, binding_info.is_read_only);
+                itr->second.stage |= to_pipeline_stage(binding_info.stageFlags);
+            } else {
+                const auto& allocator = backend.get_global_allocator();
+                const auto& texture_actual = allocator.get_texture(texture_handle);
+                const auto is_depth = is_depth_format(texture_actual.create_info.format);
+                texture_usages[texture_handle] = {
+                    .stage = to_pipeline_stage(binding_info.stageFlags),
+                    .access = to_vk_access(binding_info.descriptorType, binding_info.is_read_only),
+                    .layout = to_image_layout(binding_info.descriptorType, is_depth)
+                };
+            }
         }
     }
 }
 
 VkDescriptorSet DescriptorSet::get_vk_descriptor_set() const { return descriptor_set; }
 
-bool is_buffer_type(const VkDescriptorType vk_descriptor) {
+bool is_buffer_type(const VkDescriptorType vk_type) {
     return
-        vk_descriptor == VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER ||
-        vk_descriptor == VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER ||
-        vk_descriptor == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ||
-        vk_descriptor == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER ||
-        vk_descriptor == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
-        vk_descriptor == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+        vk_type == VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER ||
+        vk_type == VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER ||
+        vk_type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ||
+        vk_type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER ||
+        vk_type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
+        vk_type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
 }
 
-bool is_texture_type(const VkDescriptorType vk_descriptor) {
+bool is_texture_type(const VkDescriptorType vk_type) {
     return
-        vk_descriptor == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
-        vk_descriptor == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE ||
-        vk_descriptor == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ||
-        vk_descriptor == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        vk_type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE ||
+        vk_type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ||
+        vk_type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+}
+bool is_combined_image_sampler(const VkDescriptorType vk_type) {
+    return vk_type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+}
+
+bool is_acceleration_structure(const VkDescriptorType vk_type) {
+    return
+        vk_type == VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 }

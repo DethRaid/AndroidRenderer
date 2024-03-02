@@ -186,7 +186,7 @@ void RenderBackend::create_instance_and_device() {
     }
 #endif
 
-    auto required_features = VkPhysicalDeviceFeatures{
+    constexpr auto required_features = VkPhysicalDeviceFeatures{
         .geometryShader = VK_TRUE,
         .depthClamp = VK_TRUE,
         .samplerAnisotropy = VK_TRUE,
@@ -199,10 +199,14 @@ void RenderBackend::create_instance_and_device() {
         .fragmentStoresAndAtomics = VK_TRUE,
         .shaderSampledImageArrayDynamicIndexing = VK_TRUE,
         .shaderStorageBufferArrayDynamicIndexing = VK_TRUE,
+        .shaderInt16 = VK_TRUE
     };
 
     auto required_1_1_features = VkPhysicalDeviceVulkan11Features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+        .storageBuffer16BitAccess = VK_TRUE,
+        .uniformAndStorageBuffer16BitAccess = VK_TRUE,
+        .storagePushConstant16 = VK_TRUE,
         .multiview = VK_TRUE,
         .shaderDrawParameters = VK_TRUE,
     };
@@ -211,6 +215,7 @@ void RenderBackend::create_instance_and_device() {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .drawIndirectCount = VK_TRUE,
         .shaderFloat16 = VK_TRUE,
+        // Extension VK_KHR_shader_float16_int8 in 1.1. Add VkPhysicalDeviceShaderFloat16Int8Features to Physical Device pNext
         .descriptorIndexing = VK_TRUE,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
         .descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
@@ -391,21 +396,27 @@ void RenderBackend::advance_frame() {
         allocator->report_memory_usage();
     }
 
-    cur_frame_idx++;
-    cur_frame_idx %= num_in_flight_frames;
+    if (!is_first_frame) {
+        cur_frame_idx++;
+        cur_frame_idx %= num_in_flight_frames;
+    }
 
     {
         ZoneScopedN("Wait for previous frame");
         vkWaitForFences(device, 1, &frame_fences[cur_frame_idx], VK_TRUE, std::numeric_limits<uint64_t>::max());
     }
 
-    graphics_command_allocators[cur_frame_idx].reset();
+    if (!is_first_frame) {
+        graphics_command_allocators[cur_frame_idx].reset();
 
-    auto& semaphores = zombie_semaphores[cur_frame_idx];
-    available_semaphores.insert(available_semaphores.end(), semaphores.begin(), semaphores.end());
-    semaphores.clear();
+        auto& semaphores = zombie_semaphores[cur_frame_idx];
+        available_semaphores.insert(available_semaphores.end(), semaphores.begin(), semaphores.end());
+        semaphores.clear();
 
-    allocator->free_resources_for_frame(cur_frame_idx);
+        allocator->free_resources_for_frame(cur_frame_idx);
+
+        frame_descriptor_allocators[cur_frame_idx].reset_pools();
+    }
 
     swapchain_semaphore = create_transient_semaphore("Acquire swapchain semaphore");
     {
@@ -416,7 +427,7 @@ void RenderBackend::advance_frame() {
         );
     }
 
-    frame_descriptor_allocators[cur_frame_idx].reset_pools();
+    is_first_frame = false;
 }
 
 void RenderBackend::flush_batched_command_buffers() {
@@ -640,9 +651,10 @@ PipelineCache& RenderBackend::get_pipeline_cache() const {
 TextureDescriptorPool& RenderBackend::get_texture_descriptor_pool() const { return *texture_descriptor_pool; }
 
 CommandBuffer RenderBackend::create_graphics_command_buffer(const std::string& name) {
+    static uint32_t num_command_buffers = 0;
     return CommandBuffer{
         graphics_command_allocators[cur_frame_idx].allocate_command_buffer(
-            fmt::format("{} for frame {}", name, cur_frame_idx)
+            fmt::format("{} for frame {} {}", name, cur_frame_idx, num_command_buffers++)
         ),
         *this
     };
@@ -742,7 +754,6 @@ uint32_t RenderBackend::get_current_swapchain_index() const {
 }
 
 vkutil::DescriptorLayoutCache& RenderBackend::get_descriptor_cache() {
-    ZoneScoped;
     return descriptor_layout_cache;
 }
 

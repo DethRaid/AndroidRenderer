@@ -132,6 +132,9 @@ void RaytracingScene::commit_blas_builds() {
             .execute = [&](CommandBuffer& commands) {}
         }
     );
+
+    graph.finish();
+    backend.execute_graph(std::move(graph));
 }
 
 void RaytracingScene::commit_tlas_builds() {

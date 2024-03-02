@@ -10,7 +10,7 @@ auto cvar_num_bloom_mips = AutoCVar_Int{"r.bloom.NumMips", "Number of mipmaps in
 static std::shared_ptr<spdlog::logger> logger;
 
 Bloomer::Bloomer(RenderBackend& backend_in) : backend{backend_in} {
-    if(logger == nullptr) {
+    if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("Bloomer");
         logger->set_level(spdlog::level::info);
     }
@@ -34,50 +34,22 @@ Bloomer::Bloomer(RenderBackend& backend_in) : backend{backend_in} {
 }
 
 void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color) {
+    ZoneScoped;
+
     if (bloom_tex == TextureHandle::None) {
         create_bloom_tex(scene_color);
     }
 
-    graph.add_pass(
+    const auto bloom_0_set = backend.get_transient_descriptor_allocator().create_set(downsample_shader, 0)
+                                    .bind(0, scene_color, bilinear_sampler)
+                                    .bind(1, bloom_tex)
+                                    .finalize();
+    graph.add_compute_dispatch(
         {
             .name = "Bloom 0",
-            .textures = {
-                {
-                    scene_color,
-                    {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                },
-                {
-                    bloom_tex,
-                    {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                        VK_IMAGE_LAYOUT_GENERAL
-                    }
-                }
-            },
-            .execute = [&](CommandBuffer& commands) {
-                auto set = *vkutil::DescriptorBuilder::begin(
-                        backend, backend.get_transient_descriptor_allocator()
-                    )
-                                   .bind_image(
-                                       0, {
-                                           .sampler = bilinear_sampler, .image = scene_color,
-                                           .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                       }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT
-                                   )
-                                   .bind_image(
-                                       1, {.image = bloom_tex, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                                       VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
-                                   )
-                                   .build();
-
-                commands.bind_descriptor_set(0, set);
-                commands.bind_pipeline(downsample_shader);
-
-                commands.dispatch((bloom_tex_resolution.x + 7) / 8, (bloom_tex_resolution.y + 7) / 8, 1);
-            }
+            .descriptor_sets = {bloom_0_set},
+            .num_workgroups = {(bloom_tex_resolution.x + 7) / 8, (bloom_tex_resolution.y + 7) / 8, 1},
+            .compute_shader = downsample_shader
         }
     );
 
@@ -85,8 +57,6 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
         {
             .name = "Bloom",
             .execute = [&](CommandBuffer& commands) {
-                auto set = VkDescriptorSet{};
-
                 const auto& bloom_texture_actual = backend.get_global_allocator().get_texture(bloom_tex);
                 auto dispatch_size = bloom_tex_resolution;
 
@@ -97,8 +67,14 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                     dispatch_size /= glm::uvec2{2};
 
                     logger->trace("Bloom downsample pass {}", pass);
-                    logger->trace("Transitioning mip {} of bloom tex from layout VK_IMAGE_LAYOUT_GENERAL to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL", pass);
-                    logger->trace("Transitioning mip {} of bloom tex from layout VK_IMAGE_LAYOUT_UNDEFINED to VK_IMAGE_LAYOUT_GENERAL", pass + 1);
+                    logger->trace(
+                        "Transitioning mip {} of bloom tex from layout VK_IMAGE_LAYOUT_GENERAL to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL",
+                        pass
+                    );
+                    logger->trace(
+                        "Transitioning mip {} of bloom tex from layout VK_IMAGE_LAYOUT_UNDEFINED to VK_IMAGE_LAYOUT_GENERAL",
+                        pass + 1
+                    );
                     commands.barrier(
                         {}, {}, {
                             VkImageMemoryBarrier2{
@@ -118,7 +94,7 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                                     .layerCount = 1
                                 }
                             },
-                             VkImageMemoryBarrier2{
+                            VkImageMemoryBarrier2{
                                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                                 .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                                 .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
@@ -138,24 +114,24 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                         }
                     );
 
-                    vkutil::DescriptorBuilder::begin(
-                        backend, backend.get_transient_descriptor_allocator()
-                    )
-                           .bind_image(
-                               0, {
-                                   .sampler = bilinear_sampler, .image = bloom_tex,
-                                   .image_layout = VK_IMAGE_LAYOUT_GENERAL,
-                                   .mip_level = pass
-                               }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT
-                           )
-                           .bind_image(
-                               1, {
-                                   .image = bloom_tex, .image_layout = VK_IMAGE_LAYOUT_GENERAL,
-                                   .mip_level = pass + 1
-                               },
-                               VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
-                           )
-                           .build(set);
+                    auto set = *vkutil::DescriptorBuilder::begin(
+                                    backend, backend.get_transient_descriptor_allocator()
+                                )
+                                .bind_image(
+                                    0, {
+                                        .sampler = bilinear_sampler, .image = bloom_tex,
+                                        .image_layout = VK_IMAGE_LAYOUT_GENERAL,
+                                        .mip_level = pass
+                                    }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT
+                                )
+                                .bind_image(
+                                    1, {
+                                        .image = bloom_tex, .image_layout = VK_IMAGE_LAYOUT_GENERAL,
+                                        .mip_level = pass + 1
+                                    },
+                                    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                                )
+                                .build();
 
                     commands.bind_descriptor_set(0, set);
 
@@ -232,9 +208,9 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                 // 
                 //     commands.dispatch((dispatch_size.x + 7) / 8, (dispatch_size.y + 7) / 8, 1);
                 // }
-                
+
                 commands.clear_descriptor_set(0);
-                
+
                 // Put the top mip in shader read
                 commands.barrier(
                     {}, {}, {

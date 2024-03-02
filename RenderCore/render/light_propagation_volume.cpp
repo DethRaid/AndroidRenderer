@@ -421,7 +421,6 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 .color_attachments = {0, 1},
                 .depth_attachment = 2,
                 .execute = [&](CommandBuffer& commands) {
-                    GpuZoneScopedN(commands, "Render RSM")
                     auto global_set = *vkutil::DescriptorBuilder::begin(
                                            backend, backend.get_transient_descriptor_allocator()
                                        )
@@ -452,7 +451,6 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 .name = "VPL Generation",
                 .input_attachments = {0, 1, 2},
                 .execute = [&](CommandBuffer& commands) {
-                    GpuZoneScopedN(commands, "VPL Generation")
                     const auto sampler = backend.get_default_sampler();
 
                     const auto set = vkutil::DescriptorBuilder::begin(
@@ -526,8 +524,6 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 .name = "VPL Injection",
                 .color_attachments = {0, 1, 2},
                 .execute = [&](CommandBuffer& commands) {
-                    GpuZoneScopedN(commands, "VPL Injection")
-
                     const auto set = *vkutil::DescriptorBuilder::begin(
                                           backend, backend.get_transient_descriptor_allocator()
                                       )
@@ -591,8 +587,6 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
                 .name = "VPL Injection",
                 .color_attachments = {0, 1, 2},
                 .execute = [&](CommandBuffer& commands) {
-                    GpuZoneScopedN(commands, "VPL Injection")
-
                     const auto set = *vkutil::DescriptorBuilder::begin(
                                           backend, backend.get_transient_descriptor_allocator()
                                       )
@@ -664,8 +658,6 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
                 }
             },
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Clear LPV")
-
                 auto descriptor_set = *vkutil::DescriptorBuilder::begin(
                                            backend, backend.get_transient_descriptor_allocator()
                                        )
@@ -715,7 +707,7 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
     );
 }
 
-GvBuildMode LightPropagationVolume::get_build_mode() const {
+GvBuildMode LightPropagationVolume::get_build_mode() {
     return cvar_lpv_build_gv_mode.Get();
 }
 
@@ -753,7 +745,7 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
             textures.emplace_back(
                 vkutil::DescriptorBuilder::ImageInfo{
                     .sampler = backend.get_default_sampler(),
-                    .image = voxel.voxels,
+                    .image = voxel.voxels_color,
                     .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 }
             );
@@ -861,8 +853,6 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
             .name = "Inject RSM depth into GV",
             .color_attachments = {0},
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Inject RSM depth into GV")
-
                 const auto effective_resolution = resolution / glm::uvec2{2};
 
                 const auto sampler = backend.get_default_sampler();
@@ -1173,8 +1163,6 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
             .name = "Inject RSM depth into GV",
             .color_attachments = {0},
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Inject RSM depth into GV")
-
                 const auto sampler = backend.get_default_sampler();
                 const auto set = *vkutil::DescriptorBuilder::begin(
                                       backend, backend.get_transient_descriptor_allocator()
@@ -1264,7 +1252,6 @@ void LightPropagationVolume::perform_propagation_step(
                 },
             },
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "LPV propagation step")
                 const auto descriptor_set =
                     *vkutil::DescriptorBuilder::begin(
                          backend, backend.get_transient_descriptor_allocator()
@@ -1303,7 +1290,6 @@ void LightPropagationVolume::perform_propagation_step(
                      .build();
 
                 {
-                    GpuZoneScopedN(commands, "Commands");
                     commands.bind_descriptor_set(0, descriptor_set);
 
                     commands.bind_pipeline(propagation_shader);

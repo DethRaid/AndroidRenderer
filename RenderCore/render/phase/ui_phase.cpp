@@ -72,8 +72,6 @@ void UiPhase::add_data_upload_passes(ResourceUploadQueue& queue) const {
 }
 
 void UiPhase::render(CommandBuffer& commands, const SceneTransform& view, const TextureHandle bloom_texture) const {
-    GpuZoneScopedN(commands, "UiPhase::render");
-
     commands.begin_label(__func__);
 
     upscale_scene_color(commands, bloom_texture);

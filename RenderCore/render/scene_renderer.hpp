@@ -116,7 +116,7 @@ private:
 
     UiPhase ui_phase;
 
-    RenderVisualization active_visualization = RenderVisualization::None;
+    RenderVisualization active_visualization = RenderVisualization::VoxelizedMeshes;
 
     VoxelVisualizer voxel_visualizer;
 

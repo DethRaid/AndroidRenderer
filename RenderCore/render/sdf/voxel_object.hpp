@@ -14,7 +14,16 @@ struct VoxelObject {
     glm::vec3 worldspace_size;
 
     /**
-     * Texture that stores the SH representation of this object
+     * \brief 3D texture storing the average color in each voxel. Alpha is the alpha of this voxel
+     *
+     * RGBA 8-bit UNORM, but the data is stored in sRGB. You MUST convert to/from sRGB yourself
      */
-    TextureHandle voxels;
+    TextureHandle voxels_color;
+
+    /**
+     * \brief 3D texture storing the average normal in the center of each voxel. Alpha is unused
+     *
+     * R16G16B16A16 SNORM. Might eventually use R32 and pack R11G11B10 in myself
+     */
+    TextureHandle voxels_normals;
 };

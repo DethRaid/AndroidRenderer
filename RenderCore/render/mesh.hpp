@@ -3,8 +3,8 @@
 #include <cstdint>
 
 #include <vk_mem_alloc.h>
-#include <glm/vec3.hpp>
 
+#include "core/box.hpp"
 #include "render/backend/handles.hpp"
 
 struct Mesh {
@@ -23,7 +23,7 @@ struct Mesh {
     /**
      * Worldspace bounds of the mesh
      */
-    glm::vec3 bounds = {};
+    Box bounds = {};
 
     float average_triangle_area = {};
 

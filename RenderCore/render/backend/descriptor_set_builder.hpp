@@ -8,6 +8,12 @@
 class DescriptorSetAllocator;
 class RenderBackend;
 
+struct CombinedImageSampler {
+    TextureHandle texture;
+
+    VkSampler sampler;
+};
+
 class DescriptorSet {
 public:
     explicit DescriptorSet(RenderBackend& backend_in, DescriptorSetAllocator& allocator_in, DescriptorSetInfo set_info_in);
@@ -15,6 +21,8 @@ public:
     DescriptorSet& bind(uint32_t binding_index, BufferHandle buffer);
 
     DescriptorSet& bind(uint32_t binding_index, TextureHandle texture);
+
+    DescriptorSet& bind(uint32_t binding_index, TextureHandle texture, VkSampler vk_sampler);
 
     DescriptorSet& bind(uint32_t binding_index, AccelerationStructureHandle acceleration_structure);
 
@@ -41,6 +49,7 @@ private:
         union {
             BufferHandle buffer;
             TextureHandle texture;
+            CombinedImageSampler combined_image_sampler;
             AccelerationStructureHandle acceleration_structure;
         };
     };
