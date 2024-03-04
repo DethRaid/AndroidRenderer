@@ -9,6 +9,7 @@ class MeshStorage;
 class RenderGraph;
 
 struct VoxelTextures {
+    glm::uvec3 num_voxels;
     TextureHandle color_texture;
     TextureHandle normals_texture;
 };

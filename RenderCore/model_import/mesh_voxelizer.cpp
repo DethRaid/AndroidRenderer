@@ -43,7 +43,7 @@ VoxelTextures MeshVoxelizer::voxelize_with_raster(
 ) const {
     // Create a 3D texture big enough to hold the mesh's bounding sphere. There will be some wasted space, maybe we can copy to a smaller texture at some point?
     const auto bounds = primitive->mesh->bounds;
-    const auto voxel_texture_resolution = glm::uvec3{(bounds.max - bounds.min) * voxel_size} + 1u;
+    const auto voxel_texture_resolution = glm::uvec3{(bounds.max - bounds.min) / voxel_size} + 1u;
 
     auto& allocator = backend->get_global_allocator();
 
@@ -124,7 +124,7 @@ VoxelTextures MeshVoxelizer::voxelize_with_raster(
 
     graph.end_render_pass();
 
-    return {.color_texture = voxels};
+    return { .num_voxels = voxel_texture_resolution, .color_texture = voxels};
 }
 
 VoxelTextures MeshVoxelizer::voxelize_with_compute(
@@ -137,7 +137,7 @@ VoxelTextures MeshVoxelizer::voxelize_with_compute(
 
     // Create a 3D texture big enough to hold the mesh's bounding box. There will be some wasted space, maybe we can copy to a smaller texture at some point?
     const auto bounds = primitive->mesh->bounds;
-    const auto voxel_texture_resolution = glm::uvec3{ (bounds.max - bounds.min) * voxel_size } + 1u;
+    const auto voxel_texture_resolution = glm::uvec3{ (bounds.max - bounds.min) / voxel_size } + 1u;
 
     auto& allocator = backend->get_global_allocator();
 
@@ -178,7 +178,7 @@ VoxelTextures MeshVoxelizer::voxelize_with_compute(
         }
     );
 
-    return { .color_texture = voxels_color, .normals_texture = voxels_normal };
+    return { .num_voxels = voxel_texture_resolution, .color_texture = voxels_color, .normals_texture = voxels_normal };
 }
 
 VoxelTextures MeshVoxelizer::voxelize_primitive(

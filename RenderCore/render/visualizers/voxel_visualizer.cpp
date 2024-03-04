@@ -8,6 +8,19 @@ VoxelVisualizer::VoxelVisualizer(RenderBackend& backend_in) : backend{backend_in
         backend_in.begin_building_pipeline("Voxel Visualizer")
                   .set_vertex_shader("shaders/voxelizer/visualizer.vert.spv")
                   .set_fragment_shader("shaders/voxelizer/visualizer.frag.spv")
+                  .set_blend_state(
+                      0, {
+                          .blendEnable = VK_TRUE,
+                          .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                          .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                          .colorBlendOp = VK_BLEND_OP_ADD,
+                          .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                          .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                          .alphaBlendOp = VK_BLEND_OP_ADD,
+                          .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+                      }
+                  )
                   .build();
 
     auto& allocator = backend_in.get_global_allocator();

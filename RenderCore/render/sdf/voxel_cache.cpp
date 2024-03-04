@@ -38,11 +38,8 @@ VoxelObject VoxelCache::build_voxels_for_mesh(
         graph, primitive, meshes, primitive_data_buffer, cvar_voxel_size.GetFloat()
     );
 
-    const auto bounds = primitive->mesh->bounds;
-    const auto num_voxels = glm::uvec3{ (bounds.max - bounds.min) * cvar_voxel_size.GetFloat()};
-
     auto obj = VoxelObject{
-        .worldspace_size = glm::vec3{num_voxels},
+        .worldspace_size = voxel_texture.num_voxels,
         .voxels_color = voxel_texture.color_texture,
         .voxels_normals = voxel_texture.normals_texture,
     };

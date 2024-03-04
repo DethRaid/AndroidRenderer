@@ -110,7 +110,8 @@ void GltfModel::add_primitives(SceneRenderer& renderer, RenderScene& scene, Rend
                     auto handle = scene.add_primitive(
                         graph, {
                             .data = PrimitiveDataGPU{
-                                .model = node_to_world, .inverse_model = glm::inverse(node_to_world),
+                                .model = node_to_world,
+                                .inverse_model = glm::inverse(node_to_world),
                                 .bounds_min_and_radius = {bounds.min, radius},
                                 .bounds_max = {bounds.max, 0.f}
                             },

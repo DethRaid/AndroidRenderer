@@ -33,12 +33,14 @@ void main() {
     const vec4 viewspace_position = view_data.view * worldspace_position;
     const vec4 position = view_data.projection * viewspace_position;
 
-    const vec3 viewspace_view_vector = normalize(viewspace_position.xyz);
-    const vec3 modelspace_view_vector = (primitive.inverse_model * vec4(viewspace_view_vector, 0.f)).xyz;
-    const vec3 normalized_view_vector = modelspace_view_vector / vec3(primitive.voxel_size_xy, primitive.voxel_size_zw.x);
-    uvspace_view_direction_out = normalize(normalized_view_vector * 0.5f + 0.5f);
+    const vec3 view_location = vec3(view_data.view[0][3], view_data.view[1][3], view_data.view[2][3]);
 
-    // uvspace_view_direction_out = viewspace_view_vector;
+    const vec3 viewspace_view_vector = normalize(worldspace_position.xyz - view_location);
+    const vec3 modelspace_view_vector = (primitive.inverse_model * vec4(viewspace_view_vector, 0.f)).xyz / scale;
+    const vec3 normalized_view_vector = modelspace_view_vector / vec3(primitive.voxel_size_xy, primitive.voxel_size_zw.x);
+    uvspace_view_direction_out = normalized_view_vector * 0.5f + 0.5f;
+
+    // uvspace_view_direction_out = uvspace_view_direction_out;
 
     gl_Position = position;
 

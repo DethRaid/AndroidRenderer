@@ -24,7 +24,22 @@ layout(location = 0) out vec4 color;
 void main() {
     PrimitiveDataGPU primitive = primitive_datas[primitive_index_in];
 
-    vec4 color_sample = texture(textures[nonuniformEXT(primitive.voxels_color_srv)], texcoord_in);
+    vec4 color_sample = vec4(0);
 
-    color = vec4(uvspace_view_direction_in, 1.f);
+    const vec3 ray_start = texcoord_in + uvspace_view_direction_in * 0.5f;
+
+    for(uint i = 0; i < 32; i++) {
+        const vec3 sample_location = ray_start + uvspace_view_direction_in * i;
+        if(any(greaterThan(sample_location, vec3(1.f))) || any(lessThan(sample_location, vec3(-1.f)))) {
+            break;
+        }
+
+        color_sample += texture(textures[nonuniformEXT(primitive.voxels_color_srv)], sample_location);
+
+        if(color_sample.a >= 1.f) {
+            break;
+        }
+    }
+
+    color = color_sample;
 }
