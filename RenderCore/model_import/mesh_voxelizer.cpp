@@ -55,7 +55,9 @@ VoxelTextures MeshVoxelizer::voxelize_with_raster(
         "Voxelizer frustums", sizeof(glm::mat4), BufferUsage::StagingBuffer
     );
     auto* bounds_frustum_matrix = allocator.map_buffer<glm::mat4>(frustums_buffer);
-    *bounds_frustum_matrix = glm::ortho(bounds.min.x, bounds.max.x, bounds.max.y, bounds.min.y, bounds.max.z, bounds.min.z);
+    *bounds_frustum_matrix = glm::ortho(
+        bounds.min.x, bounds.max.x, bounds.max.y, bounds.min.y, bounds.max.z, bounds.min.z
+    );
 
     graph.begin_render_pass(
         {
@@ -124,7 +126,7 @@ VoxelTextures MeshVoxelizer::voxelize_with_raster(
 
     graph.end_render_pass();
 
-    return { .num_voxels = voxel_texture_resolution, .color_texture = voxels};
+    return {.num_voxels = voxel_texture_resolution, .color_texture = voxels};
 }
 
 VoxelTextures MeshVoxelizer::voxelize_with_compute(
@@ -137,7 +139,7 @@ VoxelTextures MeshVoxelizer::voxelize_with_compute(
 
     // Create a 3D texture big enough to hold the mesh's bounding box. There will be some wasted space, maybe we can copy to a smaller texture at some point?
     const auto bounds = primitive->mesh->bounds;
-    const auto voxel_texture_resolution = glm::uvec3{ (bounds.max - bounds.min) / voxel_size } + 1u;
+    const auto voxel_texture_resolution = glm::uvec3{(bounds.max - bounds.min) / voxel_size} + 1u;
 
     auto& allocator = backend->get_global_allocator();
 
@@ -149,13 +151,10 @@ VoxelTextures MeshVoxelizer::voxelize_with_compute(
         "Mesh voxel normals", VK_FORMAT_R16G16B16A16_SNORM, voxel_texture_resolution, 1, TextureUsage::StorageImage
     );
 
-    const auto pass_constants_buffer = allocator.create_buffer(
-        "Voxelizer frustums", sizeof(VoxelizerComputePassParameters), BufferUsage::StagingBuffer
-    );
-    auto* pass_parameters_buffer = allocator.map_buffer<VoxelizerComputePassParameters>(pass_constants_buffer);
-    *pass_parameters_buffer = VoxelizerComputePassParameters{
+    const auto pass_parameters = VoxelizerComputePassParameters{
         .bounds_min = glm::vec4{bounds.min, 0.f},
-        .half_cell_size = voxel_size * 0.5f
+        .half_cell_size = voxel_size * 0.5f,
+        .primitive_index = primitive.index,
     };
 
     auto descriptor_set = backend->get_transient_descriptor_allocator()
@@ -164,21 +163,22 @@ VoxelTextures MeshVoxelizer::voxelize_with_compute(
                                  .bind(1, mesh_storage.get_vertex_data_buffer())
                                  .bind(2, mesh_storage.get_index_buffer())
                                  .bind(3, primitive_buffer)
-                                 .bind(4, voxels_color)
-                                 .bind(5, voxels_normal)
-                                 .bind(6, pass_constants_buffer)
+                                 .bind(4, mesh_storage.get_draw_args_buffer())
+                                 .bind(5, voxels_color)
+                                 .bind(6, voxels_normal)
                                  .finalize();
 
-    graph.add_compute_dispatch(
+    graph.add_compute_dispatch<VoxelizerComputePassParameters>(
         {
             .name = "Voxelize",
             .descriptor_sets = {descriptor_set},
+            .push_constants = pass_parameters,
             .num_workgroups = voxel_texture_resolution,
             .compute_shader = compute_voxelization_pipeline
         }
     );
 
-    return { .num_voxels = voxel_texture_resolution, .color_texture = voxels_color, .normals_texture = voxels_normal };
+    return {.num_voxels = voxel_texture_resolution, .color_texture = voxels_color, .normals_texture = voxels_normal};
 }
 
 VoxelTextures MeshVoxelizer::voxelize_primitive(

@@ -56,6 +56,10 @@ target_glsl_shaders(SahWindows
         PRIVATE ${SHADERS}
         COMPILE_OPTIONS --target-env vulkan1.3 -V -g -o -Od -I${SHADER_INCLUDE_DIR} -I${SHADER_DIR} -I${EXTERN_DIR})
 
+target_include_directories(SahWindows PUBLIC
+        "$ENV{VK_SDK_PATH}/Include"
+)       
+
 target_link_libraries(SahWindows PUBLIC
         SahCore
         )

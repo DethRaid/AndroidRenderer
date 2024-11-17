@@ -85,49 +85,6 @@ void RenderGraph::add_pass(ComputePass&& pass) {
     }
 }
 
-void RenderGraph::add_compute_dispatch(const ComputeDispatch& dispatch_info) {
-    if (!dispatch_info.name.empty()) {
-        logger->debug("Adding compute pass {}", dispatch_info.name);
-
-        cmds.begin_label(dispatch_info.name);
-    }
-
-    std::unordered_map<TextureHandle, TextureUsageToken> textures;
-
-    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
-
-    for(const auto& descriptor_set : dispatch_info.descriptor_sets) {
-        descriptor_set.get_resource_usage_information(textures, buffers);
-    }
-
-    for (const auto& buffer_token : buffers) {
-        access_tracker.set_resource_usage(buffer_token.first, buffer_token.second.stage, buffer_token.second.access);
-    }
-
-    for (const auto& texture_token : textures) {
-        access_tracker.set_resource_usage(texture_token.first, texture_token.second);
-    }
-
-    access_tracker.issue_barriers(cmds);
-
-    cmds.bind_pipeline(dispatch_info.compute_shader);
-
-    for(auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
-        const auto vk_set = dispatch_info.descriptor_sets.at(i).get_vk_descriptor_set();
-        cmds.bind_descriptor_set(i, vk_set);
-    }
-    
-    for(auto i = 0u; i < dispatch_info.push_constants.size(); i++) {
-        cmds.set_push_constant(i, dispatch_info.push_constants[i]);
-    }    
-
-    cmds.dispatch(dispatch_info.num_workgroups.x, dispatch_info.num_workgroups.y, dispatch_info.num_workgroups.z);
-
-    if (!dispatch_info.name.empty()) {
-        cmds.end_label();
-    }
-}
-
 void RenderGraph::begin_render_pass(const RenderPassBeginInfo& begin_info) {
     current_render_pass = RenderPass{
         .name = begin_info.name,
@@ -228,7 +185,6 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     cmds.end_label();
 
 
-    // TODO: Without this, we get a sync val error about write-after-write on a color attachment. With this, we get an error about resetting an in-use command pool ?
     // If the renderpass has more than one subpass, update the resource access tracker with the final state of all input attachments
     if (pass.subpasses.size() > 1) {
         for (const auto& subpass : pass.subpasses) {
@@ -257,6 +213,21 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     // Don't issue barriers for input attachment. Renderpasses have the necessary barriers between subpasses
 
     backend.get_global_allocator().destroy_framebuffer(std::move(framebuffer));
+}
+
+void RenderGraph::update_accesses_and_issues_barriers(
+    const std::unordered_map<TextureHandle, TextureUsageToken>& textures,
+    const std::unordered_map<BufferHandle, BufferUsageToken>& buffers
+) const {
+    for (const auto& buffer_token : buffers) {
+        access_tracker.set_resource_usage(buffer_token.first, buffer_token.second.stage, buffer_token.second.access);
+    }
+
+    for (const auto& texture_token : textures) {
+        access_tracker.set_resource_usage(texture_token.first, texture_token.second);
+    }
+
+    access_tracker.issue_barriers(cmds);
 }
 
 void RenderGraph::add_finish_frame_and_present_pass(const PresentPass& pass) {

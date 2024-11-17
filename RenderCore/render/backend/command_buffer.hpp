@@ -85,6 +85,8 @@ public:
      */
     void fill_buffer(BufferHandle buffer, uint32_t fill_value = 0) const;
 
+    void build_acceleration_structures(std::span<VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos, std::span<VkAccelerationStructureBuildRangeInfoKHR*> build_range_info_ptrs);
+
     /**
      * Begins a render pass, which implicitly begins the first subpass
      *
@@ -207,6 +209,7 @@ public:
 
     RenderBackend& get_backend() const;
 
+    
 private:
     VkCommandBuffer commands;
 

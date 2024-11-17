@@ -88,6 +88,9 @@ elseif(WIN32)
     target_link_libraries(SahCore PUBLIC
         glfw 
     )
+    target_compile_options(SahCore PUBLIC 
+        "/MP"
+    )
 endif()
 
 #######################

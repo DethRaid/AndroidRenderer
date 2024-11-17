@@ -6,6 +6,7 @@
 struct VoxelizerComputePassParameters {
     vec4 bounds_min;
     float half_cell_size;
+    uint primitive_index;
 };
 
 #endif

@@ -1,8 +1,8 @@
 #include "resource_access_synchronizer.hpp"
 
-#include <magic_enum.hpp>
 #include <numeric>
 
+#include <magic_enum.hpp>
 #include <vulkan/vk_enum_string_helper.h>
 
 #include "core/system_interface.hpp"
@@ -36,7 +36,7 @@ std::string access_to_string(const VkAccessFlags2 access_flags) {
 }
 
 std::string stage_to_string(const VkPipelineStageFlags2 stage_flags) {
-    return string_VkPipelineStageFlags2(stage_flags);
+    return string_VkAccessFlags2(stage_flags);
 }
 
 ResourceAccessTracker::ResourceAccessTracker(RenderBackend& backend_in) : backend{backend_in} {

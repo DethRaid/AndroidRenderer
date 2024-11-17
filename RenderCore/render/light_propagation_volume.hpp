@@ -166,7 +166,7 @@ private:
      */
     GraphicsPipelineHandle lpv_render_shader;
 
-    SceneDrawer rsm_drawer;
+    SceneDrawer rsm_drawer = {};
 
     GraphicsPipelineHandle inject_rsm_depth_into_gv_pipeline;
     GraphicsPipelineHandle inject_scene_depth_into_gv_pipeline;

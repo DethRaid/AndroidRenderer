@@ -1,4 +1,5 @@
 #include "system_interface.hpp"
+#include "spdlog/sinks/basic_file_sink.h"
 
 #if _WIN32
 
@@ -103,7 +104,22 @@ Win32SystemInterface::Win32SystemInterface(GLFWwindow* window_in) : window{ wind
 }
 
 std::shared_ptr<spdlog::logger> Win32SystemInterface::get_logger(const std::string& name) {
-    return spdlog::stdout_color_mt(name);
+    auto sinks = std::vector<spdlog::sink_ptr>{
+            std::make_shared<spdlog::sinks::stdout_color_sink_mt>(),
+            std::make_shared<spdlog::sinks::basic_file_sink_mt>("sah.log"),
+    };
+    sinks[0]->set_pattern("[%n] [%^%l%$] %v");
+    auto logger = std::make_shared<spdlog::logger>(name, sinks.begin(), sinks.end());
+
+#ifndef NDEBUG
+    logger->set_level(spdlog::level::trace);
+#endif
+
+    // Register the logger so we can access it later if needed
+    spdlog::register_logger(logger);
+
+
+    return logger;
 }
 
 tl::optional<std::vector<uint8_t>> Win32SystemInterface::load_file(const std::filesystem::path& filepath) {

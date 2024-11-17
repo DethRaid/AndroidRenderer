@@ -2,7 +2,7 @@
 
 #include <span>
 
-#include <Volk/volk.h>
+#include <volk.h>
 #include <vk_mem_alloc.h>
 #include <tl/optional.hpp>
 
@@ -67,4 +67,6 @@ private:
     static StandardVertex interpolate_vertex(std::span<const StandardVertex> vertices, std::span<const uint32_t> indices, size_t triangle_id, glm::vec3 barycentric);
 
     BufferHandle generate_sh_point_cloud(const std::vector<StandardVertex>& point_cloud) const;
+
+    void create_blas_for_mesh(uint32_t first_vertex, uint32_t num_vertices, uint32_t first_index, uint num_triangles);
 };

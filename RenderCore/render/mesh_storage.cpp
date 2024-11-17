@@ -3,6 +3,7 @@
 #include <random>
 #include <tracy/Tracy.hpp>
 
+#include "backend/blas_build_queue.hpp"
 #include "core/system_interface.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/resource_upload_queue.hpp"
@@ -158,10 +159,17 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
 
     mesh_draw_args_upload_buffer.add_data(
         handle.index, {
-            .indexCount = handle->num_indices, .instanceCount = 1, .firstIndex = static_cast<uint32_t>(handle->first_index),
-            .vertexOffset = static_cast<int32_t>(handle->first_vertex), .firstInstance = 0
+            .indexCount = handle->num_indices,
+            .instanceCount = 1,
+            .firstIndex = static_cast<uint32_t>(handle->first_index),
+            .vertexOffset = static_cast<int32_t>(handle->first_vertex),
+            .firstInstance = 0
         }
     );
+
+    if(backend->supports_ray_tracing) {
+        create_blas_for_mesh(handle->first_vertex, handle->num_vertices, handle->first_index, handle->num_indices / 3);
+    }
 
     return handle;
 }
@@ -410,4 +418,29 @@ size_t find_reservoir(const double probability_sample, const std::vector<double>
     }
 
     throw std::runtime_error{"Could not find appropriate reservoir"};
+}
+
+void MeshStorage::create_blas_for_mesh(const uint32_t first_vertex, const uint32_t num_vertices, const uint32_t first_index, const uint num_triangles) {
+    const auto vertex_buffer_actual = backend->get_global_allocator().get_buffer(vertex_position_buffer);
+
+    const auto index_buffer_actual = backend->get_global_allocator().get_buffer(index_buffer);
+
+    const auto geometry = VkAccelerationStructureGeometryKHR{
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+        .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
+        .geometry = {
+            .triangles = {
+                .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
+                .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
+                .vertexData = {.deviceAddress = vertex_buffer_actual.address + first_vertex * sizeof(glm::vec3)},
+                .vertexStride = sizeof(glm::vec3),
+                .maxVertex = num_vertices - 1,
+                .indexType = VK_INDEX_TYPE_UINT32,
+                .indexData = {.deviceAddress = index_buffer_actual.address + first_index * sizeof(uint32_t)}
+            }
+        },
+    };
+
+    const auto blas = backend->get_global_allocator().create_acceleration_structure(geometry, num_triangles);
+    backend->get_blas_build_queue().enqueue(blas, geometry);
 }

@@ -19,6 +19,7 @@
 #include "render/backend/constants.hpp"
 #include "render/backend/compute_shader.hpp"
 
+class BlasBuildQueue;
 class PipelineCache;
 /**
  * Wraps a lot of low level Vulkan concerns
@@ -34,6 +35,12 @@ class PipelineCache;
  */
 class RenderBackend {
 public:
+    bool supports_ray_tracing = false;
+
+    bool supports_nv_diagnostics_config = false;
+
+    bool supports_nv_shader_reorder = false;
+
     explicit RenderBackend();
 
     RenderBackend(const RenderBackend& other) = delete;
@@ -95,6 +102,8 @@ public:
     ResourceAllocator& get_global_allocator() const;
 
     ResourceUploadQueue& get_upload_queue() const;
+
+    BlasBuildQueue& get_blas_build_queue() const;
 
     ResourceAccessTracker& get_resource_access_tracker();
 
@@ -169,10 +178,6 @@ private:
     uint32_t cur_frame_idx = 0;
     uint64_t total_num_frames = 0;
 
-    bool supports_raytracing = false;
-
-    bool supports_nv_diagnostics_config = false;
-
     vkb::Instance instance;
 
     VkSurfaceKHR surface = {};
@@ -189,6 +194,8 @@ private:
     std::unique_ptr<ResourceAllocator> allocator;
 
     std::unique_ptr<ResourceUploadQueue> upload_queue = {};
+
+    std::unique_ptr<BlasBuildQueue> blas_build_queue = {};
 
     ResourceAccessTracker resource_access_synchronizer;
 
@@ -242,6 +249,9 @@ private:
     std::vector<VkImageMemoryBarrier2> transfer_barriers = {};
 
     std::vector<CommandBuffer> queued_command_buffers = {};
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR ray_pipeline_features = {};
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
+    VkPhysicalDeviceFeatures2 device_features = {};
 
     void create_instance_and_device();
 

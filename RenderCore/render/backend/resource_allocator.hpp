@@ -9,6 +9,7 @@
 #include <glm/vec3.hpp>
 #include <volk.h>
 
+#include "acceleration_structure.hpp"
 #include "extern/cityhash/city_hash.hpp"
 #include "core/object_pool.hpp"
 #include "render/backend/texture.hpp"
@@ -73,6 +74,11 @@ enum class BufferUsage {
      * Storage buffer. Can be copied to, written to by a shader, or read from by a shader
      */
     StorageBuffer,
+
+    /**
+     * Ray tracing acceleration structure
+     */
+    AccelerationStructure,
 };
 
 /**
@@ -118,12 +124,16 @@ public:
 
     void* map_buffer(BufferHandle buffer_handle);
 
-    template<typename MappedType>
+    template <typename MappedType>
     MappedType* map_buffer(BufferHandle buffer);
 
-    AccelerationStructureHandle create_acceleration_structure();
-
     void destroy_buffer(BufferHandle handle);
+
+    AccelerationStructureHandle create_acceleration_structure(
+        const VkAccelerationStructureGeometryKHR& geometry, uint32_t num_triangles
+    );
+
+    void destroy_acceleration_structure(AccelerationStructureHandle handle);
 
     void destroy_framebuffer(Framebuffer&& framebuffer);
 
@@ -155,7 +165,7 @@ public:
     void report_memory_usage() const;
 
     VmaAllocator get_vma() const;
-    
+
 private:
     RenderBackend& backend;
 
@@ -163,11 +173,13 @@ private:
 
     ObjectPool<Texture> textures;
     ObjectPool<Buffer> buffers;
+    ObjectPool<AccelerationStructure> acceleration_structures;
 
     std::unordered_map<std::string, VkRenderPass> cached_render_passes;
 
     std::array<std::vector<BufferHandle>, num_in_flight_frames> buffer_zombie_lists;
     std::array<std::vector<TextureHandle>, num_in_flight_frames> texture_zombie_lists;
+    std::array<std::vector<AccelerationStructureHandle>, num_in_flight_frames> as_zombie_lists;
     std::array<std::vector<Framebuffer>, num_in_flight_frames> framebuffer_zombie_lists;
 
     struct SamplerCreateInfoHasher {

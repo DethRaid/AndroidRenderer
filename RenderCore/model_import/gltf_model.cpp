@@ -113,7 +113,8 @@ void GltfModel::add_primitives(SceneRenderer& renderer, RenderScene& scene, Rend
                                 .model = node_to_world,
                                 .inverse_model = glm::inverse(node_to_world),
                                 .bounds_min_and_radius = {bounds.min, radius},
-                                .bounds_max = {bounds.max, 0.f}
+                                .bounds_max = {bounds.max, 0.f},
+                                .mesh_id = imported_mesh.index,
                             },
                             .mesh = imported_mesh,
                             .material = imported_material,

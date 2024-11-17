@@ -36,7 +36,7 @@ DescriptorSet& DescriptorSet::bind(const uint32_t binding_index, const BufferHan
     }
 #endif
 
-    bindings[binding_index].buffer = buffer;
+    bindings.emplace(binding_index, BoundResource{ .buffer = buffer });
 
     return *this;
 }
@@ -102,7 +102,7 @@ DescriptorSet& DescriptorSet::bind(
     }
 #endif
 
-    bindings[binding_index].acceleration_structure = acceleration_structure;
+    bindings[binding_index].address = acceleration_structure->as_address;
 
     return *this;
 }

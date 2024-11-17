@@ -282,7 +282,7 @@ void DebugUI::update_mouse_cursor() const {
 #endif
 
 void DebugUI::draw_debug_menu() {
-    if (ImGui::Begin("Debug", &is_debug_menu_open)) {
+    if (ImGui::Begin("Debug Menu", &is_debug_menu_open)) {
         if (ImGui::CollapsingHeader("Visualizers")) {
             for (auto visualizer : magic_enum::enum_values<RenderVisualization>()) {
                 const auto name = magic_enum::enum_name(visualizer);
@@ -299,7 +299,7 @@ void DebugUI::draw_debug_menu() {
             auto cvars = CVarSystem::Get();
             cvars->DrawImguiEditor();
         }
-
-        ImGui::End();
     }
+
+    ImGui::End();
 }

@@ -113,7 +113,7 @@ void main() {
 
     medvec3 brdf_result = brdf(surface, light_vector, worldspace_view_vector);
 
-    medvec3 direct_light = ndotl * brdf_result * sun_light.color.rgb * shadow;
+    medvec3 direct_light = ndotl * brdf_result * sun_light.color.rgb;// * shadow;
 
     // Number chosen based on what happened to look fine
     const medfloat exposure_factor = 0.0001f;
@@ -125,7 +125,6 @@ void main() {
     }
 
     lighting = vec4(direct_light * exposure_factor, 1.f);
-    // lighting = vec4(0, 0, 0, 1);
 
     // Shadow cascade visualization
     // TODO: A uniform buffer with debug info?

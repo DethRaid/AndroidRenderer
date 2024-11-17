@@ -508,6 +508,14 @@ void LightPropagationVolume::inject_indirect_sun_light(
         );
         graph.end_render_pass();
 
+        /*
+         * SYNC-HAZARD-WRITE-AFTER-WRITE(ERROR / SPEC): msgNum: 1544472022 - Validation Error: [ SYNC-HAZARD-WRITE-AFTER-WRITE ] Object 0: handle = 0xdbc7e6000000064b, name = Render RSM and generate VPLs, type = VK_OBJECT_TYPE_RENDER_PASS; | MessageID = 0x5c0ec5d6 | vkCmdEndRenderPass():  Hazard WRITE_AFTER_WRITE in subpass 1 for attachment 0 color aspect during store with storeOp VK_ATTACHMENT_STORE_OP_STORE. Access info (usage: SYNC_COLOR_ATTACHMENT_OUTPUT_COLOR_ATTACHMENT_WRITE, prior_usage: SYNC_IMAGE_LAYOUT_TRANSITION, write_barriers: SYNC_FRAGMENT_SHADER_ACCELERATION_STRUCTURE_READ|SYNC_FRAGMENT_SHADER_COLOR_ATTACHMENT_READ|SYNC_FRAGMENT_SHADER_DEPTH_STENCIL_ATTACHMENT_READ|SYNC_FRAGMENT_SHADER_DESCRIPTOR_BUFFER_READ_EXT|SYNC_FRAGMENT_SHADER_INPUT_ATTACHMENT_READ|SYNC_FRAGMENT_SHADER_SHADER_BINDING_TABLE_READ|SYNC_FRAGMENT_SHADER_SHADER_SAMPLED_READ|SYNC_FRAGMENT_SHADER_SHADER_STORAGE_READ|SYNC_FRAGMENT_SHADER_UNIFORM_READ, command: vkCmdNextSubpass, seq_no: 98, subcmd: 1, reset_no: 1, debug_region: LPV indirect sun light injection::Render RSM and generate VPLs)
+         *  Objects: 1
+         *      [0] 0xdbc7e6000000064b, type: 18, name: Render RSM and generate VPLs
+         *
+         * From the above
+         */
+
         graph.begin_render_pass(
             {
                 .name = "VPL Injection",

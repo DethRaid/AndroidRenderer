@@ -7,7 +7,8 @@
 #include "shared/basic_pbr_material.hpp"
 
 #if defined(__cplusplus)
-#define MATERIAL_BUFFER_REFERENCE uvec2
+#include "render/backend/device_address.hpp"
+#define MATERIAL_BUFFER_REFERENCE DeviceAddress
 #else
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable

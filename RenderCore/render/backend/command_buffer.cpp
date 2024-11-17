@@ -17,10 +17,10 @@ static AutoCVar_Int cvar_validate_bindings{
 
 CommandBuffer::CommandBuffer(VkCommandBuffer vk_cmds, RenderBackend& backend_in) :
     commands{vk_cmds}, backend{&backend_in} {
-    if (logger == nullptr) {
+    if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("CommandBuffer");
     }
-    for (auto& set : descriptor_sets) {
+    for(auto& set : descriptor_sets) {
         set = VK_NULL_HANDLE;
     }
 }
@@ -34,7 +34,7 @@ void CommandBuffer::begin() {
 }
 
 void CommandBuffer::set_marker(const std::string& marker_name) const {
-    if (vkCmdSetCheckpointNV != nullptr) {
+    if(vkCmdSetCheckpointNV != nullptr) {
         vkCmdSetCheckpointNV(commands, marker_name.c_str());
     }
 }
@@ -79,10 +79,16 @@ void CommandBuffer::barrier(
 
     // V0: Issue the barrier immediately
     vkCmdPipelineBarrier(
-        commands, source_pipeline_stage, destination_pipeline_stage, 0,
-        0, nullptr,
-        1, &barrier,
-        0, nullptr
+        commands,
+        source_pipeline_stage,
+        destination_pipeline_stage,
+        0,
+        0,
+        nullptr,
+        1,
+        &barrier,
+        0,
+        nullptr
     );
 
     // V1: Batch the barriers. We'll need lists grouped by source stage and dest stage, because Vulkan is strange
@@ -99,7 +105,7 @@ void CommandBuffer::barrier(
     const auto& texture_actual = allocator.get_texture(texture);
 
     auto aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-    if (is_depth_format(texture_actual.create_info.format)) {
+    if(is_depth_format(texture_actual.create_info.format)) {
         aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
     }
 
@@ -121,10 +127,16 @@ void CommandBuffer::barrier(
 
     // V0: Issue the barrier immediately
     vkCmdPipelineBarrier(
-        commands, source_pipeline_stage, destination_pipeline_stage, 0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier
+        commands,
+        source_pipeline_stage,
+        destination_pipeline_stage,
+        0,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        1,
+        &barrier
     );
 
     // V1: Batch the barriers. We'll need lists grouped by source stage and dest stage, because Vulkan is strange
@@ -151,6 +163,17 @@ void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_v
     const auto& buffer_actual = allocator.get_buffer(buffer);
 
     vkCmdFillBuffer(commands, buffer_actual.buffer, 0, buffer_actual.create_info.size, fill_value);
+}
+
+void CommandBuffer::build_acceleration_structures(
+    const std::span<VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos,
+    const std::span<VkAccelerationStructureBuildRangeInfoKHR*> build_range_info_ptrs
+) {
+    vkCmdBuildAccelerationStructuresKHR(
+        commands,
+        build_geometry_infos.size(),
+        build_geometry_infos.data(),
+        build_range_info_ptrs.data());
 }
 
 void CommandBuffer::begin_render_pass(
@@ -237,7 +260,10 @@ void CommandBuffer::draw_indexed(
     commit_bindings();
 
     vkCmdDrawIndexed(
-        commands, num_indices, num_instances, first_index,
+        commands,
+        num_indices,
+        num_instances,
+        first_index,
         static_cast<int32_t>(first_vertex),
         first_instance
     );
@@ -271,7 +297,12 @@ void CommandBuffer::draw_indexed_indirect(
     const auto& count_buffer_actual = allocator.get_buffer(count_buffer);
 
     vkCmdDrawIndexedIndirectCount(
-        commands, indirect_buffer_actual.buffer, 0, count_buffer_actual.buffer, 0, max_count,
+        commands,
+        indirect_buffer_actual.buffer,
+        0,
+        count_buffer_actual.buffer,
+        0,
+        max_count,
         sizeof(VkDrawIndexedIndirectCommand)
     );
 }
@@ -323,12 +354,12 @@ void CommandBuffer::set_push_constant(const uint32_t index, const float data) {
 void CommandBuffer::bind_buffer_reference(const uint32_t index, const BufferHandle buffer_handle) {
     const auto& buffer_actual = backend->get_global_allocator().get_buffer(buffer_handle);
 
-    if (buffer_actual.address == glm::uvec2{0}) {
+    if(buffer_actual.address == 0) {
         throw std::runtime_error{"Buffer was not created with a device address! Is it a uniform buffer?"};
     }
 
-    set_push_constant(index, buffer_actual.address.x);
-    set_push_constant(index + 1, buffer_actual.address.y);
+    set_push_constant(index, buffer_actual.address.low_bits());
+    set_push_constant(index + 1, buffer_actual.address.high_bits());
 }
 
 void CommandBuffer::bind_descriptor_set(const uint32_t set_index, const VkDescriptorSet set) {
@@ -358,8 +389,8 @@ void CommandBuffer::copy_image_to_image(const TextureHandle src, const TextureHa
         .sType = VK_STRUCTURE_TYPE_IMAGE_COPY_2,
         .srcSubresource = {
             .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(src_actual.create_info.format)
-                                                              ? VK_IMAGE_ASPECT_DEPTH_BIT
-                                                              : VK_IMAGE_ASPECT_COLOR_BIT),
+                ? VK_IMAGE_ASPECT_DEPTH_BIT
+                : VK_IMAGE_ASPECT_COLOR_BIT),
             .mipLevel = 0,
             .baseArrayLayer = 0,
             .layerCount = 1,
@@ -367,8 +398,8 @@ void CommandBuffer::copy_image_to_image(const TextureHandle src, const TextureHa
         .srcOffset = {},
         .dstSubresource = {
             .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(dst_actual.create_info.format)
-                                                              ? VK_IMAGE_ASPECT_DEPTH_BIT
-                                                              : VK_IMAGE_ASPECT_COLOR_BIT),
+                ? VK_IMAGE_ASPECT_DEPTH_BIT
+                : VK_IMAGE_ASPECT_COLOR_BIT),
             .mipLevel = 0,
             .baseArrayLayer = 0,
             .layerCount = 1,
@@ -398,7 +429,7 @@ void CommandBuffer::set_event(const VkEvent event, const std::vector<BufferBarri
 
     auto buffer_barriers = std::vector<VkBufferMemoryBarrier2>{};
     buffer_barriers.reserve(buffers.size());
-    for (const auto& buffer_barrier : buffers) {
+    for(const auto& buffer_barrier : buffers) {
         const auto& buffer_actual = allocator.get_buffer(buffer_barrier.buffer);
         const auto barrier = VkBufferMemoryBarrier2{
             .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
@@ -437,7 +468,7 @@ void CommandBuffer::wait_event(const VkEvent event) {
 }
 
 void CommandBuffer::begin_label(const std::string& event_name) const {
-    if (vkCmdBeginDebugUtilsLabelEXT == nullptr) {
+    if(vkCmdBeginDebugUtilsLabelEXT == nullptr) {
         return;
     }
 
@@ -450,7 +481,7 @@ void CommandBuffer::begin_label(const std::string& event_name) const {
 }
 
 void CommandBuffer::end_label() const {
-    if (vkCmdEndDebugUtilsLabelEXT == nullptr) {
+    if(vkCmdEndDebugUtilsLabelEXT == nullptr) {
         return;
     }
 
@@ -468,28 +499,37 @@ void CommandBuffer::bind_index_buffer(const BufferHandle buffer, const VkIndexTy
 }
 
 void CommandBuffer::commit_bindings() {
-    if (!are_bindings_dirty) {
+    if(!are_bindings_dirty) {
         return;
     }
 
-    if (num_push_constants_in_current_pipeline > 0) {
+    if(num_push_constants_in_current_pipeline > 0) {
         vkCmdPushConstants(
-            commands, current_pipeline_layout,
-            push_constant_shader_stages, 0,
-            static_cast<uint32_t>(num_push_constants_in_current_pipeline * sizeof(uint32_t)), push_constants.data()
+            commands,
+            current_pipeline_layout,
+            push_constant_shader_stages,
+            0,
+            static_cast<uint32_t>(num_push_constants_in_current_pipeline * sizeof(uint32_t)),
+            push_constants.data()
         );
     }
 
-    for (uint32_t i = 0; i < descriptor_sets.size(); i++) {
-        if (descriptor_sets[i] != VK_NULL_HANDLE) {
+    for(uint32_t i = 0; i < descriptor_sets.size(); i++) {
+        if(descriptor_sets[i] != VK_NULL_HANDLE) {
             vkCmdBindDescriptorSets(
-                commands, current_bind_point, current_pipeline_layout, i,
-                1, &descriptor_sets[i], 0, nullptr
+                commands,
+                current_bind_point,
+                current_pipeline_layout,
+                i,
+                1,
+                &descriptor_sets[i],
+                0,
+                nullptr
             );
         }
     }
 
-    for (auto& set : descriptor_sets) {
+    for(auto& set : descriptor_sets) {
         set = VK_NULL_HANDLE;
     }
 

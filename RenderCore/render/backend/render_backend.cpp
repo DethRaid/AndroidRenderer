@@ -7,6 +7,7 @@
 
 #include <tracy/Tracy.hpp>
 
+#include "blas_build_queue.hpp"
 #include "render/backend/pipeline_cache.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
@@ -23,7 +24,7 @@ VkBool32 VKAPI_ATTR debug_callback(
 ) {
     const auto severity = vkb::to_string_message_severity(message_severity);
     const auto type = vkb::to_string_message_type(message_type);
-    switch (message_severity) {
+    switch(message_severity) {
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
         spdlog::debug("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
         break;
@@ -31,7 +32,7 @@ VkBool32 VKAPI_ATTR debug_callback(
         spdlog::info("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
         break;
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-        if (
+        if(
             // This ID is for a warning that you should only have validation layers enabled in debug builds
             callback_data->messageIdNumber != 0x822806fa &&
             // Warning about the command buffer being resettable. Tracy requires a resettable command buffer
@@ -59,15 +60,17 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
     logger->set_level(spdlog::level::debug);
 
     const auto volk_result = volkInitialize();
-    if (volk_result != VK_SUCCESS) {
+    if(volk_result != VK_SUCCESS) {
         throw std::runtime_error{"Could not initialize Volk, Vulkan is not available"};
     }
 
-    supports_raytracing = *CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable") != 0;
+    supports_ray_tracing = *CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable") != 0;
 
     create_instance_and_device();
 
     upload_queue = std::make_unique<ResourceUploadQueue>(*this);
+
+    blas_build_queue = std::make_unique<BlasBuildQueue>(*this);
 
     allocator = std::make_unique<ResourceAllocator>(*this);
 
@@ -101,7 +104,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
     create_tracy_context();
 
     global_descriptor_allocator.init(device.device);
-    for (auto& frame_allocator : frame_descriptor_allocators) {
+    for(auto& frame_allocator : frame_descriptor_allocators) {
         frame_allocator.init(device.device);
     }
     descriptor_layout_cache.init(device.device);
@@ -112,7 +115,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     };
-    for (auto& fence : frame_fences) {
+    for(auto& fence : frame_fences) {
         vkCreateFence(device.device, &fence_create_info, nullptr, &fence);
     }
 
@@ -149,9 +152,10 @@ void RenderBackend::create_instance_and_device() {
 #endif
 
     auto instance_ret = instance_builder.build();
-    if (!instance_ret) {
+    if(!instance_ret) {
         const auto error_message = fmt::format(
-            "Could not initialize Vulkan: {} (VK_RESULT {})", instance_ret.error().message(),
+            "Could not initialize Vulkan: {} (VK_RESULT {})",
+            instance_ret.error().message(),
             magic_enum::enum_name(instance_ret.vk_result())
         );
         throw std::runtime_error{error_message};
@@ -181,7 +185,7 @@ void RenderBackend::create_instance_and_device() {
     };
 
     auto vk_result = vkCreateWin32SurfaceKHR(instance.instance, &surface_create_info, nullptr, &surface);
-    if (vk_result != VK_SUCCESS) {
+    if(vk_result != VK_SUCCESS) {
         throw std::runtime_error{"Could not create rendering surface"};
     }
 #endif
@@ -249,47 +253,60 @@ void RenderBackend::create_instance_and_device() {
                                .set_minimum_version(1, 1);
 
     auto phys_device_ret = phys_device_builder.select();
-    if (!phys_device_ret) {
+    if(!phys_device_ret) {
         const auto error_message = fmt::format("Could not select device: {}", phys_device_ret.error().message());
         throw std::runtime_error{error_message};
     }
     physical_device = phys_device_ret.value();
 
-    // physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
-    // physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-    // physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
-    // physical_device.enable_extension_if_present(VK_KHR_RAY_QUERY_EXTENSION_NAME);
-    // physical_device.enable_extension_if_present(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
-    // physical_device.enable_extension_if_present(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
-    // 
-    // supports_raytracing = physical_device.is_extension_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    logger->info("Selected device {}", physical_device.name);
+
+    if(physical_device.enable_extension_if_present(VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME)) {
+        logger->info("Device Generated Commands is supported!");
+    }
+
+    supports_ray_tracing = physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+    physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
+    physical_device.enable_extension_if_present(VK_KHR_RAY_QUERY_EXTENSION_NAME);
+    physical_device.enable_extension_if_present(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
+    physical_device.enable_extension_if_present(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+
+    supports_nv_shader_reorder = physical_device.enable_extension_if_present(
+        VK_NV_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME);
 
     physical_device.enable_extension_if_present(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME);
-    physical_device.enable_extension_if_present(VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME);
+    supports_nv_diagnostics_config = physical_device.enable_extension_if_present(
+        VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME);
 
-    supports_nv_diagnostics_config = physical_device.is_extension_present(
-        VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME
-    );
-
-    auto acceleration_structure_features = VkPhysicalDeviceAccelerationStructureFeaturesKHR{
+    ray_pipeline_features = VkPhysicalDeviceRayTracingPipelineFeaturesKHR{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR
+    };
+    acceleration_structure_features = VkPhysicalDeviceAccelerationStructureFeaturesKHR{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
-        .accelerationStructure = VK_TRUE,
-        .accelerationStructureHostCommands = VK_TRUE,
+        .pNext = &ray_pipeline_features
     };
+    device_features = VkPhysicalDeviceFeatures2{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &acceleration_structure_features
+    };
+    vkGetPhysicalDeviceFeatures2(physical_device, &device_features);
 
-    auto rt_pipeline_features = VkPhysicalDeviceRayTracingPipelineFeaturesKHR{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
-        .rayTracingPipeline = VK_TRUE,
-        .rayTracingPipelineShaderGroupHandleCaptureReplay = VK_TRUE,
-        .rayTracingPipelineTraceRaysIndirect = VK_TRUE,
-        .rayTraversalPrimitiveCulling = VK_TRUE,
-    };
+    supports_ray_tracing = acceleration_structure_features.accelerationStructure;
+    if(!supports_ray_tracing) {
+        logger->error(
+            "Device does not support ray tracing! VkPhysicalDeviceAccelerationStructureFeaturesKHR::accelerationStructure is false");
+        CVarSystem::Get()->SetIntCVar("r.Raytracing.Enable", 0);
+        DebugBreak();
+    } else {
+        logger->info("Ray tracing supported");
+    }
 
     auto device_builder = vkb::DeviceBuilder{physical_device};
 
-    if (supports_raytracing) {
+    if(supports_ray_tracing) {
         device_builder.add_pNext(&acceleration_structure_features);
-        device_builder.add_pNext(&rt_pipeline_features);
+        device_builder.add_pNext(&ray_pipeline_features);
     }
 
     // Set up device creation info for Aftermath feature flag configuration.
@@ -304,12 +321,12 @@ void RenderBackend::create_instance_and_device() {
         .flags = aftermath_flags
     };
 
-    if (supports_nv_diagnostics_config) {
+    if(supports_nv_diagnostics_config) {
         device_builder.add_pNext(&device_diagnostics_info);
     }
 
     auto device_ret = device_builder.build();
-    if (!device_ret) {
+    if(!device_ret) {
         const auto message = fmt::format("Could not create logical device: {}", device_ret.error().message());
         throw std::runtime_error{"Could not build logical device"};
     }
@@ -333,7 +350,7 @@ void RenderBackend::create_swapchain() {
             .set_composite_alpha_flags(VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR)
 #endif
         .build();
-    if (!swapchain_ret) {
+    if(!swapchain_ret) {
         throw std::runtime_error{"Could not create swapchain"};
     }
 
@@ -362,11 +379,17 @@ const vkb::PhysicalDevice& RenderBackend::get_physical_device() const {
     return physical_device;
 }
 
-bool RenderBackend::supports_astc() const { return physical_device.features.textureCompressionASTC_LDR; }
+bool RenderBackend::supports_astc() const {
+    return physical_device.features.textureCompressionASTC_LDR;
+}
 
-bool RenderBackend::supports_etc2() const { return physical_device.features.textureCompressionETC2; }
+bool RenderBackend::supports_etc2() const {
+    return physical_device.features.textureCompressionETC2;
+}
 
-bool RenderBackend::supports_bc() const { return physical_device.features.textureCompressionBC; }
+bool RenderBackend::supports_bc() const {
+    return physical_device.features.textureCompressionBC;
+}
 
 const vkb::Device& RenderBackend::get_device() const {
     return device;
@@ -392,11 +415,11 @@ void RenderBackend::advance_frame() {
     ZoneScoped;
 
     total_num_frames++;
-    if (total_num_frames % 100 == 0) {
+    if(total_num_frames % 100 == 0) {
         allocator->report_memory_usage();
     }
 
-    if (!is_first_frame) {
+    if(!is_first_frame) {
         cur_frame_idx++;
         cur_frame_idx %= num_in_flight_frames;
     }
@@ -406,7 +429,7 @@ void RenderBackend::advance_frame() {
         vkWaitForFences(device, 1, &frame_fences[cur_frame_idx], VK_TRUE, std::numeric_limits<uint64_t>::max());
     }
 
-    if (!is_first_frame) {
+    if(!is_first_frame) {
         graphics_command_allocators[cur_frame_idx].reset();
 
         auto& semaphores = zombie_semaphores[cur_frame_idx];
@@ -422,8 +445,12 @@ void RenderBackend::advance_frame() {
     {
         ZoneScopedN("Acquire swapchain image");
         vkAcquireNextImageKHR(
-            device, swapchain.swapchain, std::numeric_limits<uint64_t>::max(), swapchain_semaphore,
-            VK_NULL_HANDLE, &cur_swapchain_image_idx
+            device,
+            swapchain.swapchain,
+            std::numeric_limits<uint64_t>::max(),
+            swapchain_semaphore,
+            VK_NULL_HANDLE,
+            &cur_swapchain_image_idx
         );
     }
 
@@ -436,7 +463,7 @@ void RenderBackend::flush_batched_command_buffers() {
     // Flushes pending uploads to our queued_transfer_command_buffers
     upload_queue->flush_pending_uploads();
 
-    if (!queued_transfer_command_buffers.empty()) {
+    if(!queued_transfer_command_buffers.empty()) {
         const auto submission_semaphore = create_transient_semaphore("Transfer commands submission");
         const auto mask = static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
         const auto transfer_submit = VkSubmitInfo{
@@ -455,7 +482,7 @@ void RenderBackend::flush_batched_command_buffers() {
             vkQueueSubmit(transfer_queue, 1, &transfer_submit, VK_NULL_HANDLE);
         }
 
-        for (auto commands : queued_transfer_command_buffers) {
+        for(auto commands : queued_transfer_command_buffers) {
             transfer_command_allocators[cur_frame_idx].return_command_buffer(commands);
         }
 
@@ -468,7 +495,7 @@ void RenderBackend::flush_batched_command_buffers() {
     // Submit any transfer barriers
     // Currently, the high-level code decides if we need a transfer barrier and the backend just does what it's told
     // This is fine I guess 
-    if (!transfer_barriers.empty()) {
+    if(!transfer_barriers.empty()) {
         const auto transfer_semaphore = create_transient_semaphore("Queue transfer operation");
 
         // Submit release barriers to transfer queue
@@ -542,19 +569,28 @@ void RenderBackend::flush_batched_command_buffers() {
         transfer_barriers.clear();
     }
 
-    if (!queued_command_buffers.empty()) {
+    {
+        auto command_buffer = create_graphics_command_buffer("BLAS Builds");
+        {
+            
+        }
+    }
+
+    if(!queued_command_buffers.empty()) {
         auto command_buffers = std::vector<VkCommandBuffer>{};
         command_buffers.reserve(queued_command_buffers.size() * 2);
 
-        for (const auto& queued_commands : queued_command_buffers) {
+        for(const auto& queued_commands : queued_command_buffers) {
             command_buffers.emplace_back(queued_commands.get_vk_commands());
         }
 
         auto wait_stages = std::vector<VkPipelineStageFlags>{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
         auto wait_semaphores = std::vector{swapchain_semaphore};
-        if (!last_submission_semaphores.empty()) {
+        if(!last_submission_semaphores.empty()) {
             wait_semaphores.insert(
-                wait_semaphores.end(), last_submission_semaphores.begin(), last_submission_semaphores.end()
+                wait_semaphores.end(),
+                last_submission_semaphores.begin(),
+                last_submission_semaphores.end()
             );
             wait_stages.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
@@ -581,12 +617,13 @@ void RenderBackend::flush_batched_command_buffers() {
             const auto result = vkQueueSubmit(graphics_queue, 1, &submit, frame_fences[cur_frame_idx]);
             logger->trace("Submitted submission fence for frame {}", cur_frame_idx);
 
-            if (result == VK_ERROR_DEVICE_LOST) {
+            if(result == VK_ERROR_DEVICE_LOST) {
                 logger->error("Device lost detected!");
+                DebugBreak();
             }
         }
 
-        for (const auto& queued_commands : queued_command_buffers) {
+        for(const auto& queued_commands : queued_command_buffers) {
             graphics_command_allocators[cur_frame_idx].return_command_buffer(queued_commands.get_vk_commands());
         }
 
@@ -603,7 +640,6 @@ void RenderBackend::collect_tracy_data(const CommandBuffer& commands) const {
 TracyVkCtx RenderBackend::get_tracy_context() const {
     return tracy_context;
 }
-
 
 void RenderBackend::create_tracy_context() {
     const auto pool_create_info = VkCommandPoolCreateInfo{
@@ -622,7 +658,10 @@ void RenderBackend::create_tracy_context() {
     vkAllocateCommandBuffers(device.device, &command_buffer_allocate, &tracy_command_buffer);
 
     tracy_context = TracyVkContext(
-        physical_device.physical_device, device.device, graphics_queue, tracy_command_buffer
+        physical_device.physical_device,
+        device.device,
+        graphics_queue,
+        tracy_command_buffer
     );
 }
 
@@ -642,13 +681,21 @@ ResourceUploadQueue& RenderBackend::get_upload_queue() const {
     return *upload_queue;
 }
 
-ResourceAccessTracker& RenderBackend::get_resource_access_tracker() { return resource_access_synchronizer; }
+BlasBuildQueue& RenderBackend::get_blas_build_queue() const {
+    return *blas_build_queue;
+}
+
+ResourceAccessTracker& RenderBackend::get_resource_access_tracker() {
+    return resource_access_synchronizer;
+}
 
 PipelineCache& RenderBackend::get_pipeline_cache() const {
     return *pipeline_cache;
 }
 
-TextureDescriptorPool& RenderBackend::get_texture_descriptor_pool() const { return *texture_descriptor_pool; }
+TextureDescriptorPool& RenderBackend::get_texture_descriptor_pool() const {
+    return *texture_descriptor_pool;
+}
 
 CommandBuffer RenderBackend::create_graphics_command_buffer(const std::string& name) {
     static uint32_t num_command_buffers = 0;
@@ -667,11 +714,11 @@ VkCommandBuffer RenderBackend::create_transfer_command_buffer(const std::string&
 }
 
 void RenderBackend::create_command_pools() {
-    for (auto& command_pool : graphics_command_allocators) {
+    for(auto& command_pool : graphics_command_allocators) {
         command_pool = CommandAllocator{*this, graphics_queue_family_index};
     }
 
-    for (auto& command_pool : transfer_command_allocators) {
+    for(auto& command_pool : transfer_command_allocators) {
         command_pool = CommandAllocator{*this, transfer_queue_family_index};
     }
 }
@@ -715,7 +762,7 @@ DescriptorSetAllocator& RenderBackend::get_transient_descriptor_allocator() {
 VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
     auto semaphore = VkSemaphore{};
 
-    if (!available_semaphores.empty()) {
+    if(!available_semaphores.empty()) {
         semaphore = available_semaphores.back();
         available_semaphores.pop_back();
     } else {
@@ -726,7 +773,7 @@ VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
         vkCreateSemaphore(device, &create_info, nullptr, &semaphore);
     }
 
-    if (!name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
+    if(!name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
         const auto name_info = VkDebugUtilsObjectNameInfoEXT{
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .objectType = VK_OBJECT_TYPE_SEMAPHORE,
@@ -771,13 +818,19 @@ VkSampler RenderBackend::get_default_sampler() const {
 
 void RenderBackend::create_default_resources() {
     white_texture_handle = allocator->create_texture(
-        "White texture", VK_FORMAT_R8G8B8A8_UNORM, glm::uvec2{8, 8}, 1,
+        "White texture",
+        VK_FORMAT_R8G8B8A8_UNORM,
+        glm::uvec2{8, 8},
+        1,
         TextureUsage::StaticImage
     );
 
     default_normalmap_handle = allocator->create_texture(
-        "Default normalmap", VK_FORMAT_R8G8B8A8_UNORM,
-        glm::uvec2{8, 8}, 1, TextureUsage::StaticImage
+        "Default normalmap",
+        VK_FORMAT_R8G8B8A8_UNORM,
+        glm::uvec2{8, 8},
+        1,
+        TextureUsage::StaticImage
     );
 
     default_sampler = allocator->get_sampler(
@@ -822,7 +875,7 @@ void RenderBackend::create_default_resources() {
 void RenderBackend::set_object_name(
     const uint64_t object_handle, const VkObjectType object_type, const std::string& name
 ) const {
-    if (vkSetDebugUtilsObjectNameEXT != nullptr) {
+    if(vkSetDebugUtilsObjectNameEXT != nullptr) {
         const auto name_info = VkDebugUtilsObjectNameInfoEXT{
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .objectType = object_type,

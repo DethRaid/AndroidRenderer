@@ -46,6 +46,7 @@ struct ComputePass {
 /**
  * \brief Describes a pass that dispatches a compute shader in a specific way
  */
+template<typename PushConstantsType = uint32_t>
 struct ComputeDispatch {
     /**
      * \brief Name of this dispatch, for debugging 
@@ -60,7 +61,7 @@ struct ComputeDispatch {
     /**
      * \brief Push constants for this dispatch. Feel free to reinterpret_cast push_constants.data() into your own type
      */
-    std::array<uint32_t, 8> push_constants;
+    PushConstantsType push_constants;
 
     /**
      * \brief Number of workgroups to dispatch
@@ -93,12 +94,12 @@ struct Subpass {
     /**
      * Indices of any input attachments. These indices refer to the render targets in the parent render pass
      */
-    std::vector<uint32_t> input_attachments;
+    std::vector<uint32_t> input_attachments = {};
 
     /**
      * Indices of any output attachments. These indices refer to the render targets in the parent render pass
      */
-    std::vector<uint32_t> color_attachments;
+    std::vector<uint32_t> color_attachments = {};
 
     /**
      * Index of the depth attachment. This index refers to the render targets in the parent render pass

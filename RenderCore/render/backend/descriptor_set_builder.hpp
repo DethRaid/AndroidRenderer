@@ -1,5 +1,6 @@
 #pragma once
 
+#include "render/backend/acceleration_structure.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/texture_usage_token.hpp"
 #include "render/backend/handles.hpp"
@@ -50,7 +51,7 @@ private:
             BufferHandle buffer;
             TextureHandle texture;
             CombinedImageSampler combined_image_sampler;
-            AccelerationStructureHandle acceleration_structure;
+            DeviceAddress address = {};
         };
     };
 

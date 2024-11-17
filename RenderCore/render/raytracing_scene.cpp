@@ -23,30 +23,18 @@ void RaytracingScene::create_blas_for_mesh(const MeshHandle mesh) {
 
     const auto vertex_buffer = scene.get_meshes().get_vertex_position_buffer();
     const auto& vertex_buffer_actual = allocator.get_buffer(vertex_buffer);
-    auto vertex_buffer_pointer = vertex_buffer_actual.address;
-
-    auto vertex_device_address = VkDeviceAddress{0};
-    vertex_device_address += vertex_buffer_pointer.x;
-    vertex_device_address += static_cast<uint64_t>(vertex_buffer_pointer.y) << 32;
-    vertex_device_address += mesh->first_vertex * sizeof(VertexPosition);
 
     const auto index_buffer = scene.get_meshes().get_index_buffer();
     const auto& index_buffer_actual = allocator.get_buffer(index_buffer);
-    const auto index_buffer_pointer = index_buffer_actual.address;
-
-    auto index_device_address = VkDeviceAddress{0};
-    index_device_address += index_buffer_pointer.x;
-    index_device_address += static_cast<uint64_t>(index_buffer_pointer.y) << 32;
-    index_device_address += mesh->first_index * sizeof(uint32_t);
 
     const auto triangles = VkAccelerationStructureGeometryTrianglesDataKHR{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
         .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
-        .vertexData = {.deviceAddress = vertex_device_address},
+        .vertexData = {.deviceAddress = vertex_buffer_actual.address},
         .vertexStride = sizeof(VertexPosition),
         .maxVertex = mesh->num_vertices,
         .indexType = VK_INDEX_TYPE_UINT32,
-        .indexData = {.deviceAddress = index_device_address},
+        .indexData = {.deviceAddress = index_buffer_actual.address},
     };
 
     const auto geometry = VkAccelerationStructureGeometryKHR{

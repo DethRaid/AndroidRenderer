@@ -5,6 +5,7 @@
 #include <glm/vec2.hpp>
 #include <volk.h>
 #include <vk_mem_alloc.h>
+#include "render/backend/device_address.hpp"
 
 struct Buffer {
     std::string name;
@@ -16,9 +17,9 @@ struct Buffer {
     VmaAllocationInfo allocation_info = {};
 
     /**
-     * \brief Device address of this buffer, split into low and high parts
+     * \brief Device address of this buffer
      *
      * This is set to 0 for uniform buffers. We still bind uniform buffers with descriptors
      */
-    glm::uvec2 address = {};
+    DeviceAddress address;
 };
