@@ -18,7 +18,7 @@ RenderGraph::RenderGraph(RenderBackend& backend_in) : backend{backend_in},
                                                               "Render graph command buffer"
                                                           )
                                                       } {
-    if (logger == nullptr) {
+    if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("RenderGraph");
         logger->set_level(spdlog::level::info);
     }
@@ -57,17 +57,17 @@ void RenderGraph::add_copy_pass(ImageCopyPass&& pass) {
 }
 
 void RenderGraph::add_pass(ComputePass&& pass) {
-    if (!pass.name.empty()) {
+    if(!pass.name.empty()) {
         logger->debug("Adding compute pass {}", pass.name);
 
         cmds.begin_label(pass.name);
     }
 
-    for (const auto& buffer_token : pass.buffers) {
+    for(const auto& buffer_token : pass.buffers) {
         access_tracker.set_resource_usage(buffer_token.first, buffer_token.second.stage, buffer_token.second.access);
     }
 
-    for (const auto& texture_token : pass.textures) {
+    for(const auto& texture_token : pass.textures) {
         access_tracker.set_resource_usage(texture_token.first, texture_token.second);
     }
 
@@ -80,7 +80,7 @@ void RenderGraph::add_pass(ComputePass&& pass) {
         pass.execute(cmds);
     }
 
-    if (!pass.name.empty()) {
+    if(!pass.name.empty()) {
         cmds.end_label();
     }
 }
@@ -97,11 +97,87 @@ void RenderGraph::begin_render_pass(const RenderPassBeginInfo& begin_info) {
     };
 }
 
-void RenderGraph::add_subpass(Subpass&& subpass) { current_render_pass->subpasses.emplace_back(std::move(subpass)); }
+void RenderGraph::add_subpass(Subpass&& subpass) {
+    current_render_pass->subpasses.emplace_back(std::move(subpass));
+}
 
 void RenderGraph::end_render_pass() {
     add_render_pass(std::move(*current_render_pass));
     current_render_pass = std::nullopt;
+}
+
+void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
+    logger->debug("Adding dynamic render pass {}", pass.name);
+
+    auto& allocator = backend.get_global_allocator();
+
+    for(const auto& set : pass.descriptor_sets) {
+        set.get_resource_usage_information(pass.textures, pass.buffers);
+    }
+
+    // Update state tracking, accumulating barrier for buffers and non-attachment images
+    for(const auto& buffer_token : pass.buffers) {
+        access_tracker.set_resource_usage(buffer_token.first, buffer_token.second.stage, buffer_token.second.access);
+    }
+
+    for(const auto& texture_token : pass.textures) {
+        access_tracker.set_resource_usage(texture_token.first, texture_token.second);
+    }
+
+    for(const auto& attachment_token : pass.color_attachments) {
+        access_tracker.set_resource_usage(
+            attachment_token.image,
+            TextureUsageToken{
+                .stage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .access = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+            });
+    }
+
+    if(pass.depth_attachment) {
+        access_tracker.set_resource_usage(
+            pass.depth_attachment->image,
+            TextureUsageToken{
+                .stage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                .access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+            });
+    }
+
+    cmds.begin_label(pass.name);
+    {
+        TracyVkZoneTransient(backend.get_tracy_context(), tracy_zone, cmds.get_vk_commands(), pass.name.c_str(), true);
+
+        access_tracker.issue_barriers(cmds);
+
+        auto render_area_size = glm::uvec2{};
+        if(pass.depth_attachment) {
+            const auto& depth_attachment_actual = allocator.get_texture(pass.depth_attachment->image);
+            render_area_size = {
+                depth_attachment_actual.create_info.extent.width, depth_attachment_actual.create_info.extent.height
+            };
+        } else {
+            const auto& attachment_actual = allocator.get_texture(pass.color_attachments[0].image);
+            render_area_size = {
+                attachment_actual.create_info.extent.width, attachment_actual.create_info.extent.height
+            };
+        }
+
+        auto rendering_info = RenderingInfo{
+            .render_area_begin = {},
+            .render_area_size = render_area_size,
+            .view_mask = pass.view_mask.value_or(1),
+            .color_attachments = pass.color_attachments,
+            .depth_attachment = pass.depth_attachment
+        };
+
+        cmds.begin_rendering(rendering_info);
+
+        pass.execute(cmds);
+
+        cmds.end_rendering();
+    }
+    cmds.end_label();
 }
 
 void RenderGraph::add_render_pass(RenderPass&& pass) {
@@ -116,11 +192,11 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     }
 
     // Update state tracking, accumulating barrier for buffers and non-attachment images
-    for (const auto& buffer_token : pass.buffers) {
+    for(const auto& buffer_token : pass.buffers) {
         access_tracker.set_resource_usage(buffer_token.first, buffer_token.second.stage, buffer_token.second.access);
     }
 
-    for (const auto& texture_token : pass.textures) {
+    for(const auto& texture_token : pass.textures) {
         access_tracker.set_resource_usage(texture_token.first, texture_token.second);
     }
 
@@ -128,9 +204,9 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
     auto render_targets = std::vector<TextureHandle>{};
     render_targets.reserve(pass.attachments.size());
     auto depth_target = std::optional<TextureHandle>{};
-    for (const auto& render_target : pass.attachments) {
+    for(const auto& render_target : pass.attachments) {
         const auto& render_target_actual = allocator.get_texture(render_target);
-        if (is_depth_format(render_target_actual.create_info.format)) {
+        if(is_depth_format(render_target_actual.create_info.format)) {
             depth_target = render_target;
             access_tracker.set_resource_usage(
                 render_target,
@@ -166,8 +242,8 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
 
     auto first_subpass = true;
 
-    for (const auto& subpass : pass.subpasses) {
-        if (!first_subpass) {
+    for(const auto& subpass : pass.subpasses) {
+        if(!first_subpass) {
             cmds.advance_subpass();
         }
 
@@ -186,21 +262,23 @@ void RenderGraph::add_render_pass(RenderPass&& pass) {
 
 
     // If the renderpass has more than one subpass, update the resource access tracker with the final state of all input attachments
-    if (pass.subpasses.size() > 1) {
-        for (const auto& subpass : pass.subpasses) {
-            for (const auto input_attachment_idx : subpass.input_attachments) {
+    if(pass.subpasses.size() > 1) {
+        for(const auto& subpass : pass.subpasses) {
+            for(const auto input_attachment_idx : subpass.input_attachments) {
                 const auto& input_attachment = pass.attachments[input_attachment_idx];
                 const auto& attachment_actual = allocator.get_texture(input_attachment);
-                if (is_depth_format(attachment_actual.create_info.format)) {
+                if(is_depth_format(attachment_actual.create_info.format)) {
                     access_tracker.set_resource_usage(
-                        input_attachment, {
+                        input_attachment,
+                        {
                             .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
                             .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
                         }
                     );
                 } else {
                     access_tracker.set_resource_usage(
-                        input_attachment, {
+                        input_attachment,
+                        {
                             .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
                             .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                         }
@@ -219,11 +297,11 @@ void RenderGraph::update_accesses_and_issues_barriers(
     const std::unordered_map<TextureHandle, TextureUsageToken>& textures,
     const std::unordered_map<BufferHandle, BufferUsageToken>& buffers
 ) const {
-    for (const auto& buffer_token : buffers) {
+    for(const auto& buffer_token : buffers) {
         access_tracker.set_resource_usage(buffer_token.first, buffer_token.second.stage, buffer_token.second.access);
     }
 
-    for (const auto& texture_token : textures) {
+    for(const auto& texture_token : textures) {
         access_tracker.set_resource_usage(texture_token.first, texture_token.second);
     }
 
@@ -279,7 +357,7 @@ CommandBuffer&& RenderGraph::extract_command_buffer() {
 }
 
 void RenderGraph::execute_post_submit_tasks() {
-    for (const auto& task : post_submit_lambdas) {
+    for(const auto& task : post_submit_lambdas) {
         task();
     }
 

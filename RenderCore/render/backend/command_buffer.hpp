@@ -9,7 +9,8 @@
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyVulkan.hpp>
 
-#include "compute_shader.hpp"
+#include "render/backend/compute_shader.hpp"
+#include "render/backend/rendering_attachment_info.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/graphics_pipeline.hpp"
@@ -18,6 +19,22 @@
 
 struct ComputeShader;
 class RenderBackend;
+
+struct RenderingInfo {
+    glm::ivec2 render_area_begin;
+
+    glm::uvec2 render_area_size;
+
+    uint32_t layer_mask;
+
+    uint32_t view_mask;
+
+    std::vector<RenderingAttachmentInfo> color_attachments;
+
+    std::optional<RenderingAttachmentInfo> depth_attachment;
+
+    std::optional<RenderingAttachmentInfo> stencil_attachment;
+};
 
 /**
  * Command buffer abstraction
@@ -109,6 +126,16 @@ public:
      * Ends the current render pass
      */
     void end_render_pass();
+
+    /**
+     * Begins rendering with dynamic rendering
+     */
+    void begin_rendering(const RenderingInfo& info) const;
+
+    /**
+     * Ends a dynamic render pass
+     */
+    void end_rendering() const;
 
     void set_scissor_rect(const glm::ivec2& upper_left, const glm::ivec2& lower_right) const;
 
@@ -209,7 +236,6 @@ public:
 
     RenderBackend& get_backend() const;
 
-    
 private:
     VkCommandBuffer commands;
 

@@ -223,6 +223,82 @@ void CommandBuffer::end_render_pass() {
     vkCmdEndRenderPass(commands);
 }
 
+void CommandBuffer::begin_rendering(const RenderingInfo& info) const {
+    auto attachment_infos = std::vector<VkRenderingAttachmentInfo>{};
+    attachment_infos.reserve(
+        info.color_attachments.size() +
+        (info.depth_attachment.has_value() ? 1 : 0) +
+        (info.stencil_attachment.has_value() ? 1 : 0)
+    );
+
+    const auto& allocator = backend->get_global_allocator();
+
+    for(const auto& color_attachment : info.color_attachments) {
+        const auto& texture = allocator.get_texture(color_attachment.image);
+        attachment_infos.emplace_back(
+            VkRenderingAttachmentInfo{
+                .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+                .imageView = texture.attachment_view,
+                .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                .loadOp = color_attachment.load_op,
+                .storeOp = color_attachment.store_op,
+                .clearValue = color_attachment.clear_value,
+            }
+        );
+    }
+
+    VkRenderingAttachmentInfo* depth_attachment_ptr = nullptr;
+    if(info.depth_attachment) {
+        depth_attachment_ptr = &attachment_infos.back();
+        const auto& texture = allocator.get_texture(info.depth_attachment->image);
+        attachment_infos.emplace_back(
+            VkRenderingAttachmentInfo{
+                .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+                .imageView = texture.attachment_view,
+                .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                .loadOp = info.depth_attachment->load_op,
+                .storeOp = info.depth_attachment->store_op,
+                .clearValue = info.depth_attachment->clear_value,
+            }
+        );
+    }
+    VkRenderingAttachmentInfo* stencil_attachment_ptr = nullptr;
+    if(info.stencil_attachment) {
+        stencil_attachment_ptr = &attachment_infos.back();
+        const auto& texture = allocator.get_texture(info.stencil_attachment->image);
+        attachment_infos.emplace_back(
+            VkRenderingAttachmentInfo{
+                .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+                .imageView = texture.attachment_view,
+                .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                .loadOp = info.stencil_attachment->load_op,
+                .storeOp = info.stencil_attachment->store_op,
+                .clearValue = info.stencil_attachment->clear_value,
+            }
+        );
+    }
+
+    const auto rendering_info = VkRenderingInfo{
+        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+        .renderArea = {
+            .offset = {.x = info.render_area_begin.x, .y = info.render_area_begin.y},
+            .extent = {.width = info.render_area_size.x, .height = info.render_area_size.y}
+        },
+        .layerCount = info.layer_mask,
+        .viewMask = info.view_mask,
+        .colorAttachmentCount = static_cast<uint32_t>(info.color_attachments.size()),
+        .pColorAttachments = attachment_infos.data(),
+        .pDepthAttachment = depth_attachment_ptr,
+        .pStencilAttachment = stencil_attachment_ptr,
+    };
+
+    vkCmdBeginRendering(commands, &rendering_info);
+}
+
+void CommandBuffer::end_rendering() const {
+    vkCmdEndRendering(commands);
+}
+
 void CommandBuffer::set_scissor_rect(const glm::ivec2& upper_left, const glm::ivec2& lower_right) const {
     const auto scissor_rect = VkRect2D{
         .offset = {.x = upper_left.x, .y = upper_left.y},

@@ -11,6 +11,7 @@
 #include <glm/vec4.hpp>
 
 #include "framebuffer.hpp"
+#include "rendering_attachment_info.hpp"
 #include "render/backend/buffer_state.hpp"
 #include "render/backend/texture_state.hpp"
 #include "render/backend/handles.hpp"
@@ -146,6 +147,29 @@ struct RenderPass {
     tl::optional<uint32_t> view_mask;
 
     std::vector<Subpass> subpasses;
+};
+
+struct AttachmentInfo {
+    TextureHandle texture;
+    VkClearValue clear_value;
+};
+
+struct DynamicRenderingPass {
+    std::string name;
+
+    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+
+    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+
+    std::vector<DescriptorSet> descriptor_sets;
+
+    std::vector<RenderingAttachmentInfo> color_attachments;
+
+    std::optional<RenderingAttachmentInfo> depth_attachment;
+
+    tl::optional<uint32_t> view_mask;
+
+    std::function<void(CommandBuffer&)> execute;    
 };
 
 struct PresentPass {

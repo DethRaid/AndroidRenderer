@@ -41,11 +41,16 @@ public:
     template <typename PushConstantsType = uint32_t>
     void add_compute_dispatch(const ComputeDispatch<PushConstantsType>& dispatch_info);
 
+    [[deprecated("Use add_render_pass instead")]]
     void begin_render_pass(const RenderPassBeginInfo& begin_info);
 
+    [[deprecated("Use add_render_pass instead")]]
     void add_subpass(Subpass&& subpass);
 
+    [[deprecated("Use add_render_pass instead")]]
     void end_render_pass();
+
+    void add_render_pass(DynamicRenderingPass pass);
 
     void add_finish_frame_and_present_pass(const PresentPass& pass);
 
