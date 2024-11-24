@@ -102,7 +102,7 @@ void RenderGraph::add_subpass(Subpass&& subpass) {
 }
 
 void RenderGraph::end_render_pass() {
-    add_render_pass(std::move(*current_render_pass));
+    add_render_pass_internal(std::move(*current_render_pass));
     current_render_pass = std::nullopt;
 }
 
@@ -124,6 +124,7 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
         access_tracker.set_resource_usage(texture_token.first, texture_token.second);
     }
 
+    auto num_layers = 0u;
     for(const auto& attachment_token : pass.color_attachments) {
         access_tracker.set_resource_usage(
             attachment_token.image,
@@ -132,6 +133,10 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
                 .access = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
                 .layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
             });
+
+        // Assumes that all render targets have the same depth
+        const auto& attachment_actual = allocator.get_texture(attachment_token.image);
+        num_layers = attachment_actual.create_info.extent.depth;
     }
 
     if(pass.depth_attachment) {
@@ -139,9 +144,13 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
             pass.depth_attachment->image,
             TextureUsageToken{
                 .stage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                .access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                .access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                 .layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
             });
+
+        // Assumes that all render targets have the same depth
+        const auto& attachment_actual = allocator.get_texture(pass.depth_attachment->image);
+        num_layers = attachment_actual.create_info.extent.depth;
     }
 
     cmds.begin_label(pass.name);
@@ -166,7 +175,8 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
         auto rendering_info = RenderingInfo{
             .render_area_begin = {},
             .render_area_size = render_area_size,
-            .view_mask = pass.view_mask.value_or(1),
+            .layer_count = num_layers,
+            .view_mask = pass.view_mask.value_or(0),
             .color_attachments = pass.color_attachments,
             .depth_attachment = pass.depth_attachment
         };
@@ -180,7 +190,7 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
     cmds.end_label();
 }
 
-void RenderGraph::add_render_pass(RenderPass&& pass) {
+void RenderGraph::add_render_pass_internal(RenderPass&& pass) {
     logger->debug("Adding render pass {}", pass.name);
 
     auto& allocator = backend.get_global_allocator();

@@ -7,7 +7,7 @@
 static std::shared_ptr<spdlog::logger> logger;
 
 PipelineCache::PipelineCache(RenderBackend& backend_in) : backend{backend_in} {
-    if (logger == nullptr) {
+    if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("PipelineCache");
     }
 
@@ -18,9 +18,12 @@ PipelineCache::PipelineCache(RenderBackend& backend_in) : backend{backend_in} {
                           [&](const auto& cache_data) -> tl::optional<std::vector<uint8_t>> {
                               const auto* header = reinterpret_cast<const VkPipelineCacheHeaderVersionOne*>(cache_data.
                                   data());
-                              if (header->vendorID == physical_device.properties.vendorID &&
+                              if(header->vendorID == physical_device.properties.vendorID &&
                                   header->deviceID == physical_device.properties.deviceID &&
-                                  std::memcmp(header->pipelineCacheUUID, physical_device.properties.pipelineCacheUUID, 16) == 0) {
+                                  std::memcmp(
+                                      header->pipelineCacheUUID,
+                                      physical_device.properties.pipelineCacheUUID,
+                                      16) == 0) {
                                   return cache_data;
                               }
 
@@ -38,18 +41,23 @@ PipelineCache::PipelineCache(RenderBackend& backend_in) : backend{backend_in} {
 }
 
 PipelineCache::~PipelineCache() {
-    if (vk_pipeline_cache != VK_NULL_HANDLE) {
+    if(vk_pipeline_cache != VK_NULL_HANDLE) {
         auto pipeline_cache_size = size_t{};
         vkGetPipelineCacheData(backend.get_device().device, vk_pipeline_cache, &pipeline_cache_size, nullptr);
 
         auto pipeline_cache_data = std::vector<uint8_t>{};
         pipeline_cache_data.resize(pipeline_cache_size);
         vkGetPipelineCacheData(
-            backend.get_device().device, vk_pipeline_cache, &pipeline_cache_size, pipeline_cache_data.data()
+            backend.get_device().device,
+            vk_pipeline_cache,
+            &pipeline_cache_size,
+            pipeline_cache_data.data()
         );
 
         SystemInterface::get().write_file(
-            "cache/pipeline_cache", pipeline_cache_data.data(), static_cast<uint32_t>(pipeline_cache_data.size())
+            "cache/pipeline_cache",
+            pipeline_cache_data.data(),
+            static_cast<uint32_t>(pipeline_cache_data.size())
         );
 
         vkDestroyPipelineCache(backend.get_device().device, vk_pipeline_cache, nullptr);
@@ -64,7 +72,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
 
     pipeline.pipeline_name = pipeline_builder.name;
 
-    if (pipeline_builder.vertex_shader) {
+    if(pipeline_builder.vertex_shader) {
         ZoneScopedN("Compile vertex shader");
 
         const auto module_create_info = VkShaderModuleCreateInfo{
@@ -74,10 +82,12 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
         };
         auto vertex_module = VkShaderModule{};
         const auto result = vkCreateShaderModule(
-            device, &module_create_info, nullptr,
+            device,
+            &module_create_info,
+            nullptr,
             &vertex_module
         );
-        if (result != VK_SUCCESS) {
+        if(result != VK_SUCCESS) {
             throw std::runtime_error{"Could not create vertex module"};
         }
 
@@ -95,7 +105,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
         throw std::runtime_error{"Missing vertex shader"};
     }
 
-    if (pipeline_builder.geometry_shader) {
+    if(pipeline_builder.geometry_shader) {
         ZoneScopedN("Compile geometry shader");
 
         const auto module_create_info = VkShaderModuleCreateInfo{
@@ -118,7 +128,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
         };
     }
 
-    if (pipeline_builder.fragment_shader) {
+    if(pipeline_builder.fragment_shader) {
         ZoneScopedN("Compile fragment shader");
 
         const auto module_create_info = VkShaderModuleCreateInfo{
@@ -131,7 +141,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
 
         pipeline.fragment_shader_name = pipeline_builder.fragment_shader_name;
 
-        if (vkSetDebugUtilsObjectNameEXT != nullptr) {
+        if(vkSetDebugUtilsObjectNameEXT != nullptr) {
             const auto name_info = VkDebugUtilsObjectNameInfoEXT{
                 .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
                 .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
@@ -163,10 +173,11 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
 
     // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
     pipeline.num_push_constants = 0;
-    for (const auto& range : pipeline_builder.push_constants) {
+    for(const auto& range : pipeline_builder.push_constants) {
         const auto max_used_byte = range.offset + range.size;
         pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
-        pipeline.push_constant_stages |= range.stageFlags;  // Assumption that all shader stages will use the same push constants. If this is not true, I have a headache and I need to lie down
+        pipeline.push_constant_stages |= range.stageFlags;
+        // Assumption that all shader stages will use the same push constants. If this is not true, I have a headache and I need to lie down
     }
 
     return pipelines.add_object(std::move(pipeline));
@@ -182,7 +193,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
     };
     VkShaderModule module;
     auto result = vkCreateShaderModule(backend.get_device(), &module_create_info, nullptr, &module);
-    if (result != VK_SUCCESS) {
+    if(result != VK_SUCCESS) {
         logger->error("Could not create compute shader {}: Vulkan error {}", shader_file_path, result);
         return {};
     }
@@ -194,7 +205,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
 
     // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
     uint32_t num_push_constants = 0;
-    for (const auto& range : push_constants) {
+    for(const auto& range : push_constants) {
         const auto max_used_byte = range.offset + range.size;
         num_push_constants = std::max(num_push_constants, max_used_byte / 4u);
     }
@@ -202,11 +213,11 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
     auto layouts = std::vector<VkDescriptorSetLayout>{};
     layouts.reserve(descriptor_sets.size());
 
-    for (const auto& [set_index, set_info] : descriptor_sets) {
+    for(const auto& [set_index, set_info] : descriptor_sets) {
         auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
         bindings.resize(set_info.bindings.size());
 
-        for (const auto& [binding_index, binding] : set_info.bindings) {
+        for(const auto& [binding_index, binding] : set_info.bindings) {
             bindings[binding_index] = binding;
         }
 
@@ -220,7 +231,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         // If the last binding is un unsized texture array, tell Vulkan about it
         auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
         auto flags = std::vector<VkDescriptorBindingFlags>{};
-        if (set_info.has_variable_count_binding) {
+        if(set_info.has_variable_count_binding) {
             flags.resize(bindings.size());
             flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
                 VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
@@ -235,9 +246,11 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
 
         auto dsl = VkDescriptorSetLayout{};
         result = vkCreateDescriptorSetLayout(backend.get_device(), &create_info, nullptr, &dsl);
-        if (result != VK_SUCCESS) {
+        if(result != VK_SUCCESS) {
             logger->error(
-                "Could not create descriptor set layout {} for shader {}: Vulkan error {}", set_index, shader_file_path,
+                "Could not create descriptor set layout {} for shader {}: Vulkan error {}",
+                set_index,
+                shader_file_path,
                 result
             );
             return {};
@@ -255,9 +268,9 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
     };
     auto pipeline_layout = VkPipelineLayout{};
     result = vkCreatePipelineLayout(backend.get_device(), &pipeline_layout_create_info, nullptr, &pipeline_layout);
-    if (result != VK_SUCCESS) {
+    if(result != VK_SUCCESS) {
         vkDestroyShaderModule(backend.get_device(), module, nullptr);
-        for (const auto layout : layouts) {
+        for(const auto layout : layouts) {
             vkDestroyDescriptorSetLayout(backend.get_device(), layout, nullptr);
         }
 
@@ -278,9 +291,9 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
     auto pipeline = VkPipeline{};
     vkCreateComputePipelines(backend.get_device(), VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline);
     result = vkCreatePipelineLayout(backend.get_device(), &pipeline_layout_create_info, nullptr, &pipeline_layout);
-    if (result != VK_SUCCESS) {
+    if(result != VK_SUCCESS) {
         vkDestroyShaderModule(backend.get_device(), module, nullptr);
-        for (const auto layout : layouts) {
+        for(const auto layout : layouts) {
             vkDestroyDescriptorSetLayout(backend.get_device(), layout, nullptr);
         }
 
@@ -291,7 +304,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
     }
 
     vkDestroyShaderModule(backend.get_device(), module, nullptr);
-    for (const auto layout : layouts) {
+    for(const auto layout : layouts) {
         vkDestroyDescriptorSetLayout(backend.get_device(), layout, nullptr);
     }
 
@@ -300,7 +313,128 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
     backend.set_object_name(pipeline, shader_file_path);
     backend.set_object_name(pipeline_layout, layout_name);
 
-    return compute_pipelines.add_object(ComputeShader{ .layout = pipeline_layout, .pipeline = pipeline, .num_push_constants = num_push_constants, .descriptor_sets = descriptor_sets });
+    return compute_pipelines.add_object(
+        ComputeShader{
+            .layout = pipeline_layout, .pipeline = pipeline, .num_push_constants = num_push_constants,
+            .descriptor_sets = descriptor_sets
+        });
+}
+
+VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
+    GraphicsPipelineHandle pipeline, std::span<VkFormat> color_attachment_formats,
+    std::optional<VkFormat> depth_format, const uint32_t view_mask
+) const {
+
+    ZoneScoped;
+
+    if(pipeline->pipeline != VK_NULL_HANDLE) {
+        // logger->warn("Recompiling pipeline. {} This is cringe", pipeline->pipeline_name);
+    }
+
+    auto stages = std::vector{pipeline->vertex_stage};
+    if(pipeline->geometry_stage) {
+        stages.emplace_back(*pipeline->geometry_stage);
+    }
+    if(pipeline->fragment_stage) {
+        stages.emplace_back(*pipeline->fragment_stage);
+    }
+
+    const auto vertex_input_stage = VkPipelineVertexInputStateCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = static_cast<uint32_t>(pipeline->vertex_inputs.size()),
+        .pVertexBindingDescriptions = pipeline->vertex_inputs.data(),
+        .vertexAttributeDescriptionCount = static_cast<uint32_t>(pipeline->vertex_attributes.size()),
+        .pVertexAttributeDescriptions = pipeline->vertex_attributes.data(),
+    };
+
+    const auto input_assembly_state = VkPipelineInputAssemblyStateCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = pipeline->topology,
+    };
+
+    const auto viewport_state = VkPipelineViewportStateCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .scissorCount = 1,
+        // Dynamic viewport and scissor state
+    };
+
+    const auto multisample_state = VkPipelineMultisampleStateCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
+    };
+
+    const auto color_blend_state = VkPipelineColorBlendStateCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .flags = pipeline->blend_flags,
+        .attachmentCount = static_cast<uint32_t>(pipeline->blends.size()),
+        .pAttachments = pipeline->blends.data(),
+    };
+
+    const auto dynamic_states = std::array{
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR,
+    };
+
+    const auto dynamic_state = VkPipelineDynamicStateCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = static_cast<uint32_t>(dynamic_states.size()),
+        .pDynamicStates = dynamic_states.data(),
+    };
+
+    const auto rendering_info = VkPipelineRenderingCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+        .viewMask = view_mask,
+        .colorAttachmentCount = static_cast<uint32_t>(color_attachment_formats.size()),
+        .pColorAttachmentFormats = color_attachment_formats.data(),
+        .depthAttachmentFormat = depth_format.value_or(VK_FORMAT_UNDEFINED),
+    };
+
+    auto create_info = VkGraphicsPipelineCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext = &rendering_info,
+
+        .stageCount = static_cast<uint32_t>(stages.size()),
+        .pStages = stages.data(),
+
+        .pVertexInputState = &vertex_input_stage,
+        .pInputAssemblyState = &input_assembly_state,
+
+        .pViewportState = &viewport_state,
+
+        .pRasterizationState = &pipeline->raster_state,
+        .pMultisampleState = &multisample_state,
+
+        .pDepthStencilState = &pipeline->depth_stencil_state,
+
+        .pColorBlendState = &color_blend_state,
+
+        .pDynamicState = &dynamic_state,
+
+        .layout = pipeline->pipeline_layout
+    };
+
+    const auto device = backend.get_device().device;
+    vkCreateGraphicsPipelines(
+        device,
+        vk_pipeline_cache,
+        1,
+        &create_info,
+        nullptr,
+        &pipeline->pipeline
+    );
+
+    if(!pipeline->pipeline_name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
+        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_PIPELINE,
+            .objectHandle = reinterpret_cast<uint64_t>(pipeline->pipeline),
+            .pObjectName = pipeline->pipeline_name.c_str()
+        };
+        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+    }
+
+    return pipeline->pipeline;
 }
 
 VkPipeline PipelineCache::get_pipeline(
@@ -308,19 +442,19 @@ VkPipeline PipelineCache::get_pipeline(
 ) const {
     ZoneScoped;
 
-    if (pipeline->last_renderpass == active_render_pass && pipeline->last_subpass_index == active_subpass) {
+    if(pipeline->last_renderpass == active_render_pass && pipeline->last_subpass_index == active_subpass) {
         return pipeline->pipeline;
     }
 
-    if (pipeline->pipeline != VK_NULL_HANDLE) {
+    if(pipeline->pipeline != VK_NULL_HANDLE) {
         // logger->warn("Recompiling pipeline. {} This is cringe", pipeline->pipeline_name);
     }
 
     auto stages = std::vector{pipeline->vertex_stage};
-    if (pipeline->geometry_stage) {
+    if(pipeline->geometry_stage) {
         stages.emplace_back(*pipeline->geometry_stage);
     }
-    if (pipeline->fragment_stage) {
+    if(pipeline->fragment_stage) {
         stages.emplace_back(*pipeline->fragment_stage);
     }
 
@@ -395,11 +529,15 @@ VkPipeline PipelineCache::get_pipeline(
 
     const auto device = backend.get_device().device;
     vkCreateGraphicsPipelines(
-        device, vk_pipeline_cache, 1, &create_info, nullptr,
+        device,
+        vk_pipeline_cache,
+        1,
+        &create_info,
+        nullptr,
         &pipeline->pipeline
     );
 
-    if (!pipeline->pipeline_name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
+    if(!pipeline->pipeline_name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
         const auto name_info = VkDebugUtilsObjectNameInfoEXT{
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .objectType = VK_OBJECT_TYPE_PIPELINE,

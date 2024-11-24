@@ -44,8 +44,7 @@ static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
     0.1
 };
 
-// Big TODO: If we use the voxels, we need to change a bunch of code because the voxels are not SH voxels (and they probably never will be)
-static auto cvar_lpv_build_gv_mode = AutoCVar_Enum<GvBuildMode>{
+static auto cvar_lpv_build_gv_mode = AutoCVar_Enum{
     "r.LPV.GvBuildMode",
     "How to build the geometry volume.\n0 = Disable\n1 = Use the RSM depth buffer and last frame's depth buffer\n2 = Use voxels from the renderer's voxel cache",
     GvBuildMode::DepthBuffers
@@ -57,10 +56,16 @@ static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
     512
 };
 
+static auto cvar_lpv_use_compute_vpl_injection = AutoCVar_Int{
+    "r.LPV.ComputeVPL",
+    "Whether to use a compute pipeline or a raster pipeline to inject VPLs into the LPVs",
+    0
+};
+
 static std::shared_ptr<spdlog::logger> logger;
 
 LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : backend{backend_in} {
-    if (logger == nullptr) {
+    if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("LightPropagationVolume");
     }
 
@@ -87,58 +92,59 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
         }
     );
 
-    vpl_pipeline = backend.begin_building_pipeline("RSM VPL extraction")
-                          .set_vertex_shader("shaders/common/fullscreen.vert.spv")
-                          .set_fragment_shader("shaders/lpv/rsm_generate_vpls.frag.spv")
-                          .set_depth_state(
-                              DepthStencilState{.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE}
-                          )
-                          .build();
+    vpl_pipeline = pipeline_cache.create_pipeline("shaders/lpv/rsm_generate_vpls.comp.spv");
 
-    vpl_injection_pipeline = backend.begin_building_pipeline("VPL Injection")
-                                    .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
-                                    .set_vertex_shader("shaders/lpv/vpl_injection.vert.spv")
-                                    .set_fragment_shader("shaders/lpv/vpl_injection.frag.spv")
-                                    .set_blend_state(
-                                        0, {
-                                            .blendEnable = VK_TRUE,
-                                            .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .colorBlendOp = VK_BLEND_OP_ADD,
-                                            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .alphaBlendOp = VK_BLEND_OP_ADD,
-                                            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-                                        }
-                                    )
-                                    .set_blend_state(
-                                        1, {
-                                            .blendEnable = VK_TRUE,
-                                            .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .colorBlendOp = VK_BLEND_OP_ADD,
-                                            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .alphaBlendOp = VK_BLEND_OP_ADD,
-                                            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-                                        }
-                                    )
-                                    .set_blend_state(
-                                        2, {
-                                            .blendEnable = VK_TRUE,
-                                            .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .colorBlendOp = VK_BLEND_OP_ADD,
-                                            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                            .alphaBlendOp = VK_BLEND_OP_ADD,
-                                            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-                                        }
-                                    )
-                                    .build();
+    if(cvar_lpv_use_compute_vpl_injection.Get() == 0) {
+        vpl_injection_pipeline = backend.begin_building_pipeline("VPL Injection")
+                                        .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+                                        .set_vertex_shader("shaders/lpv/vpl_injection.vert.spv")
+                                        .set_fragment_shader("shaders/lpv/vpl_injection.frag.spv")
+                                        .set_blend_state(
+                                            0,
+                                            {
+                                                .blendEnable = VK_TRUE,
+                                                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .colorBlendOp = VK_BLEND_OP_ADD,
+                                                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .alphaBlendOp = VK_BLEND_OP_ADD,
+                                                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                            }
+                                        )
+                                        .set_blend_state(
+                                            1,
+                                            {
+                                                .blendEnable = VK_TRUE,
+                                                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .colorBlendOp = VK_BLEND_OP_ADD,
+                                                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .alphaBlendOp = VK_BLEND_OP_ADD,
+                                                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                            }
+                                        )
+                                        .set_blend_state(
+                                            2,
+                                            {
+                                                .blendEnable = VK_TRUE,
+                                                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .colorBlendOp = VK_BLEND_OP_ADD,
+                                                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                .alphaBlendOp = VK_BLEND_OP_ADD,
+                                                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                            }
+                                        )
+                                        .build();
+    } else {
+        vpl_injection_compute_pipeline = pipeline_cache.create_pipeline("shaders/lpv/vpl_injection.comp.spv");
+    }
 
     inject_rsm_depth_into_gv_pipeline = backend.begin_building_pipeline("GV Injection")
                                                .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
@@ -148,7 +154,8 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                                    {.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE}
                                                )
                                                .set_blend_state(
-                                                   0, {
+                                                   0,
+                                                   {
                                                        .blendEnable = VK_TRUE,
                                                        .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
                                                        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
@@ -171,7 +178,8 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                                      {.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE}
                                                  )
                                                  .set_blend_state(
-                                                     0, {
+                                                     0,
+                                                     {
                                                          .blendEnable = VK_TRUE,
                                                          .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
                                                          .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
@@ -191,7 +199,8 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                .set_fragment_shader("shaders/lpv/overlay.frag.spv")
                                .set_depth_state({.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE})
                                .set_blend_state(
-                                   0, {
+                                   0,
+                                   {
                                        .blendEnable = VK_TRUE,
                                        .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
                                        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
@@ -213,44 +222,65 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
     const auto texture_resolution = glm::uvec3{size * num_cascades, size, size};
 
     lpv_a_red = allocator.create_volume_texture(
-        "LPV Red A", VK_FORMAT_R16G16B16A16_SFLOAT,
-        texture_resolution, 1, TextureUsage::StorageImage
+        "LPV Red A",
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        texture_resolution,
+        1,
+        TextureUsage::StorageImage
     );
     lpv_a_green = allocator.create_volume_texture(
-        "LPV Green A", VK_FORMAT_R16G16B16A16_SFLOAT,
-        texture_resolution, 1, TextureUsage::StorageImage
+        "LPV Green A",
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        texture_resolution,
+        1,
+        TextureUsage::StorageImage
     );
     lpv_a_blue = allocator.create_volume_texture(
-        "LPV Blue A", VK_FORMAT_R16G16B16A16_SFLOAT,
-        texture_resolution, 1, TextureUsage::StorageImage
+        "LPV Blue A",
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        texture_resolution,
+        1,
+        TextureUsage::StorageImage
     );
     lpv_b_red = allocator.create_volume_texture(
-        "LPV Red B", VK_FORMAT_R16G16B16A16_SFLOAT,
-        texture_resolution, 1, TextureUsage::StorageImage
+        "LPV Red B",
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        texture_resolution,
+        1,
+        TextureUsage::StorageImage
     );
     lpv_b_green = allocator.create_volume_texture(
-        "LPV Green B", VK_FORMAT_R16G16B16A16_SFLOAT,
-        texture_resolution, 1, TextureUsage::StorageImage
+        "LPV Green B",
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        texture_resolution,
+        1,
+        TextureUsage::StorageImage
     );
     lpv_b_blue = allocator.create_volume_texture(
-        "LPV Blue B", VK_FORMAT_R16G16B16A16_SFLOAT,
-        texture_resolution, 1, TextureUsage::StorageImage
+        "LPV Blue B",
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        texture_resolution,
+        1,
+        TextureUsage::StorageImage
     );
 
     geometry_volume_handle = allocator.create_volume_texture(
-        "Geometry Volume", VK_FORMAT_R16G16B16A16_SFLOAT,
-        texture_resolution, 1,
+        "Geometry Volume",
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        texture_resolution,
+        1,
         TextureUsage::StorageImage
     );
 
     cascade_data_buffer = allocator.create_buffer(
-        "LPV Cascade Data", sizeof(LPVCascadeMatrices) * num_cascades,
+        "LPV Cascade Data",
+        sizeof(LPVCascadeMatrices) * num_cascades,
         BufferUsage::UniformBuffer
     );
 
     cascades.resize(num_cascades);
     uint32_t cascade_index = 0;
-    for (auto& cascade : cascades) {
+    for(auto& cascade : cascades) {
         cascade.create_render_targets(allocator);
         cascade.count_buffer = allocator.create_buffer(
             fmt::format("Cascade {} VPL Count", cascade_index),
@@ -259,14 +289,15 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
         );
         cascade.vpl_buffer = allocator.create_buffer(
             fmt::format("Cascade {} VPL List", cascade_index),
-            sizeof(PackedVPL) * 65536, BufferUsage::StorageBuffer
+            sizeof(PackedVPL) * 65536,
+            BufferUsage::StorageBuffer
         );
         cascade_index++;
     }
 }
 
 void LightPropagationVolume::set_scene_drawer(SceneDrawer&& drawer) {
-    rsm_drawer = std::move(drawer);
+    rsm_drawer = drawer;
 }
 
 void LightPropagationVolume::update_cascade_transforms(const SceneTransform& view, const SunLight& light) {
@@ -281,11 +312,11 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
 
     const auto offset_distance_scale = 0.5f - cvar_lpv_behind_camera_percent.GetFloat();
 
-    for (uint32_t cascade_index = 0; cascade_index < num_cascades; cascade_index++) {
+    for(int32_t cascade_index = 0; cascade_index < num_cascades; cascade_index++) {
         const auto cell_size = base_cell_size * static_cast<float>(glm::pow(2.f, cascade_index));
-        const auto cascade_size = num_cells * cell_size;
+        const auto cascade_size = static_cast<float>(num_cells) * cell_size;
 
-        // Offset the centerpoint of the cascade by 20% of the length of one side
+        // Offset the center point of the cascade by 20% of the length of one side
         // When the camera is aligned with the X or Y axis, this will offset the cascade by 20% of its length. 30% of it
         // will be behind the camera, 70% of it will be in front. This feels reasonable
         // When the camera is 45 degrees off of the X or Y axis, the cascade will have more of itself behind the camera
@@ -299,7 +330,7 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
 
         const auto scale_factor = 1.0f / cascade_size;
 
-        const auto bias_mat = glm::mat4{
+        constexpr auto bias_mat = glm::mat4{
             0.5f, 0.0f, 0.0f, 0.0f,
             0.0f, 0.5f, 0.0f, 0.0f,
             0.0f, 0.0f, 0.5f, 0.0f,
@@ -317,7 +348,11 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
         const auto rsm_view_start = snapped_offset - light.get_direction() * rsm_pullback_distance;
         const auto rsm_view_matrix = glm::lookAt(rsm_view_start, snapped_offset, glm::vec3{0, 1, 0});
         const auto rsm_projection_matrix = glm::ortho(
-            -half_cascade_size, half_cascade_size, -half_cascade_size, half_cascade_size, 0.f,
+            -half_cascade_size,
+            half_cascade_size,
+            -half_cascade_size,
+            half_cascade_size,
+            0.f,
             rsm_pullback_distance * 2.f
         );
         cascade.rsm_vp = rsm_projection_matrix * rsm_view_matrix;
@@ -330,7 +365,7 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
 void LightPropagationVolume::update_buffers(CommandBuffer& commands) const {
     auto cascade_matrices = std::vector<LPVCascadeMatrices>{};
     cascade_matrices.reserve(cascades.size());
-    for (const auto& cascade : cascades) {
+    for(const auto& cascade : cascades) {
         cascade_matrices.emplace_back(
             LPVCascadeMatrices{
                 .rsm_vp = cascade.rsm_vp,
@@ -341,7 +376,9 @@ void LightPropagationVolume::update_buffers(CommandBuffer& commands) const {
     }
 
     commands.update_buffer(
-        cascade_data_buffer, cascade_matrices.data(), cascade_matrices.size() * sizeof(LPVCascadeMatrices),
+        cascade_data_buffer,
+        cascade_matrices.data(),
+        static_cast<uint32_t>(cascade_matrices.size() * sizeof(LPVCascadeMatrices)),
         0
     );
 }
@@ -363,7 +400,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
     graph.begin_label("LPV indirect sun light injection");
 
     auto cascade_index = 0u;
-    for (const auto& cascade : cascades) {
+    for(const auto& cascade : cascades) {
         graph.add_pass(
             {
                 .name = "Clear count buffer",
@@ -373,11 +410,117 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         {.stage = VK_PIPELINE_STAGE_TRANSFER_BIT, .access = VK_ACCESS_TRANSFER_WRITE_BIT}
                     }
                 },
-                .execute = [&](CommandBuffer& commands) { commands.fill_buffer(cascade.count_buffer, 0); }
+                .execute = [&](CommandBuffer& commands) {
+                    commands.fill_buffer(cascade.count_buffer, 0);
+                }
             }
         );
 
-        graph.begin_render_pass(
+        graph.add_render_pass(
+            DynamicRenderingPass{
+                .name = "Render RSM",
+                .buffers = {
+                    {
+                        cascade_data_buffer,
+                        {
+                            .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+                            .access = VK_ACCESS_UNIFORM_READ_BIT
+                        }
+                    }
+                },
+                .color_attachments = {
+                    {
+                        .image = cascade.flux_target,
+                        .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .store_op = VK_ATTACHMENT_STORE_OP_STORE,
+                        .clear_value = {.color = {.float32 = {0, 0, 0, 0}}}
+                    },
+                    {
+                        .image = cascade.normals_target,
+                        .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .store_op = VK_ATTACHMENT_STORE_OP_STORE,
+                        .clear_value = {.color = {.float32 = {0.5, 0.5, 1.0, 0}}}
+                    }
+                },
+                .depth_attachment = RenderingAttachmentInfo{
+                    .image = cascade.depth_target,
+                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .store_op = VK_ATTACHMENT_STORE_OP_STORE,
+                    .clear_value = {.depthStencil = {.depth = 1.f}}
+                },
+                .execute = [&](CommandBuffer& commands) {
+                    auto global_set = *vkutil::DescriptorBuilder::begin(
+                                           backend,
+                                           backend.get_transient_descriptor_allocator()
+                                       )
+                                       .bind_buffer(
+                                           0,
+                                           {.buffer = cascade_data_buffer},
+                                           VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                           VK_SHADER_STAGE_VERTEX_BIT
+                                       )
+                                       .bind_buffer(
+                                           1,
+                                           {.buffer = scene.get_sun_light().get_constant_buffer()},
+                                           VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                           VK_SHADER_STAGE_FRAGMENT_BIT
+                                       )
+                                       .build();
+
+                    commands.bind_descriptor_set(0, global_set);
+
+                    commands.set_push_constant(4, cascade_index);
+
+                    rsm_drawer.draw(commands);
+
+                    commands.clear_descriptor_set(0);
+                }
+            });
+
+        {
+            auto descriptor_set = backend.get_transient_descriptor_allocator()
+                                         .create_set(vpl_pipeline, 0)
+                                         .bind(0, cascade.flux_target, backend.get_default_sampler())
+                                         .bind(1, cascade.normals_target, backend.get_default_sampler())
+                                         .bind(2, cascade.depth_target, backend.get_default_sampler())
+                                         .bind(3, cascade_data_buffer)
+                                         .finalize();
+
+            struct VplPipelineConstants {
+                DeviceAddress count_buffer_address;
+                DeviceAddress vpl_buffer_address;
+                uint32_t cascade_index;
+
+                VplPipelineConstants(
+                    const ResourceAllocator& allocator, const BufferHandle count_buffer, const BufferHandle vpl_buffer,
+                    const uint32_t cascade_index
+                ) : cascade_index{cascade_index} {
+                    const auto& count_buffer_actual = allocator.get_buffer(count_buffer);
+                    count_buffer_address = count_buffer_actual.address;
+
+                    const auto& vpl_buffer_actual = allocator.get_buffer(vpl_buffer);
+                    vpl_buffer_address = vpl_buffer_actual.address;
+                }
+            };
+
+            const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
+
+            graph.add_compute_dispatch<VplPipelineConstants>(
+                ComputeDispatch<VplPipelineConstants>{
+                    .name = "Extract VPLs",
+                    .descriptor_sets = {descriptor_set},
+                    .push_constants = VplPipelineConstants{
+                        backend.get_global_allocator(), cascade.count_buffer, cascade.vpl_buffer, cascade_index
+                    },
+                    .num_workgroups = {resolution, 1},
+                    .compute_shader = vpl_pipeline
+                });
+        }
+
+        dispatch_vpl_injection_pass(graph, cascade_index, cascade);
+
+        /*
+         *        graph.begin_render_pass(
             {
                 .name = "Render RSM and generate VPLs",
                 .buffers = {
@@ -422,15 +565,18 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 .depth_attachment = 2,
                 .execute = [&](CommandBuffer& commands) {
                     auto global_set = *vkutil::DescriptorBuilder::begin(
-                                           backend, backend.get_transient_descriptor_allocator()
+                                           backend,
+                                           backend.get_transient_descriptor_allocator()
                                        )
                                        .bind_buffer(
-                                           0, {.buffer = cascade_data_buffer},
+                                           0,
+                                           {.buffer = cascade_data_buffer},
                                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                            VK_SHADER_STAGE_VERTEX_BIT
                                        )
                                        .bind_buffer(
-                                           1, {.buffer = scene.get_sun_light().get_constant_buffer()},
+                                           1,
+                                           {.buffer = scene.get_sun_light().get_constant_buffer()},
                                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                            VK_SHADER_STAGE_FRAGMENT_BIT
                                        )
@@ -454,7 +600,8 @@ void LightPropagationVolume::inject_indirect_sun_light(
                     const auto sampler = backend.get_default_sampler();
 
                     const auto set = vkutil::DescriptorBuilder::begin(
-                                         backend, backend.get_transient_descriptor_allocator()
+                                         backend,
+                                         backend.get_transient_descriptor_allocator()
                                      )
                                      .bind_image(
                                          0,
@@ -485,7 +632,8 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                          VK_SHADER_STAGE_FRAGMENT_BIT
                                      )
                                      .bind_buffer(
-                                         3, {.buffer = cascade_data_buffer},
+                                         3,
+                                         {.buffer = cascade_data_buffer},
                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                          VK_SHADER_STAGE_FRAGMENT_BIT
                                      )
@@ -508,13 +656,6 @@ void LightPropagationVolume::inject_indirect_sun_light(
         );
         graph.end_render_pass();
 
-        /*
-         * SYNC-HAZARD-WRITE-AFTER-WRITE(ERROR / SPEC): msgNum: 1544472022 - Validation Error: [ SYNC-HAZARD-WRITE-AFTER-WRITE ] Object 0: handle = 0xdbc7e6000000064b, name = Render RSM and generate VPLs, type = VK_OBJECT_TYPE_RENDER_PASS; | MessageID = 0x5c0ec5d6 | vkCmdEndRenderPass():  Hazard WRITE_AFTER_WRITE in subpass 1 for attachment 0 color aspect during store with storeOp VK_ATTACHMENT_STORE_OP_STORE. Access info (usage: SYNC_COLOR_ATTACHMENT_OUTPUT_COLOR_ATTACHMENT_WRITE, prior_usage: SYNC_IMAGE_LAYOUT_TRANSITION, write_barriers: SYNC_FRAGMENT_SHADER_ACCELERATION_STRUCTURE_READ|SYNC_FRAGMENT_SHADER_COLOR_ATTACHMENT_READ|SYNC_FRAGMENT_SHADER_DEPTH_STENCIL_ATTACHMENT_READ|SYNC_FRAGMENT_SHADER_DESCRIPTOR_BUFFER_READ_EXT|SYNC_FRAGMENT_SHADER_INPUT_ATTACHMENT_READ|SYNC_FRAGMENT_SHADER_SHADER_BINDING_TABLE_READ|SYNC_FRAGMENT_SHADER_SHADER_SAMPLED_READ|SYNC_FRAGMENT_SHADER_SHADER_STORAGE_READ|SYNC_FRAGMENT_SHADER_UNIFORM_READ, command: vkCmdNextSubpass, seq_no: 98, subcmd: 1, reset_no: 1, debug_region: LPV indirect sun light injection::Render RSM and generate VPLs)
-         *  Objects: 1
-         *      [0] 0xdbc7e6000000064b, type: 18, name: Render RSM and generate VPLs
-         *
-         * From the above
-         */
 
         graph.begin_render_pass(
             {
@@ -533,10 +674,12 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 .color_attachments = {0, 1, 2},
                 .execute = [&](CommandBuffer& commands) {
                     const auto set = *vkutil::DescriptorBuilder::begin(
-                                          backend, backend.get_transient_descriptor_allocator()
+                                          backend,
+                                          backend.get_transient_descriptor_allocator()
                                       )
                                       .bind_buffer(
-                                          0, {.buffer = cascade_data_buffer},
+                                          0,
+                                          {.buffer = cascade_data_buffer},
                                           VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                           VK_SHADER_STAGE_VERTEX_BIT
                                       )
@@ -557,8 +700,9 @@ void LightPropagationVolume::inject_indirect_sun_light(
             }
         );
         graph.end_render_pass();
+        */
 
-        if (cvar_lpv_build_gv_mode.Get() == GvBuildMode::DepthBuffers) {
+        if(cvar_lpv_build_gv_mode.Get() == GvBuildMode::DepthBuffers) {
             inject_rsm_depth_into_cascade_gv(graph, cascade, cascade_index);
         }
 
@@ -568,14 +712,107 @@ void LightPropagationVolume::inject_indirect_sun_light(
     graph.end_label();
 }
 
+void LightPropagationVolume::dispatch_vpl_injection_pass(
+    RenderGraph& graph, const uint32_t cascade_index, const CascadeData& cascade
+) {
+    auto descriptor_set = backend.get_transient_descriptor_allocator()
+                                 .create_set(vpl_injection_pipeline, 0)
+                                 .bind(0, cascade_data_buffer)
+                                 .finalize();
+
+    if(cvar_lpv_use_compute_vpl_injection.Get() == 0) {
+        graph.add_render_pass(
+            DynamicRenderingPass{
+                .name = "VPL Injection",
+                .buffers = {
+                    {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
+                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+                    {
+                        cascade.count_buffer,
+                        {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}
+                    },
+                },
+                .descriptor_sets = std::vector{descriptor_set},
+                .color_attachments = {
+                    RenderingAttachmentInfo{
+                        .image = lpv_a_red,
+                        .load_op = VK_ATTACHMENT_LOAD_OP_LOAD,
+                        .store_op = VK_ATTACHMENT_STORE_OP_STORE
+                    },
+                    RenderingAttachmentInfo{
+                        .image = lpv_a_green,
+                        .load_op = VK_ATTACHMENT_LOAD_OP_LOAD,
+                        .store_op = VK_ATTACHMENT_STORE_OP_STORE
+                    },
+                    RenderingAttachmentInfo{
+                        .image = lpv_a_blue,
+                        .load_op = VK_ATTACHMENT_LOAD_OP_LOAD,
+                        .store_op = VK_ATTACHMENT_STORE_OP_STORE
+                    },
+                },
+                .view_mask = 0,
+                .execute = [=, this](CommandBuffer& commands) {
+                    commands.bind_descriptor_set(0, descriptor_set.get_vk_descriptor_set());
+
+                    commands.bind_buffer_reference(0, cascade.vpl_buffer);
+                    commands.set_push_constant(2, cascade_index);
+                    commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
+
+                    commands.bind_pipeline(vpl_injection_pipeline);
+
+                    commands.draw_indirect(cascade.count_buffer);
+
+                    commands.clear_descriptor_set(0);
+                }
+            });
+    } else {
+        struct VplInjectionConstants {
+            DeviceAddress vpl_buffer_address;
+            uint32_t cascade_index;
+            uint32_t num_cascades;
+
+            VplInjectionConstants(
+                const ResourceAllocator& allocator, const BufferHandle vpl_buffer, const uint32_t cascade_index, const uint32_t num_cascades
+            ) : cascade_index{cascade_index}, num_cascades{num_cascades} {
+                const auto& count_buffer_actual = allocator.get_buffer(vpl_buffer);
+                vpl_buffer_address = count_buffer_actual.address;
+            }
+        };
+
+        graph.add_compute_dispatch<VplInjectionConstants>(
+            IndirectComputeDispatch< VplInjectionConstants>{
+                .name = "VPL Injection",
+                .descriptor_sets = std::vector{descriptor_set},
+                .buffers = {
+                    {cascade_data_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
+                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+                    {
+                        cascade.count_buffer,
+                        {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}
+                    },
+                },
+                .push_constants = VplInjectionConstants{
+                    backend.get_global_allocator(),
+                    cascade.vpl_buffer,
+                    cascade_index,
+                    static_cast<uint32_t>(cvar_lpv_num_cascades.Get())
+                },
+                .dispatch = cascade.count_buffer,
+                .compute_shader = vpl_injection_compute_pipeline
+            }
+        );
+    }
+}
+
+
 void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, const RenderScene& scene) {
     graph.begin_label("Emissive mesh injection");
 
-    for (auto cascade_index = 0u; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
+    for(auto cascade_index = 0u; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
         const auto& cascade = cascades[cascade_index];
 
         const auto& primitives = scene.get_primitives_in_bounds(cascade.min_bounds, cascade.max_bounds);
-        if (primitives.empty()) {
+        if(primitives.empty()) {
             continue;
         }
 
@@ -596,10 +833,12 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
                 .color_attachments = {0, 1, 2},
                 .execute = [&](CommandBuffer& commands) {
                     const auto set = *vkutil::DescriptorBuilder::begin(
-                                          backend, backend.get_transient_descriptor_allocator()
+                                          backend,
+                                          backend.get_transient_descriptor_allocator()
                                       )
                                       .bind_buffer(
-                                          0, {.buffer = cascade_data_buffer},
+                                          0,
+                                          {.buffer = cascade_data_buffer},
                                           VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                           VK_SHADER_STAGE_VERTEX_BIT
                                       )
@@ -612,8 +851,8 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
 
                     commands.bind_pipeline(vpl_injection_pipeline);
 
-                    for (const auto& primitive : primitives) {
-                        if (!primitive->material->first.emissive) {
+                    for(const auto& primitive : primitives) {
+                        if(!primitive->material->first.emissive) {
                             continue;
                         }
 
@@ -667,10 +906,12 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
             },
             .execute = [&](CommandBuffer& commands) {
                 auto descriptor_set = *vkutil::DescriptorBuilder::begin(
-                                           backend, backend.get_transient_descriptor_allocator()
+                                           backend,
+                                           backend.get_transient_descriptor_allocator()
                                        )
                                        .bind_image(
-                                           0, {
+                                           0,
+                                           {
                                                .image = lpv_a_red,
                                                .image_layout = VK_IMAGE_LAYOUT_GENERAL
                                            },
@@ -678,7 +919,8 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
                                            VK_SHADER_STAGE_COMPUTE_BIT
                                        )
                                        .bind_image(
-                                           1, {
+                                           1,
+                                           {
                                                .image = lpv_a_green,
                                                .image_layout = VK_IMAGE_LAYOUT_GENERAL
                                            },
@@ -686,7 +928,8 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
                                            VK_SHADER_STAGE_COMPUTE_BIT
                                        )
                                        .bind_image(
-                                           2, {
+                                           2,
+                                           {
                                                .image = lpv_a_blue,
                                                .image_layout = VK_IMAGE_LAYOUT_GENERAL
                                            },
@@ -694,7 +937,8 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
                                            VK_SHADER_STAGE_COMPUTE_BIT
                                        )
                                        .bind_image(
-                                           3, {
+                                           3,
+                                           {
                                                .image = geometry_volume_handle,
                                                .image_layout = VK_IMAGE_LAYOUT_GENERAL
                                            },
@@ -732,11 +976,11 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
     auto& voxel_cache = scene.get_voxel_cache();
 
     const auto num_cascades = cvar_lpv_num_cascades.Get();
-    for (auto cascade_idx = 0u; cascade_idx < num_cascades; cascade_idx++) {
+    for(auto cascade_idx = 0u; cascade_idx < num_cascades; cascade_idx++) {
         const auto& cascade = cascades[cascade_idx];
         const auto& primitives = scene.get_primitives_in_bounds(cascade.min_bounds, cascade.max_bounds);
 
-        if (primitives.empty()) {
+        if(primitives.empty()) {
             continue;
         }
 
@@ -746,7 +990,7 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
         primitive_ids.reserve(primitives.size());
         textures.reserve(primitives.size());
 
-        for (const auto& primitive : primitives) {
+        for(const auto& primitive : primitives) {
             primitive_ids.push_back(primitive.index);
             const auto& mesh = primitive->mesh;
             const auto& voxel = voxel_cache.get_voxel_for_primitive(primitive);
@@ -760,7 +1004,9 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
         }
 
         const auto primitive_id_buffer = allocator.create_buffer(
-            "Primitive ID buffer", primitive_ids.size() * sizeof(uint32_t), BufferUsage::StagingBuffer
+            "Primitive ID buffer",
+            primitive_ids.size() * sizeof(uint32_t),
+            BufferUsage::StagingBuffer
         );
 
         render_graph.add_pass(
@@ -784,32 +1030,47 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
                 CommandBuffer& commands
             ) {
                     commands.update_buffer(
-                        primitive_id_buffer, primitive_ids.data(), primitive_ids.size() * sizeof(uint32_t), 0
+                        primitive_id_buffer,
+                        primitive_ids.data(),
+                        primitive_ids.size() * sizeof(uint32_t),
+                        0
                     );
 
                     const auto set = *vkutil::DescriptorBuilder::begin(
-                                          backend, backend.get_transient_descriptor_allocator()
+                                          backend,
+                                          backend.get_transient_descriptor_allocator()
                                       )
                                       .bind_buffer(
-                                          0, {.buffer = cascade_data_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                          0,
+                                          {.buffer = cascade_data_buffer},
+                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                           VK_SHADER_STAGE_COMPUTE_BIT
                                       )
                                       .bind_buffer(
-                                          1, {.buffer = primitive_id_buffer}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                          1,
+                                          {.buffer = primitive_id_buffer},
+                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                           VK_SHADER_STAGE_COMPUTE_BIT
                                       )
                                       .bind_buffer(
-                                          2, {.buffer = scene.get_primitive_buffer()},
-                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                          2,
+                                          {.buffer = scene.get_primitive_buffer()},
+                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                          VK_SHADER_STAGE_COMPUTE_BIT
                                       )
                                       .bind_image(
-                                          3, {
+                                          3,
+                                          {
                                               .image = geometry_volume_handle,
                                               .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                          }, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                                          },
+                                          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                          VK_SHADER_STAGE_COMPUTE_BIT
                                       )
                                       .bind_image_array(
-                                          4, textures, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                          4,
+                                          textures,
+                                          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                           VK_SHADER_STAGE_COMPUTE_BIT
                                       )
                                       .build();
@@ -865,29 +1126,38 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
 
                 const auto sampler = backend.get_default_sampler();
                 const auto set = *vkutil::DescriptorBuilder::begin(
-                                      backend, backend.get_transient_descriptor_allocator()
+                                      backend,
+                                      backend.get_transient_descriptor_allocator()
                                   )
                                   .bind_image(
-                                      0, {
+                                      0,
+                                      {
                                           .sampler = sampler, .image = normal_target,
                                           .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                      }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                      },
+                                      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                       VK_SHADER_STAGE_VERTEX_BIT
                                   )
                                   .bind_image(
-                                      1, {
+                                      1,
+                                      {
                                           .sampler = sampler, .image = depth_buffer,
                                           .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                      }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                      },
+                                      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                       VK_SHADER_STAGE_VERTEX_BIT
                                   )
                                   .bind_buffer(
-                                      2, {.buffer = cascade_data_buffer},
-                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_GEOMETRY_BIT
+                                      2,
+                                      {.buffer = cascade_data_buffer},
+                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                      VK_SHADER_STAGE_GEOMETRY_BIT
                                   )
                                   .bind_buffer(
-                                      3, {.buffer = view_uniform_buffer},
-                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                      3,
+                                      {.buffer = view_uniform_buffer},
+                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                      VK_SHADER_STAGE_VERTEX_BIT
                                   )
                                   .build();
 
@@ -1026,13 +1296,27 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
 
     bool use_gv = false;
 
-    for (auto step_index = 0; step_index < cvar_lpv_num_propagation_steps.Get(); step_index += 2) {
+    for(auto step_index = 0; step_index < cvar_lpv_num_propagation_steps.Get(); step_index += 2) {
         perform_propagation_step(
-            render_graph, lpv_a_red, lpv_a_green, lpv_a_blue, lpv_b_red, lpv_b_green, lpv_b_blue, use_gv
+            render_graph,
+            lpv_a_red,
+            lpv_a_green,
+            lpv_a_blue,
+            lpv_b_red,
+            lpv_b_green,
+            lpv_b_blue,
+            use_gv
         );
         use_gv = true;
         perform_propagation_step(
-            render_graph, lpv_b_red, lpv_b_green, lpv_b_blue, lpv_a_red, lpv_a_green, lpv_a_blue, use_gv
+            render_graph,
+            lpv_b_red,
+            lpv_b_green,
+            lpv_b_blue,
+            lpv_a_red,
+            lpv_a_green,
+            lpv_a_blue,
+            use_gv
         );
     }
 
@@ -1074,35 +1358,46 @@ void LightPropagationVolume::add_lighting_to_scene(
     commands.bind_descriptor_set(0, gbuffers_descriptor);
 
     auto lpv_descriptor = *vkutil::DescriptorBuilder::begin(
-                               backend, backend.get_transient_descriptor_allocator()
+                               backend,
+                               backend.get_transient_descriptor_allocator()
                            )
                            .bind_image(
-                               0, {
+                               0,
+                               {
                                    .sampler = linear_sampler, .image = lpv_a_red,
                                    .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                },
-                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
+                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                               VK_SHADER_STAGE_FRAGMENT_BIT
                            )
                            .bind_image(
-                               1, {
+                               1,
+                               {
                                    .sampler = linear_sampler, .image = lpv_a_green,
                                    .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                },
-                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
+                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                               VK_SHADER_STAGE_FRAGMENT_BIT
                            )
                            .bind_image(
-                               2, {
+                               2,
+                               {
                                    .sampler = linear_sampler, .image = lpv_a_blue,
                                    .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                },
-                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
-                           )
-                           .bind_buffer(
-                               3, {.buffer = cascade_data_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                VK_SHADER_STAGE_FRAGMENT_BIT
                            )
                            .bind_buffer(
-                               4, {.buffer = scene_view_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                               3,
+                               {.buffer = cascade_data_buffer},
+                               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                               VK_SHADER_STAGE_FRAGMENT_BIT
+                           )
+                           .bind_buffer(
+                               4,
+                               {.buffer = scene_view_buffer},
+                               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                VK_SHADER_STAGE_FRAGMENT_BIT
                            )
                            .build();
@@ -1126,7 +1421,9 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
     auto& allocator = backend.get_global_allocator();
 
     auto view_matrices = allocator.create_buffer(
-        "GV View Matrices Buffer", sizeof(ViewInfo), BufferUsage::UniformBuffer
+        "GV View Matrices Buffer",
+        sizeof(ViewInfo),
+        BufferUsage::UniformBuffer
     );
 
     // We just need this data
@@ -1138,7 +1435,9 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
     graph.add_pass(
         ComputePass{
             .name = "Update view buffer",
-            .execute = [&](CommandBuffer& commands) { commands.update_buffer(view_matrices, view); }
+            .execute = [&](CommandBuffer& commands) {
+                commands.update_buffer(view_matrices, view);
+            }
         }
     );
 
@@ -1173,29 +1472,38 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
             .execute = [&](CommandBuffer& commands) {
                 const auto sampler = backend.get_default_sampler();
                 const auto set = *vkutil::DescriptorBuilder::begin(
-                                      backend, backend.get_transient_descriptor_allocator()
+                                      backend,
+                                      backend.get_transient_descriptor_allocator()
                                   )
                                   .bind_image(
-                                      0, {
+                                      0,
+                                      {
                                           .sampler = sampler, .image = cascade.normals_target,
                                           .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                      }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                      },
+                                      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                       VK_SHADER_STAGE_VERTEX_BIT
                                   )
                                   .bind_image(
-                                      1, {
+                                      1,
+                                      {
                                           .sampler = sampler, .image = cascade.depth_target,
                                           .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                      }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                      },
+                                      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                       VK_SHADER_STAGE_VERTEX_BIT
                                   )
                                   .bind_buffer(
-                                      2, {.buffer = cascade_data_buffer},
-                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                      2,
+                                      {.buffer = cascade_data_buffer},
+                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                      VK_SHADER_STAGE_VERTEX_BIT
                                   )
                                   .bind_buffer(
-                                      3, {.buffer = view_matrices},
-                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                      3,
+                                      {.buffer = view_matrices},
+                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                      VK_SHADER_STAGE_VERTEX_BIT
                                   )
                                   .build();
 
@@ -1262,38 +1570,53 @@ void LightPropagationVolume::perform_propagation_step(
             .execute = [&](CommandBuffer& commands) {
                 const auto descriptor_set =
                     *vkutil::DescriptorBuilder::begin(
-                         backend, backend.get_transient_descriptor_allocator()
+                         backend,
+                         backend.get_transient_descriptor_allocator()
                      )
                      .bind_image(
-                         0, {.image = read_red, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                         0,
+                         {.image = read_red, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                         VK_SHADER_STAGE_COMPUTE_BIT
                      )
                      .bind_image(
-                         1, {.image = read_green, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                         1,
+                         {.image = read_green, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                         VK_SHADER_STAGE_COMPUTE_BIT
                      )
                      .bind_image(
-                         2, {.image = read_blue, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                         2,
+                         {.image = read_blue, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                         VK_SHADER_STAGE_COMPUTE_BIT
                      )
                      .bind_image(
-                         3, {.image = write_red, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                         3,
+                         {.image = write_red, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                         VK_SHADER_STAGE_COMPUTE_BIT
                      )
                      .bind_image(
-                         4, {.image = write_green, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                         4,
+                         {.image = write_green, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                         VK_SHADER_STAGE_COMPUTE_BIT
                      )
                      .bind_image(
-                         5, {.image = write_blue, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                         5,
+                         {.image = write_blue, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                         VK_SHADER_STAGE_COMPUTE_BIT
                      )
                      .bind_image(
-                         6, {
+                         6,
+                         {
                              .sampler = linear_sampler, .image = geometry_volume_handle,
                              .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                          },
-                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT
+                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                         VK_SHADER_STAGE_COMPUTE_BIT
                      )
                      .build();
 
@@ -1304,7 +1627,7 @@ void LightPropagationVolume::perform_propagation_step(
 
                     commands.set_push_constant(1, use_gv ? 1u : 0u);
 
-                    for (uint32_t cascade_index = 0; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
+                    for(uint32_t cascade_index = 0; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
                         commands.set_push_constant(0, cascade_index);
 
                         commands.dispatch(1, 32, 32);
@@ -1320,15 +1643,24 @@ void LightPropagationVolume::perform_propagation_step(
 void CascadeData::create_render_targets(ResourceAllocator& allocator) {
     const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
     flux_target = allocator.create_texture(
-        "RSM Flux", VK_FORMAT_R8G8B8A8_SRGB, resolution, 1,
+        "RSM Flux",
+        VK_FORMAT_R8G8B8A8_SRGB,
+        resolution,
+        1,
         TextureUsage::RenderTarget
     );
     normals_target = allocator.create_texture(
-        "RSM Normals", VK_FORMAT_R8G8B8A8_UNORM, resolution, 1,
+        "RSM Normals",
+        VK_FORMAT_R8G8B8A8_UNORM,
+        resolution,
+        1,
         TextureUsage::RenderTarget
     );
     depth_target = allocator.create_texture(
-        "RSM Depth", VK_FORMAT_D16_UNORM, resolution, 1,
+        "RSM Depth",
+        VK_FORMAT_D16_UNORM,
+        resolution,
+        1,
         TextureUsage::RenderTarget
     );
 }

@@ -60,6 +60,11 @@ struct ComputeDispatch {
     std::vector<DescriptorSet> descriptor_sets;
 
     /**
+     * \brief Buffers this pass uses that aren't in a descriptor set. Useful for buffers accessed through BDA
+     */
+    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+
+    /**
      * \brief Push constants for this dispatch. Feel free to reinterpret_cast push_constants.data() into your own type
      */
     PushConstantsType push_constants;
@@ -68,6 +73,43 @@ struct ComputeDispatch {
      * \brief Number of workgroups to dispatch
      */
     glm::uvec3 num_workgroups;
+
+    /**
+     * \brief Compute shader to dispatch
+     */
+    ComputePipelineHandle compute_shader;
+};
+
+
+/**
+ * \brief Describes a pass that dispatches a compute shader from an indirect dispatch buffer
+ */
+template<typename PushConstantsType = uint32_t>
+struct IndirectComputeDispatch {
+    /**
+     * \brief Name of this dispatch, for debugging
+     */
+    std::string name;
+
+    /**
+     * \brief Descriptor sets to bind for this pass. Must contain one entry for every descriptor set that the shader needs
+     */
+    std::vector<DescriptorSet> descriptor_sets;
+
+    /**
+     * \brief Buffers this pass uses that aren't in a descriptor set. Useful for buffers accessed through BDA
+     */
+    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+
+    /**
+     * \brief Push constants for this dispatch. Feel free to reinterpret_cast push_constants.data() into your own type
+     */
+    PushConstantsType push_constants;
+
+    /**
+     * \brief Number of workgroups to dispatch
+     */
+    BufferHandle dispatch;
 
     /**
      * \brief Compute shader to dispatch

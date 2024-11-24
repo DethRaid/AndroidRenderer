@@ -25,15 +25,13 @@ struct RenderingInfo {
 
     glm::uvec2 render_area_size;
 
-    uint32_t layer_mask;
+    uint32_t layer_count;
 
     uint32_t view_mask;
 
     std::vector<RenderingAttachmentInfo> color_attachments;
 
     std::optional<RenderingAttachmentInfo> depth_attachment;
-
-    std::optional<RenderingAttachmentInfo> stencil_attachment;
 };
 
 /**
@@ -130,12 +128,12 @@ public:
     /**
      * Begins rendering with dynamic rendering
      */
-    void begin_rendering(const RenderingInfo& info) const;
+    void begin_rendering(const RenderingInfo& info);
 
     /**
      * Ends a dynamic render pass
      */
-    void end_rendering() const;
+    void end_rendering();
 
     void set_scissor_rect(const glm::ivec2& upper_left, const glm::ivec2& lower_right) const;
 
@@ -210,6 +208,8 @@ public:
 
     void dispatch(uint32_t width, uint32_t height, uint32_t depth);
 
+    void dispatch_indirect(BufferHandle dispatch_buffer);
+
     void copy_image_to_image(TextureHandle src, TextureHandle dst) const;
 
     void reset_event(VkEvent event, VkPipelineStageFlags stages) const;
@@ -244,6 +244,12 @@ private:
     VkRenderPass current_render_pass = VK_NULL_HANDLE;
 
     Framebuffer current_framebuffer;
+
+    uint32_t bound_view_mask = 0;
+
+    std::vector<VkFormat> bound_color_attachment_formats;
+
+    std::optional<VkFormat> bound_depth_attachment_format;
 
     uint32_t current_subpass = 0;
 

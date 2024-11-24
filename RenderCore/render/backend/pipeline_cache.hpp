@@ -19,7 +19,16 @@ public:
 
     ComputePipelineHandle create_pipeline(const std::string& shader_file_path);
 
-    VkPipeline get_pipeline(GraphicsPipelineHandle pipeline, VkRenderPass active_render_pass, uint32_t active_subpass) const;
+    VkPipeline get_pipeline_for_dynamic_rendering(
+        GraphicsPipelineHandle pipeline,
+        std::span<VkFormat> color_attachment_formats,
+        std::optional<VkFormat> depth_format = std::nullopt,
+        uint32_t view_mask = 0xFF
+    ) const;
+
+    VkPipeline get_pipeline(
+        GraphicsPipelineHandle pipeline, VkRenderPass active_render_pass, uint32_t active_subpass
+    ) const;
 
     VkPipeline get_pipeline(ComputePipelineHandle pipeline);
 

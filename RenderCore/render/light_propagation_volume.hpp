@@ -109,6 +109,10 @@ public:
 
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
 
+    void dispatch_vpl_injection_pass(
+        RenderGraph& graph, uint32_t cascade_index, const CascadeData& cascade
+    );
+
     /**
      * \brief Injects emissive mesh VPL clouds into the LPV
      */
@@ -148,13 +152,15 @@ private:
 
     VkSampler linear_sampler = VK_NULL_HANDLE;
 
-    GraphicsPipelineHandle vpl_pipeline;
+    ComputePipelineHandle vpl_pipeline;
 
     ComputePipelineHandle clear_lpv_shader;
 
     ComputePipelineHandle inject_voxels_into_gv_shader;
 
     GraphicsPipelineHandle vpl_injection_pipeline;
+
+    ComputePipelineHandle vpl_injection_compute_pipeline;
 
     ComputePipelineHandle propagation_shader;
 

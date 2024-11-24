@@ -35,11 +35,19 @@ public:
      */
     void add_copy_pass(ImageCopyPass&& pass);
 
-    [[deprecated("Use add_compute_dispatch")]]
+    /**
+     * Adds a compute pass to the render graph. This lets you do arbitrary work in the execute function of your pass,
+     * as opposed to add_compute_dispatch which only dispatches a compute shader
+     * 
+     * @param pass The compute pass to add to the graph
+     */
     void add_pass(ComputePass&& pass);
 
     template <typename PushConstantsType = uint32_t>
     void add_compute_dispatch(const ComputeDispatch<PushConstantsType>& dispatch_info);
+
+    template <typename PushConstantsType = uint32_t>
+    void add_compute_dispatch(const IndirectComputeDispatch<PushConstantsType>& dispatch_info);
 
     [[deprecated("Use add_render_pass instead")]]
     void begin_render_pass(const RenderPassBeginInfo& begin_info);
@@ -92,7 +100,7 @@ private:
 
     std::optional<RenderPass> current_render_pass;
 
-    void add_render_pass(RenderPass&& pass);
+    void add_render_pass_internal(RenderPass&& pass);
 
     void update_accesses_and_issues_barriers(
         const std::unordered_map<TextureHandle, TextureUsageToken>& textures,
@@ -129,6 +137,41 @@ void RenderGraph::add_compute_dispatch(const ComputeDispatch<PushConstantsType>&
     }
 
     cmds.dispatch(dispatch_info.num_workgroups.x, dispatch_info.num_workgroups.y, dispatch_info.num_workgroups.z);
+
+    if (!dispatch_info.name.empty()) {
+        cmds.end_label();
+    }
+}
+
+template <typename PushConstantsType>
+void RenderGraph::add_compute_dispatch(const IndirectComputeDispatch<PushConstantsType>& dispatch_info) {
+    if (!dispatch_info.name.empty()) {
+        cmds.begin_label(dispatch_info.name);
+    }
+
+    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+
+    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+
+    for (const auto& descriptor_set : dispatch_info.descriptor_sets) {
+        descriptor_set.get_resource_usage_information(textures, buffers);
+    }
+
+    update_accesses_and_issues_barriers(textures, buffers);
+
+    cmds.bind_pipeline(dispatch_info.compute_shader);
+
+    for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+        const auto vk_set = dispatch_info.descriptor_sets.at(i).get_vk_descriptor_set();
+        cmds.bind_descriptor_set(i, vk_set);
+    }
+
+    auto* push_constants_src = reinterpret_cast<const uint32_t*>(&dispatch_info.push_constants);
+    for (auto i = 0u; i < sizeof(PushConstantsType) / sizeof(uint32_t); i++) {
+        cmds.set_push_constant(i, push_constants_src[i]);
+    }
+
+    cmds.dispatch_indirect(dispatch_info.dispatch);
 
     if (!dispatch_info.name.empty()) {
         cmds.end_label();

@@ -223,13 +223,14 @@ void CommandBuffer::end_render_pass() {
     vkCmdEndRenderPass(commands);
 }
 
-void CommandBuffer::begin_rendering(const RenderingInfo& info) const {
+void CommandBuffer::begin_rendering(const RenderingInfo& info) {
     auto attachment_infos = std::vector<VkRenderingAttachmentInfo>{};
     attachment_infos.reserve(
         info.color_attachments.size() +
-        (info.depth_attachment.has_value() ? 1 : 0) +
-        (info.stencil_attachment.has_value() ? 1 : 0)
+        (info.depth_attachment.has_value() ? 1 : 0)
     );
+
+    bound_color_attachment_formats.reserve(info.color_attachments.size());
 
     const auto& allocator = backend->get_global_allocator();
 
@@ -245,11 +246,12 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) const {
                 .clearValue = color_attachment.clear_value,
             }
         );
+
+        bound_color_attachment_formats.emplace_back(texture.create_info.format);
     }
 
     VkRenderingAttachmentInfo* depth_attachment_ptr = nullptr;
     if(info.depth_attachment) {
-        depth_attachment_ptr = &attachment_infos.back();
         const auto& texture = allocator.get_texture(info.depth_attachment->image);
         attachment_infos.emplace_back(
             VkRenderingAttachmentInfo{
@@ -261,21 +263,8 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) const {
                 .clearValue = info.depth_attachment->clear_value,
             }
         );
-    }
-    VkRenderingAttachmentInfo* stencil_attachment_ptr = nullptr;
-    if(info.stencil_attachment) {
-        stencil_attachment_ptr = &attachment_infos.back();
-        const auto& texture = allocator.get_texture(info.stencil_attachment->image);
-        attachment_infos.emplace_back(
-            VkRenderingAttachmentInfo{
-                .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-                .imageView = texture.attachment_view,
-                .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-                .loadOp = info.stencil_attachment->load_op,
-                .storeOp = info.stencil_attachment->store_op,
-                .clearValue = info.stencil_attachment->clear_value,
-            }
-        );
+        depth_attachment_ptr = &attachment_infos.back();
+        bound_depth_attachment_format = texture.create_info.format;
     }
 
     const auto rendering_info = VkRenderingInfo{
@@ -284,19 +273,24 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) const {
             .offset = {.x = info.render_area_begin.x, .y = info.render_area_begin.y},
             .extent = {.width = info.render_area_size.x, .height = info.render_area_size.y}
         },
-        .layerCount = info.layer_mask,
+        .layerCount = info.layer_count,
         .viewMask = info.view_mask,
         .colorAttachmentCount = static_cast<uint32_t>(info.color_attachments.size()),
         .pColorAttachments = attachment_infos.data(),
         .pDepthAttachment = depth_attachment_ptr,
-        .pStencilAttachment = stencil_attachment_ptr,
     };
+
+    bound_view_mask = info.view_mask;
 
     vkCmdBeginRendering(commands, &rendering_info);
 }
 
-void CommandBuffer::end_rendering() const {
+void CommandBuffer::end_rendering() {
     vkCmdEndRendering(commands);
+
+    bound_color_attachment_formats.clear();
+    bound_depth_attachment_format = std::nullopt;
+    bound_view_mask = 0;
 }
 
 void CommandBuffer::set_scissor_rect(const glm::ivec2& upper_left, const glm::ivec2& lower_right) const {
@@ -410,7 +404,14 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
     num_push_constants_in_current_pipeline = pipeline->get_num_push_constants();
     push_constant_shader_stages = pipeline->get_push_constant_shader_stages();
 
-    auto vk_pipeline = backend->get_pipeline_cache().get_pipeline(pipeline, current_render_pass, current_subpass);
+    auto& cache = backend->get_pipeline_cache();
+
+    VkPipeline vk_pipeline = VK_NULL_HANDLE;
+    if(current_render_pass == VK_NULL_HANDLE) {
+        vk_pipeline = cache.get_pipeline_for_dynamic_rendering(pipeline, bound_color_attachment_formats, bound_depth_attachment_format, bound_view_mask);
+    } else {
+        vk_pipeline = cache.get_pipeline(pipeline, current_render_pass, current_subpass);
+    }
 
     vkCmdBindPipeline(commands, current_bind_point, vk_pipeline);
 
@@ -454,6 +455,14 @@ void CommandBuffer::dispatch(const uint32_t width, const uint32_t height, const 
     commit_bindings();
 
     vkCmdDispatch(commands, width, height, depth);
+}
+
+void CommandBuffer::dispatch_indirect(const BufferHandle dispatch_buffer) {
+    commit_bindings();
+
+    const auto& buffer_actual = backend->get_global_allocator().get_buffer(dispatch_buffer);
+
+    vkCmdDispatchIndirect(commands, buffer_actual.buffer, 0);
 }
 
 void CommandBuffer::copy_image_to_image(const TextureHandle src, const TextureHandle dst) const {

@@ -240,6 +240,7 @@ void RenderBackend::create_instance_and_device() {
 #if defined(__ANDROID__)
         .textureCompressionASTC_HDR = VK_TRUE,
 #endif
+        .dynamicRendering = VK_TRUE,
         .maintenance4 = VK_TRUE,
     };
 
