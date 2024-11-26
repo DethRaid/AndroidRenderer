@@ -209,38 +209,6 @@ BufferHandle RenderScene::generate_vpls_for_primitive(
         BufferUsage::StorageBuffer
     );
 
-    graph.add_pass(
-        {
-            .name = "Build emissive points",
-            .buffers = {
-                {vpl_buffer_handle, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT}},
-                {
-                    primitive->mesh->point_cloud_buffer,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
-                },
-                {
-                    primitive_data_buffer,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
-                }
-            },
-            .execute = [&](CommandBuffer& commands) {
-                commands.bind_buffer_reference(0, primitive_data_buffer);
-                commands.bind_buffer_reference(2, primitive->mesh->point_cloud_buffer);
-                commands.bind_buffer_reference(4, vpl_buffer_handle);
-                commands.set_push_constant(6, primitive.index);
-                commands.set_push_constant(7, primitive->mesh->num_points);
-
-                commands.bind_descriptor_set(0, backend.get_texture_descriptor_pool().get_descriptor_set());
-
-                commands.bind_pipeline(emissive_point_cloud_shader);
-
-                commands.dispatch((primitive->mesh->num_points + 95) / 96, 1, 1);
-
-                commands.clear_descriptor_set(0);
-            }
-        }
-    );
-
     struct EmissivePointCloudConstants {
         DeviceAddress primitive_data;
         DeviceAddress point_cloud;
@@ -252,7 +220,7 @@ BufferHandle RenderScene::generate_vpls_for_primitive(
     graph.add_compute_dispatch(
         ComputeDispatch<EmissivePointCloudConstants>{
             .name = "Build emissive points",
-            .descriptor_sets = std::vector{ backend.get_texture_descriptor_pool().get_descriptor_set() },
+            .descriptor_sets = std::vector{backend.get_texture_descriptor_pool().get_descriptor_set()},
             .buffers = {
                 {
                     vpl_buffer_handle,
@@ -267,7 +235,13 @@ BufferHandle RenderScene::generate_vpls_for_primitive(
                     {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
                 },
             },
-            .push_constants = {},
+            .push_constants = {
+                .primitive_data = primitive_data_buffer->address,
+                .point_cloud = primitive->mesh->point_cloud_buffer->address,
+                .vpl_buffer = vpl_buffer_handle->address,
+                .primitive_index = primitive.index,
+                .num_points = primitive->mesh->num_points,
+            },
             .num_workgroups = {
                 (primitive->mesh->num_points + 95) / 96, 1, 1
             },

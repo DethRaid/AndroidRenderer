@@ -8,6 +8,7 @@
 #include <tracy/Tracy.hpp>
 
 #include "blas_build_queue.hpp"
+#include "rhi_globals.hpp"
 #include "render/backend/pipeline_cache.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
@@ -59,6 +60,8 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
     logger = SystemInterface::get().get_logger("RenderBackend");
     logger->set_level(spdlog::level::debug);
 
+    g_render_backend = this;
+
     const auto volk_result = volkInitialize();
     if(volk_result != VK_SUCCESS) {
         throw std::runtime_error{"Could not initialize Volk, Vulkan is not available"};
@@ -97,11 +100,12 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
     }
     descriptor_layout_cache.init(device.device);
 
+    allocator = std::make_unique<ResourceAllocator>(*this);
+    g_global_allocator = allocator.get();
+
     upload_queue = std::make_unique<ResourceUploadQueue>(*this);
 
     blas_build_queue = std::make_unique<BlasBuildQueue>(*this);
-
-    allocator = std::make_unique<ResourceAllocator>(*this);
 
     pipeline_cache = std::make_unique<PipelineCache>(*this);
 
