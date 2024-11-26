@@ -36,33 +36,34 @@ void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, 
     }
 
     auto& backend = RenderBackend::get();
+    const auto sampler = backend.get_default_sampler();
     auto gbuffers_descriptor_set = *vkutil::DescriptorBuilder::begin(
         backend, backend.get_transient_descriptor_allocator()
     )
            .bind_image(
                0,
-               {.sampler = {}, .image = gbuffer.color, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-               VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT
+               {.sampler = sampler, .image = gbuffer.color, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
            )
            .bind_image(
                1,
-               {.sampler = {}, .image = gbuffer.normal, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-               VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT
+               {.sampler = sampler, .image = gbuffer.normal, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
            )
            .bind_image(
                2,
-               {.sampler = {}, .image = gbuffer.data, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-               VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT
+               {.sampler = sampler , .image = gbuffer.data, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
            )
            .bind_image(
                3,
-               {.sampler = {}, .image = gbuffer.emission, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-               VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT
+               {.sampler = sampler, .image = gbuffer.emission, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
            )
            .bind_image(
                4,
-               {.sampler = {}, .image = gbuffer.depth, .image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL},
-               VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_SHADER_STAGE_FRAGMENT_BIT
+               {.sampler = sampler, .image = gbuffer.depth, .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT
            )
            .build();
 

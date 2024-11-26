@@ -310,47 +310,38 @@ void SceneRenderer::render() {
             meshes.get_draw_args_buffer()
         );
 
-    render_graph.begin_render_pass(
+    render_graph.add_render_pass(
         {
-            .name = "Scene pass",
-            .textures = {
-                {
-                    shadowmap_handle,
-                    {
-                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                }
-            },
+            .name = "Gbuffer",
             .buffers = {
                 {draw_commands, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
                 {draw_count, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
                 {primitive_ids, {VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
             },
-            .attachments = std::vector{
-                gbuffer_color_handle,
-                gbuffer_normals_handle,
-                gbuffer_data_handle,
-                gbuffer_emission_handle,
-                lit_scene_handle,
-                gbuffer_depth_handle,
+            .color_attachments = {
+                RenderingAttachmentInfo{
+                    .image = gbuffer_color_handle,
+                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .store_op = VK_ATTACHMENT_STORE_OP_STORE
+                },
+                RenderingAttachmentInfo{
+                    .image = gbuffer_normals_handle,
+                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .store_op = VK_ATTACHMENT_STORE_OP_STORE,
+                    .clear_value = {.color = {.float32 = {0.5f, 0.5f, 1.f, 0}}}
+                },
+                RenderingAttachmentInfo{
+                    .image = gbuffer_data_handle,
+                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .store_op = VK_ATTACHMENT_STORE_OP_STORE
+                },
+                RenderingAttachmentInfo{
+                    .image = gbuffer_emission_handle,
+                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .store_op = VK_ATTACHMENT_STORE_OP_STORE
+                },
             },
-            .clear_values = std::vector{
-                // Clear color targets to black
-                VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
-                VkClearValue{.color = {.float32 = {0.5f, 0.5f, 1.f, 0}}},
-                VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
-                VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
-                VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
-            },
-        }
-    );
-
-    render_graph.add_subpass(
-        {
-            .name = "Gbuffer",
-            .color_attachments = {0, 1, 2, 3},
-            .depth_attachment = 5,
+            .depth_attachment = RenderingAttachmentInfo{.image = gbuffer_depth_handle},
             .execute = [&](CommandBuffer& commands) {
                 auto global_set = *vkutil::DescriptorBuilder::begin(
                                        backend,
@@ -372,21 +363,62 @@ void SceneRenderer::render() {
 
                 commands.clear_descriptor_set(0);
             }
-        }
-    );
+        });
 
-    render_graph.add_subpass(
+    render_graph.add_render_pass(
         {
             .name = "Lighting",
-            .input_attachments = {0, 1, 2, 3, 5},
-            .color_attachments = {4},
+            .textures = {
+                {
+                    gbuffer_color_handle,
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                },
+                {
+                    gbuffer_normals_handle,
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                },
+                {
+                    gbuffer_data_handle,
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                },
+                {
+                    gbuffer_emission_handle,
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                },
+                {
+                    gbuffer_depth_handle,
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                },
+                {
+                    shadowmap_handle,
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                }
+            },
+            .color_attachments = {
+                RenderingAttachmentInfo{.image = lit_scene_handle, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR}
+            },
             .execute = [&](CommandBuffer& commands) {
                 lighting_pass.render(commands, player_view, lpv);
             }
-        }
-    );
-
-    render_graph.end_render_pass();
+        });
 
     // Bloom
 

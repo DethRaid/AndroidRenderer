@@ -17,11 +17,11 @@
 
 // Gbuffer textures
 
-layout(set = 0, binding = 0, input_attachment_index = 0) uniform subpassInput gbuffer_base_color;
-layout(set = 0, binding = 1, input_attachment_index = 1) uniform subpassInput gbuffer_normal;
-layout(set = 0, binding = 2, input_attachment_index = 2) uniform subpassInput gbuffer_data;
-layout(set = 0, binding = 3, input_attachment_index = 3) uniform subpassInput gbuffer_emission;
-layout(set = 0, binding = 4, input_attachment_index = 4) uniform subpassInput gbuffer_depth;
+layout(set = 0, binding = 0) uniform sampler2D gbuffer_base_color;
+layout(set = 0, binding = 1) uniform sampler2D gbuffer_normal;
+layout(set = 0, binding = 2) uniform sampler2D gbuffer_data;
+layout(set = 0, binding = 3) uniform sampler2D gbuffer_emission;
+layout(set = 0, binding = 4) uniform sampler2D gbuffer_depth;
 
 // Sun shadowmaps
 layout(set = 1, binding = 0) uniform sampler2DArrayShadow sun_shadowmap;
@@ -40,7 +40,7 @@ layout(location = 0) in vec2 texcoord;
 layout(location = 0) out medvec4 lighting;
 
 vec3 get_viewspace_position() {
-    float depth = subpassLoad(gbuffer_depth).r;
+    float depth = texelFetch(gbuffer_depth, ivec2(gl_FragCoord.xy), 0).r;
     vec2 texcoord = gl_FragCoord.xy / view_info.render_resolution.xy;
     vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
     vec4 viewspace_position = view_info.inverse_projection * ndc_position;
@@ -75,10 +75,11 @@ medfloat get_shadow_factor(vec3 worldspace_position, uint cascade_index, float b
 }
 
 void main() {
-    medvec3 base_color_sample = subpassLoad(gbuffer_base_color).rgb;
-    medvec3 normal_sample = normalize(subpassLoad(gbuffer_normal).xyz);
-    medvec4 data_sample = subpassLoad(gbuffer_data);
-    medvec4 emission_sample = subpassLoad(gbuffer_emission);
+    ivec2 pixel = ivec2(gl_FragCoord.xy);
+    medvec3 base_color_sample = texelFetch(gbuffer_base_color, pixel, 0).rgb;
+    medvec3 normal_sample = normalize(texelFetch(gbuffer_normal, pixel, 0).xyz);
+    medvec4 data_sample = texelFetch(gbuffer_data, pixel, 0);
+    medvec4 emission_sample = texelFetch(gbuffer_emission, pixel, 0);
 
     vec3 viewspace_position = get_viewspace_position();
     vec4 worldspace_position = view_info.inverse_view * vec4(viewspace_position, 1.0);
