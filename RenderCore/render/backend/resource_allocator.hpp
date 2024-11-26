@@ -120,7 +120,7 @@ public:
 
     BufferHandle create_buffer(const std::string& name, size_t size, BufferUsage usage);
 
-    void* map_buffer(BufferHandle buffer_handle);
+    void* map_buffer(BufferHandle buffer_handle) const;
 
     template <typename MappedType>
     MappedType* map_buffer(BufferHandle buffer);

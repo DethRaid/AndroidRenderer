@@ -452,13 +452,12 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
     return handle;
 }
 
-void* ResourceAllocator::map_buffer(const BufferHandle buffer_handle) {
-    auto& buffer_actual = buffers[static_cast<uint32_t>(buffer_handle)];
-    if(buffer_actual.allocation_info.pMappedData == nullptr) {
-        vmaMapMemory(vma, buffer_actual.allocation, &buffer_actual.allocation_info.pMappedData);
+void* ResourceAllocator::map_buffer(const BufferHandle buffer_handle) const {
+    if(buffer_handle->allocation_info.pMappedData == nullptr) {
+        vmaMapMemory(vma, buffer_handle->allocation, &buffer_handle->allocation_info.pMappedData);
     }
 
-    return buffer_actual.allocation_info.pMappedData;
+    return buffer_handle->allocation_info.pMappedData;
 }
 
 AccelerationStructureHandle ResourceAllocator::create_acceleration_structure(
@@ -491,7 +490,7 @@ AccelerationStructureHandle ResourceAllocator::create_acceleration_structure(
 
     const auto acceleration_structure_create_info = VkAccelerationStructureCreateInfoKHR{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
-        .buffer = get_buffer(as.buffer).buffer,
+        .buffer = as.buffer->buffer,
         .size = acceleration_structure_build_sizes_info.accelerationStructureSize,
         .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
     };

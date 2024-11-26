@@ -145,8 +145,6 @@ void ResourceUploadQueue::flush_pending_uploads() {
     for (const auto& job : buffer_uploads) {
         total_size += job.data.size();
 
-        const auto& buffer = allocator.get_buffer(job.buffer);
-
         before_buffer_barriers.emplace_back(
             VkBufferMemoryBarrier2{
                 .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
@@ -154,7 +152,7 @@ void ResourceUploadQueue::flush_pending_uploads() {
                 .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT,
                 .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                 .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                .buffer = buffer.buffer,
+                .buffer = job.buffer->buffer,
                 .offset = job.dest_offset,
                 .size = job.data.size(),
             }
@@ -166,7 +164,7 @@ void ResourceUploadQueue::flush_pending_uploads() {
                 .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                 .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                 .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT,
-                .buffer = buffer.buffer,
+                .buffer = job.buffer->buffer,
                 .offset = job.dest_offset,
                 .size = job.data.size(),
             }
@@ -184,9 +182,8 @@ void ResourceUploadQueue::flush_pending_uploads() {
         "Upload staging buffer", total_size,
         BufferUsage::StagingBuffer
     );
-    const auto& staging_buffer_actual = allocator.get_buffer(staging_buffer);
 
-    auto* data_write_ptr = static_cast<uint8_t*>(staging_buffer_actual.allocation_info.pMappedData);
+    auto* data_write_ptr = static_cast<uint8_t*>(staging_buffer->allocation_info.pMappedData);
 
     // Copy the texture data to the staging buffer, and record the upload commands
 
@@ -209,7 +206,7 @@ void ResourceUploadQueue::flush_pending_uploads() {
     size_t cur_offset = 0;
 
     for (const auto& job : ktx_uploads) {
-        upload_ktx(cmds, job, staging_buffer_actual, cur_offset);
+        upload_ktx(cmds, job, *staging_buffer, cur_offset);
 
         cur_offset += ktxTexture_GetDataSizeUncompressed(job.source.get());
     }
@@ -233,7 +230,7 @@ void ResourceUploadQueue::flush_pending_uploads() {
             .imageExtent = texture.create_info.extent,
         };
         vkCmdCopyBufferToImage(
-            cmds, staging_buffer_actual.buffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            cmds, staging_buffer->buffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1, &region
         );
 
@@ -244,13 +241,12 @@ void ResourceUploadQueue::flush_pending_uploads() {
         // Copy data
         std::memcpy(data_write_ptr + cur_offset, job.data.data(), job.data.size());
 
-        const auto& buffer = allocator.get_buffer(job.buffer);
         const auto region = VkBufferCopy{
             .srcOffset = cur_offset,
             .dstOffset = job.dest_offset,
             .size = job.data.size(),
         };
-        vkCmdCopyBuffer(cmds, staging_buffer_actual.buffer, buffer.buffer, 1, &region);
+        vkCmdCopyBuffer(cmds, staging_buffer->buffer, job.buffer->buffer, 1, &region);
 
         cur_offset += job.data.size();
     }
@@ -275,9 +271,11 @@ void ResourceUploadQueue::flush_pending_uploads() {
 }
 
 void ResourceUploadQueue::upload_ktx(
-    VkCommandBuffer cmds, const KtxUploadJob& job, const Buffer& staging_buffer,
+    const VkCommandBuffer cmds, 
+    const KtxUploadJob& job, 
+    const Buffer& staging_buffer,
     const size_t offset
-) {
+) const {
     const auto num_copy_regions = job.source->numLevels;
     auto copy_regions = std::vector<VkBufferImageCopy>(num_copy_regions);
 
@@ -293,7 +291,7 @@ void ResourceUploadQueue::upload_ktx(
     }
 
     // Set up the copy regions
-    struct user_cbdata_optimal {
+    struct UserCbdataOptimal {
         VkBufferImageCopy* region; // Specify destination region in final image.
         VkDeviceSize offset; // Offset of current level in staging buffer
         ktx_uint32_t numFaces;
@@ -304,7 +302,7 @@ void ResourceUploadQueue::upload_ktx(
         ktx_uint32_t numDimensions;
     };
 
-    auto copy_buffer_data = user_cbdata_optimal{
+    auto copy_buffer_data = UserCbdataOptimal{
         .region = copy_regions.data(),
         .offset = 0,
         .numFaces = job.source->numFaces,
@@ -315,12 +313,12 @@ void ResourceUploadQueue::upload_ktx(
     };
 
     auto iterate_func = +[](
-        int miplevel, int face,
-        int width, int height, int depth,
-        ktx_uint64_t faceLodSize,
+        const int miplevel, const int face,
+        const int width, const int height, const int depth,
+        const ktx_uint64_t faceLodSize,
         void* pixels, void* userdata
     ) -> KTX_error_code {
-            auto* ud = (user_cbdata_optimal*)userdata;
+            auto* ud = static_cast<UserCbdataOptimal*>(userdata);
 
             // Set up copy to destination region in final image
             ud->region->bufferOffset = ud->offset;

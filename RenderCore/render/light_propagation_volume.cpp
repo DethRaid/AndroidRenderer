@@ -410,7 +410,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         {.stage = VK_PIPELINE_STAGE_TRANSFER_BIT, .access = VK_ACCESS_TRANSFER_WRITE_BIT}
                     }
                 },
-                .execute = [&](CommandBuffer& commands) {
+                .execute = [&](const CommandBuffer& commands) {
                     commands.fill_buffer(cascade.count_buffer, 0);
                 }
             }
@@ -495,11 +495,9 @@ void LightPropagationVolume::inject_indirect_sun_light(
                     const ResourceAllocator& allocator, const BufferHandle count_buffer, const BufferHandle vpl_buffer,
                     const uint32_t cascade_index
                 ) : cascade_index{cascade_index} {
-                    const auto& count_buffer_actual = allocator.get_buffer(count_buffer);
-                    count_buffer_address = count_buffer_actual.address;
+                    count_buffer_address = count_buffer->address;
 
-                    const auto& vpl_buffer_actual = allocator.get_buffer(vpl_buffer);
-                    vpl_buffer_address = vpl_buffer_actual.address;
+                    vpl_buffer_address = vpl_buffer->address;
                 }
             };
 
@@ -508,7 +506,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
             graph.add_compute_dispatch<VplPipelineConstants>(
                 ComputeDispatch<VplPipelineConstants>{
                     .name = "Extract VPLs",
-                    .descriptor_sets = {descriptor_set},
+                    .descriptor_sets = std::vector{descriptor_set},
                     .push_constants = VplPipelineConstants{
                         backend.get_global_allocator(), cascade.count_buffer, cascade.vpl_buffer, cascade_index
                     },
@@ -774,8 +772,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
             VplInjectionConstants(
                 const ResourceAllocator& allocator, const BufferHandle vpl_buffer, const uint32_t cascade_index, const uint32_t num_cascades
             ) : cascade_index{cascade_index}, num_cascades{num_cascades} {
-                const auto& count_buffer_actual = allocator.get_buffer(vpl_buffer);
-                vpl_buffer_address = count_buffer_actual.address;
+                vpl_buffer_address = vpl_buffer->address;
             }
         };
 

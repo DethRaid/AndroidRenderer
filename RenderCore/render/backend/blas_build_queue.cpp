@@ -33,7 +33,6 @@ void BlasBuildQueue::flush_pending_builds(CommandBuffer& commands) {
             "Scratch buffer",
             job.handle->scratch_buffer_size,
             BufferUsage::StorageBuffer);
-        const auto scratch_buffer_actual = allocator.get_buffer(scratch_buffer);
 
         build_geometry_infos.emplace_back(
             VkAccelerationStructureBuildGeometryInfoKHR{
@@ -44,7 +43,7 @@ void BlasBuildQueue::flush_pending_builds(CommandBuffer& commands) {
                 .dstAccelerationStructure = job.handle->acceleration_structure,
                 .geometryCount = 1,
                 .pGeometries = &job.create_info,
-                .scratchData = {.deviceAddress = scratch_buffer_actual.address},
+                .scratchData = {.deviceAddress = scratch_buffer->address},
             });
 
         build_range_infos.emplace_back(VkAccelerationStructureBuildRangeInfoKHR{

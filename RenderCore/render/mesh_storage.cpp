@@ -420,11 +420,7 @@ size_t find_reservoir(const double probability_sample, const std::vector<double>
     throw std::runtime_error{"Could not find appropriate reservoir"};
 }
 
-void MeshStorage::create_blas_for_mesh(const uint32_t first_vertex, const uint32_t num_vertices, const uint32_t first_index, const uint num_triangles) {
-    const auto vertex_buffer_actual = backend->get_global_allocator().get_buffer(vertex_position_buffer);
-
-    const auto index_buffer_actual = backend->get_global_allocator().get_buffer(index_buffer);
-
+void MeshStorage::create_blas_for_mesh(const uint32_t first_vertex, const uint32_t num_vertices, const uint32_t first_index, const uint num_triangles) const {
     const auto geometry = VkAccelerationStructureGeometryKHR{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
         .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
@@ -432,11 +428,11 @@ void MeshStorage::create_blas_for_mesh(const uint32_t first_vertex, const uint32
             .triangles = {
                 .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
                 .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
-                .vertexData = {.deviceAddress = vertex_buffer_actual.address + first_vertex * sizeof(glm::vec3)},
+                .vertexData = {.deviceAddress = vertex_position_buffer->address + first_vertex * sizeof(glm::vec3)},
                 .vertexStride = sizeof(glm::vec3),
                 .maxVertex = num_vertices - 1,
                 .indexType = VK_INDEX_TYPE_UINT32,
-                .indexData = {.deviceAddress = index_buffer_actual.address + first_index * sizeof(uint32_t)}
+                .indexData = {.deviceAddress = index_buffer->address + first_index * sizeof(uint32_t)}
             }
         },
     };

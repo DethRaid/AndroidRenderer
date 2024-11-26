@@ -22,19 +22,17 @@ void RaytracingScene::create_blas_for_mesh(const MeshHandle mesh) {
     auto& allocator = backend.get_global_allocator();
 
     const auto vertex_buffer = scene.get_meshes().get_vertex_position_buffer();
-    const auto& vertex_buffer_actual = allocator.get_buffer(vertex_buffer);
 
     const auto index_buffer = scene.get_meshes().get_index_buffer();
-    const auto& index_buffer_actual = allocator.get_buffer(index_buffer);
 
     const auto triangles = VkAccelerationStructureGeometryTrianglesDataKHR{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
         .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
-        .vertexData = {.deviceAddress = vertex_buffer_actual.address},
+        .vertexData = {.deviceAddress = vertex_buffer->address},
         .vertexStride = sizeof(VertexPosition),
         .maxVertex = mesh->num_vertices,
         .indexType = VK_INDEX_TYPE_UINT32,
-        .indexData = {.deviceAddress = index_buffer_actual.address},
+        .indexData = {.deviceAddress = index_buffer->address},
     };
 
     const auto geometry = VkAccelerationStructureGeometryKHR{
@@ -101,7 +99,6 @@ void RaytracingScene::commit_blas_builds() {
     const auto scratch_buffer = allocator.create_buffer(
         "BLAS build scratch buffer", scratch_buffer_size, BufferUsage::StorageBuffer
     );
-    const auto& scratch_buffer_actual = allocator.get_buffer(scratch_buffer);
 
     auto graph = RenderGraph{backend};
     graph.add_pass(

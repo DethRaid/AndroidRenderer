@@ -136,12 +136,9 @@ void ResourceAccessTracker::set_resource_usage(
     if (const auto& itr = last_buffer_usages.find(buffer); itr != last_buffer_usages.end()) {
         // Issue a barrier if either (or both) of the accesses require writing
         if (is_write_access(access) || is_write_access(itr->second.access)) {
-            auto& allocator = backend.get_global_allocator();
-            const auto& buffer_actual = allocator.get_buffer(buffer);
-
             logger->trace(
                 "Issuing a barrier from access {:x} to access {:x} for buffer {}", itr->second.access, access,
-                buffer_actual.name
+                buffer->name
             );
 
             buffer_barriers.emplace_back(
@@ -151,8 +148,8 @@ void ResourceAccessTracker::set_resource_usage(
                     .srcAccessMask = itr->second.access,
                     .dstStageMask = pipeline_stage,
                     .dstAccessMask = access,
-                    .buffer = buffer_actual.buffer,
-                    .size = buffer_actual.create_info.size,
+                    .buffer = buffer->buffer,
+                    .size = buffer->create_info.size,
                 }
             );
         }

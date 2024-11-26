@@ -68,5 +68,5 @@ private:
 
     BufferHandle generate_sh_point_cloud(const std::vector<StandardVertex>& point_cloud) const;
 
-    void create_blas_for_mesh(uint32_t first_vertex, uint32_t num_vertices, uint32_t first_index, uint num_triangles);
+    void create_blas_for_mesh(uint32_t first_vertex, uint32_t num_vertices, uint32_t first_index, uint num_triangles) const;
 };

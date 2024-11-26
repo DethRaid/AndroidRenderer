@@ -79,7 +79,7 @@ private:
 
     std::vector<BufferUploadJob> buffer_uploads;
 
-    void upload_ktx(VkCommandBuffer cmds, const KtxUploadJob& job, const Buffer& staging_buffer, size_t offset);
+    void upload_ktx(VkCommandBuffer cmds, const KtxUploadJob& job, const Buffer& staging_buffer, size_t offset) const;
 };
 
 template <typename DataType>

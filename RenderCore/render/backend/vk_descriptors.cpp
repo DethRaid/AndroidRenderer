@@ -197,20 +197,18 @@ namespace vkutil {
         return DescriptorBuilder{backend, allocator};
     }
 
-    DescriptorBuilder&
-    DescriptorBuilder::bind_buffer(
-        uint32_t binding, const DescriptorBuilder::BufferInfo& info,
-        VkDescriptorType type, VkShaderStageFlags stage_flags
+    DescriptorBuilder& DescriptorBuilder::bind_buffer(
+        const uint32_t binding, 
+        const DescriptorBuilder::BufferInfo& info,
+        const VkDescriptorType type, 
+        const VkShaderStageFlags stage_flags
     ) {
-        auto& allocator = backend.get_global_allocator();
-        const auto& buffer_actual = allocator.get_buffer(info.buffer);
-
         auto& vk_info = buffer_infos_to_delete.emplace_back(
             std::vector{
                 VkDescriptorBufferInfo{
-                    .buffer = buffer_actual.buffer,
+                    .buffer = info.buffer->buffer,
                     .offset = info.offset,
-                    .range = info.range > 0 ? info.range : buffer_actual.create_info.size,
+                    .range = info.range > 0 ? info.range : info.buffer->create_info.size,
                 }
             }
         );
@@ -229,13 +227,11 @@ namespace vkutil {
         vk_infos.reserve(infos.size());
 
         for (const auto& info : infos) {
-            const auto& buffer_actual = allocator.get_buffer(info.buffer);
-
             vk_infos.emplace_back(
                 VkDescriptorBufferInfo{
-                    .buffer = buffer_actual.buffer,
+                    .buffer = info.buffer->buffer,
                     .offset = info.offset,
-                    .range = info.range > 0 ? info.range : buffer_actual.create_info.size,
+                    .range = info.range > 0 ? info.range : info.buffer->create_info.size,
                 }
             );
         }
