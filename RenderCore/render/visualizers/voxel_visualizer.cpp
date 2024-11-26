@@ -7,22 +7,23 @@ VoxelVisualizer::VoxelVisualizer() {
     auto& backend = RenderBackend::get();
     visualization_pipeline =
         backend.begin_building_pipeline("Voxel Visualizer")
-                  .set_vertex_shader("shaders/voxelizer/visualizer.vert.spv")
-                  .set_fragment_shader("shaders/voxelizer/visualizer.frag.spv")
-                  .set_blend_state(
-                      0, {
-                          .blendEnable = VK_TRUE,
-                          .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-                          .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                          .colorBlendOp = VK_BLEND_OP_ADD,
-                          .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-                          .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                          .alphaBlendOp = VK_BLEND_OP_ADD,
-                          .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
-                      }
-                  )
-                  .build();
+               .set_vertex_shader("shaders/voxelizer/visualizer.vert.spv")
+               .set_fragment_shader("shaders/voxelizer/visualizer.frag.spv")
+               .set_blend_state(
+                   0,
+                   {
+                       .blendEnable = VK_TRUE,
+                       .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                       .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                       .colorBlendOp = VK_BLEND_OP_ADD,
+                       .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                       .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                       .alphaBlendOp = VK_BLEND_OP_ADD,
+                       .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+                   }
+               )
+               .build();
 
     auto& allocator = backend.get_global_allocator();
     auto& upload_queue = backend.get_upload_queue();
@@ -59,7 +60,9 @@ VoxelVisualizer::VoxelVisualizer() {
     };
 
     cube_vertex_buffer = allocator.create_buffer(
-        "Cube vertex buffer", 8 * sizeof(glm::vec3), BufferUsage::VertexBuffer
+        "Cube vertex buffer",
+        8 * sizeof(glm::vec3),
+        BufferUsage::VertexBuffer
     );
     upload_queue.upload_to_buffer(cube_vertex_buffer, std::span{vertex_data.data(), vertex_data.size()});
 
@@ -87,9 +90,10 @@ void VoxelVisualizer::render(
                                        .bind(1, scene.get_primitive_buffer())
                                        .finalize();
 
-    render_graph.begin_render_pass(
+    render_graph.add_render_pass(
         {
             .name = "Voxel Visualization",
+            .textures = {},
             .buffers = {
                 {
                     cube_index_buffer,
@@ -107,13 +111,9 @@ void VoxelVisualizer::render(
                 },
             },
             .descriptor_sets = {descriptor_set},
-            .attachments = {output_image}
-        }
-    );
-    render_graph.add_subpass(
-        {
-            .name = "Subpass",
-            .color_attachments = {0},
+            .color_attachments = {
+                RenderingAttachmentInfo{.image = output_image, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR}
+            },
             .execute = [this, &scene, &backend, descriptor_set](CommandBuffer& commands) {
                 commands.bind_pipeline(visualization_pipeline);
 
@@ -125,7 +125,6 @@ void VoxelVisualizer::render(
 
                 commands.draw_indexed(36, scene.get_total_num_primitives(), 0, 0, 0);
             }
-        }
-    );
-    render_graph.end_render_pass();
+        });
+
 }
