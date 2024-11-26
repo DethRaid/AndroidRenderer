@@ -770,14 +770,15 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
             uint32_t num_cascades;
 
             VplInjectionConstants(
-                const ResourceAllocator& allocator, const BufferHandle vpl_buffer, const uint32_t cascade_index, const uint32_t num_cascades
+                const ResourceAllocator& allocator, const BufferHandle vpl_buffer, const uint32_t cascade_index,
+                const uint32_t num_cascades
             ) : cascade_index{cascade_index}, num_cascades{num_cascades} {
                 vpl_buffer_address = vpl_buffer->address;
             }
         };
 
         graph.add_compute_dispatch<VplInjectionConstants>(
-            IndirectComputeDispatch< VplInjectionConstants>{
+            IndirectComputeDispatch<VplInjectionConstants>{
                 .name = "VPL Injection",
                 .descriptor_sets = std::vector{descriptor_set},
                 .buffers = {
@@ -1529,112 +1530,34 @@ void LightPropagationVolume::perform_propagation_step(
     const TextureHandle write_red, const TextureHandle write_green, const TextureHandle write_blue,
     const bool use_gv
 ) const {
-    render_graph.add_pass(
-        {
-            .name = "Propagate lighting",
-            .textures = {
-                {
-                    read_red, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL}
-                },
-                {
-                    read_green,
-                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL}
-                },
-                {
-                    read_blue,
-                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL}
-                },
-                {
-                    write_red,
-                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL}
-                },
-                {
-                    write_green,
-                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL}
-                },
-                {
-                    write_blue,
-                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL}
-                },
-                {
-                    geometry_volume_handle,
-                    {
-                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                },
-            },
-            .execute = [&](CommandBuffer& commands) {
-                const auto descriptor_set =
-                    *vkutil::DescriptorBuilder::begin(
-                         backend,
-                         backend.get_transient_descriptor_allocator()
-                     )
-                     .bind_image(
-                         0,
-                         {.image = read_red, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                         VK_SHADER_STAGE_COMPUTE_BIT
-                     )
-                     .bind_image(
-                         1,
-                         {.image = read_green, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                         VK_SHADER_STAGE_COMPUTE_BIT
-                     )
-                     .bind_image(
-                         2,
-                         {.image = read_blue, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                         VK_SHADER_STAGE_COMPUTE_BIT
-                     )
-                     .bind_image(
-                         3,
-                         {.image = write_red, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                         VK_SHADER_STAGE_COMPUTE_BIT
-                     )
-                     .bind_image(
-                         4,
-                         {.image = write_green, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                         VK_SHADER_STAGE_COMPUTE_BIT
-                     )
-                     .bind_image(
-                         5,
-                         {.image = write_blue, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                         VK_SHADER_STAGE_COMPUTE_BIT
-                     )
-                     .bind_image(
-                         6,
-                         {
-                             .sampler = linear_sampler, .image = geometry_volume_handle,
-                             .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                         },
-                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                         VK_SHADER_STAGE_COMPUTE_BIT
-                     )
-                     .build();
+    const auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(propagation_shader, 0)
+                                         .bind(0, read_red)
+                                         .bind(1, read_green)
+                                         .bind(2, read_blue)
+                                         .bind(3, write_red)
+                                         .bind(4, write_green)
+                                         .bind(5, write_blue)
+                                         .bind(6, geometry_volume_handle, linear_sampler)
+                                         .finalize();
 
-                {
-                    commands.bind_descriptor_set(0, descriptor_set);
+    struct PropagateLightingConstants {
+        uint32_t cascade_index;
+        uint32_t use_gv;
+    };
 
-                    commands.bind_pipeline(propagation_shader);
-
-                    commands.set_push_constant(1, use_gv ? 1u : 0u);
-
-                    for(uint32_t cascade_index = 0; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
-                        commands.set_push_constant(0, cascade_index);
-
-                        commands.dispatch(1, 32, 32);
-                    }
-
-                    commands.clear_descriptor_set(0);
-                }
+    for(uint32_t cascade_index = 0; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
+        render_graph.add_compute_dispatch(
+            ComputeDispatch<PropagateLightingConstants>{
+                .name = fmt::format("Propagate lighting cascade {}", cascade_index),
+                .descriptor_sets = std::vector{set},
+                .push_constants = PropagateLightingConstants{
+                    .cascade_index = cascade_index, .use_gv = use_gv ? 1u : 0u
+                },
+                .num_workgroups = {1, 32, 32},
+                .compute_shader = propagation_shader
             }
-        }
-    );
+        );
+    }
 }
 
 void CascadeData::create_render_targets(ResourceAllocator& allocator) {
