@@ -25,14 +25,14 @@ RenderScene::RenderScene(RenderBackend& backend_in, MeshStorage& meshes_in, Mate
     sun.set_direction({0.1f, -1.f, -0.33f});
     sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 100000.f);
 
-    if (*CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable")) {
+    if(*CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable")) {
         raytracing_scene.emplace(RaytracingScene{backend, *this});
     }
 
     auto& pipeline_cache = backend.get_pipeline_cache();
     emissive_point_cloud_shader = pipeline_cache.create_pipeline("shaders/util/emissive_point_cloud.comp.spv");
 
-    if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
+    if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
         create_voxel_cache();
     }
 }
@@ -53,7 +53,7 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
 
     total_num_primitives++;
 
-    switch (handle->material->first.transparency_mode) {
+    switch(handle->material->first.transparency_mode) {
     case TransparencyMode::Solid:
         solid_primitives.push_back(handle);
         break;
@@ -67,13 +67,16 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
         break;
     }
 
-    if (handle->material->first.emissive) {
+    if(handle->material->first.emissive) {
         new_emissive_objects.push_back(handle);
     }
 
-    raytracing_scene.map([&](RaytracingScene& rt_scene) { rt_scene.add_primitive(handle); });
+    raytracing_scene.map(
+        [&](RaytracingScene& rt_scene) {
+            rt_scene.add_primitive(handle);
+        });
 
-    if (primitive_upload_buffer.is_full()) {
+    if(primitive_upload_buffer.is_full()) {
         primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
     }
     primitive_upload_buffer.add_data(handle.index, handle->data);
@@ -86,15 +89,19 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
 void RenderScene::pre_frame(RenderGraph& graph) {
     primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
 
-    if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
-        for (auto& handle : new_primitives) {
+    if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
+        for(auto& handle : new_primitives) {
             const auto obj = voxel_cache->build_voxels_for_mesh(
-                handle, meshes, primitive_data_buffer, graph
+                handle,
+                meshes,
+                primitive_data_buffer,
+                graph
             );
 
             auto& texture_descriptors = backend.get_texture_descriptor_pool();
             handle->data.voxels_color_srv = texture_descriptors.create_texture_srv(
-                obj.voxels_color, voxel_sampler
+                obj.voxels_color,
+                voxel_sampler
             );
             handle->data.voxels_normal_srv = texture_descriptors.create_texture_srv(obj.voxels_color, voxel_sampler);
             handle->data.voxel_size_xy = glm::u16vec2{obj.worldspace_size.x, obj.worldspace_size.y};
@@ -133,7 +140,7 @@ std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
     output.reserve(solid_primitives.size());
 
     const auto test_box = Box{.min = min_bounds, .max = max_bounds};
-    for (const auto& primitive : solid_primitives) {
+    for(const auto& primitive : solid_primitives) {
         const auto matrix = primitive->data.model;
         const auto mesh_bounds = primitive->mesh->bounds;
 
@@ -144,7 +151,7 @@ std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
 
         const auto primitive_box = Box{.min = min_primitive_bounds, .max = max_primitive_bounds};
 
-        if (test_box.overlaps(primitive_box)) {
+        if(test_box.overlaps(primitive_box)) {
             output.push_back(primitive);
         }
     }
@@ -154,7 +161,7 @@ std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
 
 void RenderScene::generate_emissive_point_clouds(RenderGraph& render_graph) {
     render_graph.begin_label("Generate emissive mesh VPLs");
-    for (auto& primitive : new_emissive_objects) {
+    for(auto& primitive : new_emissive_objects) {
         primitive->emissive_points_buffer = generate_vpls_for_primitive(render_graph, primitive);
     }
     render_graph.end_label();
@@ -166,9 +173,13 @@ const MeshStorage& RenderScene::get_meshes() const {
     return meshes;
 }
 
-RaytracingScene& RenderScene::get_raytracing_scene() { return *raytracing_scene; }
+RaytracingScene& RenderScene::get_raytracing_scene() {
+    return *raytracing_scene;
+}
 
-VoxelCache& RenderScene::get_voxel_cache() const { return *voxel_cache; }
+VoxelCache& RenderScene::get_voxel_cache() const {
+    return *voxel_cache;
+}
 
 void RenderScene::create_voxel_cache() {
     voxel_cache = std::make_unique<VoxelCache>(backend);
@@ -193,7 +204,9 @@ BufferHandle RenderScene::generate_vpls_for_primitive(
     RenderGraph& graph, const PooledObject<MeshPrimitive>& primitive
 ) {
     const auto vpl_buffer_handle = backend.get_global_allocator().create_buffer(
-        "Primitive emission buffer", primitive->mesh->num_points * sizeof(glm::vec4), BufferUsage::StorageBuffer
+        "Primitive emission buffer",
+        primitive->mesh->num_points * sizeof(glm::vec4),
+        BufferUsage::StorageBuffer
     );
 
     graph.add_pass(
@@ -228,5 +241,40 @@ BufferHandle RenderScene::generate_vpls_for_primitive(
         }
     );
 
+    struct EmissivePointCloudConstants {
+        DeviceAddress primitive_data;
+        DeviceAddress point_cloud;
+        DeviceAddress vpl_buffer;
+        uint32_t primitive_index;
+        uint32_t num_points;
+    };
+
+    graph.add_compute_dispatch(
+        ComputeDispatch<EmissivePointCloudConstants>{
+            .name = "Build emissive points",
+            .descriptor_sets = std::vector{ backend.get_texture_descriptor_pool().get_descriptor_set() },
+            .buffers = {
+                {
+                    vpl_buffer_handle,
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT}
+                },
+                {
+                    primitive->mesh->point_cloud_buffer,
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                },
+                {
+                    primitive_data_buffer,
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                },
+            },
+            .push_constants = {},
+            .num_workgroups = {
+                (primitive->mesh->num_points + 95) / 96, 1, 1
+            },
+            .compute_shader = emissive_point_cloud_shader
+        });
+
     return vpl_buffer_handle;
+
+
 }

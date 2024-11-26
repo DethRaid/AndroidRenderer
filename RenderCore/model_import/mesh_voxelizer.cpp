@@ -70,7 +70,7 @@ VoxelTextures MeshVoxelizer::voxelize_with_raster(
         bounds.min.z
     );
 
-    auto set = DescriptorSet{
+    auto set = DescriptorSetBuilder{
                    *backend,
                 backend->get_transient_descriptor_allocator(),
                    voxelization_pipeline->get_descriptor_set_info(0)
@@ -88,7 +88,7 @@ VoxelTextures MeshVoxelizer::voxelize_with_raster(
                 commands.bind_vertex_buffer(1, mesh_storage.get_vertex_data_buffer());
                 commands.bind_index_buffer(mesh_storage.get_index_buffer());
 
-                commands.bind_descriptor_set(0, set.get_vk_descriptor_set());
+                commands.bind_descriptor_set(0, set);
                 commands.bind_descriptor_set(1, backend->get_texture_descriptor_pool().get_descriptor_set());
 
                 commands.set_push_constant(0, primitive.index);
@@ -146,7 +146,7 @@ VoxelTextures MeshVoxelizer::voxelize_with_compute(
     };
 
     auto descriptor_set = backend->get_transient_descriptor_allocator()
-                                 .create_set(compute_voxelization_pipeline, 0)
+                                 .build_set(compute_voxelization_pipeline, 0)
                                  .bind(0, mesh_storage.get_vertex_position_buffer())
                                  .bind(1, mesh_storage.get_vertex_data_buffer())
                                  .bind(2, mesh_storage.get_index_buffer())

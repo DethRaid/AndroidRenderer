@@ -1,0 +1,19 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_ARB_shader_viewport_layer_array : enable
+#extension GL_EXT_buffer_reference_uvec2 : enable
+
+/**
+ * Compute shader to inject VPLs into a LPV
+ *
+ * We run one subgroup for each call. The subgroup looks through the list of all VPLs. If any VPL is in the current 
+ * cell, we atomically add it to a shared varaible. At the end of the shader, thread 0 adds that sum to the 3D 
+ * texture
+ */
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+    
+}

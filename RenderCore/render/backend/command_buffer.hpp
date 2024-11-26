@@ -15,8 +15,8 @@
 #include "render/backend/handles.hpp"
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/framebuffer.hpp"
-#include "render/backend/vk_descriptors.hpp"
 
+struct DescriptorSet;
 struct ComputeShader;
 class RenderBackend;
 
@@ -71,16 +71,6 @@ public:
     void barrier(
         BufferHandle buffer, VkPipelineStageFlags source_pipeline_stage, VkAccessFlags source_access,
         VkPipelineStageFlags destination_pipeline_stage, VkAccessFlags destination_access
-    );
-
-    /**
-     * Executes a barrier for all mip levels of an image
-     */
-    void barrier(
-        TextureHandle texture, const VkPipelineStageFlags source_pipeline_stage,
-        const VkAccessFlags source_access, const VkImageLayout old_layout,
-        const VkPipelineStageFlags destination_pipeline_stage, const VkAccessFlags destination_access,
-        const VkImageLayout new_layout
     );
 
     /**
@@ -201,6 +191,8 @@ public:
      * \param buffer_handle Handle of the buffer to bind
      */
     void bind_buffer_reference(uint32_t index, BufferHandle buffer_handle);
+
+    void bind_descriptor_set(uint32_t set_index, const DescriptorSet& set);
 
     void bind_descriptor_set(uint32_t set_index, VkDescriptorSet set);
 

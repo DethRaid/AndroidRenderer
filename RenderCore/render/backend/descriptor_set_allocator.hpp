@@ -9,9 +9,11 @@ class DescriptorSetAllocator : public vkutil::DescriptorAllocator {
 public:
     explicit DescriptorSetAllocator(RenderBackend& backend_in);
 
-    DescriptorSet create_set(GraphicsPipelineHandle pipeline, uint32_t set_index);
+    DescriptorSetBuilder build_set(GraphicsPipelineHandle pipeline, uint32_t set_index);
 
-    DescriptorSet create_set(ComputePipelineHandle pipeline, uint32_t set_index);
+    DescriptorSetBuilder build_set(ComputePipelineHandle pipeline, uint32_t set_index);
+
+    DescriptorSetBuilder build_set(const DescriptorSetInfo& info);
 
 private:
     RenderBackend* backend;

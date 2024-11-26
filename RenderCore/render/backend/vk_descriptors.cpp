@@ -5,7 +5,6 @@
 #include "render/backend/render_backend.hpp"
 
 namespace vkutil {
-    constexpr auto variable_descriptor_array_max_size = 65536u;
 
     /**
      * Some heuristics for checking if a binding is _probably_ a variable-count descriptor array
@@ -13,6 +12,7 @@ namespace vkutil {
      * Probably not generalizable beyond my use case
      */
     static bool is_descriptor_array(const VkDescriptorSetLayoutBinding& binding) {
+        const auto variable_descriptor_array_max_size = *CVarSystem::Get()->GetIntCVar("r.RHI.SampledImageCount");
         return binding.descriptorCount == variable_descriptor_array_max_size && (binding.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     }
 
@@ -122,7 +122,7 @@ namespace vkutil {
             freePools.pop_back();
             return pool;
         } else {
-            return createPool(device, descriptorSizes, 100000, 0);
+            return createPool(device, descriptorSizes, 100000, VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT);
         }
     }
 
@@ -354,8 +354,9 @@ namespace vkutil {
         return *this;
     }
 
-    bool DescriptorBuilder::build(VkDescriptorSet& set, VkDescriptorSetLayout& layout) {
-        // Hack because Vulkan compatibility rules are stupid
+    std::optional<VkDescriptorSet> DescriptorBuilder::build(VkDescriptorSetLayout& layout) {
+        const auto variable_descriptor_array_max_size = static_cast<uint32_t>(*CVarSystem::Get()->GetIntCVar("r.RHI.SampledImageCount"));
+
         if (is_descriptor_array(bindings.back())) {
             bindings.back().descriptorCount = variable_descriptor_array_max_size;
         }
@@ -371,6 +372,7 @@ namespace vkutil {
         layout = cache.create_descriptor_layout(&layoutInfo);
 
         auto success = false;
+        VkDescriptorSet set;
 
         //allocate descriptor
         if (is_descriptor_array(bindings.back())) {
@@ -385,7 +387,7 @@ namespace vkutil {
         }
 
         if (!success) {
-            return false;
+            return std::nullopt;
         }
 
         //write descriptor
@@ -402,24 +404,12 @@ namespace vkutil {
             );
         }
 
-        return true;
+        return set;
     }
 
-    bool DescriptorBuilder::build(VkDescriptorSet& set) {
-        ZoneScoped;
-
+    std::optional<VkDescriptorSet> DescriptorBuilder::build() {
         VkDescriptorSetLayout layout;
-        return build(set, layout);
-    }
-
-    tl::optional<VkDescriptorSet> DescriptorBuilder::build() {
-        VkDescriptorSet set;
-        const auto success = build(set);
-        if (success) {
-            return set;
-        } else {
-            return tl::nullopt;
-        }
+        return build(layout);
     }
 
     DescriptorBuilder::DescriptorBuilder(

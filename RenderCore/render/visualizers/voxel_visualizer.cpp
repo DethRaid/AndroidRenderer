@@ -80,7 +80,7 @@ void VoxelVisualizer::render(
     // testing. Draw their back faces, then send a ray towards the front face, then raymarch from the hit position (or
     // the near plane) away from the camera. Disable, but more complex
 
-    const auto descriptor_set = backend.get_transient_descriptor_allocator().create_set(visualization_pipeline, 0)
+    const auto descriptor_set = backend.get_transient_descriptor_allocator().build_set(visualization_pipeline, 0)
                                        .bind(0, view_uniform_buffer)
                                        .bind(1, scene.get_primitive_buffer())
                                        .finalize();
@@ -115,7 +115,7 @@ void VoxelVisualizer::render(
             .execute = [=, this, &scene](CommandBuffer& commands) {
                 commands.bind_pipeline(visualization_pipeline);
 
-                commands.bind_descriptor_set(0, descriptor_set.get_vk_descriptor_set());
+                commands.bind_descriptor_set(0, descriptor_set);
                 commands.bind_descriptor_set(1, backend.get_texture_descriptor_pool().get_descriptor_set());
 
                 commands.bind_index_buffer<uint16_t>(cube_index_buffer);

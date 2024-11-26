@@ -127,8 +127,8 @@ void RenderGraph::add_compute_dispatch(const ComputeDispatch<PushConstantsType>&
     cmds.bind_pipeline(dispatch_info.compute_shader);
 
     for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
-        const auto vk_set = dispatch_info.descriptor_sets.at(i).get_vk_descriptor_set();
-        cmds.bind_descriptor_set(i, vk_set);
+        const auto& set = dispatch_info.descriptor_sets.at(i);
+        cmds.bind_descriptor_set(i, set);
     }
 
     auto* push_constants_src = reinterpret_cast<const uint32_t*>(&dispatch_info.push_constants);
@@ -162,8 +162,8 @@ void RenderGraph::add_compute_dispatch(const IndirectComputeDispatch<PushConstan
     cmds.bind_pipeline(dispatch_info.compute_shader);
 
     for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
-        const auto vk_set = dispatch_info.descriptor_sets.at(i).get_vk_descriptor_set();
-        cmds.bind_descriptor_set(i, vk_set);
+        const auto& set = dispatch_info.descriptor_sets.at(i);
+        cmds.bind_descriptor_set(i, set);
     }
 
     auto* push_constants_src = reinterpret_cast<const uint32_t*>(&dispatch_info.push_constants);

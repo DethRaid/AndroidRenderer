@@ -13,12 +13,14 @@
 static std::shared_ptr<spdlog::logger> logger;
 
 void GraphicsPipeline::create_pipeline_layout(
-    const RenderBackend& backend,
+    RenderBackend& backend,
     const std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos, 
     const std::vector<VkPushConstantRange>& push_constants
 ) {
     // Create descriptor sets
     descriptor_set_layouts.reserve(descriptor_set_infos.size());
+
+    auto& cache = backend.get_descriptor_cache();
 
     for (const auto& [set_index, set_info] : descriptor_set_infos) {
         if (descriptor_set_layouts.size() <= set_index) {
@@ -52,9 +54,9 @@ void GraphicsPipeline::create_pipeline_layout(
             create_info.pNext = &flags_create_info;
             bindings.back().stageFlags = VK_SHADER_STAGE_ALL;
         }
+                
+        const auto layout = cache.create_descriptor_layout(&create_info);
 
-        auto layout = VkDescriptorSetLayout{};
-        vkCreateDescriptorSetLayout(backend.get_device(), &create_info, nullptr, &layout);
         descriptor_set_layouts[set_index] = layout;
     }
     

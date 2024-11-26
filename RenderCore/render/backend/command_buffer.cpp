@@ -95,54 +95,6 @@ void CommandBuffer::barrier(
 }
 
 void CommandBuffer::barrier(
-    const TextureHandle texture, const VkPipelineStageFlags source_pipeline_stage,
-    const VkAccessFlags source_access, const VkImageLayout old_layout,
-    const VkPipelineStageFlags destination_pipeline_stage,
-    const VkAccessFlags destination_access,
-    const VkImageLayout new_layout
-) {
-    auto& allocator = backend->get_global_allocator();
-    const auto& texture_actual = allocator.get_texture(texture);
-
-    auto aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-    if(is_depth_format(texture_actual.create_info.format)) {
-        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-    }
-
-    const auto barrier = VkImageMemoryBarrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = source_access,
-        .dstAccessMask = destination_access,
-        .oldLayout = old_layout,
-        .newLayout = new_layout,
-        .image = texture_actual.image,
-        .subresourceRange = {
-            .aspectMask = static_cast<VkImageAspectFlags>(aspect),
-            .baseMipLevel = 0,
-            .levelCount = texture_actual.create_info.mipLevels,
-            .baseArrayLayer = 0,
-            .layerCount = texture_actual.create_info.arrayLayers,
-        }
-    };
-
-    // V0: Issue the barrier immediately
-    vkCmdPipelineBarrier(
-        commands,
-        source_pipeline_stage,
-        destination_pipeline_stage,
-        0,
-        0,
-        nullptr,
-        0,
-        nullptr,
-        1,
-        &barrier
-    );
-
-    // V1: Batch the barriers. We'll need lists grouped by source stage and dest stage, because Vulkan is strange
-}
-
-void CommandBuffer::barrier(
     const std::vector<VkMemoryBarrier2>& memory_barriers, const std::vector<VkBufferMemoryBarrier2>& buffer_barriers,
     const std::vector<VkImageMemoryBarrier2>& image_barriers
 ) const {
@@ -437,6 +389,10 @@ void CommandBuffer::bind_buffer_reference(const uint32_t index, const BufferHand
 
     set_push_constant(index, buffer_actual.address.low_bits());
     set_push_constant(index + 1, buffer_actual.address.high_bits());
+}
+
+void CommandBuffer::bind_descriptor_set(const uint32_t set_index, const DescriptorSet& set) {
+    return bind_descriptor_set(set_index, set.descriptor_set);
 }
 
 void CommandBuffer::bind_descriptor_set(const uint32_t set_index, const VkDescriptorSet set) {

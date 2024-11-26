@@ -4,6 +4,7 @@
 #include <vector>
 #include <volk.h>
 
+#include "descriptor_set_builder.hpp"
 #include "render/backend/handles.hpp"
 
 class ResourceAllocator;
@@ -13,7 +14,7 @@ class RenderBackend;
  */
 class TextureDescriptorPool {
 public:
-    explicit TextureDescriptorPool(const RenderBackend& backend_in);
+    explicit TextureDescriptorPool(RenderBackend& backend_in);
 
     ~TextureDescriptorPool();
 
@@ -28,18 +29,14 @@ public:
      */
     void commit_descriptors();
 
-    VkDescriptorSetLayout get_descriptor_layout() const;
-
-    VkDescriptorSet get_descriptor_set() const;
+    const DescriptorSet& get_descriptor_set() const;
 
 private:
-    const RenderBackend& backend;
+    RenderBackend& backend;
 
     VkDescriptorPool descriptor_pool;
 
-    VkDescriptorSetLayout descriptor_set_layout;
-
-    VkDescriptorSet descriptor_set;
+    DescriptorSet descriptor_set;
 
     std::vector<uint32_t> available_handles;
 

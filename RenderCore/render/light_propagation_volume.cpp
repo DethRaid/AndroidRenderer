@@ -479,7 +479,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
         {
             auto descriptor_set = backend.get_transient_descriptor_allocator()
-                                         .create_set(vpl_pipeline, 0)
+                                         .build_set(vpl_pipeline, 0)
                                          .bind(0, cascade.flux_target, backend.get_default_sampler())
                                          .bind(1, cascade.normals_target, backend.get_default_sampler())
                                          .bind(2, cascade.depth_target, backend.get_default_sampler())
@@ -716,7 +716,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
     RenderGraph& graph, const uint32_t cascade_index, const CascadeData& cascade
 ) {
     auto descriptor_set = backend.get_transient_descriptor_allocator()
-                                 .create_set(vpl_injection_pipeline, 0)
+                                 .build_set(vpl_injection_pipeline, 0)
                                  .bind(0, cascade_data_buffer)
                                  .finalize();
 
@@ -752,7 +752,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
                 },
                 .view_mask = 0,
                 .execute = [=, this](CommandBuffer& commands) {
-                    commands.bind_descriptor_set(0, descriptor_set.get_vk_descriptor_set());
+                    commands.bind_descriptor_set(0, descriptor_set);
 
                     commands.bind_buffer_reference(0, cascade.vpl_buffer);
                     commands.set_push_constant(2, cascade_index);

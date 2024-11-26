@@ -7,12 +7,11 @@
 #include <tracy/Tracy.hpp>
 
 #include "pipeline_cache.hpp"
+#include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 #include "shared/vertex_data.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
-
-constexpr uint32_t VARIABLE_SIZE_ARRAY_MAX_SIZE = 65536;
 
 static std::string POSITION_VERTEX_ATTRIBUTE_NAME = "position_in";
 static std::string TEXCOORD_VERTEX_ATTRIBUTE_NAME = "texcoord_in";
@@ -409,6 +408,8 @@ bool collect_descriptor_sets(
     const VkShaderStageFlagBits shader_stage,
     std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_sets
 ) {
+    const auto texture_array_size = static_cast<uint32_t>(*CVarSystem::Get()->GetIntCVar("r.RHI.SampledImageCount"));
+
     bool has_error = false;
     for (const auto* set : sets) {
         if (auto itr = descriptor_sets.find(set->set); itr != descriptor_sets.end()) {
@@ -464,7 +465,7 @@ bool collect_descriptor_sets(
                             {
                                 .binding = binding->binding,
                                 .descriptorType = vk_type,
-                                .descriptorCount = binding->count > 0 ? binding->count : VARIABLE_SIZE_ARRAY_MAX_SIZE,
+                                .descriptorCount = binding->count > 0 ? binding->count : texture_array_size,
                                 .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
                                 .pImmutableSamplers = nullptr
                             },
@@ -495,7 +496,7 @@ bool collect_descriptor_sets(
                         {
                             .binding = binding->binding,
                             .descriptorType = to_vk_type(binding->descriptor_type),
-                            .descriptorCount = binding->count > 0 ? binding->count : VARIABLE_SIZE_ARRAY_MAX_SIZE,
+                            .descriptorCount = binding->count > 0 ? binding->count : texture_array_size,
                             .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
                             .pImmutableSamplers = nullptr
                         },

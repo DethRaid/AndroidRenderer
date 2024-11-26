@@ -68,16 +68,6 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
 
     create_instance_and_device();
 
-    upload_queue = std::make_unique<ResourceUploadQueue>(*this);
-
-    blas_build_queue = std::make_unique<BlasBuildQueue>(*this);
-
-    allocator = std::make_unique<ResourceAllocator>(*this);
-
-    pipeline_cache = std::make_unique<PipelineCache>(*this);
-
-    texture_descriptor_pool = std::make_unique<TextureDescriptorPool>(*this);
-
     graphics_queue = *device.get_queue(vkb::QueueType::graphics);
     graphics_queue_family_index = *device.get_queue_index(vkb::QueueType::graphics);
 
@@ -99,15 +89,24 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
     transfer_queue_family_index = graphics_queue_family_index;
     // }
 
-    create_swapchain();
-
     create_tracy_context();
 
     global_descriptor_allocator.init(device.device);
-    for(auto& frame_allocator : frame_descriptor_allocators) {
+    for (auto& frame_allocator : frame_descriptor_allocators) {
         frame_allocator.init(device.device);
     }
     descriptor_layout_cache.init(device.device);
+
+    upload_queue = std::make_unique<ResourceUploadQueue>(*this);
+
+    blas_build_queue = std::make_unique<BlasBuildQueue>(*this);
+
+    allocator = std::make_unique<ResourceAllocator>(*this);
+
+    pipeline_cache = std::make_unique<PipelineCache>(*this);
+
+    texture_descriptor_pool = std::make_unique<TextureDescriptorPool>(*this);
+    create_swapchain();
 
     create_command_pools();
 

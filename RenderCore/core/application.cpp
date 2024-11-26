@@ -109,6 +109,8 @@ void Application::update_resolution() const {
 void Application::tick() {
     ZoneScoped;
 
+    logger->debug("Tick");
+
     update_delta_time();
 
     // Input

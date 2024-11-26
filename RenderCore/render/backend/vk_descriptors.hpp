@@ -1,12 +1,9 @@
 ﻿#pragma once
 
 #include <vector>
-#include <array>
-#include <memory>
-#include <span>
+#include <optional>
 #include <unordered_map>
 
-#include <tl/optional.hpp>
 #include <volk.h>
 
 #include "render/backend/handles.hpp"
@@ -93,7 +90,7 @@ namespace vkutil {
             VkSampler sampler = {};
             TextureHandle image = {};
             VkImageLayout image_layout = {};
-            tl::optional<uint32_t> mip_level = tl::nullopt;
+            std::optional<uint32_t> mip_level = std::nullopt;
         };
 
         static DescriptorBuilder begin(RenderBackend& backend, vkutil::DescriptorAllocator& allocator);
@@ -125,11 +122,9 @@ namespace vkutil {
             uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t count = 1
         );
 
-        bool build(VkDescriptorSet& set, VkDescriptorSetLayout& layout);
+        std::optional<VkDescriptorSet> build(VkDescriptorSetLayout& layout);
 
-        bool build(VkDescriptorSet& set);
-
-        tl::optional<VkDescriptorSet> build();
+        std::optional<VkDescriptorSet> build();
 
     private:
         RenderBackend& backend;

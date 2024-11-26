@@ -82,7 +82,7 @@ private:
     std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
 
     void create_pipeline_layout(
-        const RenderBackend& backend, const std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos,
+        RenderBackend& backend, const std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos,
         const std::vector<VkPushConstantRange>& push_constants
     );
 };
