@@ -44,7 +44,7 @@ static auto cvar_use_lpv = AutoCVar_Int{
 
 SceneRenderer::SceneRenderer() : ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
-    logger->set_level(spdlog::level::debug);
+    logger->set_level(spdlog::level::trace);
 
     // player_view.set_position(glm::vec3{2.f, -1.f, 3.0f});
     player_view.rotate(0, glm::radians(90.f));

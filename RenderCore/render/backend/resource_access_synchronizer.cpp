@@ -40,7 +40,7 @@ static std::string stage_to_string(const VkPipelineStageFlags2 stage_flags) {
 ResourceAccessTracker::ResourceAccessTracker(RenderBackend& backend_in) : backend{backend_in} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("ResourceAccessTracker");
-        logger->set_level(spdlog::level::trace);
+        logger->set_level(spdlog::level::debug);
     }
 }
 

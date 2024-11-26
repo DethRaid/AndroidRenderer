@@ -6,6 +6,7 @@
 #include "render_backend.hpp"
 
 #include <tracy/Tracy.hpp>
+#include <vulkan/vk_enum_string_helper.h>
 
 #include "blas_build_queue.hpp"
 #include "rhi_globals.hpp"
@@ -66,7 +67,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
                                      DescriptorSetAllocator{*this}, DescriptorSetAllocator{*this}
                                  } {
     logger = SystemInterface::get().get_logger("RenderBackend");
-    logger->set_level(spdlog::level::debug);
+    logger->set_level(spdlog::level::trace);
 
     const auto volk_result = volkInitialize();
     if(volk_result != VK_SUCCESS) {
@@ -120,7 +121,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
 
     create_command_pools();
 
-    const auto fence_create_info = VkFenceCreateInfo{
+    constexpr auto fence_create_info = VkFenceCreateInfo{
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     };
@@ -436,7 +437,9 @@ void RenderBackend::advance_frame() {
 
     {
         ZoneScopedN("Wait for previous frame");
-        vkWaitForFences(device, 1, &frame_fences[cur_frame_idx], VK_TRUE, std::numeric_limits<uint64_t>::max());
+        const auto result = vkWaitForFences(device, 1, &frame_fences[cur_frame_idx], VK_TRUE, std::numeric_limits<uint64_t>::max());
+        logger->trace("Frame fence {} is signalled", cur_frame_idx);
+        logger->trace("vkWaitForFences(frame_fences[{}]) result: {}", cur_frame_idx, string_VkResult(result));
     }
 
     if(!is_first_frame) {

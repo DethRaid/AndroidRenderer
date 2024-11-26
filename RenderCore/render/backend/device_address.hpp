@@ -28,11 +28,11 @@ struct DeviceAddress {
     }
 
     uint32_t high_bits() const {
-        return static_cast<uint32_t>((ptr >> 32) | 0x00000000FFFFFFFF);
+        return static_cast<uint32_t>((ptr >> 32) & 0x00000000FFFFFFFF);
     }
 
     uint32_t low_bits() const {
-        return static_cast<uint32_t>(ptr | 0xFFFFFFFF);
+        return static_cast<uint32_t>(ptr & 0xFFFFFFFF);
     }
 
     DeviceAddress& operator+=(const size_t val) {

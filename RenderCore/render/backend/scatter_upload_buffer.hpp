@@ -61,6 +61,7 @@ void ScatterUploadBuffer<DataType>::add_data(const uint32_t destination_index, D
     }
 
     static_cast<uint32_t*>(scatter_indices->allocation_info.pMappedData)[scatter_buffer_count] = destination_index;
+    spdlog::info("Added scatter packet for index {}", destination_index);
 
     if (!scatter_data) {
         scatter_data = allocator.create_buffer(
@@ -105,12 +106,13 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHa
             .execute = [&](CommandBuffer& commands) {
                 commands.flush_buffer(scatter_indices);
                 commands.flush_buffer(scatter_data);
-                
+                                
                 commands.bind_buffer_reference(0, scatter_indices);
                 commands.bind_buffer_reference(2, scatter_data);
                 commands.bind_buffer_reference(4, destination_buffer);
                 commands.set_push_constant(6, scatter_buffer_count);
-                commands.set_push_constant(7, static_cast<uint32_t>(sizeof(DataType)));
+                const auto data_size = static_cast<uint32_t>(sizeof(DataType));
+                commands.set_push_constant(7, data_size);
 
                 commands.bind_pipeline(scatter_shader);
 

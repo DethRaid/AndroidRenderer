@@ -19,7 +19,7 @@ CommandBuffer::CommandBuffer(const VkCommandBuffer vk_cmds, RenderBackend& backe
     commands{vk_cmds}, backend{&backend_in} {
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("CommandBuffer");
-        logger->set_level(spdlog::level::trace);
+        logger->set_level(spdlog::level::debug);
     }
     for(auto& set : descriptor_sets) {
         set = VK_NULL_HANDLE;
