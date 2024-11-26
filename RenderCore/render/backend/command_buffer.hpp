@@ -43,7 +43,7 @@ class CommandBuffer {
 public:
     explicit CommandBuffer(VkCommandBuffer vk_cmds, RenderBackend& backend_in);
 
-    void begin();
+    void begin() const;
 
 
     void set_marker(const std::string& marker_name) const;
@@ -62,7 +62,7 @@ public:
     template <typename DataType>
     void update_buffer(BufferHandle buffer, const DataType& data, uint32_t offset = 0);
 
-    void update_buffer(BufferHandle buffer, const void* data, uint32_t data_size, uint32_t offset = 0);
+    void update_buffer(BufferHandle buffer, const void* data, uint32_t data_size, uint32_t offset = 0) const;
 
     void flush_buffer(BufferHandle buffer) const;
 
@@ -71,7 +71,7 @@ public:
     void barrier(
         BufferHandle buffer, VkPipelineStageFlags source_pipeline_stage, VkAccessFlags source_access,
         VkPipelineStageFlags destination_pipeline_stage, VkAccessFlags destination_access
-    );
+    ) const;
 
     /**
      * Issues a batch of pipeline barriers
@@ -235,7 +235,7 @@ private:
 
     VkRenderPass current_render_pass = VK_NULL_HANDLE;
 
-    Framebuffer current_framebuffer;
+    Framebuffer current_framebuffer = {};
 
     uint32_t bound_view_mask = 0;
 

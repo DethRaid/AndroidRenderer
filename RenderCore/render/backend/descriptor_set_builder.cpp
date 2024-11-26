@@ -22,7 +22,7 @@ static bool is_combined_image_sampler(VkDescriptorType vk_type);
 static bool is_acceleration_structure(VkDescriptorType vk_type);
 
 void DescriptorSet::get_resource_usage_information(
-    TextureUsageMap& texture_usages, BufferUsageMap& buffer_usages
+    TextureUsageMap& texture_usages, std::unordered_map<BufferHandle, BufferUsageToken>& buffer_usages
 ) const {
     for(const auto& [binding, resource] : bindings) {
         const auto& binding_info = set_info.bindings.at(binding);

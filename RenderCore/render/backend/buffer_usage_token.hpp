@@ -23,5 +23,3 @@ struct BufferBarrier {
 
     uint32_t size = 0;
 };
-
-using BufferUsageMap = std::unordered_map<BufferHandle, BufferUsageToken>;

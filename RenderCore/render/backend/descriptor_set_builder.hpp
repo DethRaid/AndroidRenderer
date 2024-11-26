@@ -36,7 +36,7 @@ public:
 
     std::unordered_map<uint32_t, detail::BoundResource> bindings;
 
-    void get_resource_usage_information(TextureUsageMap& texture_usages, BufferUsageMap& buffer_usages) const;
+    void get_resource_usage_information(TextureUsageMap& texture_usages, std::unordered_map<BufferHandle, BufferUsageToken>& buffer_usages) const;
 };
 
 class DescriptorSetBuilder {

@@ -9,24 +9,25 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-static AutoCVar_Int cvar_validate_bindings{
+[[maybe_unused]] static AutoCVar_Int cvar_validate_bindings{
     "r.Debug.ValidateBindings",
     "Whether or not to validate bindings, such as vertex or index buffers",
     1
 };
 
-CommandBuffer::CommandBuffer(VkCommandBuffer vk_cmds, RenderBackend& backend_in) :
+CommandBuffer::CommandBuffer(const VkCommandBuffer vk_cmds, RenderBackend& backend_in) :
     commands{vk_cmds}, backend{&backend_in} {
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("CommandBuffer");
+        logger->set_level(spdlog::level::trace);
     }
     for(auto& set : descriptor_sets) {
         set = VK_NULL_HANDLE;
     }
 }
 
-void CommandBuffer::begin() {
-    const auto begin_info = VkCommandBufferBeginInfo{
+void CommandBuffer::begin() const {
+    constexpr auto begin_info = VkCommandBufferBeginInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     };
@@ -42,7 +43,7 @@ void CommandBuffer::set_marker(const std::string& marker_name) const {
 void
 CommandBuffer::update_buffer(
     const BufferHandle buffer, const void* data, const uint32_t data_size, const uint32_t offset
-) {
+) const {
     auto* write_ptr = static_cast<uint8_t*>(buffer->allocation_info.pMappedData) + offset;
 
     std::memcpy(write_ptr, data, data_size);
@@ -61,8 +62,7 @@ void CommandBuffer::barrier(
     const VkAccessFlags source_access,
     const VkPipelineStageFlags destination_pipeline_stage,
     const VkAccessFlags destination_access
-) {
-    auto& allocator = backend->get_global_allocator();
+) const {
     const auto barrier = VkBufferMemoryBarrier{
         .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
         .srcAccessMask = source_access,
@@ -86,7 +86,7 @@ void CommandBuffer::barrier(
         nullptr
     );
 
-    // V1: Batch the barriers. We'll need lists grouped by source stage and dest stage, because Vulkan is strange
+    // V1: Batch the barriers
 }
 
 void CommandBuffer::barrier(
@@ -481,6 +481,7 @@ void CommandBuffer::wait_event(const VkEvent event) {
 }
 
 void CommandBuffer::begin_label(const std::string& event_name) const {
+    logger->trace("[{}]: begin_label", event_name);
     if(vkCmdBeginDebugUtilsLabelEXT == nullptr) {
         return;
     }
@@ -494,6 +495,7 @@ void CommandBuffer::begin_label(const std::string& event_name) const {
 }
 
 void CommandBuffer::end_label() const {
+    logger->trace("end_label");
     if(vkCmdEndDebugUtilsLabelEXT == nullptr) {
         return;
     }

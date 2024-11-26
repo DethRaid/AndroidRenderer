@@ -1,7 +1,5 @@
 #include "resource_access_synchronizer.hpp"
 
-#include <numeric>
-
 #include <magic_enum.hpp>
 #include <vulkan/vk_enum_string_helper.h>
 
@@ -11,7 +9,7 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-bool is_write_access(const VkAccessFlagBits2 access) {
+static bool is_write_access(const VkAccessFlagBits2 access) {
     constexpr auto write_mask =
         VK_ACCESS_2_SHADER_WRITE_BIT |
         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT |
@@ -31,18 +29,18 @@ bool is_write_access(const VkAccessFlagBits2 access) {
     return (access & write_mask) != 0;
 }
 
-std::string access_to_string(const VkAccessFlags2 access_flags) {
+static std::string access_to_string(const VkAccessFlags2 access_flags) {
     return string_VkAccessFlags2(access_flags);
 }
 
-std::string stage_to_string(const VkPipelineStageFlags2 stage_flags) {
+static std::string stage_to_string(const VkPipelineStageFlags2 stage_flags) {
     return string_VkAccessFlags2(stage_flags);
 }
 
 ResourceAccessTracker::ResourceAccessTracker(RenderBackend& backend_in) : backend{backend_in} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("ResourceAccessTracker");
-        logger->set_level(spdlog::level::info);
+        logger->set_level(spdlog::level::trace);
     }
 }
 
@@ -60,10 +58,10 @@ void ResourceAccessTracker::set_resource_usage(
         initial_texture_usages.emplace(texture, TextureUsageToken{usage.stage, usage.access, usage.layout});
 
         if (!skip_barrier) {
-            logger->trace(
-                "Transitioning image {} from {} to {}", texture_actual.name,
-                magic_enum::enum_name(VK_IMAGE_LAYOUT_UNDEFINED), magic_enum::enum_name(usage.layout)
-            );
+            // logger->trace(
+            //     "Transitioning image {} from {} to {}", texture_actual.name,
+            //     magic_enum::enum_name(VK_IMAGE_LAYOUT_UNDEFINED), magic_enum::enum_name(usage.layout)
+            // );
             image_barriers.emplace_back(
                 VkImageMemoryBarrier2{
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -129,18 +127,21 @@ void ResourceAccessTracker::set_resource_usage(
 void ResourceAccessTracker::set_resource_usage(
     BufferHandle buffer, const VkPipelineStageFlags2 pipeline_stage, const VkAccessFlags2 access
 ) {
-    if (!initial_buffer_usages.contains(buffer)) {
-        initial_buffer_usages.emplace(buffer, BufferUsageToken{pipeline_stage, access});
+    if (!initial_buffer_usages.contains(buffer.index)) {
+        initial_buffer_usages.emplace(buffer.index, BufferUsageToken{pipeline_stage, access});
+        logger->trace("[{}]: Beginning state tracking", buffer->name);
     }
 
-    if (const auto& itr = last_buffer_usages.find(buffer); itr != last_buffer_usages.end()) {
+    if (const auto& itr = last_buffer_usages.find(buffer.index); itr != last_buffer_usages.end()) {
         // Issue a barrier if either (or both) of the accesses require writing
         if (is_write_access(access) || is_write_access(itr->second.access)) {
             logger->trace(
-                "Issuing a barrier from access {:x} to access {:x} for buffer {}", itr->second.access, access,
-                buffer->name
+                "[{}]: Issuing a barrier from access {} to access {}",
+                buffer->name,
+                access_to_string(itr->second.access),
+                access_to_string(access)
             );
-
+            
             buffer_barriers.emplace_back(
                 VkBufferMemoryBarrier2{
                     .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
@@ -155,7 +156,7 @@ void ResourceAccessTracker::set_resource_usage(
         }
     }
 
-    last_buffer_usages.insert_or_assign(buffer, BufferUsageToken{pipeline_stage, access});
+    last_buffer_usages.insert_or_assign(buffer.index, BufferUsageToken{pipeline_stage, access});
 }
 
 void ResourceAccessTracker::issue_barriers(const CommandBuffer& commands) {
@@ -164,7 +165,7 @@ void ResourceAccessTracker::issue_barriers(const CommandBuffer& commands) {
     image_barriers.clear();
 }
 
-TextureUsageToken ResourceAccessTracker::get_last_usage_token(TextureHandle texture_handle) {
+TextureUsageToken ResourceAccessTracker::get_last_usage_token(const TextureHandle texture_handle) {
     if (auto itr = last_texture_usages.find(texture_handle); itr != last_texture_usages.end()) {
         return itr->second;
     }

@@ -264,8 +264,11 @@ TextureHandle DepthCullingPhase::get_depth_buffer() const { return depth_buffer;
 BufferHandle DepthCullingPhase::get_visible_objects() const { return visible_objects; }
 
 std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translate_visibility_list_to_draw_commands(
-    RenderGraph& graph, const BufferHandle visibility_list, const BufferHandle primitive_buffer,
-    const uint32_t num_primitives, const BufferHandle mesh_draw_args_buffer
+    RenderGraph& graph, 
+    const BufferHandle visibility_list, 
+    const BufferHandle primitive_buffer,
+    const uint32_t num_primitives,
+    const BufferHandle mesh_draw_args_buffer
 ) const {
     const auto draw_commands_buffer = allocator.create_buffer(
         "Draw commands", sizeof(VkDrawIndexedIndirectCommand) * num_primitives, BufferUsage::IndirectBuffer
@@ -289,15 +292,15 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
         ComputePass{
             .name = "Translate visibility list",
             .buffers = {
-                {primitive_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                {visibility_list, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                {mesh_draw_args_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                {draw_commands_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
+                {primitive_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
+                {visibility_list, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
+                {mesh_draw_args_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
+                {draw_commands_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}},
                 {
                     draw_count_buffer,
-                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT}
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT}
                 },
-                {primitive_id_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
+                {primitive_id_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}},
 
             },
             .execute = [&](CommandBuffer& commands) {

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <tl/optional.hpp>
+#include <spdlog/spdlog.h>
 
 template <typename ObjectType>
 class ObjectPool;
@@ -70,7 +71,9 @@ private:
 template <typename ObjectType>
 struct std::hash<PooledObject<ObjectType>> {
     size_t operator()(const PooledObject<ObjectType>& value) const noexcept {
-        return std::hash<uint32_t>{}(value.index);
+        const auto hashy = std::hash<uint32_t>{}(value.index);
+        //spdlog::info("Hashed {} into {}", value.index, hashy);
+        return hashy;
     }
 };
 

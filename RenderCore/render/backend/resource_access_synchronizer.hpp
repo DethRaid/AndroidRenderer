@@ -25,9 +25,9 @@ public:
 private:
     RenderBackend& backend;
 
-    BufferUsageMap initial_buffer_usages;
+    std::unordered_map<uint32_t, BufferUsageToken> initial_buffer_usages;
 
-    BufferUsageMap last_buffer_usages;
+    std::unordered_map<uint32_t, BufferUsageToken> last_buffer_usages;
 
     TextureUsageMap initial_texture_usages;
 
