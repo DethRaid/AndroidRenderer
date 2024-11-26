@@ -5,6 +5,8 @@
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
+struct DescriptorSet;
+class RenderGraph;
 class CommandBuffer;
 class RenderScene;
 class RenderBackend;
@@ -35,7 +37,7 @@ public:
 
     void set_shadowmap(TextureHandle shadowmap_in);
 
-    void render(CommandBuffer& commands, const SceneTransform& view, const std::unique_ptr<LightPropagationVolume>& lpv);
+    void render(RenderGraph& render_graph, const SceneTransform& view, TextureHandle lit_scene_texture, const LightPropagationVolume* lpv) const;
 
 private:
     RenderScene* scene = nullptr;
@@ -44,11 +46,11 @@ private:
 
     GraphicsPipelineHandle emission_pipeline;
 
-    void add_sun_lighting(CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor_set, const SceneTransform& view) const;
+    void add_sun_lighting(CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneTransform& view) const;
 
-    void add_raytraced_mesh_lighting(CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor_set, BufferHandle view_buffer);
+    void add_raytraced_mesh_lighting(CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, BufferHandle view_buffer) const;
 
-    void add_emissive_lighting(CommandBuffer& commands, VkDescriptorSet gbuffer_descriptor_set);
+    void add_emissive_lighting(CommandBuffer& commands, const DescriptorSet& gbuffer_descriptor_set) const;
 
     TextureHandle shadowmap = TextureHandle::None;
 };

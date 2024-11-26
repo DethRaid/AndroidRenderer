@@ -1347,7 +1347,7 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
 }
 
 void LightPropagationVolume::add_lighting_to_scene(
-    CommandBuffer& commands, const VkDescriptorSet gbuffers_descriptor, const BufferHandle scene_view_buffer
+    CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor, const BufferHandle scene_view_buffer
 ) const {
     GpuZoneScoped(commands)
 

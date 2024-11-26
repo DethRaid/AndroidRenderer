@@ -365,60 +365,7 @@ void SceneRenderer::render() {
             }
         });
 
-    render_graph.add_render_pass(
-        {
-            .name = "Lighting",
-            .textures = {
-                {
-                    gbuffer_color_handle,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                },
-                {
-                    gbuffer_normals_handle,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                },
-                {
-                    gbuffer_data_handle,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                },
-                {
-                    gbuffer_emission_handle,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                },
-                {
-                    gbuffer_depth_handle,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                },
-                {
-                    shadowmap_handle,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                }
-            },
-            .color_attachments = {
-                RenderingAttachmentInfo{.image = lit_scene_handle, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR}
-            },
-            .execute = [&](CommandBuffer& commands) {
-                lighting_pass.render(commands, player_view, lpv);
-            }
-        });
+    lighting_pass.render(render_graph, player_view, lit_scene_handle, lpv.get());
 
     // Bloom
 
@@ -438,7 +385,8 @@ void SceneRenderer::render() {
 
     const auto swapchain_index = backend.get_current_swapchain_index();
     const auto& swapchain_image = swapchain_images.at(swapchain_index);
-    render_graph.begin_render_pass(
+
+    render_graph.add_render_pass(
         {
             .name = "UI",
             .textures = {
@@ -455,21 +403,11 @@ void SceneRenderer::render() {
                     }
                 }
             },
-            .attachments = {swapchain_image},
-        }
-    );
-
-    render_graph.add_subpass(
-        {
-            .name = "UI",
-            .color_attachments = {0},
+            .color_attachments = {RenderingAttachmentInfo{.image = swapchain_image}},
             .execute = [&](CommandBuffer& commands) {
                 ui_phase.render(commands, player_view, bloomer.get_bloom_tex());
             }
-        }
-    );
-
-    render_graph.end_render_pass();
+        });
 
     mip_chain_generator.fill_mip_chain(render_graph, gbuffer_depth_handle, depth_buffer_mip_chain);
     mip_chain_generator.fill_mip_chain(render_graph, gbuffer_normals_handle, normal_target_mip_chain);

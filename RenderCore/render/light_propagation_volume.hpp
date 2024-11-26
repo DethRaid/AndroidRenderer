@@ -10,6 +10,7 @@
 #include "render/backend/compute_shader.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
 
+struct DescriptorSet;
 class VoxelCache;
 class RenderGraph;
 class RenderBackend;
@@ -128,7 +129,7 @@ public:
      * @param scene_view_buffer Buffer with the matrices of the scene view
      */
     void add_lighting_to_scene(
-        CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor, BufferHandle scene_view_buffer
+        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor, BufferHandle scene_view_buffer
     ) const;
 
 private:
