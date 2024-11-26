@@ -53,8 +53,10 @@ SceneRenderer::SceneRenderer() : ui_phase{*this} {
     const auto render_resolution = SystemInterface::get().get_resolution();
 
     player_view.set_perspective_projection(
-        75.f, static_cast<float>(render_resolution.y) /
-        static_cast<float>(render_resolution.x), 0.05f
+        75.f,
+        static_cast<float>(render_resolution.y) /
+        static_cast<float>(render_resolution.x),
+        0.05f
     );
 
     create_shadow_render_targets();
@@ -63,11 +65,11 @@ SceneRenderer::SceneRenderer() : ui_phase{*this} {
 
     auto& backend = RenderBackend::get();
 
-    if (cvar_use_lpv.Get()) {
+    if(cvar_use_lpv.Get()) {
         lpv = std::make_unique<LightPropagationVolume>(backend);
     }
 
-    if (lpv) {
+    if(lpv) {
         lpv->init_resources(backend.get_global_allocator());
     }
 
@@ -77,7 +79,7 @@ SceneRenderer::SceneRenderer() : ui_phase{*this} {
 void SceneRenderer::set_render_resolution(const glm::uvec2& resolution) {
     ZoneScoped;
 
-    if (resolution == scene_render_resolution) {
+    if(resolution == scene_render_resolution) {
         return;
     }
 
@@ -110,7 +112,7 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
         ScenePassType::Gbuffer, *scene, meshes, material_storage, backend.get_global_allocator()
     };
 
-    if (lpv) {
+    if(lpv) {
         lpv->set_scene_drawer(
             SceneDrawer{ScenePassType::RSM, *scene, meshes, material_storage, backend.get_global_allocator()}
         );
@@ -150,7 +152,9 @@ void SceneRenderer::render() {
     render_graph.add_pass(
         {
             .name = "Tracy Collect",
-            .execute = [&](const CommandBuffer& commands) { backend.collect_tracy_data(commands); }
+            .execute = [&](const CommandBuffer& commands) {
+                backend.collect_tracy_data(commands);
+            }
         }
     );
 
@@ -164,7 +168,7 @@ void SceneRenderer::render() {
 
                 player_view.update_transforms(commands);
 
-                if (lpv) {
+                if(lpv) {
                     lpv->update_cascade_transforms(player_view, scene->get_sun_light());
                     lpv->update_buffers(commands);
                 }
@@ -216,57 +220,65 @@ void SceneRenderer::render() {
 
     scene->generate_emissive_point_clouds(render_graph);
 
-    if (lpv) {
+    if(lpv) {
         lpv->clear_volume(render_graph);
 
         const auto build_mode = lpv->get_build_mode();
 
-        if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && build_mode == GvBuildMode::Voxels) {
+        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && build_mode == GvBuildMode::Voxels) {
             lpv->build_geometry_volume_from_voxels(render_graph, *scene);
-        } else if (build_mode == GvBuildMode::DepthBuffers) {
+        } else if(build_mode == GvBuildMode::DepthBuffers) {
             lpv->build_geometry_volume_from_scene_view(
-                render_graph, depth_buffer_mip_chain, normal_target_mip_chain, player_view.get_buffer(),
+                render_graph,
+                depth_buffer_mip_chain,
+                normal_target_mip_chain,
+                player_view.get_buffer(),
                 scene_render_resolution / glm::uvec2{2}
             );
-        } else if (build_mode == GvBuildMode::PointClouds) {
+        } else if(build_mode == GvBuildMode::PointClouds) {
             lpv->build_geometry_volume_from_point_clouds(render_graph, *scene);
         }
 
         // VPL cloud generation
 
-        if (cvar_enable_sun_gi.Get()) {
+        if(cvar_enable_sun_gi.Get()) {
             lpv->inject_indirect_sun_light(render_graph, *scene);
         }
 
-        if (cvar_enable_mesh_lights.Get()) {
+        if(cvar_enable_mesh_lights.Get()) {
             lpv->inject_emissive_point_clouds(render_graph, *scene);
         }
     }
 
     // Shadows
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
-    render_graph.begin_render_pass(
+    render_graph.add_render_pass(
         {
-            .name = "CSM sun shadow",
-            .attachments = {shadowmap_handle},
-            .clear_values = {VkClearValue{.depthStencil = {.depth = 1.f}}}
-        }
-    );
-
-    render_graph.add_subpass(
-        Subpass{
             .name = "Sun shadow",
-            .depth_attachment = 0,
+            .textures = {},
+            .buffers = {
+                {
+                    scene->get_sun_light().get_constant_buffer(),
+                    {.stage = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, .access = VK_ACCESS_2_UNIFORM_READ_BIT}
+                }
+            },
+            .depth_attachment = RenderingAttachmentInfo{
+                .image = shadowmap_handle, .clear_value = {.depthStencil = {.depth = 1.f}}
+            },
             .execute = [&](CommandBuffer& commands) {
                 auto& sun = scene->get_sun_light();
 
                 auto global_set = *vkutil::DescriptorBuilder::begin(
-                                       backend, backend.get_transient_descriptor_allocator()
+                                       backend,
+                                       backend.get_transient_descriptor_allocator()
                                    )
                                    .bind_buffer(
-                                       0, {
+                                       0,
+                                       {
                                            .buffer = sun.get_constant_buffer()
-                                       }, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                       },
+                                       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                       VK_SHADER_STAGE_VERTEX_BIT
                                    )
                                    .build();
 
@@ -276,12 +288,9 @@ void SceneRenderer::render() {
 
                 commands.clear_descriptor_set(0);
             }
-        }
-    );
+        });
 
-    render_graph.end_render_pass();
-
-    if (lpv) {
+    if(lpv) {
         lpv->propagate_lighting(render_graph);
     }
 
@@ -294,7 +303,10 @@ void SceneRenderer::render() {
     const auto visible_objects_buffer = depth_culling_phase.get_visible_objects();
     const auto& [draw_commands, draw_count, primitive_ids] = depth_culling_phase.
         translate_visibility_list_to_draw_commands(
-            render_graph, visible_objects_buffer, scene->get_primitive_buffer(), scene->get_total_num_primitives(),
+            render_graph,
+            visible_objects_buffer,
+            scene->get_primitive_buffer(),
+            scene->get_total_num_primitives(),
             meshes.get_draw_args_buffer()
         );
 
@@ -341,12 +353,16 @@ void SceneRenderer::render() {
             .depth_attachment = 5,
             .execute = [&](CommandBuffer& commands) {
                 auto global_set = *vkutil::DescriptorBuilder::begin(
-                                       backend, backend.get_transient_descriptor_allocator()
+                                       backend,
+                                       backend.get_transient_descriptor_allocator()
                                    )
                                    .bind_buffer(
-                                       0, {
+                                       0,
+                                       {
                                            .buffer = player_view.get_buffer()
-                                       }, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT
+                                       },
+                                       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                       VK_SHADER_STAGE_VERTEX_BIT
                                    )
                                    .build();
 
@@ -382,7 +398,7 @@ void SceneRenderer::render() {
 
     // Debug
 
-    if (active_visualization != RenderVisualization::None) {
+    if(active_visualization != RenderVisualization::None) {
         draw_debug_visualizers(render_graph);
     }
 
@@ -458,17 +474,20 @@ void SceneRenderer::create_shadow_render_targets() {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
-    if (shadowmap_handle != TextureHandle::None) {
+    if(shadowmap_handle != TextureHandle::None) {
         allocator.destroy_texture(shadowmap_handle);
     }
 
     shadowmap_handle = allocator.create_texture(
-        "Sun shadowmap", VK_FORMAT_D16_UNORM,
+        "Sun shadowmap",
+        VK_FORMAT_D16_UNORM,
         glm::uvec2{
             cvar_shadow_cascade_resolution.Get(),
             cvar_shadow_cascade_resolution.Get()
-        }, 1,
-        TextureUsage::RenderTarget, cvar_num_shadow_cascades.Get()
+        },
+        1,
+        TextureUsage::RenderTarget,
+        cvar_num_shadow_cascades.Get()
     );
 
     lighting_pass.set_shadowmap(shadowmap_handle);
@@ -478,31 +497,31 @@ void SceneRenderer::create_scene_render_targets() {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
-    if (gbuffer_color_handle != TextureHandle::None) {
+    if(gbuffer_color_handle != TextureHandle::None) {
         allocator.destroy_texture(gbuffer_color_handle);
     }
 
-    if (gbuffer_normals_handle != TextureHandle::None) {
+    if(gbuffer_normals_handle != TextureHandle::None) {
         allocator.destroy_texture(gbuffer_normals_handle);
     }
 
-    if (gbuffer_data_handle != TextureHandle::None) {
+    if(gbuffer_data_handle != TextureHandle::None) {
         allocator.destroy_texture(gbuffer_data_handle);
     }
 
-    if (gbuffer_emission_handle != TextureHandle::None) {
+    if(gbuffer_emission_handle != TextureHandle::None) {
         allocator.destroy_texture(gbuffer_emission_handle);
     }
 
-    if (depth_buffer_mip_chain != TextureHandle::None) {
+    if(depth_buffer_mip_chain != TextureHandle::None) {
         allocator.destroy_texture(depth_buffer_mip_chain);
     }
 
-    if (normal_target_mip_chain != TextureHandle::None) {
+    if(normal_target_mip_chain != TextureHandle::None) {
         allocator.destroy_texture(normal_target_mip_chain);
     }
 
-    if (lit_scene_handle != TextureHandle::None) {
+    if(lit_scene_handle != TextureHandle::None) {
         allocator.destroy_texture(lit_scene_handle);
     }
 
@@ -510,27 +529,34 @@ void SceneRenderer::create_scene_render_targets() {
 
     // gbuffer and lighting render targets
     gbuffer_color_handle = allocator.create_texture(
-        "gbuffer_color", VK_FORMAT_R8G8B8A8_SRGB,
+        "gbuffer_color",
+        VK_FORMAT_R8G8B8A8_SRGB,
         scene_render_resolution,
-        1, TextureUsage::RenderTarget
+        1,
+        TextureUsage::RenderTarget
     );
 
     gbuffer_normals_handle = allocator.create_texture(
         "gbuffer_normals",
         VK_FORMAT_R16G16B16A16_SFLOAT,
-        scene_render_resolution, 1,
+        scene_render_resolution,
+        1,
         TextureUsage::RenderTarget
     );
 
     gbuffer_data_handle = allocator.create_texture(
-        "gbuffer_data", VK_FORMAT_R8G8B8A8_UNORM,
-        scene_render_resolution, 1,
+        "gbuffer_data",
+        VK_FORMAT_R8G8B8A8_UNORM,
+        scene_render_resolution,
+        1,
         TextureUsage::RenderTarget
     );
 
     gbuffer_emission_handle = allocator.create_texture(
-        "gbuffer_emission", VK_FORMAT_R8G8B8A8_SRGB,
-        scene_render_resolution, 1,
+        "gbuffer_emission",
+        VK_FORMAT_R8G8B8A8_SRGB,
+        scene_render_resolution,
+        1,
         TextureUsage::RenderTarget
     );
 
@@ -538,29 +564,36 @@ void SceneRenderer::create_scene_render_targets() {
     const auto minor_dimension = glm::min(mip_chain_resolution.x, mip_chain_resolution.y);
     const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
     depth_buffer_mip_chain = allocator.create_texture(
-        "Depth buffer mip chain", VK_FORMAT_R16_SFLOAT,
-        mip_chain_resolution, num_mips,
+        "Depth buffer mip chain",
+        VK_FORMAT_R16_SFLOAT,
+        mip_chain_resolution,
+        num_mips,
         TextureUsage::StorageImage
     );
 
     normal_target_mip_chain = allocator.create_texture(
-        "gbuffer_normals B", VK_FORMAT_R16G16B16A16_SFLOAT,
-        mip_chain_resolution, num_mips,
+        "gbuffer_normals B",
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        mip_chain_resolution,
+        num_mips,
         TextureUsage::StorageImage
     );
 
     lit_scene_handle = allocator.create_texture(
-        "lit_scene", VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        scene_render_resolution, 1,
+        "lit_scene",
+        VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+        scene_render_resolution,
+        1,
         TextureUsage::RenderTarget
     );
 
     auto& swapchain = backend.get_swapchain();
     const auto& images = swapchain.get_images();
     const auto& image_views = swapchain.get_image_views();
-    for (auto swapchain_image_index = 0u; swapchain_image_index < swapchain.image_count; swapchain_image_index++) {
+    for(auto swapchain_image_index = 0u; swapchain_image_index < swapchain.image_count; swapchain_image_index++) {
         const auto swapchain_image = allocator.emplace_texture(
-            fmt::format("Swapchain image {}", swapchain_image_index), Texture{
+            fmt::format("Swapchain image {}", swapchain_image_index),
+            Texture{
                 .create_info = {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                     .imageType = VK_IMAGE_TYPE_2D,
@@ -584,13 +617,13 @@ void SceneRenderer::create_scene_render_targets() {
 }
 
 void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
-    switch (active_visualization) {
+    switch(active_visualization) {
     case RenderVisualization::None:
         // Intentionally empty
         break;
 
     case RenderVisualization::VoxelizedMeshes:
-        if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
+        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
             voxel_visualizer.render(render_graph, *scene, lit_scene_handle, player_view.get_buffer());
         }
         break;
