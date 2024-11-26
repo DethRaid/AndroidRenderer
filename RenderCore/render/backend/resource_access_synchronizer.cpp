@@ -129,7 +129,6 @@ void ResourceAccessTracker::set_resource_usage(
 ) {
     if (!initial_buffer_usages.contains(buffer.index)) {
         initial_buffer_usages.emplace(buffer.index, BufferUsageToken{pipeline_stage, access});
-        logger->trace("[{}]: Beginning state tracking", buffer->name);
     }
 
     if (const auto& itr = last_buffer_usages.find(buffer.index); itr != last_buffer_usages.end()) {

@@ -1,13 +1,8 @@
-//
-// Created by gold1 on 9/4/2022.
-//
+#pragma once
 
-#ifndef SAHRENDERER_OBJECT_POOL_HPP
-#define SAHRENDERER_OBJECT_POOL_HPP
-
+#include <typeindex>
 #include <vector>
 
-#include <tl/optional.hpp>
 #include <spdlog/spdlog.h>
 
 template <typename ObjectType>
@@ -71,9 +66,8 @@ private:
 template <typename ObjectType>
 struct std::hash<PooledObject<ObjectType>> {
     size_t operator()(const PooledObject<ObjectType>& value) const noexcept {
-        const auto hashy = std::hash<uint32_t>{}(value.index);
-        //spdlog::info("Hashed {} into {}", value.index, hashy);
-        return hashy;
+        // This completely fails for some reason
+        return std::hash<uint32_t>{}(value.index);
     }
 };
 
@@ -192,5 +186,3 @@ template <typename ObjectType>
 ObjectPool<ObjectType>::ObjectPool() : ObjectPool([]() { return ObjectType{}; }, [](ObjectType&& obj) {}) {
 
 }
-
-#endif //SAHRENDERER_OBJECT_POOL_HPP

@@ -35,6 +35,8 @@ class PipelineCache;
  */
 class RenderBackend {
 public:
+    static RenderBackend& get();
+
     bool supports_ray_tracing = false;
 
     bool supports_nv_diagnostics_config = false;
@@ -173,6 +175,8 @@ public:
     void set_object_name(VulkanType object, const std::string& name) const;
 
 private:
+    static inline std::unique_ptr<RenderBackend> g_render_backend = nullptr;
+
     bool is_first_frame = true;
 
     uint32_t cur_frame_idx = 0;

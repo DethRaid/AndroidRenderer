@@ -53,14 +53,20 @@ VkBool32 VKAPI_ATTR debug_callback(
     return VK_FALSE;
 }
 
+RenderBackend& RenderBackend::get() {
+    if(g_render_backend == nullptr) {
+        g_render_backend = std::make_unique<RenderBackend>();
+    }
+
+    return *g_render_backend;
+}
+
 RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_descriptor_allocator{*this},
                                  frame_descriptor_allocators{
                                      DescriptorSetAllocator{*this}, DescriptorSetAllocator{*this}
                                  } {
     logger = SystemInterface::get().get_logger("RenderBackend");
     logger->set_level(spdlog::level::debug);
-
-    g_render_backend = this;
 
     const auto volk_result = volkInitialize();
     if(volk_result != VK_SUCCESS) {

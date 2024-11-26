@@ -16,7 +16,8 @@ DepthCullingPhase::DepthCullingPhase(RenderBackend& backend) :
     texture_descriptor_pool{backend.get_texture_descriptor_pool()} {
     auto& pipeline_cache = backend.get_pipeline_cache();
 
-    visibility_list_to_draw_commands = pipeline_cache.create_pipeline("shaders/util/visibility_list_to_draw_commands.comp.spv");
+    visibility_list_to_draw_commands = pipeline_cache.create_pipeline(
+        "shaders/util/visibility_list_to_draw_commands.comp.spv");
 
     hi_z_culling_shader = pipeline_cache.create_pipeline("shaders/culling/hi_z_culling.comp.spv");
 
@@ -42,29 +43,29 @@ DepthCullingPhase::DepthCullingPhase(RenderBackend& backend) :
 }
 
 DepthCullingPhase::~DepthCullingPhase() {
-    if (depth_buffer != TextureHandle::None) {
+    if(depth_buffer != TextureHandle::None) {
         allocator.destroy_texture(depth_buffer);
         depth_buffer = TextureHandle::None;
     }
-    if (hi_z_buffer != TextureHandle::None) {
+    if(hi_z_buffer != TextureHandle::None) {
         allocator.destroy_texture(hi_z_buffer);
         hi_z_buffer = TextureHandle::None;
 
         texture_descriptor_pool.free_descriptor(hi_z_index);
         hi_z_index = 0;
     }
-    if (visible_objects) {
+    if(visible_objects) {
         allocator.destroy_buffer(visible_objects);
         visible_objects = {};
     }
 }
 
 void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
-    if (depth_buffer != TextureHandle::None) {
+    if(depth_buffer != TextureHandle::None) {
         allocator.destroy_texture(depth_buffer);
         depth_buffer = TextureHandle::None;
     }
-    if (hi_z_buffer != TextureHandle::None) {
+    if(hi_z_buffer != TextureHandle::None) {
         allocator.destroy_texture(hi_z_buffer);
         hi_z_buffer = TextureHandle::None;
 
@@ -73,14 +74,21 @@ void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
     }
 
     depth_buffer = allocator.create_texture(
-        "Depth buffer", VK_FORMAT_D32_SFLOAT, resolution, 1, TextureUsage::RenderTarget
+        "Depth buffer",
+        VK_FORMAT_D32_SFLOAT,
+        resolution,
+        1,
+        TextureUsage::RenderTarget
     );
 
     const auto hi_z_resolution = resolution / 2u;
     const auto major_dimension = glm::max(hi_z_resolution.x, hi_z_resolution.y);
     const auto num_mips = glm::round(glm::log2(static_cast<float>(major_dimension)));
     hi_z_buffer = allocator.create_texture(
-        "Hi Z Buffer", VK_FORMAT_R32_SFLOAT, hi_z_resolution, static_cast<uint32_t>(num_mips),
+        "Hi Z Buffer",
+        VK_FORMAT_R32_SFLOAT,
+        hi_z_resolution,
+        static_cast<uint32_t>(num_mips),
         TextureUsage::StorageImage
     );
 
@@ -92,22 +100,35 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
 
     graph.begin_label("Depth/culling pass");
 
-    const auto view_descriptor = *vkutil::DescriptorBuilder::begin(
-        backend, backend.get_transient_descriptor_allocator()
-    )
-                                         .bind_buffer(
-                                             0, {.buffer = view_data_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                             VK_SHADER_STAGE_VERTEX_BIT
-                                         )
-                                         .build();
+    const auto view_descriptor = backend.get_transient_descriptor_allocator().build_set(
+                                            {
+                                                .bindings = {
+                                                    {
+                                                        0,
+                                                        DescriptorInfo{
+                                                            {
+                                                                .binding = 0,
+                                                                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                                .descriptorCount = 1,
+                                                                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                                                            },
+                                                            true
+                                                        }
+                                                    }
+                                                }
+                                            })
+                                        .bind(0, view_data_buffer)
+                                        .finalize();
 
     auto& scene = drawer.get_scene();
     const auto primitive_buffer = scene.get_primitive_buffer();
     const auto num_primitives = scene.get_total_num_primitives();
 
-    if (!visible_objects) {
+    if(!visible_objects) {
         visible_objects = allocator.create_buffer(
-            "Visible objects list", sizeof(uint32_t) * num_primitives, BufferUsage::StorageBuffer
+            "Visible objects list",
+            sizeof(uint32_t) * num_primitives,
+            BufferUsage::StorageBuffer
         );
     }
 
@@ -116,14 +137,16 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
 
         const auto& [draw_commands_buffer, draw_count_buffer, primitive_id_buffer] =
             translate_visibility_list_to_draw_commands(
-                graph, visible_objects, primitive_buffer, num_primitives,
+                graph,
+                visible_objects,
+                primitive_buffer,
+                num_primitives,
                 drawer.get_mesh_storage().get_draw_args_buffer()
             );
 
         // Draw last frame's visible objects
 
-        graph.begin_render_pass(
-            {
+        graph.add_render_pass({
                 .name = "Rasterize last frame's visible objects",
                 .buffers = {
                     {
@@ -133,24 +156,19 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
                     {draw_count_buffer, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
                     {primitive_id_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
                 },
-                .attachments = {depth_buffer},
-                .clear_values = {{.depthStencil = {.depth = 1.f}}}
-            }
-        );
-        graph.add_subpass(
-            {
-                .name = "Rasterize last frame's visible objects",
-                .depth_attachment = 0,
-                .execute = [&](CommandBuffer& commands) {
+            .descriptor_sets = std::vector{view_descriptor},
+            .depth_attachment = RenderingAttachmentInfo{.image = depth_buffer},
+            .execute = [&](CommandBuffer& commands) {
                     commands.bind_descriptor_set(0, view_descriptor);
 
                     drawer.draw_indirect(
-                        commands, draw_commands_buffer, draw_count_buffer, primitive_id_buffer
+                        commands,
+                        draw_commands_buffer,
+                        draw_count_buffer,
+                        primitive_id_buffer
                     );
                 }
-            }
-        );
-        graph.end_render_pass();
+        });
     }
 
     // Build Hi-Z pyramid
@@ -161,12 +179,16 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
 
     // All the primitives that are visible this frame, whether they're newly visible or not
     const auto this_frame_visible_objects = allocator.create_buffer(
-        "This frame visibility mask", sizeof(uint32_t) * num_primitives, BufferUsage::StorageBuffer
+        "This frame visibility mask",
+        sizeof(uint32_t) * num_primitives,
+        BufferUsage::StorageBuffer
     );
 
     // Just the primitives that are visible this frame
     const auto newly_visible_objects = allocator.create_buffer(
-        "New visibility mask", sizeof(uint32_t) * num_primitives, BufferUsage::StorageBuffer
+        "New visibility mask",
+        sizeof(uint32_t) * num_primitives,
+        BufferUsage::StorageBuffer
     );
 
     graph.add_pass(
@@ -220,15 +242,19 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
         // Translate newly visible objects to indirect draw commands
         const auto& [draw_commands_buffer, draw_count_buffer, primitive_id_buffer] =
             translate_visibility_list_to_draw_commands(
-                graph, newly_visible_objects, primitive_buffer, num_primitives,
+                graph,
+                newly_visible_objects,
+                primitive_buffer,
+                num_primitives,
                 drawer.get_mesh_storage().get_draw_args_buffer()
             );
 
         // Draw them
 
-        graph.begin_render_pass(
-            {
-                .name = "Rasterize this frame's visible objects",
+        graph.add_render_pass(
+            DynamicRenderingPass{
+                .name = "Rasterize this frame's visible object",
+                .textures = {},
                 .buffers = {
                     {
                         draw_commands_buffer,
@@ -237,45 +263,51 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
                     {draw_count_buffer, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
                     {primitive_id_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
                 },
-                .attachments = {depth_buffer}
-            }
-        );
-        graph.add_subpass(
-            {
-                .name = "Rasterize",
-                .depth_attachment = 0,
+                .descriptor_sets = std::vector{view_descriptor},
+                .depth_attachment = RenderingAttachmentInfo{
+                    .image = depth_buffer,
+                },
                 .execute = [&](CommandBuffer& commands) {
                     commands.bind_descriptor_set(0, view_descriptor);
 
                     drawer.draw_indirect(
-                        commands, draw_commands_buffer, draw_count_buffer, primitive_id_buffer
+                        commands,
+                        draw_commands_buffer,
+                        draw_count_buffer,
+                        primitive_id_buffer
                     );
                 }
-            }
-        );
-        graph.end_render_pass();
+            });
     }
 
     graph.end_label();
 }
 
-TextureHandle DepthCullingPhase::get_depth_buffer() const { return depth_buffer; }
+TextureHandle DepthCullingPhase::get_depth_buffer() const {
+    return depth_buffer;
+}
 
-BufferHandle DepthCullingPhase::get_visible_objects() const { return visible_objects; }
+BufferHandle DepthCullingPhase::get_visible_objects() const {
+    return visible_objects;
+}
 
 std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translate_visibility_list_to_draw_commands(
-    RenderGraph& graph, 
-    const BufferHandle visibility_list, 
+    RenderGraph& graph,
+    const BufferHandle visibility_list,
     const BufferHandle primitive_buffer,
     const uint32_t num_primitives,
     const BufferHandle mesh_draw_args_buffer
 ) const {
     const auto draw_commands_buffer = allocator.create_buffer(
-        "Draw commands", sizeof(VkDrawIndexedIndirectCommand) * num_primitives, BufferUsage::IndirectBuffer
+        "Draw commands",
+        sizeof(VkDrawIndexedIndirectCommand) * num_primitives,
+        BufferUsage::IndirectBuffer
     );
     const auto draw_count_buffer = allocator.create_buffer("Draw count", sizeof(uint32_t), BufferUsage::IndirectBuffer);
     const auto primitive_id_buffer = allocator.create_buffer(
-        "Primitive ID", sizeof(uint32_t) * num_primitives, BufferUsage::StorageBuffer
+        "Primitive ID",
+        sizeof(uint32_t) * num_primitives,
+        BufferUsage::StorageBuffer
     );
 
     graph.add_pass(
