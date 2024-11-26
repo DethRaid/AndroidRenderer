@@ -8,15 +8,15 @@
 #include "core/box.hpp"
 #include "model_import/gltf_model.hpp"
 
-constexpr const uint32_t max_num_primitives = 65536;
+constexpr uint32_t MAX_NUM_PRIMITIVES = 65536;
 
-RenderScene::RenderScene(RenderBackend& backend_in, MeshStorage& meshes_in, MaterialStorage& materials_in)
-    : backend{backend_in}, meshes{meshes_in}, materials{materials_in}, sun{backend},
-      primitive_upload_buffer{backend_in} {
+RenderScene::RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in)
+    : meshes{meshes_in}, materials{materials_in} {
+    auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
     primitive_data_buffer = allocator.create_buffer(
         "Primitive data",
-        max_num_primitives * sizeof(PrimitiveDataGPU),
+        MAX_NUM_PRIMITIVES * sizeof(PrimitiveDataGPU),
         BufferUsage::StorageBuffer
     );
 
@@ -39,8 +39,6 @@ RenderScene::RenderScene(RenderBackend& backend_in, MeshStorage& meshes_in, Mate
 
 MeshPrimitiveHandle
 RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
-    auto& allocator = backend.get_global_allocator();
-
     const auto materials_buffer = materials.get_material_buffer();
     primitive.data.material_id = materials_buffer->address;
     primitive.data.material_id += sizeof(BasicPbrMaterialGpu) * primitive.material.index;
@@ -89,6 +87,9 @@ void RenderScene::pre_frame(RenderGraph& graph) {
     primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
 
     if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
+        auto& backend = RenderBackend::get();
+        auto& texture_descriptors = backend.get_texture_descriptor_pool();
+
         for(auto& handle : new_primitives) {
             const auto obj = voxel_cache->build_voxels_for_mesh(
                 handle,
@@ -97,7 +98,6 @@ void RenderScene::pre_frame(RenderGraph& graph) {
                 graph
             );
 
-            auto& texture_descriptors = backend.get_texture_descriptor_pool();
             handle->data.voxels_color_srv = texture_descriptors.create_texture_srv(
                 obj.voxels_color,
                 voxel_sampler
@@ -181,6 +181,7 @@ VoxelCache& RenderScene::get_voxel_cache() const {
 }
 
 void RenderScene::create_voxel_cache() {
+    auto& backend = RenderBackend::get();
     voxel_cache = std::make_unique<VoxelCache>(backend);
 
     voxel_sampler = backend.get_global_allocator().get_sampler(
@@ -202,6 +203,7 @@ void RenderScene::create_voxel_cache() {
 BufferHandle RenderScene::generate_vpls_for_primitive(
     RenderGraph& graph, const PooledObject<MeshPrimitive>& primitive
 ) {
+    auto& backend = RenderBackend::get();
     const auto vpl_buffer_handle = backend.get_global_allocator().create_buffer(
         "Primitive emission buffer",
         primitive->mesh->num_points * sizeof(glm::vec4),

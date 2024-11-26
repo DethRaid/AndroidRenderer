@@ -24,7 +24,7 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
 
     scene_renderer = std::make_unique<SceneRenderer>();
     scene = std::make_unique<RenderScene>(
-        scene_renderer->get_backend(), scene_renderer->get_mesh_storage(), scene_renderer->get_material_storage()
+        scene_renderer->get_mesh_storage(), scene_renderer->get_material_storage()
     );
 
     scene_renderer->set_scene(*scene);

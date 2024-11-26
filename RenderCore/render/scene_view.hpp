@@ -15,7 +15,7 @@ class RenderBackend;
  */
 class SceneTransform {
 public:
-    explicit SceneTransform(RenderBackend& backend_in);
+    explicit SceneTransform();
 
     void set_render_resolution(glm::uvec2 render_resolution);
     
@@ -56,8 +56,6 @@ public:
     glm::vec3 get_forward() const;
 
 private:
-    RenderBackend* backend = nullptr;
-
     float fov = {75.f};
 
     float aspect = 16.f / 9.f;

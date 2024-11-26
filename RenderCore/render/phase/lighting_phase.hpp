@@ -27,7 +27,7 @@ struct GBuffer {
  */
 class LightingPhase {
 public:
-    explicit LightingPhase(RenderBackend& backend_in);
+    explicit LightingPhase();
 
     void set_scene(RenderScene& scene_in);
 
@@ -38,8 +38,6 @@ public:
     void render(CommandBuffer& commands, const SceneTransform& view, const std::unique_ptr<LightPropagationVolume>& lpv);
 
 private:
-    RenderBackend& backend;
-
     RenderScene* scene = nullptr;
 
     GBuffer gbuffer;

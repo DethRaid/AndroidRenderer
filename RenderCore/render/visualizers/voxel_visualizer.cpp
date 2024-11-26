@@ -3,9 +3,10 @@
 #include "render/render_scene.hpp"
 #include "render/backend/render_backend.hpp"
 
-VoxelVisualizer::VoxelVisualizer(RenderBackend& backend_in) : backend{backend_in} {
+VoxelVisualizer::VoxelVisualizer() {
+    auto& backend = RenderBackend::get();
     visualization_pipeline =
-        backend_in.begin_building_pipeline("Voxel Visualizer")
+        backend.begin_building_pipeline("Voxel Visualizer")
                   .set_vertex_shader("shaders/voxelizer/visualizer.vert.spv")
                   .set_fragment_shader("shaders/voxelizer/visualizer.frag.spv")
                   .set_blend_state(
@@ -23,8 +24,8 @@ VoxelVisualizer::VoxelVisualizer(RenderBackend& backend_in) : backend{backend_in
                   )
                   .build();
 
-    auto& allocator = backend_in.get_global_allocator();
-    auto& upload_queue = backend_in.get_upload_queue();
+    auto& allocator = backend.get_global_allocator();
+    auto& upload_queue = backend.get_upload_queue();
 
     constexpr auto vertex_data = std::array<glm::vec3, 8>{
         /* 0 */ glm::vec3{-1, -1, -1},
@@ -80,6 +81,7 @@ void VoxelVisualizer::render(
     // testing. Draw their back faces, then send a ray towards the front face, then raymarch from the hit position (or
     // the near plane) away from the camera. Disable, but more complex
 
+    auto& backend = RenderBackend::get();
     const auto descriptor_set = backend.get_transient_descriptor_allocator().build_set(visualization_pipeline, 0)
                                        .bind(0, view_uniform_buffer)
                                        .bind(1, scene.get_primitive_buffer())
@@ -112,7 +114,7 @@ void VoxelVisualizer::render(
         {
             .name = "Subpass",
             .color_attachments = {0},
-            .execute = [=, this, &scene](CommandBuffer& commands) {
+            .execute = [this, &scene, &backend, descriptor_set](CommandBuffer& commands) {
                 commands.bind_pipeline(visualization_pipeline);
 
                 commands.bind_descriptor_set(0, descriptor_set);

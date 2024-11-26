@@ -11,9 +11,8 @@
 #include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
 
-DepthCullingPhase::DepthCullingPhase(RenderBackend& backend) :
-    backend{backend}, allocator{backend.get_global_allocator()}, downsampler{backend},
-    texture_descriptor_pool{backend.get_texture_descriptor_pool()} {
+DepthCullingPhase::DepthCullingPhase() {
+    auto& backend = RenderBackend::get();
     auto& pipeline_cache = backend.get_pipeline_cache();
 
     visibility_list_to_draw_commands = pipeline_cache.create_pipeline(
@@ -27,6 +26,7 @@ DepthCullingPhase::DepthCullingPhase(RenderBackend& backend) :
         .reductionMode = VK_SAMPLER_REDUCTION_MODE_MAX,
     };
 
+    auto& allocator = backend.get_global_allocator();
     max_reduction_sampler = allocator.get_sampler(
         {
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -43,6 +43,8 @@ DepthCullingPhase::DepthCullingPhase(RenderBackend& backend) :
 }
 
 DepthCullingPhase::~DepthCullingPhase() {
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
     if(depth_buffer != TextureHandle::None) {
         allocator.destroy_texture(depth_buffer);
         depth_buffer = TextureHandle::None;
@@ -51,6 +53,7 @@ DepthCullingPhase::~DepthCullingPhase() {
         allocator.destroy_texture(hi_z_buffer);
         hi_z_buffer = TextureHandle::None;
 
+        auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
         texture_descriptor_pool.free_descriptor(hi_z_index);
         hi_z_index = 0;
     }
@@ -61,6 +64,10 @@ DepthCullingPhase::~DepthCullingPhase() {
 }
 
 void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
+    auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
+
     if(depth_buffer != TextureHandle::None) {
         allocator.destroy_texture(depth_buffer);
         depth_buffer = TextureHandle::None;
@@ -100,6 +107,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
 
     graph.begin_label("Depth/culling pass");
 
+    auto& backend = RenderBackend::get();
     const auto view_descriptor = backend.get_transient_descriptor_allocator().build_set(
                                             {
                                                 .bindings = {
@@ -124,6 +132,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
     const auto primitive_buffer = scene.get_primitive_buffer();
     const auto num_primitives = scene.get_total_num_primitives();
 
+    auto& allocator = backend.get_global_allocator();
     if(!visible_objects) {
         visible_objects = allocator.create_buffer(
             "Visible objects list",
@@ -210,6 +219,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
                 {this_frame_visible_objects, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
             },
             .execute = [&](CommandBuffer& commands) {
+                auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
                 commands.bind_descriptor_set(0, texture_descriptor_pool.get_descriptor_set());
 
                 commands.bind_buffer_reference(0, primitive_buffer);
@@ -298,6 +308,8 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
     const uint32_t num_primitives,
     const BufferHandle mesh_draw_args_buffer
 ) const {
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
     const auto draw_commands_buffer = allocator.create_buffer(
         "Draw commands",
         sizeof(VkDrawIndexedIndirectCommand) * num_primitives,

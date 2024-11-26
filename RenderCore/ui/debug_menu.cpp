@@ -93,7 +93,7 @@ void char_callback(GLFWwindow* window, const unsigned int c) {
 #endif
 
 DebugUI::DebugUI(SceneRenderer& renderer_in) : renderer{renderer_in},
-                                               allocator{renderer_in.get_backend().get_global_allocator()} {
+                                               allocator{RenderBackend::get().get_global_allocator()} {
     ImGui::CreateContext();
 
 #if defined(_WIN32)
@@ -208,7 +208,7 @@ void DebugUI::create_font_texture() {
         "Dear ImGUI Font Atlas", VK_FORMAT_R8_UNORM, {width, height}, 1, TextureUsage::StaticImage
     );
 
-    auto& backend = renderer.get_backend();
+    auto& backend = RenderBackend::get();
     auto& upload_queue = backend.get_upload_queue();
     upload_queue.enqueue(
         TextureUploadJob{

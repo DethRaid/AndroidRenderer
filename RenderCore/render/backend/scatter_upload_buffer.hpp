@@ -17,7 +17,7 @@ constexpr inline auto scatter_buffer_size = 1024u;
 template <typename DataType>
 class ScatterUploadBuffer {
 public:
-    explicit ScatterUploadBuffer(RenderBackend& backend_in);
+    explicit ScatterUploadBuffer();
 
     void add_data(uint32_t destination_index, DataType data);
 
@@ -28,8 +28,6 @@ public:
     bool is_full() const;
 
 private:
-    RenderBackend* backend;
-
     uint32_t scatter_buffer_count = 0;
 
     BufferHandle scatter_indices = {};
@@ -42,16 +40,18 @@ template <typename DataType>
 ComputePipelineHandle ScatterUploadBuffer<DataType>::scatter_shader;
 
 template <typename DataType>
-ScatterUploadBuffer<DataType>::ScatterUploadBuffer(RenderBackend& backend_in) : backend{&backend_in} {
+ScatterUploadBuffer<DataType>::ScatterUploadBuffer() {
+    auto& backend = RenderBackend::get();
     if (!scatter_shader.is_valid()) {
-        auto& pipeline_cache = backend->get_pipeline_cache();
+        auto& pipeline_cache = backend.get_pipeline_cache();
         scatter_shader = pipeline_cache.create_pipeline("shaders/scatter_upload.comp.spv");
     }
 }
 
 template <typename DataType>
 void ScatterUploadBuffer<DataType>::add_data(const uint32_t destination_index, DataType data) {
-    auto& allocator = backend->get_global_allocator();
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
 
     if (!scatter_indices) {
         scatter_indices = allocator.create_buffer(
@@ -91,7 +91,8 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHa
         return;
     }
 
-    auto& resources = backend->get_global_allocator();
+    auto& backend = RenderBackend::get();
+    auto& resources = backend.get_global_allocator();
 
     graph.add_pass(
         ComputePass{

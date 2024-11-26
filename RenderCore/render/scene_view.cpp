@@ -21,8 +21,9 @@ glm::mat4 infinitePerspectiveFovReverseZ_ZO(const float fov, const float width, 
     return result;
 }
 
-SceneTransform::SceneTransform(RenderBackend& backend_in) : backend{ &backend_in } {
-    auto& allocator = backend->get_global_allocator();
+SceneTransform::SceneTransform() {
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
     buffer = allocator.create_buffer("Scene View Buffer", sizeof(ViewDataGPU), BufferUsage::UniformBuffer);
 }
 

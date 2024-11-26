@@ -8,10 +8,11 @@
 #include "render/backend/render_backend.hpp"
 #include "core/system_interface.hpp"
 
-MipChainGenerator::MipChainGenerator(RenderBackend& backend_in) : backend{backend_in} {
+MipChainGenerator::MipChainGenerator() {
     // TODO: We need a shader templating system. This will let us build the mip chain generation shaders with a custom
     // texture format and reduction filter
 
+    auto& backend = RenderBackend::get();
     auto& pipeline_cache = backend.get_pipeline_cache();
 
     shaders.emplace(
@@ -96,6 +97,7 @@ void MipChainGenerator::fill_mip_chain(
                 }
             },
             .execute = [=, this](CommandBuffer& commands) {
+                auto& backend = RenderBackend::get();
                 auto& allocator = backend.get_global_allocator();
                 const auto& src_texture_actual = allocator.get_texture(src_texture);
                 const auto& dest_texture_actual = allocator.get_texture(dest_texture);

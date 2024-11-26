@@ -22,7 +22,7 @@ class ResourceUploadQueue;
  */
 class MeshStorage {
 public:
-    explicit MeshStorage(RenderBackend& backend_in, ResourceUploadQueue& queue_in);
+    explicit MeshStorage();
 
     ~MeshStorage();
 
@@ -43,9 +43,6 @@ public:
     BufferHandle get_draw_args_buffer() const;
 
 private:
-    RenderBackend* backend;
-    ResourceUploadQueue* upload_queue;
-
     ObjectPool<Mesh> meshes;
 
     ScatterUploadBuffer<VkDrawIndexedIndirectCommand> mesh_draw_args_upload_buffer;

@@ -10,15 +10,13 @@ class RenderBackend;
 
 class Bloomer {
 public:
-    explicit Bloomer(RenderBackend& backend_in);
+    explicit Bloomer();
 
     void fill_bloom_tex(RenderGraph& graph, TextureHandle scene_color);
 
     TextureHandle get_bloom_tex() const;
 
 private:
-    RenderBackend& backend;
-
     TextureHandle bloom_tex = TextureHandle::None;
 
     ComputePipelineHandle downsample_shader;

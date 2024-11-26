@@ -22,7 +22,7 @@ class RenderBackend;
  */
 class TextureLoader {
 public:
-    explicit TextureLoader(RenderBackend& backend_in);
+    explicit TextureLoader();
 
     ~TextureLoader();
 
@@ -56,8 +56,6 @@ public:
     );
 
 private:
-    RenderBackend& backend;
-
     VkCommandPool ktx_command_pool;
     ktxVulkanDeviceInfo ktx;
 

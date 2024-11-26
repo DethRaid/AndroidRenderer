@@ -18,7 +18,7 @@ class RenderBackend;
  */
 class SunLight {
 public:
-    explicit SunLight(const RenderBackend& backend);
+    explicit SunLight();
 
     void update_shadow_cascades(const SceneTransform& view);
 

@@ -9,12 +9,13 @@ auto cvar_num_bloom_mips = AutoCVar_Int{"r.bloom.NumMips", "Number of mipmaps in
 
 static std::shared_ptr<spdlog::logger> logger;
 
-Bloomer::Bloomer(RenderBackend& backend_in) : backend{backend_in} {
+Bloomer::Bloomer() {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("Bloomer");
         logger->set_level(spdlog::level::info);
     }
 
+    auto& backend = RenderBackend::get();
     auto& pipeline_cache = backend.get_pipeline_cache();
 
     downsample_shader = pipeline_cache.create_pipeline("shaders/postprocessing/bloom_downsample.comp.spv");
@@ -40,6 +41,7 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
         create_bloom_tex(scene_color);
     }
 
+    auto& backend = RenderBackend::get();
     const auto bloom_0_set = backend.get_transient_descriptor_allocator().build_set(downsample_shader, 0)
                                     .bind(0, scene_color, bilinear_sampler)
                                     .bind(1, bloom_tex)
@@ -248,6 +250,7 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
 TextureHandle Bloomer::get_bloom_tex() const { return bloom_tex; }
 
 void Bloomer::create_bloom_tex(const TextureHandle scene_color) {
+    auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
     const auto& scene_color_actual = allocator.get_texture(scene_color);
 

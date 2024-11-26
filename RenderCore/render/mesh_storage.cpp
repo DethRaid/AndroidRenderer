@@ -15,14 +15,14 @@ constexpr const uint32_t max_num_indices = 100000000;
 
 static std::shared_ptr<spdlog::logger> logger;
 
-MeshStorage::MeshStorage(RenderBackend& backend_in, ResourceUploadQueue& queue_in) :
-    backend{ &backend_in }, upload_queue{ &queue_in }, mesh_draw_args_upload_buffer{ *backend } {
+MeshStorage::MeshStorage() {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("MeshStorage");
         logger->set_level(spdlog::level::info);
     }
 
-    auto& allocator = backend->get_global_allocator();
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
     vertex_position_buffer = allocator.create_buffer(
         "Vertex position buffer",
         max_num_vertices * sizeof(VertexPosition),
@@ -52,7 +52,8 @@ MeshStorage::MeshStorage(RenderBackend& backend_in, ResourceUploadQueue& queue_i
 }
 
 MeshStorage::~MeshStorage() {
-    auto& allocator = backend->get_global_allocator();
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
     allocator.destroy_buffer(vertex_position_buffer);
     allocator.destroy_buffer(vertex_data_buffer);
     allocator.destroy_buffer(index_buffer);
@@ -108,16 +109,18 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
         );
     }
 
-    upload_queue->upload_to_buffer<VertexPosition>(
+    auto& backend = RenderBackend::get();
+    auto& upload_queue = backend.get_upload_queue();
+    upload_queue.upload_to_buffer<VertexPosition>(
         vertex_position_buffer, positions,
         static_cast<uint32_t>(mesh.first_vertex * sizeof(VertexPosition))
     );
-    upload_queue->upload_to_buffer<StandardVertexData>(
+    upload_queue.upload_to_buffer<StandardVertexData>(
         vertex_data_buffer, data,
         static_cast<uint32_t>(mesh.first_vertex *
             sizeof(StandardVertexData))
     );
-    upload_queue->upload_to_buffer(index_buffer, indices, static_cast<uint32_t>(mesh.first_index * sizeof(uint32_t)));
+    upload_queue.upload_to_buffer(index_buffer, indices, static_cast<uint32_t>(mesh.first_index * sizeof(uint32_t)));
 
     /*
      * Do a bunch of bullshit
@@ -139,11 +142,11 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
 
     mesh.average_triangle_area = average_triangle_area;
 
-    auto& allocator = backend->get_global_allocator();
+    auto& allocator = backend.get_global_allocator();
     mesh.point_cloud_buffer = allocator.create_buffer(
         fmt::format("Mesh point cloud"), sizeof(StandardVertex) * point_cloud.size(), BufferUsage::StorageBuffer
     );
-    upload_queue->upload_to_buffer(mesh.point_cloud_buffer, std::span{point_cloud}, 0);
+    upload_queue.upload_to_buffer(mesh.point_cloud_buffer, std::span{point_cloud}, 0);
 
     mesh.sh_points_buffer = generate_sh_point_cloud(point_cloud);
     mesh.num_points = static_cast<uint32_t>(point_cloud.size());
@@ -151,10 +154,10 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
     const auto handle = meshes.add_object(std::move(mesh));
 
     if(mesh_draw_args_upload_buffer.is_full()) {
-        auto graph = backend->create_render_graph();
+        auto graph = backend.create_render_graph();
         flush_mesh_draw_arg_uploads(graph);
         graph.finish();
-        backend->execute_graph(std::move(graph));
+        backend.execute_graph(std::move(graph));
     }
 
     mesh_draw_args_upload_buffer.add_data(
@@ -167,7 +170,7 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
         }
     );
 
-    if(backend->supports_ray_tracing) {
+    if(backend.supports_ray_tracing) {
         create_blas_for_mesh(handle->first_vertex, handle->num_vertices, handle->first_index, handle->num_indices / 3);
     }
 
@@ -373,11 +376,13 @@ BufferHandle MeshStorage::generate_sh_point_cloud(const std::vector<StandardVert
         sh_points.emplace_back(glm::vec4{point.position, 1.f}, sh);
     }
 
-    auto& allocator = backend->get_global_allocator();
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
     const auto sh_buffer_handle = allocator.create_buffer(
         "SH Point Cloud", sizeof(ShPoint) * sh_points.size(), BufferUsage::StorageBuffer
     );
-    upload_queue->upload_to_buffer(sh_buffer_handle, std::span{sh_points}, 0);
+    auto& upload_queue = backend.get_upload_queue();
+    upload_queue.upload_to_buffer(sh_buffer_handle, std::span{sh_points}, 0);
 
     return sh_buffer_handle;
 }
@@ -437,6 +442,7 @@ void MeshStorage::create_blas_for_mesh(const uint32_t first_vertex, const uint32
         },
     };
 
-    const auto blas = backend->get_global_allocator().create_acceleration_structure(geometry, num_triangles);
-    backend->get_blas_build_queue().enqueue(blas, geometry);
+    auto& backend = RenderBackend::get();
+    const auto blas = backend.get_global_allocator().create_acceleration_structure(geometry, num_triangles);
+    backend.get_blas_build_queue().enqueue(blas, geometry);
 }

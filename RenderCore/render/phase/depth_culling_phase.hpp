@@ -20,7 +20,7 @@ class SceneDrawer;
  */
 class DepthCullingPhase {
 public:
-    explicit DepthCullingPhase(RenderBackend& backend);
+    explicit DepthCullingPhase();
 
     ~DepthCullingPhase();
 
@@ -52,10 +52,6 @@ public:
     ) const;
 
 private:
-    RenderBackend& backend;
-
-    ResourceAllocator& allocator;
-
     TextureHandle depth_buffer = TextureHandle::None;
 
     TextureHandle hi_z_buffer = TextureHandle::None;
@@ -76,8 +72,6 @@ private:
     ComputePipelineHandle visibility_list_to_draw_commands;
 
     MipChainGenerator downsampler;
-
-    TextureDescriptorPool& texture_descriptor_pool;
 
     ComputePipelineHandle hi_z_culling_shader;
 };

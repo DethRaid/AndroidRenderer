@@ -1,17 +1,18 @@
 #include "sun_light.hpp"
 
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/matrix_clip_space.hpp>
+
 #include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/command_buffer.hpp"
 #include "render/scene_view.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
-#include "glm/ext/matrix_transform.hpp"
-#include "glm/ext/matrix_clip_space.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
-SunLight::SunLight(const RenderBackend& backend) : allocator{backend.get_global_allocator()} {
+SunLight::SunLight() : allocator{ RenderBackend::get().get_global_allocator()} {
     logger = SystemInterface::get().get_logger("SunLight");
 
     sun_buffer = allocator.create_buffer(
@@ -19,6 +20,7 @@ SunLight::SunLight(const RenderBackend& backend) : allocator{backend.get_global_
         BufferUsage::UniformBuffer
     );
 
+    auto& backend = RenderBackend::get();
     pipeline = backend.begin_building_pipeline("Sun Light")
                       .set_vertex_shader("shaders/common/fullscreen.vert.spv")
                       .set_fragment_shader("shaders/lighting/directional_light.frag.spv")

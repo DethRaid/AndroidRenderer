@@ -10,6 +10,7 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
+// ReSharper disable CppDeclaratorNeverUsed
 static auto cvar_num_shadow_cascades = AutoCVar_Int{"r.Shadow.NumCascades", "Number of shadow cascades", 4};
 
 static auto cvar_shadow_cascade_resolution = AutoCVar_Int{
@@ -39,11 +40,9 @@ static auto cvar_raytrace_mesh_lights = AutoCVar_Int{
 static auto cvar_use_lpv = AutoCVar_Int{
     "r.lpv.Enable", "Whether to enable the LPV", 1
 };
+// ReSharper restore CppDeclaratorNeverUsed
 
-SceneRenderer::SceneRenderer() :
-    backend{}, player_view{backend}, texture_loader{backend}, material_storage{backend},
-    meshes{backend, backend.get_upload_queue()}, mip_chain_generator{backend}, bloomer{backend},
-    depth_culling_phase{backend}, lighting_pass{backend}, ui_phase{*this}, voxel_visualizer{backend} {
+SceneRenderer::SceneRenderer() : ui_phase{*this} {
     logger = SystemInterface::get().get_logger("SceneRenderer");
     logger->set_level(spdlog::level::debug);
 
@@ -61,6 +60,8 @@ SceneRenderer::SceneRenderer() :
     create_shadow_render_targets();
 
     set_render_resolution(render_resolution);
+
+    auto& backend = RenderBackend::get();
 
     if (cvar_use_lpv.Get()) {
         lpv = std::make_unique<LightPropagationVolume>(backend);
@@ -97,6 +98,8 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
     scene = &scene_in;
     lighting_pass.set_scene(scene_in);
 
+    auto& backend = RenderBackend::get();
+
     sun_shadow_drawer = SceneDrawer{
         ScenePassType::Shadow, *scene, meshes, material_storage, backend.get_global_allocator()
     };
@@ -116,6 +119,8 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
 
 void SceneRenderer::render() {
     ZoneScoped;
+
+    auto& backend = RenderBackend::get();
 
     backend.advance_frame();
 
@@ -437,10 +442,6 @@ void SceneRenderer::render() {
     backend.flush_batched_command_buffers();
 }
 
-RenderBackend& SceneRenderer::get_backend() {
-    return backend;
-}
-
 SceneTransform& SceneRenderer::get_local_player() {
     return player_view;
 }
@@ -454,6 +455,7 @@ MaterialStorage& SceneRenderer::get_material_storage() {
 }
 
 void SceneRenderer::create_shadow_render_targets() {
+    auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
     if (shadowmap_handle != TextureHandle::None) {
@@ -473,6 +475,7 @@ void SceneRenderer::create_shadow_render_targets() {
 }
 
 void SceneRenderer::create_scene_render_targets() {
+    auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
     if (gbuffer_color_handle != TextureHandle::None) {

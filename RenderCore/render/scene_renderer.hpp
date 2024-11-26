@@ -40,8 +40,6 @@ public:
      * Do the thing!
      */
     void render();
-    
-    RenderBackend& get_backend();
 
     SceneTransform& get_local_player();
 
@@ -63,8 +61,6 @@ public:
     void set_active_visualizer(RenderVisualization visualizer);
 
 private:
-    RenderBackend backend;
-
     SceneTransform player_view;
 
     TextureLoader texture_loader;

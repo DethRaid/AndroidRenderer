@@ -1,7 +1,8 @@
 #include "material_storage.hpp"
 #include "render/backend/render_backend.hpp"
 
-MaterialStorage::MaterialStorage(RenderBackend& backend_in) : backend{backend_in}, material_upload{backend} {
+MaterialStorage::MaterialStorage() {
+    auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
     material_buffer_handle = allocator.create_buffer(
         "Materials buffer", sizeof(BasicPbrMaterialGpu) * 65536,
@@ -10,6 +11,7 @@ MaterialStorage::MaterialStorage(RenderBackend& backend_in) : backend{backend_in
 }
 
 PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMaterial&& new_material) {
+    auto& backend = RenderBackend::get();
     auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
 
     new_material.gpu_data.base_color_texture_index = texture_descriptor_pool.create_texture_srv(

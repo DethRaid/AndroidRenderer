@@ -131,7 +131,7 @@ void GltfModel::add_primitives(SceneRenderer& renderer, RenderScene& scene, Rend
 }
 
 void GltfModel::add_to_scene(RenderScene& scene, SceneRenderer& scene_renderer) {
-    auto& backend = scene_renderer.get_backend();
+    auto& backend = RenderBackend::get();
     auto graph = RenderGraph{backend};
 
     add_primitives(scene_renderer, scene, graph);
@@ -152,7 +152,7 @@ void GltfModel::import_resources_for_model(SceneRenderer& renderer) {
 
     import_materials(
         renderer.get_material_storage(), renderer.get_texture_loader(),
-        renderer.get_backend()
+        RenderBackend::get()
     );
 
     logger->info("Imported resources");

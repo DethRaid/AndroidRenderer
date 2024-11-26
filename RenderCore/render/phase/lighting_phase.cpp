@@ -4,7 +4,8 @@
 #include "render/scene_view.hpp"
 #include "shared/view_data.hpp"
 
-LightingPhase::LightingPhase(RenderBackend& backend_in) : backend{backend_in} {
+LightingPhase::LightingPhase() {
+    auto& backend = RenderBackend::get();
     emission_pipeline = backend.begin_building_pipeline("Emissive Lighting")
                                .set_vertex_shader("shaders/common/fullscreen.vert.spv")
                                .set_fragment_shader("shaders/lighting/emissive.frag.spv")
@@ -34,6 +35,7 @@ void LightingPhase::render(CommandBuffer& commands, const SceneTransform& view, 
         return;
     }
 
+    auto& backend = RenderBackend::get();
     auto gbuffers_descriptor_set = *vkutil::DescriptorBuilder::begin(
         backend, backend.get_transient_descriptor_allocator()
     )
@@ -95,6 +97,7 @@ LightingPhase::add_sun_lighting(
 ) const {
     commands.begin_label("LightingPhase::add_sun_lighting");
 
+    auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
     // Hardware PCF sampler

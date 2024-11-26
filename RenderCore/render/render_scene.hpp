@@ -20,7 +20,7 @@ class RenderBackend;
  */
 class RenderScene {
 public:
-    explicit RenderScene(RenderBackend& backend_in, MeshStorage& meshes_in, MaterialStorage& materials_in);
+    explicit RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in);
 
     MeshPrimitiveHandle add_primitive(RenderGraph& graph, MeshPrimitive primitive);
 
@@ -51,8 +51,6 @@ public:
     VoxelCache& get_voxel_cache() const;
 
 private:
-    RenderBackend& backend;
-
     MeshStorage& meshes;
 
     MaterialStorage& materials;

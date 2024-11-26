@@ -12,7 +12,7 @@ class RenderBackend;
  */
 class MipChainGenerator {
 public:
-    explicit MipChainGenerator(RenderBackend& backend_in);
+    explicit MipChainGenerator();
 
     /**
      * \brief Builds a mip chain in the dest texture
@@ -29,8 +29,6 @@ public:
     void fill_mip_chain(RenderGraph& graph, TextureHandle src_texture, TextureHandle dest_texture);
 
 private:
-    RenderBackend& backend;
-
     BufferHandle counter_buffer;
 
     /**
