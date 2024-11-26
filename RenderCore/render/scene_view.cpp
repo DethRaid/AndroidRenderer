@@ -94,7 +94,7 @@ BufferHandle SceneTransform::get_buffer() const {
 }
 
 void SceneTransform::update_transforms(CommandBuffer commands) {
-    if (buffer != BufferHandle::None && is_dirty) {
+    if (buffer && is_dirty) {
         commands.update_buffer(buffer, gpu_data);
 
         commands.barrier(buffer, VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_HOST_WRITE_BIT,

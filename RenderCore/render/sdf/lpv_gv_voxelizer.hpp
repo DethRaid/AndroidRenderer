@@ -57,17 +57,17 @@ private:
 
     TextureHandle voxel_texture = TextureHandle::None;
 
-    BufferHandle volume_uniform_buffer = BufferHandle::None;
+    BufferHandle volume_uniform_buffer = {};
 
-    BufferHandle transformed_triangle_cache = BufferHandle::None;
+    BufferHandle transformed_triangle_cache = {};
 
-    BufferHandle triangle_sh_cache = BufferHandle::None;
+    BufferHandle triangle_sh_cache = {};
 
-    BufferHandle bins = BufferHandle::None;
+    BufferHandle bins = {};
 
-    BufferHandle cell_bitmask_coarse = BufferHandle::None;
+    BufferHandle cell_bitmask_coarse = {};
 
-    BufferHandle cell_bitmask = BufferHandle::None;
+    BufferHandle cell_bitmask = {};
 
     ComputePipelineHandle texture_clear_shader;
 

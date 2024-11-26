@@ -64,7 +64,7 @@ public:
 
     void update_buffer(BufferHandle buffer, const void* data, uint32_t data_size, uint32_t offset = 0);
 
-    void flush_buffer(BufferHandle buffer);
+    void flush_buffer(BufferHandle buffer) const;
 
     // Explicit barrier methods, for when the resource tracking fails
 
@@ -90,7 +90,7 @@ public:
      */
     void fill_buffer(BufferHandle buffer, uint32_t fill_value = 0) const;
 
-    void build_acceleration_structures(std::span<VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos, std::span<VkAccelerationStructureBuildRangeInfoKHR*> build_range_info_ptrs);
+    void build_acceleration_structures(std::span<VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos, std::span<VkAccelerationStructureBuildRangeInfoKHR*> build_range_info_ptrs) const;
 
     /**
      * Begins a render pass, which implicitly begins the first subpass
@@ -200,7 +200,7 @@ public:
 
     void dispatch(uint32_t width, uint32_t height, uint32_t depth);
 
-    void dispatch_indirect(BufferHandle dispatch_buffer);
+    void dispatch_indirect(BufferHandle indirect_buffer);
 
     void copy_image_to_image(TextureHandle src, TextureHandle dst) const;
 
@@ -217,7 +217,7 @@ public:
     void end() const;
 
 #if defined(TRACY_ENABLE)
-    tracy::VkCtx* const get_tracy_context() const;
+    tracy::VkCtx* get_tracy_context() const;
 #endif
 
     VkCommandBuffer get_vk_commands() const;

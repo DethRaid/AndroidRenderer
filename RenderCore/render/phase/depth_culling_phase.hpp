@@ -71,7 +71,7 @@ private:
      *
      * The idea is that each view will have its own DepthCullingPhase and thus this list will be per-view
      */
-    BufferHandle visible_objects = BufferHandle::None;
+    BufferHandle visible_objects = {};
 
     ComputePipelineHandle visibility_list_to_draw_commands;
 

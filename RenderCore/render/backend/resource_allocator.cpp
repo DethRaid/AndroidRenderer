@@ -449,11 +449,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
     buffer.address = vkGetBufferDeviceAddress(device, &info);
 
     const auto handle = buffers.add_object(std::move(buffer));
-    return static_cast<BufferHandle>(handle.index);
-}
-
-const Buffer& ResourceAllocator::get_buffer(BufferHandle handle) const {
-    return buffers[static_cast<uint32_t>(handle)];
+    return handle;
 }
 
 void* ResourceAllocator::map_buffer(const BufferHandle buffer_handle) {

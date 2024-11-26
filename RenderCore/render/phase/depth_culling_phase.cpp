@@ -53,9 +53,9 @@ DepthCullingPhase::~DepthCullingPhase() {
         texture_descriptor_pool.free_descriptor(hi_z_index);
         hi_z_index = 0;
     }
-    if (visible_objects != BufferHandle::None) {
+    if (visible_objects) {
         allocator.destroy_buffer(visible_objects);
-        visible_objects = BufferHandle::None;
+        visible_objects = {};
     }
 }
 
@@ -105,7 +105,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
     const auto primitive_buffer = scene.get_primitive_buffer();
     const auto num_primitives = scene.get_total_num_primitives();
 
-    if (visible_objects == BufferHandle::None) {
+    if (!visible_objects) {
         visible_objects = allocator.create_buffer(
             "Visible objects list", sizeof(uint32_t) * num_primitives, BufferUsage::StorageBuffer
         );

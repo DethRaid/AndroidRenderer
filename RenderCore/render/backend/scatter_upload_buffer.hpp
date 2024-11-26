@@ -32,8 +32,8 @@ private:
 
     uint32_t scatter_buffer_count = 0;
 
-    BufferHandle scatter_indices = BufferHandle::None;
-    BufferHandle scatter_data = BufferHandle::None;
+    BufferHandle scatter_indices = {};
+    BufferHandle scatter_data = {};
 
     static ComputePipelineHandle scatter_shader;
 };
@@ -53,18 +53,16 @@ template <typename DataType>
 void ScatterUploadBuffer<DataType>::add_data(const uint32_t destination_index, DataType data) {
     auto& allocator = backend->get_global_allocator();
 
-    if (scatter_indices == BufferHandle::None) {
+    if (!scatter_indices) {
         scatter_indices = allocator.create_buffer(
             "Primitive scatter indices", scatter_buffer_size,
             BufferUsage::StagingBuffer
         );
     }
 
-    auto& scatter_indices_actual = allocator.get_buffer(scatter_indices);
-    static_cast<uint32_t*>(scatter_indices_actual.allocation_info
-                                                 .pMappedData)[scatter_buffer_count] = destination_index;
+    static_cast<uint32_t*>(scatter_indices->allocation_info.pMappedData)[scatter_buffer_count] = destination_index;
 
-    if (scatter_data == BufferHandle::None) {
+    if (!scatter_data) {
         scatter_data = allocator.create_buffer(
             "Primitive scatter data",
             scatter_buffer_size * sizeof(DataType),
@@ -72,8 +70,7 @@ void ScatterUploadBuffer<DataType>::add_data(const uint32_t destination_index, D
         );
     }
 
-    auto& scatter_data_actual = allocator.get_buffer(scatter_data);
-    static_cast<DataType*>(scatter_data_actual.allocation_info.pMappedData)[scatter_buffer_count] = data;
+    static_cast<DataType*>(scatter_data->allocation_info.pMappedData)[scatter_buffer_count] = data;
 
     scatter_buffer_count++;
 }
@@ -90,8 +87,7 @@ bool ScatterUploadBuffer<DataType>::is_full() const {
 
 template <typename DataType>
 void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHandle destination_buffer) {
-    if (scatter_indices == BufferHandle::None ||
-        scatter_data == BufferHandle::None) {
+    if (!scatter_indices || !scatter_data) {
         return;
     }
 
@@ -125,8 +121,8 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHa
                 resources.destroy_buffer(scatter_indices);
                 resources.destroy_buffer(scatter_data);
 
-                scatter_indices = BufferHandle::None;
-                scatter_data = BufferHandle::None;
+                scatter_indices = {};
+                scatter_data = {};
             }
         }
     );

@@ -43,21 +43,17 @@ void
 CommandBuffer::update_buffer(
     const BufferHandle buffer, const void* data, const uint32_t data_size, const uint32_t offset
 ) {
-    auto& resource_allocator = backend->get_global_allocator();
-    const auto& buffer_actual = resource_allocator.get_buffer(buffer);
-
-    auto* write_ptr = static_cast<uint8_t*>(buffer_actual.allocation_info.pMappedData) + offset;
+    auto* write_ptr = static_cast<uint8_t*>(buffer->allocation_info.pMappedData) + offset;
 
     std::memcpy(write_ptr, data, data_size);
 
     flush_buffer(buffer);
 }
 
-void CommandBuffer::flush_buffer(const BufferHandle buffer) {
+void CommandBuffer::flush_buffer(const BufferHandle buffer) const {
     auto& resources = backend->get_global_allocator();
-    const auto& buffer_actual = resources.get_buffer(buffer);
-
-    vmaFlushAllocation(resources.get_vma(), buffer_actual.allocation, 0, VK_WHOLE_SIZE);
+    
+    vmaFlushAllocation(resources.get_vma(), buffer->allocation, 0, VK_WHOLE_SIZE);
 }
 
 void CommandBuffer::barrier(
@@ -67,14 +63,13 @@ void CommandBuffer::barrier(
     const VkAccessFlags destination_access
 ) {
     auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(buffer);
     const auto barrier = VkBufferMemoryBarrier{
         .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
         .srcAccessMask = source_access,
         .dstAccessMask = destination_access,
-        .buffer = buffer_actual.buffer,
+        .buffer = buffer->buffer,
         .offset = 0,
-        .size = buffer_actual.create_info.size
+        .size = buffer->create_info.size
     };
 
     // V0: Issue the barrier immediately
@@ -110,20 +105,17 @@ void CommandBuffer::barrier(
     vkCmdPipelineBarrier2(commands, &dependency_info);
 }
 
-void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_value) const {
-    auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(buffer);
-
-    vkCmdFillBuffer(commands, buffer_actual.buffer, 0, buffer_actual.create_info.size, fill_value);
+void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_value) const {    
+    vkCmdFillBuffer(commands, buffer->buffer, 0, buffer->create_info.size, fill_value);
 }
 
 void CommandBuffer::build_acceleration_structures(
     const std::span<VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos,
     const std::span<VkAccelerationStructureBuildRangeInfoKHR*> build_range_info_ptrs
-) {
+) const {
     vkCmdBuildAccelerationStructuresKHR(
         commands,
-        build_geometry_infos.size(),
+        static_cast<uint32_t>(build_geometry_infos.size()),
         build_geometry_infos.data(),
         build_range_info_ptrs.data());
 }
@@ -257,12 +249,9 @@ void CommandBuffer::set_scissor_rect(const glm::ivec2& upper_left, const glm::iv
 }
 
 void CommandBuffer::bind_vertex_buffer(const uint32_t binding_index, const BufferHandle buffer) const {
-    const auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(buffer);
+    constexpr auto offset = VkDeviceSize{0};
 
-    const auto offset = VkDeviceSize{0};
-
-    vkCmdBindVertexBuffers(commands, binding_index, 1, &buffer_actual.buffer, &offset);
+    vkCmdBindVertexBuffers(commands, binding_index, 1, &buffer->buffer, &offset);
 }
 
 void CommandBuffer::draw(
@@ -294,19 +283,13 @@ void CommandBuffer::draw_indexed(
 void CommandBuffer::draw_indirect(const BufferHandle indirect_buffer) {
     commit_bindings();
 
-    const auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(indirect_buffer);
-
-    vkCmdDrawIndirect(commands, buffer_actual.buffer, 0, 1, 0);
+    vkCmdDrawIndirect(commands, indirect_buffer->buffer, 0, 1, 0);
 }
 
 void CommandBuffer::draw_indexed_indirect(const BufferHandle indirect_buffer) {
     commit_bindings();
-
-    const auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(indirect_buffer);
-
-    vkCmdDrawIndexedIndirect(commands, buffer_actual.buffer, 0, 1, 0);
+        
+    vkCmdDrawIndexedIndirect(commands, indirect_buffer->buffer, 0, 1, 0);
 }
 
 void CommandBuffer::draw_indexed_indirect(
@@ -314,15 +297,11 @@ void CommandBuffer::draw_indexed_indirect(
 ) {
     commit_bindings();
 
-    const auto& allocator = backend->get_global_allocator();
-    const auto& indirect_buffer_actual = allocator.get_buffer(indirect_buffer);
-    const auto& count_buffer_actual = allocator.get_buffer(count_buffer);
-
     vkCmdDrawIndexedIndirectCount(
         commands,
-        indirect_buffer_actual.buffer,
+        indirect_buffer->buffer,
         0,
-        count_buffer_actual.buffer,
+        count_buffer->buffer,
         0,
         max_count,
         sizeof(VkDrawIndexedIndirectCommand)
@@ -358,7 +337,7 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
 
     auto& cache = backend->get_pipeline_cache();
 
-    VkPipeline vk_pipeline = VK_NULL_HANDLE;
+    VkPipeline vk_pipeline;
     if(current_render_pass == VK_NULL_HANDLE) {
         vk_pipeline = cache.get_pipeline_for_dynamic_rendering(pipeline, bound_color_attachment_formats, bound_depth_attachment_format, bound_view_mask);
     } else {
@@ -381,14 +360,12 @@ void CommandBuffer::set_push_constant(const uint32_t index, const float data) {
 }
 
 void CommandBuffer::bind_buffer_reference(const uint32_t index, const BufferHandle buffer_handle) {
-    const auto& buffer_actual = backend->get_global_allocator().get_buffer(buffer_handle);
-
-    if(buffer_actual.address == 0) {
+    if(buffer_handle->address == 0) {
         throw std::runtime_error{"Buffer was not created with a device address! Is it a uniform buffer?"};
     }
 
-    set_push_constant(index, buffer_actual.address.low_bits());
-    set_push_constant(index + 1, buffer_actual.address.high_bits());
+    set_push_constant(index, buffer_handle->address.low_bits());
+    set_push_constant(index + 1, buffer_handle->address.high_bits());
 }
 
 void CommandBuffer::bind_descriptor_set(const uint32_t set_index, const DescriptorSet& set) {
@@ -413,12 +390,10 @@ void CommandBuffer::dispatch(const uint32_t width, const uint32_t height, const 
     vkCmdDispatch(commands, width, height, depth);
 }
 
-void CommandBuffer::dispatch_indirect(const BufferHandle dispatch_buffer) {
+void CommandBuffer::dispatch_indirect(const BufferHandle indirect_buffer) {
     commit_bindings();
 
-    const auto& buffer_actual = backend->get_global_allocator().get_buffer(dispatch_buffer);
-
-    vkCmdDispatchIndirect(commands, buffer_actual.buffer, 0);
+    vkCmdDispatchIndirect(commands, indirect_buffer->buffer, 0);
 }
 
 void CommandBuffer::copy_image_to_image(const TextureHandle src, const TextureHandle dst) const {
@@ -466,19 +441,16 @@ void CommandBuffer::reset_event(const VkEvent event, const VkPipelineStageFlags 
 }
 
 void CommandBuffer::set_event(const VkEvent event, const std::vector<BufferBarrier>& buffers) {
-    auto& allocator = backend->get_global_allocator();
-
     auto buffer_barriers = std::vector<VkBufferMemoryBarrier2>{};
     buffer_barriers.reserve(buffers.size());
     for(const auto& buffer_barrier : buffers) {
-        const auto& buffer_actual = allocator.get_buffer(buffer_barrier.buffer);
         const auto barrier = VkBufferMemoryBarrier2{
             .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
             .srcStageMask = buffer_barrier.src.stage,
             .srcAccessMask = buffer_barrier.src.access,
             .dstStageMask = buffer_barrier.dst.stage,
             .dstAccessMask = buffer_barrier.dst.access,
-            .buffer = buffer_actual.buffer,
+            .buffer = buffer_barrier.buffer->buffer,
             .offset = buffer_barrier.offset,
             .size = buffer_barrier.size
         };
@@ -534,9 +506,7 @@ void CommandBuffer::end() const {
 }
 
 void CommandBuffer::bind_index_buffer(const BufferHandle buffer, const VkIndexType index_type) const {
-    const auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(buffer);
-    vkCmdBindIndexBuffer(commands, buffer_actual.buffer, 0, index_type);
+    vkCmdBindIndexBuffer(commands, buffer->buffer, 0, index_type);
 }
 
 void CommandBuffer::commit_bindings() {
@@ -594,7 +564,7 @@ RenderBackend& CommandBuffer::get_backend() const {
 }
 
 #if defined(TRACY_ENABLE)
-tracy::VkCtx* const CommandBuffer::get_tracy_context() const {
+tracy::VkCtx* CommandBuffer::get_tracy_context() const {
     return backend->get_tracy_context();
 }
 #endif

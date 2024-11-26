@@ -49,16 +49,16 @@ private:
     ObjectPool<Mesh> meshes;
 
     ScatterUploadBuffer<VkDrawIndexedIndirectCommand> mesh_draw_args_upload_buffer;
-    BufferHandle mesh_draw_args_buffer = BufferHandle::None;
+    BufferHandle mesh_draw_args_buffer = {};
 
     // vertex_block and index_block measure vertices and indices, respectively
 
     VmaVirtualBlock vertex_block = {};
-    BufferHandle vertex_position_buffer = BufferHandle::None;
-    BufferHandle vertex_data_buffer = BufferHandle::None;
+    BufferHandle vertex_position_buffer = {};
+    BufferHandle vertex_data_buffer = {};
 
     VmaVirtualBlock index_block = {};
-    BufferHandle index_buffer = BufferHandle::None;
+    BufferHandle index_buffer = {};
 
     std::pair<std::vector<StandardVertex>, float> generate_surface_point_cloud(
         std::span<const StandardVertex> vertices, std::span<const uint32_t> indices

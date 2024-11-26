@@ -39,12 +39,12 @@ struct CascadeData {
     /**
      * Count of the number of VPLs in this cascade
      */
-    BufferHandle count_buffer = BufferHandle::None;
+    BufferHandle count_buffer = {};
 
     /**
      * VPLs in this cascade
      */
-    BufferHandle vpl_buffer = BufferHandle::None;
+    BufferHandle vpl_buffer = {};
 
     glm::vec3 min_bounds;
     glm::vec3 max_bounds;
@@ -165,7 +165,7 @@ private:
     ComputePipelineHandle propagation_shader;
 
     std::vector<CascadeData> cascades;
-    BufferHandle cascade_data_buffer = BufferHandle::None;
+    BufferHandle cascade_data_buffer = {};
 
     /**
      * Renders the LPV into the lighting buffer

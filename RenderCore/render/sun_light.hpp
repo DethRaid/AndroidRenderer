@@ -42,7 +42,7 @@ private:
     // Massive TODO: Replace this with the ViewDataGPU struct
     SunLightConstants constants = {};
 
-    BufferHandle sun_buffer = BufferHandle::None;
+    BufferHandle sun_buffer = {};
 
     GraphicsPipelineHandle pipeline = {};
 };

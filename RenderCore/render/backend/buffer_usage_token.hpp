@@ -13,7 +13,7 @@ struct BufferUsageToken {
 };
 
 struct BufferBarrier {
-    BufferHandle buffer = BufferHandle::None;
+    BufferHandle buffer = {};
 
     BufferUsageToken src = {};
 

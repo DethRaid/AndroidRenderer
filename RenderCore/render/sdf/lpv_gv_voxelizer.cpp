@@ -92,21 +92,21 @@ void ThreeDeeRasterizer::init_resources(const glm::uvec3 voxel_texture_resolutio
 }
 
 void ThreeDeeRasterizer::deinit_resources(ResourceAllocator& allocator) {
-    if (transformed_triangle_cache != BufferHandle::None) {
+    if (transformed_triangle_cache) {
         allocator.destroy_buffer(transformed_triangle_cache);
-        transformed_triangle_cache = BufferHandle::None;
+        transformed_triangle_cache = {};
     }
-    if (bins != BufferHandle::None) {
+    if (bins) {
         allocator.destroy_buffer(bins);
-        bins = BufferHandle::None;
+        bins = {};
     }
     if (voxel_texture != TextureHandle::None) {
         allocator.destroy_texture(voxel_texture);
         voxel_texture = TextureHandle::None;
     }
-    if (volume_uniform_buffer != BufferHandle::None) {
+    if (volume_uniform_buffer) {
         allocator.destroy_buffer(volume_uniform_buffer);
-        volume_uniform_buffer = BufferHandle::None;
+        volume_uniform_buffer = {};
     }
 }
 

@@ -68,6 +68,13 @@ private:
 };
 
 template <typename ObjectType>
+struct std::hash<PooledObject<ObjectType>> {
+    size_t operator()(const PooledObject<ObjectType>& value) const noexcept {
+        return std::hash<uint32_t>{}(value.index);
+    }
+};
+
+template <typename ObjectType>
 ObjectType* PooledObject<ObjectType>::operator->() const {
     auto& objects = pool->get_data();
     return &objects[index];

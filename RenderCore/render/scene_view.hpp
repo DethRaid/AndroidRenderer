@@ -83,7 +83,7 @@ private:
 
     ViewDataGPU gpu_data = {};
 
-    BufferHandle buffer = BufferHandle::None;
+    BufferHandle buffer = {};
 
     bool is_dirty = true;
 
