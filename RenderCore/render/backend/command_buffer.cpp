@@ -227,6 +227,16 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) {
     bound_view_mask = info.view_mask;
 
     vkCmdBeginRendering(commands, &rendering_info);
+
+    const auto viewport = VkViewport{
+        .x = static_cast<float>(info.render_area_begin.x),
+        .y = static_cast<float>(info.render_area_begin.y),
+        .width = static_cast<float>(info.render_area_size.x),
+        .height = static_cast<float>(info.render_area_size.y),
+        .minDepth = 0,
+        .maxDepth = 1
+    };
+    vkCmdSetViewport(commands, 0, 1, &viewport);
 }
 
 void CommandBuffer::end_rendering() {

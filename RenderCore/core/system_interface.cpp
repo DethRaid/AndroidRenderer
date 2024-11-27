@@ -1,10 +1,10 @@
 #include "core/system_interface.hpp"
 
-static std::unique_ptr<SystemInterface> instance;
+static SystemInterface* instance;
 
 #if defined(_WIN32)
-void SystemInterface::initialize(GLFWwindow* window) {
-    instance = std::make_unique<Win32SystemInterface>(window);
+void SystemInterface::initialize(GLFWwindow* window_in) {
+    instance = new Win32SystemInterface{ window_in };
 }
 #elif defined(__ANDROID__)
 void SystemInterface::initialize(android_app* app) {
@@ -13,5 +13,5 @@ void SystemInterface::initialize(android_app* app) {
 #endif
 
 SystemInterface& SystemInterface::get() {
-    return *instance.get();
+    return *instance;
 }

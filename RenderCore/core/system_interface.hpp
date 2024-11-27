@@ -23,6 +23,8 @@
 #endif
 #endif
 
+#include "render/render_doc_wrapper.hpp"
+
 struct GLFWwindow;
 class InputManager;
 
@@ -49,6 +51,8 @@ public:
      */
     virtual std::shared_ptr<spdlog::logger> get_logger(const std::string& name) = 0;
 
+    virtual void flush_all_loggers() = 0;
+
     /**
      * Reads a file in its entirety
      *
@@ -72,6 +76,13 @@ public:
     void set_input_manager(InputManager& input_in);
 
     InputManager* input = nullptr;
+
+    bool is_renderdoc_loaded() const;
+
+    RenderDocWrapper& get_renderdoc() const;
+
+protected:
+    std::unique_ptr<RenderDocWrapper> renderdoc;
 };
 
 #if defined(__ANDROID__)
@@ -111,6 +122,8 @@ public:
 
     std::shared_ptr<spdlog::logger> get_logger(const std::string& name) override;
 
+    void flush_all_loggers() override;
+
     tl::optional<std::vector<uint8_t>> load_file(const std::filesystem::path& filepath) override;
 
     void write_file(const std::filesystem::path& filepath, const void* data, uint32_t data_size) override;
@@ -136,6 +149,8 @@ public:
     GLFWwindow* get_glfw_window() const;
 
 private:
+    std::shared_ptr<spdlog::logger> logger;
+
     GLFWwindow* window = nullptr;
 
     HWND hwnd = nullptr;
@@ -149,5 +164,7 @@ private:
     glm::vec2 last_cursor_position = {};
 
     bool focused = true;
+
+    void init_renderdoc_api();
 };
 #endif

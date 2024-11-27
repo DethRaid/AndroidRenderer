@@ -252,43 +252,43 @@ void SceneRenderer::render() {
 
     // Shadows
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
-    render_graph.add_render_pass(
-        {
-            .name = "Sun shadow",
-            .textures = {},
-            .buffers = {
-                {
-                    scene->get_sun_light().get_constant_buffer(),
-                    {.stage = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, .access = VK_ACCESS_2_UNIFORM_READ_BIT}
+    {
+        auto& sun = scene->get_sun_light();
+        const auto set = backend.get_transient_descriptor_allocator().build_set(
+                                    {
+                                        .bindings = {
+                                            {
+                                                0, {
+                                                    {
+                                                        .binding = 0,
+                                                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                        .descriptorCount = 1,
+                                                        .stageFlags = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    })
+                                .bind(0, sun.get_constant_buffer())
+                                .finalize();
+
+        render_graph.add_render_pass(
+            {
+                .name = "Sun shadow",
+                .descriptor_sets = {set},
+                .depth_attachment = RenderingAttachmentInfo{
+                    .image = shadowmap_handle, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .clear_value = {.depthStencil = {.depth = 1.f}}
+                },
+                .execute = [&](CommandBuffer& commands) {
+                    commands.bind_descriptor_set(0, set);
+
+                    sun_shadow_drawer.draw(commands);
+
+                    commands.clear_descriptor_set(0);
                 }
-            },
-            .depth_attachment = RenderingAttachmentInfo{
-                .image = shadowmap_handle, .clear_value = {.depthStencil = {.depth = 1.f}}
-            },
-            .execute = [&](CommandBuffer& commands) {
-                auto& sun = scene->get_sun_light();
-
-                auto global_set = *vkutil::DescriptorBuilder::begin(
-                                       backend,
-                                       backend.get_transient_descriptor_allocator()
-                                   )
-                                   .bind_buffer(
-                                       0,
-                                       {
-                                           .buffer = sun.get_constant_buffer()
-                                       },
-                                       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                       VK_SHADER_STAGE_VERTEX_BIT
-                                   )
-                                   .build();
-
-                commands.bind_descriptor_set(0, global_set);
-
-                sun_shadow_drawer.draw(commands);
-
-                commands.clear_descriptor_set(0);
-            }
-        });
+            });
+    }
 
     if(lpv) {
         lpv->propagate_lighting(render_graph);

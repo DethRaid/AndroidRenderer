@@ -62,20 +62,21 @@ target_include_directories(SahCore PUBLIC
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-format-security")
 target_link_libraries(SahCore PUBLIC
+        fastgltf::fastgltf
         glm::glm-header-only
+        GPUOpen::VulkanMemoryAllocator
         imgui
+        KTX::ktx
         magic_enum::magic_enum
+        renderdoc
         slang
         spdlog::spdlog
         spirv-reflect-static
         stb
-        fastgltf::fastgltf
         tl::optional
         Tracy::TracyClient
         vk-bootstrap
-        GPUOpen::VulkanMemoryAllocator
         volk::volk_headers
-        KTX::ktx
         )
 
 if(ANDROID)

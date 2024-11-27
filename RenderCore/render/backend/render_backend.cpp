@@ -276,7 +276,7 @@ void RenderBackend::create_instance_and_device() {
         logger->info("Device Generated Commands is supported!");
     }
 
-    supports_ray_tracing = physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_KHR_RAY_QUERY_EXTENSION_NAME);
@@ -304,11 +304,21 @@ void RenderBackend::create_instance_and_device() {
     vkGetPhysicalDeviceFeatures2(physical_device, &device_features);
 
     supports_ray_tracing = acceleration_structure_features.accelerationStructure;
+
+    if(SystemInterface::get().is_renderdoc_loaded()) {
+        logger->info("RenderDoc is loaded! Turning ray tracing features off");
+        supports_ray_tracing = false;
+        acceleration_structure_features.accelerationStructure = VK_FALSE;
+        acceleration_structure_features.accelerationStructureCaptureReplay = VK_FALSE;
+        acceleration_structure_features.accelerationStructureIndirectBuild = VK_FALSE;
+        acceleration_structure_features.accelerationStructureHostCommands = VK_FALSE;
+    }
+
     if(!supports_ray_tracing) {
         logger->error(
             "Device does not support ray tracing! VkPhysicalDeviceAccelerationStructureFeaturesKHR::accelerationStructure is false");
         CVarSystem::Get()->SetIntCVar("r.Raytracing.Enable", 0);
-        DebugBreak();
+
     } else {
         logger->info("Ray tracing supported");
     }
@@ -446,7 +456,9 @@ void RenderBackend::advance_frame() {
         graphics_command_allocators[cur_frame_idx].reset();
 
         auto& semaphores = zombie_semaphores[cur_frame_idx];
-        available_semaphores.insert(available_semaphores.end(), semaphores.begin(), semaphores.end());
+        for (const auto& semaphore : semaphores) {
+            vkDestroySemaphore(device, semaphore, nullptr);
+        }
         semaphores.clear();
 
         allocator->free_resources_for_frame(cur_frame_idx);
@@ -632,6 +644,7 @@ void RenderBackend::flush_batched_command_buffers() {
 
             if(result == VK_ERROR_DEVICE_LOST) {
                 logger->error("Device lost detected!");
+                logger->flush();
                 DebugBreak();
             }
         }
@@ -643,6 +656,8 @@ void RenderBackend::flush_batched_command_buffers() {
         queued_command_buffers.clear();
 
         last_submission_semaphores.emplace_back(signal_semaphore);
+    } else {
+        logger->warn("No queues command buffers this frame? Things might get wonky");
     }
 }
 
@@ -778,12 +793,17 @@ VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
     if(!available_semaphores.empty()) {
         semaphore = available_semaphores.back();
         available_semaphores.pop_back();
+
+        logger->debug("Using existing semaphore {} for {}", static_cast<void*>(semaphore), name);
+
     } else {
-        const auto create_info = VkSemaphoreCreateInfo{
+        constexpr auto create_info = VkSemaphoreCreateInfo{
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         };
 
         vkCreateSemaphore(device, &create_info, nullptr, &semaphore);
+
+        logger->debug("Making a new semaphore {} for {}", static_cast<void*>(semaphore), name);
     }
 
     if(!name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {

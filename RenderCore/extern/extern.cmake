@@ -139,3 +139,7 @@ add_library(slang INTERFACE)
 target_include_directories(slang INTERFACE "${CMAKE_CURRENT_LIST_DIR}/slang/include")
 target_link_directories(slang INTERFACE "${CMAKE_CURRENT_LIST_DIR}/swlang/lib/windows-x64/release")
 target_link_libraries(slang INTERFACE slang)
+
+# RenderDoc API, from https://github.com/baldurk/renderdoc/blob/v1.x/renderdoc/api/app/renderdoc_app.h
+add_library(renderdoc INTERFACE)
+target_include_directories(renderdoc INTERFACE ${CMAKE_CURRENT_LIST_DIR}/renderdoc/include)
