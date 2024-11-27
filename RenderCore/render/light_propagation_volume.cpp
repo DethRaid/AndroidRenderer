@@ -416,18 +416,42 @@ void LightPropagationVolume::inject_indirect_sun_light(
             }
         );
 
-        graph.add_render_pass(
-            DynamicRenderingPass{
-                .name = "Render RSM",
-                .buffers = {
+        const auto set_info = DescriptorSetInfo{
+            .bindings = {
+                {
+                    0,
                     {
-                        cascade_data_buffer,
                         {
-                            .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
-                            .access = VK_ACCESS_UNIFORM_READ_BIT
+                            .binding = 0,
+                            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                            .descriptorCount = 1,
+                            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
                         }
                     }
                 },
+                {
+                    1, {
+                        {
+                            .binding = 1,
+                            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                            .descriptorCount = 1,
+                            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                        }
+                    }
+                }
+            }
+        };
+        const auto set = backend.get_transient_descriptor_allocator().build_set(
+                                    set_info
+                                )
+                                .bind(0, cascade_data_buffer)
+                                .bind(1, scene.get_sun_light().get_constant_buffer())
+                                .finalize();
+
+        graph.add_render_pass(
+            DynamicRenderingPass{
+                .name = "Render RSM",
+                .descriptor_sets = {set},
                 .color_attachments = {
                     {
                         .image = cascade.flux_target,
@@ -449,25 +473,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                     .clear_value = {.depthStencil = {.depth = 1.f}}
                 },
                 .execute = [&](CommandBuffer& commands) {
-                    auto global_set = *vkutil::DescriptorBuilder::begin(
-                                           backend,
-                                           backend.get_transient_descriptor_allocator()
-                                       )
-                                       .bind_buffer(
-                                           0,
-                                           {.buffer = cascade_data_buffer},
-                                           VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                           VK_SHADER_STAGE_VERTEX_BIT
-                                       )
-                                       .bind_buffer(
-                                           1,
-                                           {.buffer = scene.get_sun_light().get_constant_buffer()},
-                                           VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                           VK_SHADER_STAGE_FRAGMENT_BIT
-                                       )
-                                       .build();
-
-                    commands.bind_descriptor_set(0, global_set);
+                    commands.bind_descriptor_set(0, set);
 
                     commands.set_push_constant(4, cascade_index);
 
@@ -489,16 +495,8 @@ void LightPropagationVolume::inject_indirect_sun_light(
             struct VplPipelineConstants {
                 DeviceAddress count_buffer_address;
                 DeviceAddress vpl_buffer_address;
-                uint32_t cascade_index;
-
-                VplPipelineConstants(
-                    const ResourceAllocator& allocator, const BufferHandle count_buffer, const BufferHandle vpl_buffer,
-                    const uint32_t cascade_index
-                ) : cascade_index{cascade_index} {
-                    count_buffer_address = count_buffer->address;
-
-                    vpl_buffer_address = vpl_buffer->address;
-                }
+                int32_t cascade_index;
+                uint32_t cascade_resolution;
             };
 
             const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
@@ -508,197 +506,17 @@ void LightPropagationVolume::inject_indirect_sun_light(
                     .name = "Extract VPLs",
                     .descriptor_sets = std::vector{descriptor_set},
                     .push_constants = VplPipelineConstants{
-                        backend.get_global_allocator(), cascade.count_buffer, cascade.vpl_buffer, cascade_index
+                        .count_buffer_address = cascade.count_buffer->address,
+                        .vpl_buffer_address = cascade.vpl_buffer->address,
+                        .cascade_index = static_cast<int32_t>(cascade_index),
+                        .cascade_resolution = resolution.x,
                     },
-                    .num_workgroups = {resolution, 1},
+                    .num_workgroups = { (resolution + glm::uvec2{7}) / glm::uvec2{8}, 1 },
                     .compute_shader = vpl_pipeline
                 });
         }
 
         dispatch_vpl_injection_pass(graph, cascade_index, cascade);
-
-        /*
-         *        graph.begin_render_pass(
-            {
-                .name = "Render RSM and generate VPLs",
-                .buffers = {
-                    {
-                        cascade.count_buffer,
-                        {
-                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                            VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT
-                        }
-                    },
-                    {
-                        cascade.vpl_buffer,
-                        {
-                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                            VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT
-                        }
-                    },
-                    {
-                        cascade_data_buffer,
-                        {
-                            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                            VK_ACCESS_UNIFORM_READ_BIT
-                        }
-                    }
-                },
-                .attachments = {
-                    cascade.flux_target,
-                    cascade.normals_target,
-                    cascade.depth_target
-                },
-                .clear_values = {
-                    VkClearValue{.color = {.float32 = {0, 0, 0, 0}}},
-                    VkClearValue{.color = {.float32 = {0.5, 0.5, 1.0, 0}}},
-                    VkClearValue{.depthStencil = {.depth = 1.f}},
-                },
-            }
-        );
-        graph.add_subpass(
-            Subpass{
-                .name = "RSM",
-                .color_attachments = {0, 1},
-                .depth_attachment = 2,
-                .execute = [&](CommandBuffer& commands) {
-                    auto global_set = *vkutil::DescriptorBuilder::begin(
-                                           backend,
-                                           backend.get_transient_descriptor_allocator()
-                                       )
-                                       .bind_buffer(
-                                           0,
-                                           {.buffer = cascade_data_buffer},
-                                           VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                           VK_SHADER_STAGE_VERTEX_BIT
-                                       )
-                                       .bind_buffer(
-                                           1,
-                                           {.buffer = scene.get_sun_light().get_constant_buffer()},
-                                           VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                           VK_SHADER_STAGE_FRAGMENT_BIT
-                                       )
-                                       .build();
-
-                    commands.bind_descriptor_set(0, global_set);
-
-                    commands.set_push_constant(4, cascade_index);
-
-                    rsm_drawer.draw(commands);
-
-                    commands.clear_descriptor_set(0);
-                }
-            }
-        );
-        graph.add_subpass(
-            {
-                .name = "VPL Generation",
-                .input_attachments = {0, 1, 2},
-                .execute = [&](CommandBuffer& commands) {
-                    const auto sampler = backend.get_default_sampler();
-
-                    const auto set = vkutil::DescriptorBuilder::begin(
-                                         backend,
-                                         backend.get_transient_descriptor_allocator()
-                                     )
-                                     .bind_image(
-                                         0,
-                                         {
-                                             .sampler = sampler, .image = cascade.flux_target,
-                                             .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                         },
-                                         VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                                         VK_SHADER_STAGE_FRAGMENT_BIT
-                                     )
-                                     .bind_image(
-                                         1,
-                                         {
-                                             .sampler = sampler, .image = cascade.normals_target,
-                                             .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                         },
-                                         VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                                         VK_SHADER_STAGE_FRAGMENT_BIT
-                                     )
-                                     .bind_image(
-                                         2,
-                                         {
-                                             .sampler = sampler, .image = cascade.depth_target,
-                                             .image_layout =
-                                             VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
-                                         },
-                                         VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                                         VK_SHADER_STAGE_FRAGMENT_BIT
-                                     )
-                                     .bind_buffer(
-                                         3,
-                                         {.buffer = cascade_data_buffer},
-                                         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                         VK_SHADER_STAGE_FRAGMENT_BIT
-                                     )
-                                     .build();
-
-                    commands.bind_descriptor_set(0, *set);
-
-                    commands.bind_buffer_reference(0, cascade.count_buffer);
-                    commands.bind_buffer_reference(2, cascade.vpl_buffer);
-
-                    commands.set_push_constant(4, cascade_index);
-
-                    commands.bind_pipeline(vpl_pipeline);
-
-                    commands.draw_triangle();
-
-                    commands.clear_descriptor_set(0);
-                },
-            }
-        );
-        graph.end_render_pass();
-
-
-        graph.begin_render_pass(
-            {
-                .name = "VPL Injection",
-                .buffers = {
-                    {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
-                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                    {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
-                },
-                .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue}
-            }
-        );
-        graph.add_subpass(
-            {
-                .name = "VPL Injection",
-                .color_attachments = {0, 1, 2},
-                .execute = [&](CommandBuffer& commands) {
-                    const auto set = *vkutil::DescriptorBuilder::begin(
-                                          backend,
-                                          backend.get_transient_descriptor_allocator()
-                                      )
-                                      .bind_buffer(
-                                          0,
-                                          {.buffer = cascade_data_buffer},
-                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                          VK_SHADER_STAGE_VERTEX_BIT
-                                      )
-                                      .build();
-
-                    commands.bind_descriptor_set(0, set);
-
-                    commands.bind_buffer_reference(0, cascade.vpl_buffer);
-                    commands.set_push_constant(2, cascade_index);
-                    commands.set_push_constant(3, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
-
-                    commands.bind_pipeline(vpl_injection_pipeline);
-
-                    commands.draw_indirect(cascade.count_buffer);
-
-                    commands.clear_descriptor_set(0);
-                }
-            }
-        );
-        graph.end_render_pass();
-        */
 
         if(cvar_lpv_build_gv_mode.Get() == GvBuildMode::DepthBuffers) {
             inject_rsm_depth_into_cascade_gv(graph, cascade, cascade_index);

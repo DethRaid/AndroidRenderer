@@ -69,10 +69,14 @@ void store_light(in VPL light) {
     vpl_list_buffer.lights[light_index] = packed_light;
 }
 
-layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 void main() {
     ivec3 texel = ivec3(gl_GlobalInvocationID);
+
+    if(texel.x >= cascade_size || texel.y >= cascade_size) {
+        return;
+    }
 
     // Load this VPL, calculate it's luma
     VPL light;

@@ -61,7 +61,6 @@ void ScatterUploadBuffer<DataType>::add_data(const uint32_t destination_index, D
     }
 
     static_cast<uint32_t*>(scatter_indices->allocation_info.pMappedData)[scatter_buffer_count] = destination_index;
-    spdlog::info("Added scatter packet for index {}", destination_index);
 
     if (!scatter_data) {
         scatter_data = allocator.create_buffer(
