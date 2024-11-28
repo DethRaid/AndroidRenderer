@@ -592,7 +592,7 @@ void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
         break;
 
     case RenderVisualization::VoxelizedMeshes:
-        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
+        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && *CVarSystem::Get()->GetIntCVar("r.voxel.Visualize") != 0) {
             voxel_visualizer.render(render_graph, *scene, lit_scene_handle, player_view.get_buffer());
         }
         break;

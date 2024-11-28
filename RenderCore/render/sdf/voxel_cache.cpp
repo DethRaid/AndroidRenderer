@@ -1,23 +1,25 @@
 #include "voxel_cache.hpp"
 
-#include <glm/common.hpp>
-
 #include "console/cvars.hpp"
 #include "render/backend/render_backend.hpp"
-#include "render/backend/render_graph.hpp"
 
-AutoCVar_Int cvar_enable_voxelizer{
-    "r.voxel.Enable", "Whether or not to voxelize meshes and use those voxels for various purposes", 1
+[[maybe_unused]] static AutoCVar_Int cvar_enable_voxelizer{
+    "r.voxel.Enable", "Whether or not to voxelize meshes and use those voxels for various purposes", 0
 };
 
-AutoCVar_Float cvar_voxel_size{"r.voxel.VoxelSize", "Resolution, in world units, of one side of a mesh voxel", 0.25};
+[[maybe_unused]] static AutoCVar_Float cvar_voxel_size{
+    "r.voxel.VoxelSize", "Resolution, in world units, of one side of a mesh voxel", 0.25
+};
 
-VoxelCache::VoxelCache(RenderBackend& backend_in) : backend{backend_in}, voxelizer{backend} {
-}
+[[maybe_unused]] static AutoCVar_Int cvar_enable_voxel_visualizer{
+    "r.voxel.Visualize", "Turns on the visualization of voxels", 0
+};
+
+VoxelCache::VoxelCache(RenderBackend& backend_in) : backend{backend_in}, voxelizer{backend} {}
 
 VoxelCache::~VoxelCache() {
     auto& allocator = backend.get_global_allocator();
-    for (const auto& [mesh_index, voxel_object] : voxels) {
+    for(const auto& [mesh_index, voxel_object] : voxels) {
         allocator.destroy_texture(voxel_object.voxels_color);
         allocator.destroy_texture(voxel_object.voxels_normals);
     }
@@ -26,16 +28,21 @@ VoxelCache::~VoxelCache() {
 }
 
 VoxelObject VoxelCache::build_voxels_for_mesh(
-    const MeshPrimitiveHandle primitive, const MeshStorage& meshes, const BufferHandle primitive_data_buffer, RenderGraph& graph
+    const MeshPrimitiveHandle primitive, const MeshStorage& meshes, const BufferHandle primitive_data_buffer,
+    RenderGraph& graph
 ) {
     const auto key = make_key(primitive);
 
-    if (auto itr = voxels.find(key); itr != voxels.end()) {
+    if(auto itr = voxels.find(key); itr != voxels.end()) {
         return itr->second;
     }
 
     const auto voxel_texture = voxelizer.voxelize_primitive(
-        graph, primitive, meshes, primitive_data_buffer, cvar_voxel_size.GetFloat()
+        graph,
+        primitive,
+        meshes,
+        primitive_data_buffer,
+        cvar_voxel_size.GetFloat()
     );
 
     auto obj = VoxelObject{
