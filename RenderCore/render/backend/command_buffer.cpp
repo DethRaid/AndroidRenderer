@@ -5,6 +5,7 @@
 #include "pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
 #include "utils.hpp"
+#include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;

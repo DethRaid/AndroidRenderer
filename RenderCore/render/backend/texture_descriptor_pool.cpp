@@ -2,6 +2,7 @@
 
 #include <numeric>
 
+#include "console/cvars.hpp"
 #include "render/backend/render_backend.hpp"
 
 static AutoCVar_Int cvar_sampled_image_count{

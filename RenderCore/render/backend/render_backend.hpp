@@ -6,18 +6,15 @@
 #include <VkBootstrap.h>
 #include <tracy/TracyVulkan.hpp>
 
-#include "descriptor_set_allocator.hpp"
-#include "descriptor_set_builder.hpp"
+#include "render/backend/descriptor_set_allocator.hpp"
 #include "render/backend/render_graph.hpp"
 #include "render/backend/resource_access_synchronizer.hpp"
 #include "render/backend/texture_descriptor_pool.hpp"
-#include "console/cvars.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/command_allocator.hpp"
 #include "render/backend/pipeline_builder.hpp"
 #include "render/backend/resource_upload_queue.hpp"
 #include "render/backend/constants.hpp"
-#include "render/backend/compute_shader.hpp"
 
 class BlasBuildQueue;
 class PipelineCache;
@@ -37,8 +34,6 @@ class RenderBackend {
 public:
     static RenderBackend& get();
 
-    bool supports_ray_tracing = false;
-
     bool supports_nv_diagnostics_config = false;
 
     bool supports_nv_shader_reorder = false;
@@ -54,6 +49,10 @@ public:
     RenderBackend& operator=(RenderBackend&& old) noexcept = default;
 
     ~RenderBackend();
+
+    bool use_ray_tracing() const;
+
+    bool use_device_generated_commands() const;
 
     RenderGraph create_render_graph();
 
@@ -255,6 +254,7 @@ private:
     std::vector<CommandBuffer> queued_command_buffers = {};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR ray_pipeline_features = {};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
+    VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV device_generated_commands_features;
     VkPhysicalDeviceFeatures2 device_features = {};
 
     void create_instance_and_device();

@@ -16,6 +16,12 @@
 #include "render/backend/resource_upload_queue.hpp"
 #include "core/issue_breakpoint.hpp"
 
+[[maybe_unused]] static auto cvar_use_dcg = AutoCVar_Int{
+    "r.RHI.DGC.Enable",
+    "Whether to use Device-Generated Commands when available. Reduced CPU load, but is not supported on all hardware. We currently use VK_NV_device_generated_commands, will switch to EXT when it reaches my GPU",
+    1
+};
+
 static std::shared_ptr<spdlog::logger> logger;
 
 VkBool32 VKAPI_ATTR debug_callback(
@@ -74,8 +80,6 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
         throw std::runtime_error{"Could not initialize Volk, Vulkan is not available"};
     }
 
-    supports_ray_tracing = *CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable") != 0;
-
     create_instance_and_device();
 
     graphics_queue = *device.get_queue(vkb::QueueType::graphics);
@@ -102,7 +106,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
     create_tracy_context();
 
     global_descriptor_allocator.init(device.device);
-    for (auto& frame_allocator : frame_descriptor_allocators) {
+    for(auto& frame_allocator : frame_descriptor_allocators) {
         frame_allocator.init(device.device);
     }
     descriptor_layout_cache.init(device.device);
@@ -277,11 +281,32 @@ void RenderBackend::create_instance_and_device() {
     }
 
     physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    physical_device.enable_extension_features_if_present(
+        VkPhysicalDeviceAccelerationStructureFeaturesKHR{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+            .accelerationStructure = VK_TRUE,
+        });
+
     physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+    physical_device.enable_extension_features_if_present(
+        VkPhysicalDeviceRayTracingPipelineFeaturesKHR{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+            .rayTracingPipeline = VK_TRUE,
+            .rayTracingPipelineTraceRaysIndirect = VK_TRUE,
+        });
+
     physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_KHR_RAY_QUERY_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+
+    physical_device.enable_extension_if_present(VK_NV_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME);
+    physical_device.enable_extension_if_present(VK_NV_DEVICE_GENERATED_COMMANDS_COMPUTE_EXTENSION_NAME);
+    physical_device.enable_extension_features_if_present(
+        VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV,
+            .deviceGeneratedCommands = VK_TRUE,
+        });
 
     supports_nv_shader_reorder = physical_device.enable_extension_if_present(
         VK_NV_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME);
@@ -297,37 +322,38 @@ void RenderBackend::create_instance_and_device() {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
         .pNext = &ray_pipeline_features
     };
+    device_generated_commands_features = VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV,
+        .pNext = &acceleration_structure_features,
+    };
+
     device_features = VkPhysicalDeviceFeatures2{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        .pNext = &acceleration_structure_features
+        .pNext = &device_generated_commands_features
     };
     vkGetPhysicalDeviceFeatures2(physical_device, &device_features);
 
-    supports_ray_tracing = acceleration_structure_features.accelerationStructure;
-
     if(SystemInterface::get().is_renderdoc_loaded()) {
         logger->info("RenderDoc is loaded! Turning ray tracing features off");
-        supports_ray_tracing = false;
         acceleration_structure_features.accelerationStructure = VK_FALSE;
         acceleration_structure_features.accelerationStructureCaptureReplay = VK_FALSE;
         acceleration_structure_features.accelerationStructureIndirectBuild = VK_FALSE;
         acceleration_structure_features.accelerationStructureHostCommands = VK_FALSE;
     }
 
-    if(!supports_ray_tracing) {
-        logger->error(
-            "Device does not support ray tracing! VkPhysicalDeviceAccelerationStructureFeaturesKHR::accelerationStructure is false");
-        CVarSystem::Get()->SetIntCVar("r.Raytracing.Enable", 0);
-
-    } else {
+    if(acceleration_structure_features.accelerationStructure) {
         logger->info("Ray tracing supported");
     }
 
     auto device_builder = vkb::DeviceBuilder{physical_device};
 
-    if(supports_ray_tracing) {
+    if(acceleration_structure_features.accelerationStructure) {
         device_builder.add_pNext(&acceleration_structure_features);
         device_builder.add_pNext(&ray_pipeline_features);
+    }
+
+    if(device_generated_commands_features.deviceGeneratedCommands) {
+        device_builder.add_pNext(&device_generated_commands_features);
     }
 
     // Set up device creation info for Aftermath feature flag configuration.
@@ -380,6 +406,15 @@ void RenderBackend::create_swapchain() {
 
 RenderBackend::~RenderBackend() {
     vkDeviceWaitIdle(device.device);
+}
+
+bool RenderBackend::use_ray_tracing() const {
+    return *CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable") != 0 && 
+        acceleration_structure_features.accelerationStructure;
+}
+
+bool RenderBackend::use_device_generated_commands() const {
+    return cvar_use_dcg.Get() != 0 && device_generated_commands_features.deviceGeneratedCommands;
 }
 
 RenderGraph RenderBackend::create_render_graph() {
@@ -447,7 +482,12 @@ void RenderBackend::advance_frame() {
 
     {
         ZoneScopedN("Wait for previous frame");
-        const auto result = vkWaitForFences(device, 1, &frame_fences[cur_frame_idx], VK_TRUE, std::numeric_limits<uint64_t>::max());
+        const auto result = vkWaitForFences(
+            device,
+            1,
+            &frame_fences[cur_frame_idx],
+            VK_TRUE,
+            std::numeric_limits<uint64_t>::max());
         logger->trace("Frame fence {} is signalled", cur_frame_idx);
         logger->trace("vkWaitForFences(frame_fences[{}]) result: {}", cur_frame_idx, string_VkResult(result));
     }
@@ -456,7 +496,7 @@ void RenderBackend::advance_frame() {
         graphics_command_allocators[cur_frame_idx].reset();
 
         auto& semaphores = zombie_semaphores[cur_frame_idx];
-        for (const auto& semaphore : semaphores) {
+        for(const auto& semaphore : semaphores) {
             vkDestroySemaphore(device, semaphore, nullptr);
         }
         semaphores.clear();
@@ -595,10 +635,7 @@ void RenderBackend::flush_batched_command_buffers() {
     }
 
     {
-        auto command_buffer = create_graphics_command_buffer("BLAS Builds");
-        {
-            
-        }
+        auto command_buffer = create_graphics_command_buffer("BLAS Builds"); {}
     }
 
     if(!queued_command_buffers.empty()) {

@@ -1,7 +1,9 @@
 ﻿#include "render/backend/vk_descriptors.hpp"
+
 #include <algorithm>
 #include <tracy/Tracy.hpp>
 
+#include "console/cvars.hpp"
 #include "render/backend/render_backend.hpp"
 
 namespace vkutil {

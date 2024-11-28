@@ -926,117 +926,34 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
 ) const {
     ZoneScoped;
 
-    // const auto sampler = backend.get_default_sampler();
-    // const auto set = backend.get_transient_descriptor_allocator().build_set(inject_rsm_depth_into_gv_pipeline, 0)
-    //     .bind(0, normal_target, sampler)
-    //     .bind(1, depth_buffer, sampler)
-    //     .bind(2, cascade_data_buffer)
-    //     .bind(3, view_uniform_buffer)
-    //     .build();
-    // 
-    // graph.add_render_pass(
-    //     {
-    //         .name = "Inject RSM into GV",
-    //         .descriptor_sets = {set},
-    //         .execute = [&](CommandBuffer& commands) {
-    //             const auto effective_resolution = resolution / glm::uvec2{2};
-    // 
-    //             commands.bind_descriptor_set(0, set);
-    // 
-    //             commands.set_push_constant(0, effective_resolution.x);
-    //             commands.set_push_constant(1, effective_resolution.y);
-    //             commands.set_push_constant(2, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
-    // 
-    //             commands.bind_pipeline(inject_scene_depth_into_gv_pipeline);
-    // 
-    //             commands.draw(effective_resolution.x * effective_resolution.y / 4);
-    // 
-    //             commands.clear_descriptor_set(0);
-    //         }
-    //     });
-
-
-    graph.begin_render_pass(
+    const auto sampler = backend.get_default_sampler();
+    const auto set = backend.get_transient_descriptor_allocator().build_set(inject_rsm_depth_into_gv_pipeline, 0)
+        .bind(0, normal_target, sampler)
+        .bind(1, depth_buffer, sampler)
+        .bind(2, cascade_data_buffer)
+        .bind(3, view_uniform_buffer)
+        .build();
+    
+    graph.add_render_pass(
         {
-            .name = "Inject RSM depth into GV",
-            .textures = {
-                {
-                    depth_buffer,
-                    {
-                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                },
-                {
-                    normal_target,
-                    {
-                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                }
-            },
-            .attachments = {geometry_volume_handle},
-        }
-    );
-    graph.add_subpass(
-        {
-            .name = "Inject RSM depth into GV",
-            .color_attachments = {0},
+            .name = "Inject RSM into GV",
+            .descriptor_sets = {set},
             .execute = [&](CommandBuffer& commands) {
                 const auto effective_resolution = resolution / glm::uvec2{2};
-
-                const auto sampler = backend.get_default_sampler();
-                const auto set = *vkutil::DescriptorBuilder::begin(
-                                      backend,
-                                      backend.get_transient_descriptor_allocator()
-                                  )
-                                  .bind_image(
-                                      0,
-                                      {
-                                          .sampler = sampler, .image = normal_target,
-                                          .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                      },
-                                      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                      VK_SHADER_STAGE_VERTEX_BIT
-                                  )
-                                  .bind_image(
-                                      1,
-                                      {
-                                          .sampler = sampler, .image = depth_buffer,
-                                          .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                      },
-                                      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                      VK_SHADER_STAGE_VERTEX_BIT
-                                  )
-                                  .bind_buffer(
-                                      2,
-                                      {.buffer = cascade_data_buffer},
-                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                      VK_SHADER_STAGE_GEOMETRY_BIT
-                                  )
-                                  .bind_buffer(
-                                      3,
-                                      {.buffer = view_uniform_buffer},
-                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                      VK_SHADER_STAGE_VERTEX_BIT
-                                  )
-                                  .build();
-
+    
                 commands.bind_descriptor_set(0, set);
-
+    
                 commands.set_push_constant(0, effective_resolution.x);
                 commands.set_push_constant(1, effective_resolution.y);
                 commands.set_push_constant(2, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
-
+    
                 commands.bind_pipeline(inject_scene_depth_into_gv_pipeline);
-
+    
                 commands.draw(effective_resolution.x * effective_resolution.y / 4);
-
+    
                 commands.clear_descriptor_set(0);
             }
         });
-
-    graph.end_render_pass();
 }
 
 
