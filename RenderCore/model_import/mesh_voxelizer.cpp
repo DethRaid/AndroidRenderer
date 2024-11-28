@@ -78,7 +78,7 @@ VoxelTextures MeshVoxelizer::voxelize_with_raster(
                .bind(0, voxels)
                .bind(1, primitive_buffer)
                .bind(2, frustums_buffer)
-               .finalize();
+               .build();
     graph.add_render_pass(
         DynamicRenderingPass{
             .name = "Voxelization",
@@ -154,7 +154,7 @@ VoxelTextures MeshVoxelizer::voxelize_with_compute(
                                  .bind(4, mesh_storage.get_draw_args_buffer())
                                  .bind(5, voxels_color)
                                  .bind(6, voxels_normal)
-                                 .finalize();
+                                 .build();
 
     graph.add_compute_dispatch<VoxelizerComputePassParameters>(
         {

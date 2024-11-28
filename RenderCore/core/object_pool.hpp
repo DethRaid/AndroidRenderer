@@ -1,5 +1,6 @@
 #pragma once
 
+#include <compare>
 #include <typeindex>
 #include <vector>
 
@@ -21,6 +22,10 @@ struct PooledObject {
     operator bool() const;
 
     bool operator!() const;
+
+    bool operator==(const PooledObject& other) const;
+
+    auto operator<=>(const PooledObject<ObjectType>& other) const;
 
     bool is_valid() const;
 };
@@ -91,6 +96,16 @@ PooledObject<ObjectType>::operator bool() const {
 template <typename ObjectType>
 bool PooledObject<ObjectType>::operator!() const {
     return !operator bool();
+}
+
+template <typename ObjectType>
+bool PooledObject<ObjectType>::operator==(const PooledObject& other) const {
+    return other.index == index;
+}
+
+template <typename ObjectType>
+auto PooledObject<ObjectType>::operator<=>(const PooledObject<ObjectType>& other) const {
+    return static_cast<int32_t>(static_cast<int64_t>(other.index) - static_cast<int64_t>(index));
 }
 
 template <typename ObjectType>

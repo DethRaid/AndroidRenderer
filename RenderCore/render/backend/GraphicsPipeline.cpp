@@ -14,7 +14,7 @@ static std::shared_ptr<spdlog::logger> logger;
 
 void GraphicsPipeline::create_pipeline_layout(
     RenderBackend& backend,
-    const std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos, 
+    const absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos, 
     const std::vector<VkPushConstantRange>& push_constants
 ) {
     // Create descriptor sets
@@ -29,7 +29,7 @@ void GraphicsPipeline::create_pipeline_layout(
 
         auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
 
-        for (const auto& [index, binding] : set_info.bindings) {
+        for (const auto& binding : set_info.bindings) {
             bindings.emplace_back(binding);
         }
 

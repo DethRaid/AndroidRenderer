@@ -254,23 +254,22 @@ void SceneRenderer::render() {
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
     {
         auto& sun = scene->get_sun_light();
-        const auto set = backend.get_transient_descriptor_allocator().build_set(
+        const auto set = backend.get_transient_descriptor_allocator()
+                                .build_set(
                                     {
                                         .bindings = {
                                             {
-                                                0, {
-                                                    {
-                                                        .binding = 0,
-                                                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                        .descriptorCount = 1,
-                                                        .stageFlags = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT
-                                                    }
+                                                {
+                                                    .binding = 0,
+                                                    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                    .descriptorCount = 1,
+                                                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
                                                 }
                                             }
                                         }
                                     })
                                 .bind(0, sun.get_constant_buffer())
-                                .finalize();
+                                .build();
 
         render_graph.add_render_pass(
             {

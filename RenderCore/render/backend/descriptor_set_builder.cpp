@@ -22,13 +22,13 @@ static bool is_combined_image_sampler(VkDescriptorType vk_type);
 static bool is_acceleration_structure(VkDescriptorType vk_type);
 
 void DescriptorSet::get_resource_usage_information(
-    TextureUsageMap& texture_usages, std::unordered_map<BufferHandle, BufferUsageToken>& buffer_usages
+    TextureUsageMap& texture_usages, absl::flat_hash_map<BufferHandle, BufferUsageToken>& buffer_usages
 ) const {
     for(const auto& [binding, resource] : bindings) {
         const auto& binding_info = set_info.bindings.at(binding);
         if(is_buffer_type(binding_info.descriptorType)) {
             const auto& buffer_handle = resource.buffer;
-            if(auto itr = buffer_usages.find(buffer_handle); itr != buffer_usages.end()) {
+            if (const auto itr = buffer_usages.find(buffer_handle);  itr != buffer_usages.end()) {
                 itr->second.access |= to_vk_access(binding_info.descriptorType, binding_info.is_read_only);
                 itr->second.stage |= to_pipeline_stage(binding_info.stageFlags);
             } else {
@@ -71,8 +71,7 @@ DescriptorSetBuilder::DescriptorSetBuilder(
 
 DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, const BufferHandle buffer) {
 #ifndef _NDEBUG
-    auto itr = set_info.bindings.find(binding_index);
-    if(itr == set_info.bindings.end()) {
+    if(binding_index >= set_info.bindings.size()) {
         throw std::runtime_error{
             fmt::format(
                 "Tried to bind a resource to binding {}, but that does not exist in this descriptor set",
@@ -81,7 +80,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, c
         };
     }
 
-    if(!is_buffer_type(itr->second.descriptorType)) {
+    if(!is_buffer_type(set_info.bindings[binding_index].descriptorType)) {
         throw std::runtime_error{fmt::format("Binding {} is not a buffer binding!", binding_index)};
     }
 #endif
@@ -93,8 +92,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, c
 
 DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, const TextureHandle texture) {
 #ifndef _NDEBUG
-    auto itr = set_info.bindings.find(binding_index);
-    if(itr == set_info.bindings.end()) {
+    if (binding_index >= set_info.bindings.size()) {
         throw std::runtime_error{
             fmt::format(
                 "Tried to bind a resource to binding {}, but that does not exist in this descriptor set",
@@ -103,7 +101,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, c
         };
     }
 
-    if(!is_texture_type(itr->second.descriptorType)) {
+    if(!is_texture_type(set_info.bindings[binding_index].descriptorType)) {
         throw std::runtime_error{fmt::format("Binding {} is not a texture binding!", binding_index)};
     }
 #endif
@@ -115,8 +113,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, c
 
 DescriptorSetBuilder& DescriptorSetBuilder::bind(uint32_t binding_index, TextureHandle texture, VkSampler vk_sampler) {
 #ifndef _NDEBUG
-    auto itr = set_info.bindings.find(binding_index);
-    if(itr == set_info.bindings.end()) {
+    if (binding_index >= set_info.bindings.size()) {
         throw std::runtime_error{
             fmt::format(
                 "Tried to bind a resource to binding {}, but that does not exist in this descriptor set",
@@ -125,7 +122,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(uint32_t binding_index, Texture
         };
     }
 
-    if(!is_combined_image_sampler(itr->second.descriptorType)) {
+    if(!is_combined_image_sampler(set_info.bindings[binding_index].descriptorType)) {
         throw std::runtime_error{fmt::format("Binding {} is not a combined image/sampler binding!", binding_index)};
     }
 #endif
@@ -140,8 +137,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(
     const uint32_t binding_index, const AccelerationStructureHandle acceleration_structure
 ) {
 #ifndef _NDEBUG
-    auto itr = set_info.bindings.find(binding_index);
-    if(itr == set_info.bindings.end()) {
+    if (binding_index >= set_info.bindings.size()) {
         throw std::runtime_error{
             fmt::format(
                 "Tried to bind a resource to binding {}, but that does not exist in this descriptor set",
@@ -150,7 +146,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(
         };
     }
 
-    if(!is_acceleration_structure(itr->second.descriptorType)) {
+    if(!is_acceleration_structure(set_info.bindings[binding_index].descriptorType)) {
         throw std::runtime_error{fmt::format("Binding {} is not a acceleration structure binding!", binding_index)};
     }
 #endif
@@ -160,7 +156,9 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(
     return *this;
 }
 
-DescriptorSet DescriptorSetBuilder::finalize() {
+DescriptorSet DescriptorSetBuilder::build() {
+    ZoneScoped;
+
     auto builder = vkutil::DescriptorBuilder::begin(*backend, *allocator);
     auto& resources = backend->get_global_allocator();
     for(const auto& [binding, resource] : bindings) {

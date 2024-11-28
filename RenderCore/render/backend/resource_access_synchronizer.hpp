@@ -1,5 +1,6 @@
 #pragma once
 #include <volk.h>
+#include <absl/container/flat_hash_map.h>
 
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/texture_usage_token.hpp"
@@ -25,9 +26,9 @@ public:
 private:
     RenderBackend& backend;
 
-    std::unordered_map<uint32_t, BufferUsageToken> initial_buffer_usages;
+    absl::flat_hash_map<uint32_t, BufferUsageToken> initial_buffer_usages;
 
-    std::unordered_map<uint32_t, BufferUsageToken> last_buffer_usages;
+    absl::flat_hash_map<uint32_t, BufferUsageToken> last_buffer_usages;
 
     TextureUsageMap initial_texture_usages;
 

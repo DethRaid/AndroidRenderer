@@ -104,9 +104,9 @@ public:
     void build_geometry_volume_from_scene_view(
         RenderGraph& graph, TextureHandle depth_buffer,
         TextureHandle normal_target, BufferHandle view_uniform_buffer, glm::uvec2 resolution
-    );
+    ) const;
 
-    void build_geometry_volume_from_point_clouds(RenderGraph& render_graph, const RenderScene& scene);
+    static void build_geometry_volume_from_point_clouds(RenderGraph& render_graph, const RenderScene& scene);
 
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
 
@@ -189,7 +189,7 @@ private:
      * \param cascade Cascade to inject data into
      * \param cascade_index Index of the cascade that we're injecting into
      */
-    void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index);
+    void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index) const;
 
     void perform_propagation_step(
         RenderGraph& render_graph,

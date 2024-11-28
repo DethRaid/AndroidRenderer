@@ -1,13 +1,11 @@
 #pragma once
 
 #include <array>
-#include <stdexcept>
 #include <vector>
-#include <unordered_map>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
-#include <volk.h>
+#include <absl/container/flat_hash_map.h>
 
 #include "acceleration_structure.hpp"
 #include "extern/cityhash/city_hash.hpp"
@@ -173,7 +171,7 @@ private:
     ObjectPool<Buffer> buffers;
     ObjectPool<AccelerationStructure> acceleration_structures;
 
-    std::unordered_map<std::string, VkRenderPass> cached_render_passes;
+    absl::flat_hash_map<std::string, VkRenderPass> cached_render_passes;
 
     std::array<std::vector<BufferHandle>, num_in_flight_frames> buffer_zombie_lists;
     std::array<std::vector<TextureHandle>, num_in_flight_frames> texture_zombie_lists;
@@ -190,7 +188,7 @@ private:
 
     // Cache from sampler create info hash to sampler
     // I do the hashing myself
-    std::unordered_map<std::size_t, VkSampler> sampler_cache;
+    absl::flat_hash_map<std::size_t, VkSampler> sampler_cache;
 
     void set_object_name(uint64_t object_handle, VkObjectType object_type, const std::string& name);
 };

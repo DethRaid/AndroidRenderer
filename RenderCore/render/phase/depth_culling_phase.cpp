@@ -64,6 +64,8 @@ DepthCullingPhase::~DepthCullingPhase() {
 }
 
 void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
+    ZoneScoped;
+
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
     auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
@@ -111,22 +113,19 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
     const auto view_descriptor = backend.get_transient_descriptor_allocator().build_set(
                                             {
                                                 .bindings = {
-                                                    {
-                                                        0,
-                                                        DescriptorInfo{
-                                                            {
-                                                                .binding = 0,
-                                                                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                                .descriptorCount = 1,
-                                                                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-                                                            },
-                                                            true
-                                                        }
+                                                    DescriptorInfo{
+                                                        {
+                                                            .binding = 0,
+                                                            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                            .descriptorCount = 1,
+                                                            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                                                        },
+                                                        true
                                                     }
                                                 }
                                             })
                                         .bind(0, view_data_buffer)
-                                        .finalize();
+                                        .build();
 
     auto& scene = drawer.get_scene();
     const auto primitive_buffer = scene.get_primitive_buffer();
@@ -155,7 +154,8 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
 
         // Draw last frame's visible objects
 
-        graph.add_render_pass({
+        graph.add_render_pass(
+            {
                 .name = "Rasterize last frame's visible objects",
                 .buffers = {
                     {
@@ -165,9 +165,9 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
                     {draw_count_buffer, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
                     {primitive_id_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
                 },
-            .descriptor_sets = std::vector{view_descriptor},
-            .depth_attachment = RenderingAttachmentInfo{.image = depth_buffer},
-            .execute = [&](CommandBuffer& commands) {
+                .descriptor_sets = std::vector{view_descriptor},
+                .depth_attachment = RenderingAttachmentInfo{.image = depth_buffer},
+                .execute = [&](CommandBuffer& commands) {
                     commands.bind_descriptor_set(0, view_descriptor);
 
                     drawer.draw_indirect(
@@ -177,7 +177,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
                         primitive_id_buffer
                     );
                 }
-        });
+            });
     }
 
     // Build Hi-Z pyramid
@@ -308,6 +308,8 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
     const uint32_t num_primitives,
     const BufferHandle mesh_draw_args_buffer
 ) const {
+    ZoneScoped;
+
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
     const auto draw_commands_buffer = allocator.create_buffer(

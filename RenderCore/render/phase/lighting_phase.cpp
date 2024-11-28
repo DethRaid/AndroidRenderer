@@ -51,7 +51,7 @@ void LightingPhase::render(
                                           .bind(2, gbuffer.data, sampler)
                                           .bind(3, gbuffer.emission, sampler)
                                           .bind(4, gbuffer.depth, sampler)
-                                          .finalize();
+                                          .build();
 
     render_graph.add_render_pass(
         {
@@ -103,6 +103,8 @@ void
 LightingPhase::add_sun_lighting(
     CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneTransform& view
 ) const {
+    ZoneScoped;
+
     commands.begin_label("LightingPhase::add_sun_lighting");
 
     auto& backend = RenderBackend::get();
@@ -172,11 +174,15 @@ LightingPhase::add_sun_lighting(
 void LightingPhase::add_raytraced_mesh_lighting(
     CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, BufferHandle view_buffer
 ) const {
+    ZoneScoped;
+
     auto& sun = scene->get_sun_light();
     auto& raytracing_scene = scene->get_raytracing_scene();
 }
 
 void LightingPhase::add_emissive_lighting(CommandBuffer& commands, const DescriptorSet& gbuffer_descriptor_set) const {
+    ZoneScoped;
+
     commands.begin_label("Emissive Lighting");
 
     commands.bind_pipeline(emission_pipeline);

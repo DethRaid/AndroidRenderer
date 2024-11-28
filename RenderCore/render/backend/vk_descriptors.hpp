@@ -2,9 +2,9 @@
 
 #include <vector>
 #include <optional>
-#include <unordered_map>
 
 #include <volk.h>
+#include <absl/container/flat_hash_map.h>
 
 #include "render/backend/handles.hpp"
 
@@ -74,7 +74,7 @@ namespace vkutil {
             }
         };
 
-        std::unordered_map<DescriptorLayoutInfo, VkDescriptorSetLayout, DescriptorLayoutHash> layoutCache;
+        absl::flat_hash_map<DescriptorLayoutInfo, VkDescriptorSetLayout, DescriptorLayoutHash> layoutCache;
         VkDevice device;
     };
 

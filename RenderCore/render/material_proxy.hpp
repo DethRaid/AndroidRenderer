@@ -15,7 +15,7 @@ class RenderBackend;
  * Proxy for a material
  */
 struct MaterialProxy {
-    std::unordered_map<ScenePassType, GraphicsPipelineHandle> pipelines;
+    absl::flat_hash_map<ScenePassType, GraphicsPipelineHandle> pipelines;
 };
 
 using BasicPbrMaterialProxy = std::pair<BasicPbrMaterial, MaterialProxy>;

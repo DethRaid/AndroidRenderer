@@ -1,7 +1,5 @@
 #pragma once
 
-#include <unordered_map>
-
 #include <volk.h>
 
 #include "render/backend/handles.hpp"

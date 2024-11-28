@@ -10,7 +10,7 @@
 class RenderBackend;
 
 struct Framebuffer {
-    static Framebuffer create(RenderBackend& backend, const std::vector<TextureHandle>& color_attachments,
+    static Framebuffer create(const RenderBackend& backend, const std::vector<TextureHandle>& color_attachments,
                               std::optional<TextureHandle> depth_attachment, VkRenderPass render_pass);
 
     static Framebuffer create(VkDevice device, const std::vector<VkImageView>& color_attachments,

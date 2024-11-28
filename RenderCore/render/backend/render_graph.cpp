@@ -165,7 +165,7 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
             render_area_size = {
                 depth_attachment_actual.create_info.extent.width, depth_attachment_actual.create_info.extent.height
             };
-        } else {
+        } else if(!pass.color_attachments.empty()) {
             const auto& attachment_actual = allocator.get_texture(pass.color_attachments[0].image);
             render_area_size = {
                 attachment_actual.create_info.extent.width, attachment_actual.create_info.extent.height
@@ -304,8 +304,8 @@ void RenderGraph::add_render_pass_internal(RenderPass&& pass) {
 }
 
 void RenderGraph::update_accesses_and_issues_barriers(
-    const std::unordered_map<TextureHandle, TextureUsageToken>& textures,
-    const std::unordered_map<BufferHandle, BufferUsageToken>& buffers
+    const absl::flat_hash_map<TextureHandle, TextureUsageToken>& textures,
+    const absl::flat_hash_map<BufferHandle, BufferUsageToken>& buffers
 ) const {
     for(const auto& buffer_token : buffers) {
         access_tracker.set_resource_usage(buffer_token.first, buffer_token.second.stage, buffer_token.second.access);

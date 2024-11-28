@@ -237,6 +237,8 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) {
         .maxDepth = 1
     };
     vkCmdSetViewport(commands, 0, 1, &viewport);
+
+    vkCmdSetScissor(commands, 0, 1, &rendering_info.renderArea);
 }
 
 void CommandBuffer::end_rendering() {

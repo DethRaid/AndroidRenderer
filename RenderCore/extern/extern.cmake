@@ -4,6 +4,8 @@ include(FetchContent)
 
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
+set(ABSL_USE_SYSTEM_INCLUDES ON CACHE BOOL "" FORCE)
+
 set(OPTIONAL_BUILD_PACKAGE OFF CACHE BOOL "" FORCE)
 set(OPTIONAL_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
@@ -22,6 +24,11 @@ set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 set(FASTGLTF_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(FASTGLTF_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
 
+FetchContent_Declare(
+        absiel
+        GIT_REPOSITORY  https://github.com/abseil/abseil-cpp.git
+        GIT_TAG         20240722.0
+)
 FetchContent_Declare(
         glm
         GIT_REPOSITORY  https://github.com/g-truc/glm.git
@@ -73,7 +80,7 @@ FetchContent_Declare(
         GIT_TAG         38627f4e37d7a9b13214fd267ec60e0e877e3997
 )
 
-FetchContent_MakeAvailable(glm spdlog fetch_fastgltf tl_optional fetch_magic_enum fetch_spirv_reflect
+FetchContent_MakeAvailable(absiel glm spdlog fetch_fastgltf tl_optional fetch_magic_enum fetch_spirv_reflect
         fetch_tracy fetch_vma vk-bootstrap fetch_volk)
 
 FetchContent_Declare(

@@ -65,6 +65,8 @@ static auto cvar_lpv_use_compute_vpl_injection = AutoCVar_Int{
 static std::shared_ptr<spdlog::logger> logger;
 
 LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : backend{backend_in} {
+    ZoneScoped;
+
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("LightPropagationVolume");
     }
@@ -216,6 +218,8 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
 }
 
 void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
+    ZoneScoped;
+
     const auto size = cvar_lpv_resolution.Get();
     const auto num_cascades = cvar_lpv_num_cascades.Get();
 
@@ -301,6 +305,8 @@ void LightPropagationVolume::set_scene_drawer(SceneDrawer&& drawer) {
 }
 
 void LightPropagationVolume::update_cascade_transforms(const SceneTransform& view, const SunLight& light) {
+    ZoneScoped;
+
     const auto num_cells = cvar_lpv_resolution.Get();
     const auto base_cell_size = cvar_lpv_cell_size.GetFloat();
 
@@ -363,6 +369,8 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
 }
 
 void LightPropagationVolume::update_buffers(CommandBuffer& commands) const {
+    ZoneScoped;
+
     auto cascade_matrices = std::vector<LPVCascadeMatrices>{};
     cascade_matrices.reserve(cascades.size());
     for(const auto& cascade : cascades) {
@@ -386,6 +394,8 @@ void LightPropagationVolume::update_buffers(CommandBuffer& commands) const {
 void LightPropagationVolume::inject_indirect_sun_light(
     RenderGraph& graph, RenderScene& scene
 ) {
+    ZoneScoped;
+
     // For each LPV cascade:
     // Rasterize RSM render targets for the cascade, then render a fullscreen triangle over them. That triangle's FS
     // will select the brightest VPL in each subgroup, and write it to a buffer
@@ -419,24 +429,19 @@ void LightPropagationVolume::inject_indirect_sun_light(
         const auto set_info = DescriptorSetInfo{
             .bindings = {
                 {
-                    0,
                     {
-                        {
-                            .binding = 0,
-                            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                            .descriptorCount = 1,
-                            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                        }
+                        .binding = 0,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                        .descriptorCount = 1,
+                        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
                     }
                 },
                 {
-                    1, {
-                        {
-                            .binding = 1,
-                            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                            .descriptorCount = 1,
-                            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                        }
+                    {
+                        .binding = 1,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                        .descriptorCount = 1,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
                     }
                 }
             }
@@ -446,7 +451,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                 )
                                 .bind(0, cascade_data_buffer)
                                 .bind(1, scene.get_sun_light().get_constant_buffer())
-                                .finalize();
+                                .build();
 
         graph.add_render_pass(
             DynamicRenderingPass{
@@ -490,7 +495,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                          .bind(1, cascade.normals_target, backend.get_default_sampler())
                                          .bind(2, cascade.depth_target, backend.get_default_sampler())
                                          .bind(3, cascade_data_buffer)
-                                         .finalize();
+                                         .build();
 
             struct VplPipelineConstants {
                 DeviceAddress count_buffer_address;
@@ -511,7 +516,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         .cascade_index = static_cast<int32_t>(cascade_index),
                         .cascade_resolution = resolution.x,
                     },
-                    .num_workgroups = { (resolution + glm::uvec2{7}) / glm::uvec2{8}, 1 },
+                    .num_workgroups = {(resolution + glm::uvec2{7}) / glm::uvec2{8}, 1},
                     .compute_shader = vpl_pipeline
                 });
         }
@@ -531,10 +536,12 @@ void LightPropagationVolume::inject_indirect_sun_light(
 void LightPropagationVolume::dispatch_vpl_injection_pass(
     RenderGraph& graph, const uint32_t cascade_index, const CascadeData& cascade
 ) {
+    ZoneScoped;
+
     auto descriptor_set = backend.get_transient_descriptor_allocator()
                                  .build_set(vpl_injection_pipeline, 0)
                                  .bind(0, cascade_data_buffer)
-                                 .finalize();
+                                 .build();
 
     if(cvar_lpv_use_compute_vpl_injection.Get() == 0) {
         graph.add_render_pass(
@@ -622,6 +629,8 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
 
 
 void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, const RenderScene& scene) {
+    ZoneScoped;
+
     graph.begin_label("Emissive mesh injection");
 
     for(auto cascade_index = 0u; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
@@ -687,6 +696,8 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
 }
 
 void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
+    ZoneScoped;
+
     render_graph.add_pass(
         {
             .name = "LightPropagationVolume::clear_volume",
@@ -782,6 +793,8 @@ GvBuildMode LightPropagationVolume::get_build_mode() {
 void LightPropagationVolume::build_geometry_volume_from_voxels(
     RenderGraph& render_graph, const RenderScene& scene
 ) {
+    ZoneScoped;
+
     /*
      * For each cascade:
      * - Get the static mesh primitives in the cascade
@@ -910,7 +923,39 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
 void LightPropagationVolume::build_geometry_volume_from_scene_view(
     RenderGraph& graph, const TextureHandle depth_buffer, const TextureHandle normal_target,
     const BufferHandle view_uniform_buffer, const glm::uvec2 resolution
-) {
+) const {
+    ZoneScoped;
+
+    // const auto sampler = backend.get_default_sampler();
+    // const auto set = backend.get_transient_descriptor_allocator().build_set(inject_rsm_depth_into_gv_pipeline, 0)
+    //     .bind(0, normal_target, sampler)
+    //     .bind(1, depth_buffer, sampler)
+    //     .bind(2, cascade_data_buffer)
+    //     .bind(3, view_uniform_buffer)
+    //     .build();
+    // 
+    // graph.add_render_pass(
+    //     {
+    //         .name = "Inject RSM into GV",
+    //         .descriptor_sets = {set},
+    //         .execute = [&](CommandBuffer& commands) {
+    //             const auto effective_resolution = resolution / glm::uvec2{2};
+    // 
+    //             commands.bind_descriptor_set(0, set);
+    // 
+    //             commands.set_push_constant(0, effective_resolution.x);
+    //             commands.set_push_constant(1, effective_resolution.y);
+    //             commands.set_push_constant(2, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
+    // 
+    //             commands.bind_pipeline(inject_scene_depth_into_gv_pipeline);
+    // 
+    //             commands.draw(effective_resolution.x * effective_resolution.y / 4);
+    // 
+    //             commands.clear_descriptor_set(0);
+    //         }
+    //     });
+
+
     graph.begin_render_pass(
         {
             .name = "Inject RSM depth into GV",
@@ -989,13 +1034,15 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
 
                 commands.clear_descriptor_set(0);
             }
-        }
-    );
+        });
+
     graph.end_render_pass();
 }
 
+
 void LightPropagationVolume::build_geometry_volume_from_point_clouds(
-    RenderGraph& render_graph, const RenderScene& scene
+    RenderGraph& render_graph,
+    const RenderScene& scene
 ) {
     // /*
     //    * For each cascade:
@@ -1108,6 +1155,8 @@ void LightPropagationVolume::build_geometry_volume_from_point_clouds(
 }
 
 void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
+    ZoneScoped;
+
     render_graph.begin_label("LPV Propagation");
 
     bool use_gv = false;
@@ -1134,6 +1183,7 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
             lpv_a_blue,
             use_gv
         );
+
     }
 
     render_graph.add_transition_pass(
@@ -1162,10 +1212,13 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
     );
 
     render_graph.end_label();
+
 }
 
 void LightPropagationVolume::add_lighting_to_scene(
-    CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor, const BufferHandle scene_view_buffer
+    CommandBuffer& commands,
+    const DescriptorSet& gbuffers_descriptor,
+    const BufferHandle scene_view_buffer
 ) const {
     GpuZoneScoped(commands)
 
@@ -1229,11 +1282,16 @@ void LightPropagationVolume::add_lighting_to_scene(
     commands.clear_descriptor_set(0);
 
     commands.end_label();
+
 }
 
 void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
-    RenderGraph& graph, const CascadeData& cascade, const uint32_t cascade_index
-) {
+    RenderGraph& graph,
+    const CascadeData& cascade,
+    const uint32_t cascade_index
+) const {
+    ZoneScoped;
+
     auto& allocator = backend.get_global_allocator();
 
     auto view_matrices = allocator.create_buffer(
@@ -1259,70 +1317,20 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
 
     const auto rsm_resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
 
-    graph.begin_render_pass(
-        {
-            .name = "Inject RSM depth into GV",
-            .textures = {
-                {
-                    cascade.depth_target,
-                    {
-                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                },
-                {
-                    cascade.normals_target,
-                    {
-                        VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                }
-            },
-            .attachments = {geometry_volume_handle}
-        }
-    );
-    graph.add_subpass(
-        {
-            .name = "Inject RSM depth into GV",
-            .color_attachments = {0},
-            .execute = [&](CommandBuffer& commands) {
-                const auto sampler = backend.get_default_sampler();
-                const auto set = *vkutil::DescriptorBuilder::begin(
-                                      backend,
-                                      backend.get_transient_descriptor_allocator()
-                                  )
-                                  .bind_image(
-                                      0,
-                                      {
-                                          .sampler = sampler, .image = cascade.normals_target,
-                                          .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                      },
-                                      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                      VK_SHADER_STAGE_VERTEX_BIT
-                                  )
-                                  .bind_image(
-                                      1,
-                                      {
-                                          .sampler = sampler, .image = cascade.depth_target,
-                                          .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                      },
-                                      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                      VK_SHADER_STAGE_VERTEX_BIT
-                                  )
-                                  .bind_buffer(
-                                      2,
-                                      {.buffer = cascade_data_buffer},
-                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                      VK_SHADER_STAGE_VERTEX_BIT
-                                  )
-                                  .bind_buffer(
-                                      3,
-                                      {.buffer = view_matrices},
-                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                      VK_SHADER_STAGE_VERTEX_BIT
-                                  )
-                                  .build();
+    const auto sampler = backend.get_default_sampler();
+    const auto set = backend.get_transient_descriptor_allocator().build_set(inject_rsm_depth_into_gv_pipeline, 0)
+                            .bind(0, cascade.normals_target, sampler)
+                            .bind(1, cascade.depth_target, sampler)
+                            .bind(2, cascade_data_buffer)
+                            .bind(3, view_matrices)
+                            .build();
 
+    graph.add_render_pass(
+        {
+            .name = "Inject RSM depth into GV",
+            .descriptor_sets = {set},
+            .color_attachments = {RenderingAttachmentInfo{.image = geometry_volume_handle}},
+            .execute = [&](CommandBuffer& commands) {
                 commands.bind_descriptor_set(0, set);
 
                 commands.set_push_constant(0, cascade_index);
@@ -1335,11 +1343,10 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
 
                 commands.clear_descriptor_set(0);
             }
-        }
-    );
-    graph.end_render_pass();
+        });
 
     allocator.destroy_buffer(view_matrices);
+
 }
 
 void LightPropagationVolume::perform_propagation_step(
@@ -1348,6 +1355,8 @@ void LightPropagationVolume::perform_propagation_step(
     const TextureHandle write_red, const TextureHandle write_green, const TextureHandle write_blue,
     const bool use_gv
 ) const {
+    ZoneScoped;
+
     const auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(propagation_shader, 0)
                                          .bind(0, read_red)
                                          .bind(1, read_green)
@@ -1356,7 +1365,7 @@ void LightPropagationVolume::perform_propagation_step(
                                          .bind(4, write_green)
                                          .bind(5, write_blue)
                                          .bind(6, geometry_volume_handle, linear_sampler)
-                                         .finalize();
+                                         .build();
 
     struct PropagateLightingConstants {
         uint32_t cascade_index;
@@ -1366,7 +1375,7 @@ void LightPropagationVolume::perform_propagation_step(
     for(uint32_t cascade_index = 0; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
         render_graph.add_compute_dispatch(
             ComputeDispatch<PropagateLightingConstants>{
-                .name = fmt::format("Propagate lighting cascade {}", cascade_index),
+                .name = "Propagate lighting cascade",
                 .descriptor_sets = std::vector{set},
                 .push_constants = PropagateLightingConstants{
                     .cascade_index = cascade_index, .use_gv = use_gv ? 1u : 0u
@@ -1375,10 +1384,13 @@ void LightPropagationVolume::perform_propagation_step(
                 .compute_shader = propagation_shader
             }
         );
+
     }
 }
 
 void CascadeData::create_render_targets(ResourceAllocator& allocator) {
+    ZoneScoped;
+
     const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
     flux_target = allocator.create_texture(
         "RSM Flux",
@@ -1401,4 +1413,5 @@ void CascadeData::create_render_targets(ResourceAllocator& allocator) {
         1,
         TextureUsage::RenderTarget
     );
+
 }

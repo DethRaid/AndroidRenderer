@@ -1,5 +1,7 @@
 #include "user_options_controller.hpp"
 
+#include <spdlog/fmt/bundled/format.h>
+
 template <>
 void CvarChangeDispatcher::register_cvar_listener<int32_t>(
     std::string_view cvar_name, std::function<void(int32_t)> listener

@@ -4,7 +4,6 @@
 // #define KHRONOS_STATIC
 
 #include <filesystem>
-#include <unordered_map>
 
 #include <tl/optional.hpp>
 #include <volk.h>
@@ -61,7 +60,7 @@ private:
 
     std::shared_ptr<spdlog::logger> logger;
 
-    std::unordered_map<std::string, TextureHandle> loaded_textures;
+    absl::flat_hash_map<std::string, TextureHandle> loaded_textures;
 
     tl::optional<TextureHandle> load_texture_ktx(const std::filesystem::path& filepath, TextureType type);
 

@@ -34,9 +34,9 @@ public:
 
     DescriptorSetInfo set_info;
 
-    std::unordered_map<uint32_t, detail::BoundResource> bindings;
+    absl::flat_hash_map<uint32_t, detail::BoundResource> bindings;
 
-    void get_resource_usage_information(TextureUsageMap& texture_usages, std::unordered_map<BufferHandle, BufferUsageToken>& buffer_usages) const;
+    void get_resource_usage_information(TextureUsageMap& texture_usages, absl::flat_hash_map<BufferHandle, BufferUsageToken>& buffer_usages) const;
 };
 
 class DescriptorSetBuilder {
@@ -55,7 +55,7 @@ public:
      * \brief Creates the Vulkan descriptor set 
      * \return 
      */
-    DescriptorSet finalize();
+    DescriptorSet build();
 
 private:
     RenderBackend* backend;
@@ -64,5 +64,5 @@ private:
 
     DescriptorSetInfo set_info;
 
-    std::unordered_map<uint32_t, detail::BoundResource> bindings;
+    absl::flat_hash_map<uint32_t, detail::BoundResource> bindings;
 };

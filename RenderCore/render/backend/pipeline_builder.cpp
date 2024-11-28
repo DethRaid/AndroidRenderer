@@ -1,6 +1,7 @@
 #include "pipeline_builder.hpp"
 
 #include <imgui.h>
+#include <algorithm>
 #include <magic_enum.hpp>
 #include <span>
 #include <spirv_reflect.h>
@@ -120,7 +121,7 @@ bool collect_descriptor_sets(
     const std::filesystem::path& shader_path,
     const std::vector<SpvReflectDescriptorSet*>& sets,
     VkShaderStageFlagBits shader_stage,
-    std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_sets
+    absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_sets
 );
 
 bool collect_push_constants(
@@ -139,7 +140,7 @@ void collect_vertex_attributes(
 );
 
 GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cache{cache_in} {
-    if (logger == nullptr) {
+    if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
         logger->set_level(spdlog::level::warn);
     }
@@ -148,7 +149,8 @@ GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cach
     set_depth_state({});
     set_raster_state({});
     set_blend_state(
-        0, {
+        0,
+        {
             .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
             VK_COLOR_COMPONENT_A_BIT
         }
@@ -182,12 +184,12 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_topology(const VkPrimitive
 }
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::filesystem::path& vertex_path) {
-    if (vertex_shader) {
+    if(vertex_shader) {
         throw std::runtime_error{"Vertex shader already loaded set"};
     }
     const auto vertex_shader_maybe = SystemInterface::get().load_file(vertex_path);
 
-    if (!vertex_shader_maybe) {
+    if(!vertex_shader_maybe) {
         throw std::runtime_error{"Could not load vertex shader"};
     }
 
@@ -198,7 +200,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
         *vertex_shader,
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
-    if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
+    if(shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
         throw std::runtime_error{"Could not perform reflection on vertex shader"};
     }
 
@@ -215,7 +217,9 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
     has_error |= collect_descriptor_sets(
-        vertex_path, sets, VK_SHADER_STAGE_VERTEX_BIT,
+        vertex_path,
+        sets,
+        VK_SHADER_STAGE_VERTEX_BIT,
         descriptor_sets
     );
 
@@ -228,7 +232,9 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
     has_error |= collect_push_constants(
-        vertex_path, spv_push_constants, VK_SHADER_STAGE_VERTEX_BIT,
+        vertex_path,
+        spv_push_constants,
+        VK_SHADER_STAGE_VERTEX_BIT,
         push_constants
     );
 
@@ -241,19 +247,23 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
     collect_vertex_attributes(
-        *vertex_layout, spv_vertex_inputs, vertex_attributes, need_position_buffer, need_data_buffer
+        *vertex_layout,
+        spv_vertex_inputs,
+        vertex_attributes,
+        need_position_buffer,
+        need_data_buffer
     );
 
     return *this;
 }
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std::filesystem::path& geometry_path) {
-    if (geometry_shader) {
+    if(geometry_shader) {
         throw std::runtime_error{"Geometry shader already set!"};
     }
 
     const auto geometry_shader_maybe = SystemInterface::get().load_file(geometry_path);
-    if (!geometry_shader_maybe) {
+    if(!geometry_shader_maybe) {
         throw std::runtime_error{"Could not load geometry shader"};
     }
 
@@ -264,7 +274,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
         *geometry_shader,
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
-    if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
+    if(shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
         throw std::runtime_error{"Could not perform reflection on geometry shader"};
     }
 
@@ -281,7 +291,9 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
     has_error |= collect_descriptor_sets(
-        geometry_path, sets, VK_SHADER_STAGE_GEOMETRY_BIT,
+        geometry_path,
+        sets,
+        VK_SHADER_STAGE_GEOMETRY_BIT,
         descriptor_sets
     );
 
@@ -294,7 +306,9 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
     has_error |= collect_push_constants(
-        geometry_path, spv_push_constants, VK_SHADER_STAGE_GEOMETRY_BIT,
+        geometry_path,
+        spv_push_constants,
+        VK_SHADER_STAGE_GEOMETRY_BIT,
         push_constants
     );
 
@@ -302,13 +316,13 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
 }
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_fragment_shader(const std::filesystem::path& fragment_path) {
-    if (fragment_shader) {
+    if(fragment_shader) {
         throw std::runtime_error{"Fragment shader already set"};
     }
 
     const auto fragment_shader_maybe = SystemInterface::get().load_file(fragment_path);
 
-    if (!fragment_shader_maybe) {
+    if(!fragment_shader_maybe) {
         throw std::runtime_error{"Could not load fragment shader"};
     }
 
@@ -318,7 +332,9 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_fragment_shader(const std:
     logger->debug("Beginning reflection on fragment shader {}", fragment_shader_name);
 
     collect_bindings(
-        *fragment_shader, fragment_path.string(), VK_SHADER_STAGE_FRAGMENT_BIT,
+        *fragment_shader,
+        fragment_path.string(),
+        VK_SHADER_STAGE_FRAGMENT_BIT,
         descriptor_sets,
         push_constants
     );
@@ -368,7 +384,7 @@ GraphicsPipelineBuilder::set_blend_state(
     const uint32_t color_target_index,
     const VkPipelineColorBlendAttachmentState& blend
 ) {
-    if (blends.size() <= color_target_index) {
+    if(blends.size() <= color_target_index) {
         blends.resize(color_target_index + 1);
     }
 
@@ -381,20 +397,20 @@ GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
     vertex_inputs.clear();
     vertex_inputs.reserve(2);
 
-    if (vertex_layout == nullptr) {
+    if(vertex_layout == nullptr) {
         throw std::runtime_error{"Vertex layout is required!"};
     }
 
     // If we have one vertex input, all attributes pull from it
     // If we have two vertex buffers, position is input 0 and data is input 1
     // If we have more than two index buffers, we give up and cry in a corner
-    if (vertex_layout->input_bindings.size() == 1 && (need_position_buffer || need_data_buffer)) {
+    if(vertex_layout->input_bindings.size() == 1 && (need_position_buffer || need_data_buffer)) {
         vertex_inputs.push_back(vertex_layout->input_bindings.at(0));
     } else {
-        if (need_position_buffer) {
+        if(need_position_buffer) {
             vertex_inputs.push_back(vertex_layout->input_bindings.at(0));
         }
-        if (need_data_buffer) {
+        if(need_data_buffer) {
             vertex_inputs.push_back(vertex_layout->input_bindings.at(1));
         }
     }
@@ -406,46 +422,64 @@ bool collect_descriptor_sets(
     const std::filesystem::path& shader_path,
     const std::vector<SpvReflectDescriptorSet*>& sets,
     const VkShaderStageFlagBits shader_stage,
-    std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_sets
+    absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_sets
 ) {
     const auto texture_array_size = static_cast<uint32_t>(*CVarSystem::Get()->GetIntCVar("r.RHI.SampledImageCount"));
 
     bool has_error = false;
-    for (const auto* set : sets) {
-        if (auto itr = descriptor_sets.find(set->set); itr != descriptor_sets.end()) {
+    for(const auto* set : sets) {
+        auto num_bindings = 0u;
+        if(auto itr = descriptor_sets.find(set->set); itr != descriptor_sets.end()) {
             // We saw this set in the previous shader. Validate that it's the same as the previous, and mark it with
             // the new shader stage
             auto& set_info = itr->second;
+            num_bindings = static_cast<uint32_t>(set_info.bindings.size());
             auto& known_bindings = set_info.bindings;
-            for (auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
+            if(known_bindings.empty()) {
+                known_bindings.resize(8);
+            }
+            for(auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
                 const auto vk_type = to_vk_type(binding->descriptor_type);
-                if (auto binding_itr = known_bindings.find(binding->binding); binding_itr !=
-                    known_bindings.end()) {
+                const auto binding_itr = std::ranges::find_if(
+                    known_bindings,
+                    [&](const DescriptorInfo& other) {
+                        return other.binding == binding->binding;
+                    });
+                if(binding_itr != known_bindings.end()) {
                     // We saw this binding already. Verify that it's the same
-                    auto& existing_binding = binding_itr->second;
+                    auto& existing_binding = *binding_itr;
 
-                    if (existing_binding.descriptorCount != binding->count) {
-                        logger->error(
-                            "Descriptor set={} binding={} in shader {} has count {}, previous shader said it had count {}",
-                            set->set, binding->binding, shader_path.string(), binding->count,
-                            binding_itr->second.descriptorCount
-                        );
-                        has_error = true;
-                    }
+                    if (existing_binding.descriptorCount > 0) {
+                        if (existing_binding.descriptorCount != binding->count) {
+                            logger->error(
+                                "Descriptor set={} binding={} in shader {} has count {}, previous shader said it had count {}",
+                                set->set,
+                                binding->binding,
+                                shader_path.string(),
+                                binding->count,
+                                binding_itr->descriptorCount
+                            );
+                            has_error = true;
+                        }
 
-                    if (existing_binding.descriptorType != vk_type) {
-                        logger->error(
-                            "Descriptor set={} binding={} in shader {} has type {}, previous shader said it had type {}",
-                            binding->set, binding->binding, shader_path.string(), vk_type,
-                            existing_binding.descriptorType
-                        );
-                        has_error = true;
+                        if (existing_binding.descriptorType != vk_type) {
+                            logger->error(
+                                "Descriptor set={} binding={} in shader {} has type {}, previous shader said it had type {}",
+                                binding->set,
+                                binding->binding,
+                                shader_path.string(),
+                                vk_type,
+                                existing_binding.descriptorType
+                            );
+                            has_error = true;
+                        }
                     }
 
                     logger->trace(
                         "Appending shader stage {} to descriptor {}.{}",
                         magic_enum::enum_name(shader_stage),
-                        set->set, binding->binding
+                        set->set,
+                        binding->binding
                     );
 
                     existing_binding.stageFlags |= shader_stage;
@@ -459,8 +493,10 @@ bool collect_descriptor_sets(
                     );
 
                     // This binding is new! Create it and add it
-                    known_bindings.emplace(
-                        binding->binding,
+                    if (known_bindings.size() <= binding->binding) {
+                        known_bindings.resize(binding->binding * 2);
+                    }
+                    known_bindings[binding->binding] =
                         DescriptorInfo{
                             {
                                 .binding = binding->binding,
@@ -470,10 +506,10 @@ bool collect_descriptor_sets(
                                 .pImmutableSamplers = nullptr
                             },
                             (binding->decoration_flags & SPV_REFLECT_DECORATION_NON_WRITABLE) != 0
-                        }
-                    );
+                        };
+                    num_bindings = std::max(num_bindings, binding->binding);
 
-                    if (binding->count == 0) {
+                    if(binding->count == 0) {
                         set_info.has_variable_count_binding = true;
                     }
                 }
@@ -482,7 +518,8 @@ bool collect_descriptor_sets(
             // The set is new. Construct new bindings for it and add them all
             auto set_info = DescriptorSetInfo{};
             logger->trace("Adding new descriptor set {}", set->set);
-            for (auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
+            set_info.bindings.resize(set->binding_count);
+            for(auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
                 logger->trace(
                     "Adding new descriptor {}.{} with count {} for shader stage {}",
                     set->set,
@@ -490,8 +527,10 @@ bool collect_descriptor_sets(
                     binding->count,
                     magic_enum::enum_name(shader_stage)
                 );
-                set_info.bindings.emplace(
-                    binding->binding,
+                if(set_info.bindings.size() <= binding->binding) {
+                    set_info.bindings.resize(binding->binding * 2);
+                }
+                set_info.bindings[binding->binding] =
                     DescriptorInfo{
                         {
                             .binding = binding->binding,
@@ -501,13 +540,15 @@ bool collect_descriptor_sets(
                             .pImmutableSamplers = nullptr
                         },
                         (binding->decoration_flags & SPV_REFLECT_DECORATION_NON_WRITABLE) != 0
-                    }
-                );
+                    };
+                num_bindings = std::max(num_bindings, binding->binding + 1);
 
-                if (binding->count == 0) {
+                if(binding->count == 0) {
                     set_info.has_variable_count_binding = true;
                 }
             }
+
+            set_info.bindings.resize(num_bindings);
 
             descriptor_sets.emplace(set->set, set_info);
         }
@@ -524,19 +565,22 @@ bool collect_push_constants(
 ) {
     bool has_error = false;
 
-    for (const auto& constant_range : spv_push_constants) {
+    for(const auto& constant_range : spv_push_constants) {
         auto existing_constant = std::find_if(
-            push_constants.begin(), push_constants.end(),
+            push_constants.begin(),
+            push_constants.end(),
             [&](const VkPushConstantRange& existing_range) {
                 return existing_range.offset ==
                     constant_range->offset;
             }
         );
-        if (existing_constant != push_constants.end()) {
-            if (existing_constant->size != constant_range->size) {
+        if(existing_constant != push_constants.end()) {
+            if(existing_constant->size != constant_range->size) {
                 logger->error(
                     "Push constant range at offset {} has size {} in shader {}, but it had size {} earlier",
-                    constant_range->offset, constant_range->size, shader_path.string(),
+                    constant_range->offset,
+                    constant_range->size,
+                    shader_path.string(),
                     existing_constant->size
                 );
                 has_error = true;
@@ -565,10 +609,10 @@ bool collect_push_constants(
 bool collect_bindings(
     const std::vector<uint8_t>& shader_instructions, const std::string& shader_name,
     VkShaderStageFlagBits shader_stage,
-    std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_sets,
+    absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_sets,
     std::vector<VkPushConstantRange>& push_constants
 ) {
-    if (logger == nullptr) {
+    if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
         logger->set_level(spdlog::level::warn);
     }
@@ -577,7 +621,7 @@ bool collect_bindings(
         shader_instructions,
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
-    if (shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
+    if(shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
         throw std::runtime_error{"Could not perform reflection on shader"};
     }
 
@@ -602,7 +646,9 @@ bool collect_bindings(
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
     has_error |= collect_push_constants(
-        shader_name, spv_push_constants, shader_stage,
+        shader_name,
+        spv_push_constants,
+        shader_stage,
         push_constants
     );
 
@@ -618,23 +664,23 @@ void collect_vertex_attributes(
 ) {
     needs_position_buffer = false;
     needs_data_buffer = false;
-    for (const auto* input : inputs) {
-        if (auto itr = vertex_layout.attributes.find(input->name); itr != vertex_layout.attributes.end()) {
+    for(const auto* input : inputs) {
+        if(auto itr = vertex_layout.attributes.find(input->name); itr != vertex_layout.attributes.end()) {
             auto& attribute = vertex_attributes.emplace_back(itr->second);
             attribute.location = input->location;
         }
 
-        if (input->name == POSITION_VERTEX_ATTRIBUTE_NAME) {
+        if(input->name == POSITION_VERTEX_ATTRIBUTE_NAME) {
             needs_position_buffer = true;
-        } else if (input->name == NORMAL_VERTEX_ATTRIBUTE_NAME) {
+        } else if(input->name == NORMAL_VERTEX_ATTRIBUTE_NAME) {
             needs_data_buffer = true;
-        } else if (input->name == TANGENT_VERTEX_ATTRIBUTE_NAME) {
+        } else if(input->name == TANGENT_VERTEX_ATTRIBUTE_NAME) {
             needs_data_buffer = true;
-        } else if (input->name == TEXCOORD_VERTEX_ATTRIBUTE_NAME) {
+        } else if(input->name == TEXCOORD_VERTEX_ATTRIBUTE_NAME) {
             needs_data_buffer = true;
-        } else if (input->name == COLOR_VERTEX_ATTRIBUTE_NAME) {
+        } else if(input->name == COLOR_VERTEX_ATTRIBUTE_NAME) {
             needs_data_buffer = true;
-        } else if (input->location != -1) {
+        } else if(input->location != -1) {
             // -1 is used for some builtin things i guess
             // I can't
             logger->error("Vertex input {} unrecognized", input->location);

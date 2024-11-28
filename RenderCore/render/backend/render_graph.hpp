@@ -103,20 +103,24 @@ private:
     void add_render_pass_internal(RenderPass&& pass);
 
     void update_accesses_and_issues_barriers(
-        const std::unordered_map<TextureHandle, TextureUsageToken>& textures,
-        const std::unordered_map<BufferHandle, BufferUsageToken>& buffers
+        const absl::flat_hash_map<TextureHandle, TextureUsageToken>& textures,
+        const absl::flat_hash_map<BufferHandle, BufferUsageToken>& buffers
     ) const;
 };
 
 template <typename PushConstantsType>
 void RenderGraph::add_compute_dispatch(const ComputeDispatch<PushConstantsType>& dispatch_info) {
+    ZoneScoped;
+
     if (!dispatch_info.name.empty()) {
         cmds.begin_label(dispatch_info.name);
     }
 
-    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+    absl::flat_hash_map<TextureHandle, TextureUsageToken> textures;
+    textures.reserve(128);
 
-    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+    absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
+    buffers.reserve(128);
 
     for (const auto& descriptor_set : dispatch_info.descriptor_sets) {
         descriptor_set.get_resource_usage_information(textures, buffers);
@@ -149,9 +153,9 @@ void RenderGraph::add_compute_dispatch(const IndirectComputeDispatch<PushConstan
         cmds.begin_label(dispatch_info.name);
     }
 
-    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+    absl::flat_hash_map<TextureHandle, TextureUsageToken> textures;
 
-    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+    absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
 
     for (const auto& descriptor_set : dispatch_info.descriptor_sets) {
         descriptor_set.get_resource_usage_information(textures, buffers);

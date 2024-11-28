@@ -29,14 +29,6 @@ static bool is_write_access(const VkAccessFlagBits2 access) {
     return (access & write_mask) != 0;
 }
 
-static std::string access_to_string(const VkAccessFlags2 access_flags) {
-    return string_VkAccessFlags2(access_flags);
-}
-
-static std::string stage_to_string(const VkPipelineStageFlags2 stage_flags) {
-    return string_VkAccessFlags2(stage_flags);
-}
-
 ResourceAccessTracker::ResourceAccessTracker(RenderBackend& backend_in) : backend{backend_in} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("ResourceAccessTracker");
@@ -91,13 +83,13 @@ void ResourceAccessTracker::set_resource_usage(
             const auto needs_transition_barrier = usage.layout != itr->second.layout;
             const auto needs_fussy_shader_barrier = usage.stage != itr->second.stage;
             if (needs_write_barrier || needs_transition_barrier || needs_fussy_shader_barrier) {
-                logger->trace(
-                    "Transitioning image {} from {} to {}\nsrcStage = {} srcAccess = {}\ndstStage = {} dstAccess = {}",
-                    texture_actual.name,
-                    magic_enum::enum_name(itr->second.layout), magic_enum::enum_name(usage.layout),
-                    stage_to_string(itr->second.stage), access_to_string(itr->second.access),
-                    stage_to_string(usage.stage), access_to_string(usage.access)
-                );
+                // logger->trace(
+                //     "Transitioning image {} from {} to {}\nsrcStage = {} srcAccess = {}\ndstStage = {} dstAccess = {}",
+                //     texture_actual.name,
+                //     magic_enum::enum_name(itr->second.layout), magic_enum::enum_name(usage.layout),
+                //     stage_to_string(itr->second.stage), access_to_string(itr->second.access),
+                //     stage_to_string(usage.stage), access_to_string(usage.access)
+                // );
                 image_barriers.emplace_back(
                     VkImageMemoryBarrier2{
                         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -137,8 +129,8 @@ void ResourceAccessTracker::set_resource_usage(
             logger->trace(
                 "[{}]: Issuing a barrier from access {} to access {}",
                 buffer->name,
-                access_to_string(itr->second.access),
-                access_to_string(access)
+                string_VkAccessFlags2(itr->second.access),
+                string_VkAccessFlags2(access)
             );
             
             buffer_barriers.emplace_back(
@@ -159,7 +151,8 @@ void ResourceAccessTracker::set_resource_usage(
 }
 
 void ResourceAccessTracker::issue_barriers(const CommandBuffer& commands) {
-    commands.barrier({}, buffer_barriers, image_barriers);
+    const static auto memory_barriers = std::vector<VkMemoryBarrier2>{};
+    commands.barrier(memory_barriers, buffer_barriers, image_barriers);
     buffer_barriers.clear();
     image_barriers.clear();
 }

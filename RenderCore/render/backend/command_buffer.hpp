@@ -265,7 +265,7 @@ private:
      * The spec states that the dependency info for each set/wait event call for the same event must match. The backend
      * should handle that noise
      */
-    std::unordered_map<VkEvent, std::vector<VkBufferMemoryBarrier2>> event_buffer_barriers;
+    absl::flat_hash_map<VkEvent, std::vector<VkBufferMemoryBarrier2>> event_buffer_barriers;
 
     void bind_index_buffer(BufferHandle buffer, VkIndexType index_type) const;
 

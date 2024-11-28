@@ -31,9 +31,9 @@ struct AttachmentBinding {
 struct ComputePass {
     std::string name;
     
-    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+    absl::flat_hash_map<TextureHandle, TextureUsageToken> textures;
 
-    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+    absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
 
     /**
      * Executes this render pass
@@ -62,7 +62,7 @@ struct ComputeDispatch {
     /**
      * \brief Buffers this pass uses that aren't in a descriptor set. Useful for buffers accessed through BDA
      */
-    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+    absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
 
     /**
      * \brief Push constants for this dispatch. Feel free to reinterpret_cast push_constants.data() into your own type
@@ -99,7 +99,7 @@ struct IndirectComputeDispatch {
     /**
      * \brief Buffers this pass uses that aren't in a descriptor set. Useful for buffers accessed through BDA
      */
-    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+    absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
 
     /**
      * \brief Push constants for this dispatch. Feel free to reinterpret_cast push_constants.data() into your own type
@@ -118,9 +118,9 @@ struct IndirectComputeDispatch {
 };
 
 struct TransitionPass {
-    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+    absl::flat_hash_map<TextureHandle, TextureUsageToken> textures;
 
-    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+    absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
 };
 
 struct ImageCopyPass {
@@ -155,9 +155,9 @@ struct Subpass {
 struct RenderPassBeginInfo {
     std::string name;
 
-    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+    absl::flat_hash_map<TextureHandle, TextureUsageToken> textures;
 
-    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+    absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
 
     /**
      * \brief Descriptor sets that contain sync info we use
@@ -176,9 +176,9 @@ struct RenderPassBeginInfo {
 struct RenderPass {
     std::string name;
 
-    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+    absl::flat_hash_map<TextureHandle, TextureUsageToken> textures;
 
-    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+    absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
 
     std::vector<DescriptorSet> descriptor_sets;
     
@@ -199,9 +199,9 @@ struct AttachmentInfo {
 struct DynamicRenderingPass {
     std::string name;
 
-    std::unordered_map<TextureHandle, TextureUsageToken> textures;
+    absl::flat_hash_map<TextureHandle, TextureUsageToken> textures;
 
-    std::unordered_map<BufferHandle, BufferUsageToken> buffers;
+    absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
 
     std::vector<DescriptorSet> descriptor_sets;
 

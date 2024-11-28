@@ -1,10 +1,10 @@
 #pragma once
+
 #include <functional>
 #include <stdexcept>
 #include <string>
-#include <utility>
 
-#include <spdlog/fmt/fmt.h>
+#include <absl/container/flat_hash_map.h>
 
 #include "console/cvars.hpp"
 
@@ -35,7 +35,7 @@ public:
 
 private:
     template <typename CvarType>
-    using CvarListenerMap = std::unordered_map<uint32_t, std::vector<std::function<void(CvarType value)>>>;
+    using CvarListenerMap = absl::flat_hash_map<uint32_t, std::vector<std::function<void(CvarType value)>>>;
 
     CvarListenerMap<int32_t> int_cvar_listeners;
     CvarListenerMap<double> float_cvar_listeners;

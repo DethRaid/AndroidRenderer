@@ -1,7 +1,6 @@
 #pragma once
 
-#include <unordered_map>
-
+#include <absl/container/flat_hash_map.h>
 #include <volk.h>
 
 struct TextureUsageToken {
@@ -12,4 +11,4 @@ struct TextureUsageToken {
     VkImageLayout layout;
 };
 
-using TextureUsageMap = std::unordered_map<TextureHandle, TextureUsageToken>;
+using TextureUsageMap = absl::flat_hash_map<TextureHandle, TextureUsageToken>;

@@ -831,9 +831,8 @@ void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
 
     auto& zombie_buffers = buffer_zombie_lists[frame_idx];
     for(auto handle : zombie_buffers) {
-        auto& buffer = buffers[static_cast<uint32_t>(handle)];
-        vmaDestroyBuffer(vma, buffer.buffer, buffer.allocation);
-        buffers.free_object(static_cast<uint32_t>(handle));
+        vmaDestroyBuffer(vma, handle->buffer, handle->allocation);
+        buffers.free_object(handle);
     }
 
     zombie_buffers.clear();

@@ -199,7 +199,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
     }
 
     logger->info("Beginning reflection on compute shader {}", shader_file_path);
-    std::unordered_map<uint32_t, DescriptorSetInfo> descriptor_sets;
+    absl::flat_hash_map<uint32_t, DescriptorSetInfo> descriptor_sets;
     std::vector<VkPushConstantRange> push_constants;
     collect_bindings(instructions, shader_file_path, VK_SHADER_STAGE_COMPUTE_BIT, descriptor_sets, push_constants);
 
@@ -217,8 +217,8 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
         bindings.resize(set_info.bindings.size());
 
-        for(const auto& [binding_index, binding] : set_info.bindings) {
-            bindings[binding_index] = binding;
+        for(const auto& binding : set_info.bindings) {
+            bindings[binding.binding] = static_cast<VkDescriptorSetLayoutBinding>(binding);
         }
 
         auto create_info = VkDescriptorSetLayoutCreateInfo{
@@ -339,6 +339,7 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         stages.emplace_back(*pipeline->fragment_stage);
     }
 
+    // ReSharper disable CppVariableCanBeMadeConstexpr
     const auto vertex_input_stage = VkPipelineVertexInputStateCreateInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
         .vertexBindingDescriptionCount = static_cast<uint32_t>(pipeline->vertex_inputs.size()),
@@ -389,6 +390,7 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         .pColorAttachmentFormats = color_attachment_formats.data(),
         .depthAttachmentFormat = depth_format.value_or(VK_FORMAT_UNDEFINED),
     };
+    // ReSharper restore CppVariableCanBeMadeConstexpr
 
     auto create_info = VkGraphicsPipelineCreateInfo{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
