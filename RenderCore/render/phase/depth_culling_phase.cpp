@@ -166,7 +166,11 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
                     {primitive_id_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
                 },
                 .descriptor_sets = std::vector{view_descriptor},
-                .depth_attachment = RenderingAttachmentInfo{.image = depth_buffer},
+                .depth_attachment = RenderingAttachmentInfo{
+                    .image = depth_buffer,
+                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .clear_value = {.depthStencil = {.depth = 1.0}}
+                },
                 .execute = [&](CommandBuffer& commands) {
                     commands.bind_descriptor_set(0, view_descriptor);
 
