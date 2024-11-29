@@ -381,12 +381,18 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
     case BufferUsage::VertexBuffer:
         vk_usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        if(backend.use_ray_tracing()) {
+            vk_usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+        }
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
 
     case BufferUsage::IndexBuffer:
         vk_usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        if (backend.use_ray_tracing()) {
+            vk_usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+        }
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
 
@@ -408,7 +414,8 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
         break;
 
     case BufferUsage::AccelerationStructure:
-        vk_usage |= VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+        vk_usage |= VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
     }
@@ -461,37 +468,20 @@ void* ResourceAllocator::map_buffer(const BufferHandle buffer_handle) const {
 }
 
 AccelerationStructureHandle ResourceAllocator::create_acceleration_structure(
-    const VkAccelerationStructureGeometryKHR& geometry,
-    const uint32_t num_triangles
+    const uint32_t acceleration_structure_size
 ) {
+    ZoneScoped;
     AccelerationStructure as;
-
-    const auto build_geometry_info = VkAccelerationStructureBuildGeometryInfoKHR{
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
-        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
-        .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
-        .geometryCount = 1,
-        .pGeometries = &geometry
-    };
-
-    auto acceleration_structure_build_sizes_info = VkAccelerationStructureBuildSizesInfoKHR{};
-    acceleration_structure_build_sizes_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
-    vkGetAccelerationStructureBuildSizesKHR(
-        backend.get_device(),
-        VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-        &build_geometry_info,
-        &num_triangles,
-        &acceleration_structure_build_sizes_info);
 
     as.buffer = create_buffer(
         "Acceleration structure",
-        acceleration_structure_build_sizes_info.accelerationStructureSize,
+        acceleration_structure_size,
         BufferUsage::AccelerationStructure);
 
     const auto acceleration_structure_create_info = VkAccelerationStructureCreateInfoKHR{
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
         .buffer = as.buffer->buffer,
-        .size = acceleration_structure_build_sizes_info.accelerationStructureSize,
+        .size = acceleration_structure_size,
         .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
     };
     vkCreateAccelerationStructureKHR(
@@ -507,8 +497,6 @@ AccelerationStructureHandle ResourceAllocator::create_acceleration_structure(
     as.as_address = vkGetAccelerationStructureDeviceAddressKHR(
         backend.get_device(),
         &acceleration_device_address_info);
-
-    as.scratch_buffer_size = acceleration_structure_build_sizes_info.buildScratchSize;
 
     return acceleration_structures.add_object(std::move(as));
 }

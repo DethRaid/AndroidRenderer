@@ -26,7 +26,7 @@ RenderScene::RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in)
     sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 100000.f);
 
     if(*CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable")) {
-        raytracing_scene.emplace(RaytracingScene{backend, *this});
+        raytracing_scene.emplace(RaytracingScene{*this});
     }
 
     auto& pipeline_cache = backend.get_pipeline_cache();

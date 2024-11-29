@@ -6,9 +6,7 @@ class RenderScene;
 
 class RaytracingScene {
 public:
-    explicit RaytracingScene(RenderBackend& backend_in, RenderScene& scene_in);
-
-    void create_blas_for_mesh(MeshHandle mesh);
+    explicit RaytracingScene(RenderScene& scene_in);
 
     void add_primitive(MeshPrimitiveHandle primitive);
 
@@ -22,19 +20,11 @@ public:
     void finalize();
 
 private:
-    RenderBackend& backend;
-
     RenderScene& scene;
 
+    std::vector<VkAccelerationStructureInstanceKHR> placed_blases;
+    bool is_dirty = false;
     VkAccelerationStructureKHR opaque_scene;
-
-    std::vector<VkAccelerationStructureGeometryKHR> pending_blas_geometries;
-    std::vector<VkAccelerationStructureBuildRangeInfoKHR> pending_blas_ranges;
-
-    /**
-     * \brief Makes all the added meshes available to the TLAS build function. Must be called before the TLAS build function
-     */
-    void commit_blas_builds();
 
     /**
      * \brief Finishes the raytracing scene by committing pending TLAS builds. Called by finalize()

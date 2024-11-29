@@ -219,7 +219,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
         *vertex_shader,
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
-    if(shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
+    if(shader_module.GetResult() != SPV_REFLECT_RESULT_SUCCESS) {
         throw std::runtime_error{"Could not perform reflection on vertex shader"};
     }
 

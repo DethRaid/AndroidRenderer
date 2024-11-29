@@ -125,9 +125,7 @@ public:
 
     void destroy_buffer(BufferHandle handle);
 
-    AccelerationStructureHandle create_acceleration_structure(
-        const VkAccelerationStructureGeometryKHR& geometry, uint32_t num_triangles
-    );
+    AccelerationStructureHandle create_acceleration_structure(uint32_t acceleration_structure_size);
 
     void destroy_acceleration_structure(AccelerationStructureHandle handle);
 

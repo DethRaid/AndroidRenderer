@@ -111,8 +111,8 @@ void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_v
 }
 
 void CommandBuffer::build_acceleration_structures(
-    const std::span<VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos,
-    const std::span<VkAccelerationStructureBuildRangeInfoKHR*> build_range_info_ptrs
+    const std::span<const VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos,
+    const std::span<VkAccelerationStructureBuildRangeInfoKHR* const> build_range_info_ptrs
 ) const {
     vkCmdBuildAccelerationStructuresKHR(
         commands,

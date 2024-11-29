@@ -2,10 +2,9 @@
 
 #include <vector>
 
-#include "acceleration_structure.hpp"
+#include "render/backend/acceleration_structure.hpp"
 
-class CommandBuffer;
-class RenderBackend;
+class RenderGraph;
 
 struct BlasBuildJob {
     AccelerationStructureHandle handle;
@@ -14,15 +13,12 @@ struct BlasBuildJob {
 
 class BlasBuildQueue {
 public:
-    explicit BlasBuildQueue(RenderBackend& backend_in);
+    explicit BlasBuildQueue();
 
     void enqueue(AccelerationStructureHandle blas, const VkAccelerationStructureGeometryKHR& create_info);
 
-    void flush_pending_builds(CommandBuffer& commands);
+    void flush_pending_builds(RenderGraph& graph);
 
 private:
-    RenderBackend& backend;
-
     std::vector<BlasBuildJob> pending_jobs;
 };
-

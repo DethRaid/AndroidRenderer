@@ -4,6 +4,7 @@
 
 #include <vk_mem_alloc.h>
 
+#include "backend/acceleration_structure.hpp"
 #include "core/box.hpp"
 #include "render/backend/handles.hpp"
 
@@ -39,4 +40,6 @@ struct Mesh {
     BufferHandle sh_points_buffer = {};
 
     uint32_t num_points = 0;
+
+    AccelerationStructureHandle blas = {};
 };

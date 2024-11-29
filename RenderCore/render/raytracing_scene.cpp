@@ -6,122 +6,47 @@
 #include "render/mesh_storage.hpp"
 
 static auto cvar_enable_raytracing = AutoCVar_Int{
-    "r.Raytracing.Enable", "Whether or not to enable raytracing", 0
+    "r.Raytracing.Enable", "Whether or not to enable raytracing", 1
 };
 
-RaytracingScene::RaytracingScene(RenderBackend& backend_in, RenderScene& scene_in)
-    : backend{backend_in}, scene{scene_in} {
-    const auto create_info = VkAccelerationStructureCreateInfoKHR{
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
-        .createFlags = VK_ACCELERATION_STRUCTURE_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT_KHR,
+RaytracingScene::RaytracingScene(RenderScene& scene_in)
+    : scene{scene_in} {}
+
+void RaytracingScene::add_primitive(const MeshPrimitiveHandle primitive) {
+    if(placed_blases.size() <= primitive.index) {
+        placed_blases.resize(primitive.index + 1);
+    }
+
+    const auto& model_matrix = primitive->data.model;
+    placed_blases[primitive.index] = VkAccelerationStructureInstanceKHR{
+        .transform = {
+            .matrix = {
+                {model_matrix[0][0], model_matrix[0][1], model_matrix[0][2], model_matrix[0][3]},
+                {model_matrix[1][0], model_matrix[1][1], model_matrix[1][2], model_matrix[1][3]},
+                {model_matrix[2][0], model_matrix[2][1], model_matrix[2][2], model_matrix[2][3]}
+            }
+        },
+        .instanceCustomIndex = primitive.index,
+        .mask = 0xFF,
+        .instanceShaderBindingTableRecordOffset = primitive->material.index * ScenePassType::Count,
+        .accelerationStructureReference = primitive->mesh->blas->as_address
     };
-    vkCreateAccelerationStructureKHR(backend.get_device(), &create_info, nullptr, &opaque_scene);
+
+    is_dirty = true;
 }
-
-void RaytracingScene::create_blas_for_mesh(const MeshHandle mesh) {
-    auto& allocator = backend.get_global_allocator();
-
-    const auto vertex_buffer = scene.get_meshes().get_vertex_position_buffer();
-
-    const auto index_buffer = scene.get_meshes().get_index_buffer();
-
-    const auto triangles = VkAccelerationStructureGeometryTrianglesDataKHR{
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
-        .vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
-        .vertexData = {.deviceAddress = vertex_buffer->address},
-        .vertexStride = sizeof(VertexPosition),
-        .maxVertex = mesh->num_vertices,
-        .indexType = VK_INDEX_TYPE_UINT32,
-        .indexData = {.deviceAddress = index_buffer->address},
-    };
-
-    const auto geometry = VkAccelerationStructureGeometryKHR{
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
-        .geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
-        .geometry = {.triangles = triangles},
-        .flags = VK_GEOMETRY_OPAQUE_BIT_KHR,
-    };
-
-    const auto range_build_info = VkAccelerationStructureBuildRangeInfoKHR{
-        .primitiveCount = mesh->num_indices / 3,
-        .primitiveOffset = 0,
-        .firstVertex = 0,
-        .transformOffset = 0,
-    };
-
-    // TODO: Store these structs somewhere, put them in a hash map indexed by handle or something. Build them in a specific method at beginning of frame
-    // TODO: Make one big geometry triangles data for the entire mesh buffer, make individual build infos for each mesh?
-
-    pending_blas_geometries.push_back(geometry);
-    pending_blas_ranges.push_back(range_build_info);
-}
-
-void RaytracingScene::add_primitive(MeshPrimitiveHandle primitive) { }
 
 void RaytracingScene::finalize() {
-    commit_blas_builds();
-
     commit_tlas_builds();
 }
 
-void RaytracingScene::commit_blas_builds() {
-    auto& allocator = backend.get_global_allocator();
-
-    auto total_as_size = VkDeviceSize{0};
-    auto scratch_buffer_size = VkDeviceSize{0};
-
-    for (auto mesh_index = 0u; mesh_index < pending_blas_geometries.size(); mesh_index++) {
-        const auto build_geometry_info = VkAccelerationStructureBuildGeometryInfoKHR{
-            .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
-            .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
-            .flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
-            .mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
-            .dstAccelerationStructure = opaque_scene,
-            .geometryCount = static_cast<uint32_t>(pending_blas_geometries.size()),
-            .pGeometries = pending_blas_geometries.data(),
-        };
-
-        auto build_sizes_info = VkAccelerationStructureBuildSizesInfoKHR{};
-        auto max_primitive_counts = std::vector<uint32_t>{};
-        max_primitive_counts.reserve(pending_blas_ranges.size());
-        for (const auto& blas_range : pending_blas_ranges) {
-            max_primitive_counts.push_back(blas_range.primitiveCount);
-        }
-        vkGetAccelerationStructureBuildSizesKHR(
-            backend.get_device(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &build_geometry_info,
-            max_primitive_counts.data(), &build_sizes_info
-        );
-
-        total_as_size += build_sizes_info.accelerationStructureSize;
-        scratch_buffer_size = std::max(scratch_buffer_size, build_sizes_info.buildScratchSize);
+void RaytracingScene::commit_tlas_builds() {
+    if(!is_dirty) {
+        return;
     }
 
-    const auto scratch_buffer = allocator.create_buffer(
-        "BLAS build scratch buffer", scratch_buffer_size, BufferUsage::StorageBuffer
-    );
+    ZoneScoped;
 
-    auto graph = RenderGraph{backend};
-    graph.add_pass(
-        {
-            .name = "Build BLASes",
-            .buffers = {
-                {
-                    scratch_buffer,
-                    {
-                        VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
-                        VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR |
-                        VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
-                    }
-                }
-            },
-            .execute = [&](CommandBuffer& commands) {}
-        }
-    );
+    auto& backend = RenderBackend::get();
 
-    graph.finish();
-    backend.execute_graph(std::move(graph));
-}
 
-void RaytracingScene::commit_tlas_builds() {
-    // TODO
 }

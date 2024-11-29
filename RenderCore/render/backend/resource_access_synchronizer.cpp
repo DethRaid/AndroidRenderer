@@ -57,7 +57,7 @@ void ResourceAccessTracker::set_resource_usage(
             image_barriers.emplace_back(
                 VkImageMemoryBarrier2{
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                    .srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                    .srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                     .srcAccessMask = VK_ACCESS_MEMORY_READ_BIT,
                     .dstStageMask = usage.stage,
                     .dstAccessMask = usage.access,

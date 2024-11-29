@@ -90,7 +90,10 @@ public:
      */
     void fill_buffer(BufferHandle buffer, uint32_t fill_value = 0, uint32_t dest_offset = 0) const;
 
-    void build_acceleration_structures(std::span<VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos, std::span<VkAccelerationStructureBuildRangeInfoKHR*> build_range_info_ptrs) const;
+    void build_acceleration_structures(
+        std::span<const VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos,
+        std::span<VkAccelerationStructureBuildRangeInfoKHR* const> build_range_info_ptrs
+    ) const;
 
     /**
      * Begins a render pass, which implicitly begins the first subpass
@@ -285,9 +288,9 @@ void CommandBuffer::update_buffer(BufferHandle buffer, const DataType& data, con
 template <typename IndexType>
 void CommandBuffer::bind_index_buffer(const BufferHandle buffer) const {
     auto index_type = VK_INDEX_TYPE_NONE_KHR;
-    if constexpr (sizeof(IndexType) == sizeof(uint32_t)) {
+    if constexpr(sizeof(IndexType) == sizeof(uint32_t)) {
         index_type = VK_INDEX_TYPE_UINT32;
-    } else if constexpr (sizeof(IndexType) == sizeof(uint16_t)) {
+    } else if constexpr(sizeof(IndexType) == sizeof(uint16_t)) {
         index_type = VK_INDEX_TYPE_UINT16;
     } else {
         throw std::runtime_error{"Invalid index type"};

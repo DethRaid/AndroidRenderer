@@ -116,7 +116,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
 
     upload_queue = std::make_unique<ResourceUploadQueue>(*this);
 
-    blas_build_queue = std::make_unique<BlasBuildQueue>(*this);
+    blas_build_queue = std::make_unique<BlasBuildQueue>();
 
     pipeline_cache = std::make_unique<PipelineCache>(*this);
 
@@ -512,7 +512,7 @@ void RenderBackend::flush_batched_command_buffers() {
 
     if(!queued_transfer_command_buffers.empty()) {
         const auto submission_semaphore = create_transient_semaphore("Transfer commands submission");
-        const auto mask = static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+        const auto mask = static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
         const auto transfer_submit = VkSubmitInfo{
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             .waitSemaphoreCount = static_cast<uint32_t>(last_submission_semaphores.size()),
@@ -617,7 +617,12 @@ void RenderBackend::flush_batched_command_buffers() {
     }
 
     {
-        auto command_buffer = create_graphics_command_buffer("BLAS Builds"); {}
+        auto graph = create_render_graph();
+
+        blas_build_queue->flush_pending_builds(graph);
+
+        graph.finish();
+        execute_graph(std::move(graph));
     }
 
     if(!queued_command_buffers.empty()) {
@@ -628,7 +633,7 @@ void RenderBackend::flush_batched_command_buffers() {
             command_buffers.emplace_back(queued_commands.get_vk_commands());
         }
 
-        auto wait_stages = std::vector<VkPipelineStageFlags>{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
+        auto wait_stages = std::vector<VkPipelineStageFlags>{ VK_PIPELINE_STAGE_ALL_COMMANDS_BIT };
         auto wait_semaphores = std::vector{swapchain_semaphore};
         if(!last_submission_semaphores.empty()) {
             wait_semaphores.insert(
@@ -636,7 +641,7 @@ void RenderBackend::flush_batched_command_buffers() {
                 last_submission_semaphores.begin(),
                 last_submission_semaphores.end()
             );
-            wait_stages.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+            wait_stages.emplace_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
             last_submission_semaphores.clear();
         }
