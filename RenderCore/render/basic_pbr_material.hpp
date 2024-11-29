@@ -55,8 +55,6 @@ struct BasicPbrMaterial {
     VkDescriptorSet descriptor_set;
 
     BasicPbrMaterialGpu gpu_data;
-
-    VkPipelineColorBlendAttachmentState blend_state;
 };
 
 #endif //SAHRENDERER_BASIC_PBR_MATERIAL_HPP

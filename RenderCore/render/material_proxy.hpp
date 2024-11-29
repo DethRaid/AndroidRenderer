@@ -1,9 +1,7 @@
 #pragma once
 
-#include <unordered_map>
+#include <array>
 #include <utility>
-
-#include <volk.h>
 
 #include "render/basic_pbr_material.hpp"
 #include "render/scene_pass_type.hpp"
@@ -15,7 +13,7 @@ class RenderBackend;
  * Proxy for a material
  */
 struct MaterialProxy {
-    std::array<GraphicsPipelineHandle, static_cast<uint32_t>(ScenePassType::Count)> pipelines;
+    std::array<GraphicsPipelineHandle, ScenePassType::Count> pipelines;
 };
 
 using BasicPbrMaterialProxy = std::pair<BasicPbrMaterial, MaterialProxy>;

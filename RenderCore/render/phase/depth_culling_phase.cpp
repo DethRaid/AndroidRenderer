@@ -388,6 +388,7 @@ void DepthCullingPhase::draw_visible_objects_dgc(
             drawer.get_mesh_storage().get_draw_args_buffer()
         );
 
+    BufferHandle indirect_commands_buffer;
     // graph.add_compute_dispatch({});
 
     graph.add_render_pass(
@@ -399,9 +400,16 @@ void DepthCullingPhase::draw_visible_objects_dgc(
                         draw_commands_buffer,
                         {
                             .stage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-                            .access = VK_ACCESS_INDIRECT_COMMAND_READ_BIT
+                            .access = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
                         }
-                    }
+                    },
+                    {
+                        indirect_commands_buffer,
+                        {
+                            .stage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                            .access = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
+                        }
+                    },
                 }
             },
             .descriptor_sets = {},

@@ -19,7 +19,7 @@
 [[maybe_unused]] static auto cvar_use_dcg = AutoCVar_Int{
     "r.RHI.DGC.Enable",
     "Whether to use Device-Generated Commands when available. Reduced CPU load, but is not supported on all hardware. We currently use VK_NV_device_generated_commands, will switch to EXT when it reaches my GPU",
-    1
+    0 // Keep this off until we have material functions working
 };
 
 static std::shared_ptr<spdlog::logger> logger;

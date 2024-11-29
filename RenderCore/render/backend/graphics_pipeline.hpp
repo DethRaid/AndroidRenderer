@@ -85,6 +85,8 @@ private:
 
     std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
 
+    uint32_t group_index;
+
     void create_pipeline_layout(
         RenderBackend& backend, const absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos,
         const std::vector<VkPushConstantRange>& push_constants

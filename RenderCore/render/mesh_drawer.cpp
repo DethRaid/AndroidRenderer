@@ -6,7 +6,7 @@
 #include "render/backend/command_buffer.hpp"
 
 SceneDrawer::SceneDrawer(
-    const ScenePassType type_in, const RenderScene& scene_in, const MeshStorage& mesh_storage_in,
+    const ScenePassType::Type type_in, const RenderScene& scene_in, const MeshStorage& mesh_storage_in,
     const MaterialStorage& material_storage_in, ResourceAllocator& resource_allocator_in
 ) : scene{&scene_in}, mesh_storage{&mesh_storage_in}, material_storage{&material_storage_in},
     allocator{&resource_allocator_in}, type{type_in} {}

@@ -54,6 +54,32 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
         ? VK_FRONT_FACE_COUNTER_CLOCKWISE
         : VK_FRONT_FACE_CLOCKWISE);
 
+    VkPipelineColorBlendAttachmentState blend_state;
+    switch(new_material.transparency_mode) {
+    case TransparencyMode::Solid:
+        [[fallthrough]];
+    case TransparencyMode::Cutout:
+        blend_state = {
+                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                VK_COLOR_COMPONENT_A_BIT
+        };
+        break;
+
+    case TransparencyMode::Translucent:
+        blend_state = {
+                .blendEnable = VK_TRUE,
+                .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .colorBlendOp = VK_BLEND_OP_ADD,
+                .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .alphaBlendOp = VK_BLEND_OP_ADD,
+                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+        };
+        break;
+    }
+
     // Depth prepass
     const auto depth_prepass_pipeline = backend.begin_building_pipeline(
                                                    fmt::format("{} depth prepass", new_material.name)
@@ -67,16 +93,16 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                                )
                                                .enable_dgc()
                                                .build();
-    proxy.pipelines[static_cast<size_t>(ScenePassType::DepthPrepass)] = depth_prepass_pipeline;
+    proxy.pipelines[ScenePassType::DepthPrepass] = depth_prepass_pipeline;
 
     // gbuffer
     const auto gbuffer_pipeline = backend.begin_building_pipeline(new_material.name)
                                          .set_vertex_shader("shaders/deferred/basic.vert.spv")
                                          .set_fragment_shader("shaders/deferred/standard_pbr.frag.spv")
-                                         .set_blend_state(0, new_material.blend_state)
-                                         .set_blend_state(1, new_material.blend_state)
-                                         .set_blend_state(2, new_material.blend_state)
-                                         .set_blend_state(3, new_material.blend_state)
+                                         .set_blend_state(0, blend_state)
+                                         .set_blend_state(1, blend_state)
+                                         .set_blend_state(2, blend_state)
+                                         .set_blend_state(3, blend_state)
                                          .set_depth_state(
                                              {
                                                  .enable_depth_test = true,
@@ -91,14 +117,14 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                              }
                                          )
                                          .build();
-    proxy.pipelines[static_cast<size_t>(ScenePassType::Gbuffer)] = gbuffer_pipeline;
+    proxy.pipelines[ScenePassType::Gbuffer] = gbuffer_pipeline;
 
     // RSM
     const auto rsm_pipeline = backend.begin_building_pipeline(fmt::format("{} RSM", new_material.name))
                                      .set_vertex_shader("shaders/lpv/rsm.vert.spv")
                                      .set_fragment_shader("shaders/lpv/rsm.frag.spv")
-                                     .set_blend_state(0, new_material.blend_state)
-                                     .set_blend_state(1, new_material.blend_state)
+                                     .set_blend_state(0, blend_state)
+                                     .set_blend_state(1, blend_state)
                                      .set_raster_state(
                                          {
                                              .cull_mode = cull_mode,
@@ -106,7 +132,7 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                          }
                                      )
                                      .build();
-    proxy.pipelines[static_cast<size_t>(ScenePassType::RSM)] = rsm_pipeline;
+    proxy.pipelines[ScenePassType::RSM] = rsm_pipeline;
 
     // Shadow
     const auto shadow_pipeline = backend.begin_building_pipeline(fmt::format("{} SHADOW", new_material.name))
@@ -119,10 +145,10 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                             }
                                         )
                                         .build();
-    proxy.pipelines[static_cast<size_t>(ScenePassType::Shadow)] = shadow_pipeline;
+    proxy.pipelines[ScenePassType::Shadow] = shadow_pipeline;
 
     // Voxelization
-    auto voxel_blend_state = new_material.blend_state;
+    auto voxel_blend_state = blend_state;
     voxel_blend_state.colorWriteMask = 0;
     const auto voxelization_pipeline = backend.begin_building_pipeline(
                                                   fmt::format("{} VOXELIZATION", new_material.name)
@@ -139,7 +165,7 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                               .set_raster_state({.cull_mode = VK_CULL_MODE_NONE})
                                               .set_blend_state(0, voxel_blend_state)
                                               .build();
-    proxy.pipelines[static_cast<size_t>(ScenePassType::Vozelization)] = voxelization_pipeline;
+    proxy.pipelines[ScenePassType::Vozelization] = voxelization_pipeline;
 
     if(backend.use_device_generated_commands()) {
         ZoneScopedN("Create VkPipelines");

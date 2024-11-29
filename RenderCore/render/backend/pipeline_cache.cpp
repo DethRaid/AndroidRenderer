@@ -339,8 +339,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<Grap
     };
     const auto create_info = VkGraphicsPipelineCreateInfo{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        TODO: FIll out more of this, I guess?
-
+        
         .pNext = &group_info,
     };
     vkCreateGraphicsPipelines(
