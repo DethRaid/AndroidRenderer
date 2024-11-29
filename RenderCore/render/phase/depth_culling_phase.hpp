@@ -76,7 +76,7 @@ private:
 
     ComputePipelineHandle hi_z_culling_shader;
 
-    VkIndirectCommandsLayoutNV command_signature;
+    VkIndirectCommandsLayoutNV command_signature = VK_NULL_HANDLE;
 
     /**
      * Draws visible objects using device-generated commands
@@ -84,6 +84,8 @@ private:
     void draw_visible_objects_dgc(RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& descriptors, BufferHandle primitive_buffer, uint32_t num_primitives);
 
     void create_command_signature();
+
+    std::optional<BufferHandle> create_preprocess_buffer(uint32_t num_primitives);
 
     /**
      * Draws visible objects, using a different draw command for each material type

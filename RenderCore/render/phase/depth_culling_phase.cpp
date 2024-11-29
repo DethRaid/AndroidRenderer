@@ -140,7 +140,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
         );
     }
 
-    if(backend.use_device_generated_commands() && false) {
+    if(backend.use_device_generated_commands()) {
         draw_visible_objects_dgc(graph, drawer, view_descriptor, primitive_buffer, num_primitives);
     } else {
         draw_visible_objects(graph, drawer, view_descriptor, primitive_buffer, num_primitives);
@@ -283,7 +283,10 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
         sizeof(VkDrawIndexedIndirectCommand) * num_primitives,
         BufferUsage::IndirectBuffer
     );
-    const auto draw_count_buffer = allocator.create_buffer("Draw count and offsets", sizeof(glm::uvec4), BufferUsage::IndirectBuffer);
+    const auto draw_count_buffer = allocator.create_buffer(
+        "Draw count and offsets",
+        sizeof(glm::uvec4),
+        BufferUsage::IndirectBuffer);
     const auto primitive_id_buffer = allocator.create_buffer(
         "Primitive ID",
         sizeof(uint32_t) * num_primitives,
@@ -351,7 +354,8 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
 
 
 void DepthCullingPhase::draw_visible_objects_dgc(
-    RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& descriptors, const BufferHandle primitive_buffer,
+    RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& descriptors,
+    const BufferHandle primitive_buffer,
     const uint32_t num_primitives
 ) {
     /*
@@ -368,6 +372,8 @@ void DepthCullingPhase::draw_visible_objects_dgc(
     if(command_signature == VK_NULL_HANDLE) {
         create_command_signature();
     }
+
+    create_preprocess_buffer(num_primitives);
 
     // Translate last frame's list of objects to indirect draw commands
 
@@ -397,7 +403,7 @@ void DepthCullingPhase::draw_visible_objects_dgc(
                 }
             },
             .descriptor_sets = {},
-            .depth_attachment = {},
+            .depth_attachment = RenderingAttachmentInfo{depth_buffer},
             .execute = [=](CommandBuffer& commands) {
                 commands.execute_commands();
 
@@ -409,9 +415,11 @@ struct DrawBatchCommand {
     VkBindShaderGroupIndirectCommandNV shader;
     uint32_t padding0;
     DeviceAddress object_id_vb;
+    VkDrawIndexedIndirectCommand draw_command;
 };
 
 void DepthCullingPhase::create_command_signature() {
+    auto& backend = RenderBackend::get();
     const auto tokens = std::array{
         VkIndirectCommandsLayoutTokenNV{
             .sType = VK_STRUCTURE_TYPE_INDIRECT_COMMANDS_LAYOUT_TOKEN_NV,
@@ -426,16 +434,49 @@ void DepthCullingPhase::create_command_signature() {
             .offset = offsetof(DrawBatchCommand, object_id_vb),
             .vertexBindingUnit = 1,
             .vertexDynamicStride = VK_FALSE,
+        },
+        VkIndirectCommandsLayoutTokenNV{
+            .sType = VK_STRUCTURE_TYPE_INDIRECT_COMMANDS_LAYOUT_TOKEN_NV,
+            .tokenType = VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_INDEXED_NV,
+            .stream = 0,
+            .offset = offsetof(DrawBatchCommand, draw_command),
+            .vertexBindingUnit = 1,
+            .vertexDynamicStride = VK_FALSE,
         }
     };
+    constexpr auto stride = static_cast<uint32_t>(sizeof(DrawBatchCommand));
     const auto create_info = VkIndirectCommandsLayoutCreateInfoNV{
         .sType = VK_STRUCTURE_TYPE_INDIRECT_COMMANDS_LAYOUT_CREATE_INFO_NV,
         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
         .tokenCount = static_cast<uint32_t>(tokens.size()),
         .pTokens = tokens.data(),
         .streamCount = 1,
+        .pStreamStrides = &stride
     };
-    // vkCreateIndirectCommandsLayoutNV(device, &create_info, nullptr, &command_signature);
+    vkCreateIndirectCommandsLayoutNV(backend.get_device(), &create_info, nullptr, &command_signature);
+}
+
+std::optional<BufferHandle> DepthCullingPhase::create_preprocess_buffer(const uint32_t num_primitives) {
+    auto& backend = RenderBackend::get();
+
+    const auto info = VkGeneratedCommandsMemoryRequirementsInfoNV{
+        .sType = VK_STRUCTURE_TYPE_GENERATED_COMMANDS_MEMORY_REQUIREMENTS_INFO_NV,
+        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .pipeline = {},
+        .indirectCommandsLayout = command_signature,
+        .maxSequencesCount = num_primitives
+    };
+    auto requirements = VkMemoryRequirements2{ .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2 };
+    vkGetGeneratedCommandsMemoryRequirementsNV(backend.get_device(), &info, &requirements);
+
+    if (requirements.memoryRequirements.size > 0) {
+        // Allocate and return a buffer
+        auto& allocator = backend.get_global_allocator();
+        return allocator.create_buffer("Preprocess Buffer", requirements.memoryRequirements.size, BufferUsage::StorageBuffer);
+    }
+    else {
+        return std::nullopt;
+    }
 }
 
 void DepthCullingPhase::draw_visible_objects(
