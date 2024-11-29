@@ -28,6 +28,10 @@ public:
     
     const std::vector<MeshPrimitiveHandle>& get_solid_primitives() const;
 
+    const std::vector<MeshPrimitiveHandle>& get_masked_primitives() const;
+
+    const std::vector<MeshPrimitiveHandle>& get_transparent_primitives() const;
+
     BufferHandle get_primitive_buffer() const;
 
     uint32_t get_total_num_primitives() const;

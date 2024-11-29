@@ -33,7 +33,10 @@ layout(buffer_reference, scalar, buffer_reference_align = 16) writeonly buffer D
 };
 
 layout(buffer_reference, std430, buffer_reference_align = 16) buffer DrawCountBuffer {
-    uint draw_count;
+    uint opaque_draw_count;
+    uint opaque_draw_offset;
+    uint masked_draw_count;
+    uint masked_draw_offset;
 };
 
 layout(buffer_reference, std430, buffer_reference_align = 16) writeonly buffer PrimitiveIdBuffer {
@@ -67,15 +70,17 @@ void main() {
     }
 
     PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
-    if(primitive_data.type != PRIMITIVE_TYPE_SOLID) {
-        // TODO: Support other primitive types. We need three sets of outputs so that's annoying
-        return;
+
+    uint draw_id;
+    if(primitive_data.type == PRIMITIVE_TYPE_SOLID) {
+        draw_id = atomicAdd(draw_count_buffer.opaque_draw_count, 1);
+    } else {
+        atomicAdd(draw_count_buffer.masked_draw_count, 1);
+        draw_id = atomicAdd(draw_count_buffer.masked_draw_offset, -1);
     }
 
-    // TODO: Subgroup 
-    uint draw_id = atomicAdd(draw_count_buffer.draw_count, 1);
-
     primitive_id_buffer.primitive_ids[draw_id] = primitive_id;
-    // Page fault here for some reason
+    
     draw_command_buffer.draw_commands[draw_id] = mesh_args_buffer.meshes[primitive_data.mesh_id];
+    draw_command_buffer.draw_commands[draw_id].firstInstance = draw_id;
 }

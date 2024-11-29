@@ -106,8 +106,8 @@ void CommandBuffer::barrier(
     vkCmdPipelineBarrier2(commands, &dependency_info);
 }
 
-void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_value) const {    
-    vkCmdFillBuffer(commands, buffer->buffer, 0, buffer->create_info.size, fill_value);
+void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_value, const uint32_t dest_offset) const {
+    vkCmdFillBuffer(commands, buffer->buffer, dest_offset, buffer->create_info.size - dest_offset, fill_value);
 }
 
 void CommandBuffer::build_acceleration_structures(
@@ -325,6 +325,26 @@ void CommandBuffer::draw_triangle() {
     commit_bindings();
 
     vkCmdDraw(commands, 3, 1, 0, 0);
+}
+
+void CommandBuffer::execute_commands() {
+    // const auto info = VkGeneratedCommandsInfoNV{
+    //     .sType = VK_STRUCTURE_TYPE_GENERATED_COMMANDS_INFO_NV,
+    //     .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+    //     .pipeline = {},
+    //     .indirectCommandsLayout = {},
+    //     .streamCount = ,
+    //     .pStreams = ,
+    //     .sequencesCount = ,
+    //     .preprocessBuffer = ,
+    //     .preprocessOffset = ,
+    //     .preprocessSize = ,
+    //     .sequencesCountBuffer = ,
+    //     .sequencesCountOffset = ,
+    //     .sequencesIndexBuffer = ,
+    //     .sequencesIndexOffset = 
+    // };
+    // vkCmdExecuteGeneratedCommandsNV(commands, VK_FALSE, &info);
 }
 
 void CommandBuffer::bind_pipeline(const ComputePipelineHandle& pipeline) {

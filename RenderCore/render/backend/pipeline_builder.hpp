@@ -159,6 +159,7 @@ private:
 
     bool need_position_buffer = false;
     bool need_data_buffer = false;
+    bool need_primitive_id_buffer = false;
     std::vector<VkVertexInputBindingDescription> vertex_inputs;
     std::vector<VkVertexInputAttributeDescription> vertex_attributes;
 

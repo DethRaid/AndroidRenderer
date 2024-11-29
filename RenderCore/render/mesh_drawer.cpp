@@ -53,6 +53,7 @@ void SceneDrawer::draw_indirect(
 
     commands.bind_vertex_buffer(0, mesh_storage->get_vertex_position_buffer());
     commands.bind_vertex_buffer(1, mesh_storage->get_vertex_data_buffer());
+    commands.bind_vertex_buffer(2, primitive_ids);
     commands.bind_index_buffer(mesh_storage->get_index_buffer());
 
     commands.bind_buffer_reference(0, scene->get_primitive_buffer());
@@ -63,8 +64,6 @@ void SceneDrawer::draw_indirect(
 
     // Assume all the pipelines are the same - because they are
     // TODO: Provide a better way to classify draws by material
-
-    commands.bind_buffer_reference(2, primitive_ids);
 
     commands.bind_pipeline(solids[0]->material->second.pipelines[type]);
     commands.draw_indexed_indirect(indirect_buffer, draw_count_buffer, static_cast<uint32_t>(solids.size()));

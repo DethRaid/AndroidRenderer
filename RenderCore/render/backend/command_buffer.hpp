@@ -88,7 +88,7 @@ public:
      * @param buffer Buffer to clear
      * @param fill_value  Value to clear the buffer to
      */
-    void fill_buffer(BufferHandle buffer, uint32_t fill_value = 0) const;
+    void fill_buffer(BufferHandle buffer, uint32_t fill_value = 0, uint32_t dest_offset = 0) const;
 
     void build_acceleration_structures(std::span<VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos, std::span<VkAccelerationStructureBuildRangeInfoKHR*> build_range_info_ptrs) const;
 
@@ -172,6 +172,11 @@ public:
      * shader
      */
     void draw_triangle();
+
+    /**
+     * Executes a buffer of device-generated commands
+     */
+    void execute_commands();
 
     void bind_pipeline(const ComputePipelineHandle& pipeline);
 

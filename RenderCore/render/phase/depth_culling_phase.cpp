@@ -140,48 +140,10 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
         );
     }
 
-    {
-        // Translate last frame's list of objects to indirect draw commands
-
-        const auto& [draw_commands_buffer, draw_count_buffer, primitive_id_buffer] =
-            translate_visibility_list_to_draw_commands(
-                graph,
-                visible_objects,
-                primitive_buffer,
-                num_primitives,
-                drawer.get_mesh_storage().get_draw_args_buffer()
-            );
-
-        // Draw last frame's visible objects
-
-        graph.add_render_pass(
-            {
-                .name = "Rasterize last frame's visible objects",
-                .buffers = {
-                    {
-                        draw_commands_buffer,
-                        {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}
-                    },
-                    {draw_count_buffer, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
-                    {primitive_id_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
-                },
-                .descriptor_sets = std::vector{view_descriptor},
-                .depth_attachment = RenderingAttachmentInfo{
-                    .image = depth_buffer,
-                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .clear_value = {.depthStencil = {.depth = 1.0}}
-                },
-                .execute = [&](CommandBuffer& commands) {
-                    commands.bind_descriptor_set(0, view_descriptor);
-
-                    drawer.draw_indirect(
-                        commands,
-                        draw_commands_buffer,
-                        draw_count_buffer,
-                        primitive_id_buffer
-                    );
-                }
-            });
+    if(backend.use_device_generated_commands() && false) {
+        draw_visible_objects_dgc(graph, drawer, view_descriptor, primitive_buffer, num_primitives);
+    } else {
+        draw_visible_objects(graph, drawer, view_descriptor, primitive_buffer, num_primitives);
     }
 
     // Build Hi-Z pyramid
@@ -321,11 +283,11 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
         sizeof(VkDrawIndexedIndirectCommand) * num_primitives,
         BufferUsage::IndirectBuffer
     );
-    const auto draw_count_buffer = allocator.create_buffer("Draw count", sizeof(uint32_t), BufferUsage::IndirectBuffer);
+    const auto draw_count_buffer = allocator.create_buffer("Draw count and offsets", sizeof(glm::uvec4), BufferUsage::IndirectBuffer);
     const auto primitive_id_buffer = allocator.create_buffer(
         "Primitive ID",
         sizeof(uint32_t) * num_primitives,
-        BufferUsage::StorageBuffer
+        BufferUsage::VertexBuffer
     );
 
     graph.add_pass(
@@ -334,6 +296,15 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
             .buffers = {{draw_count_buffer, {VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT}}},
             .execute = [&](const CommandBuffer& commands) {
                 commands.fill_buffer(draw_count_buffer);
+            }
+        }
+    );
+    graph.add_pass(
+        {
+            .name = "Init dual bump point",
+            .buffers = {{draw_count_buffer, {VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT}}},
+            .execute = [&](const CommandBuffer& commands) {
+                commands.fill_buffer(draw_count_buffer, num_primitives, 12);
             }
         }
     );
@@ -376,4 +347,140 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
     allocator.destroy_buffer(primitive_id_buffer);
 
     return std::make_tuple(draw_commands_buffer, draw_count_buffer, primitive_id_buffer);
+}
+
+
+void DepthCullingPhase::draw_visible_objects_dgc(
+    RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& descriptors, const BufferHandle primitive_buffer,
+    const uint32_t num_primitives
+) {
+    /*
+     * Run a compute shader over the visible objects list. Sort object IDs and draw commands by transparency
+     *
+     * We want to draw opaque and masked objects during the depth prepass. We can use a dual bump-point allocator for
+     * this. Opaque objects start at index 0 and increment, masked objects start at index MAX and decrement
+     *
+     * What about transparency? We can draw them as masked, with a high threshold. That'll ensure that only pixels with
+     * alpha = 1.0 get written to the buffer - but it'll still help us in a lot of situations. Later, we'll draw
+     * transparent objects with depth mode = equal or less
+     */
+
+    if(command_signature == VK_NULL_HANDLE) {
+        create_command_signature();
+    }
+
+    // Translate last frame's list of objects to indirect draw commands
+
+    const auto& [draw_commands_buffer, draw_count_buffer, primitive_id_buffer] =
+        translate_visibility_list_to_draw_commands(
+            graph,
+            visible_objects,
+            primitive_buffer,
+            num_primitives,
+            drawer.get_mesh_storage().get_draw_args_buffer()
+        );
+
+    // graph.add_compute_dispatch({});
+
+    graph.add_render_pass(
+        {
+            .name = "Depth prepass",
+            .buffers = {
+                {
+                    {
+                        draw_commands_buffer,
+                        {
+                            .stage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                            .access = VK_ACCESS_INDIRECT_COMMAND_READ_BIT
+                        }
+                    }
+                }
+            },
+            .descriptor_sets = {},
+            .depth_attachment = {},
+            .execute = [=](CommandBuffer& commands) {
+                commands.execute_commands();
+
+            }
+        });
+}
+
+struct DrawBatchCommand {
+    VkBindShaderGroupIndirectCommandNV shader;
+    uint32_t padding0;
+    DeviceAddress object_id_vb;
+};
+
+void DepthCullingPhase::create_command_signature() {
+    const auto tokens = std::array{
+        VkIndirectCommandsLayoutTokenNV{
+            .sType = VK_STRUCTURE_TYPE_INDIRECT_COMMANDS_LAYOUT_TOKEN_NV,
+            .tokenType = VK_INDIRECT_COMMANDS_TOKEN_TYPE_SHADER_GROUP_NV,
+            .stream = 0,
+            .offset = 0,
+        },
+        VkIndirectCommandsLayoutTokenNV{
+            .sType = VK_STRUCTURE_TYPE_INDIRECT_COMMANDS_LAYOUT_TOKEN_NV,
+            .tokenType = VK_INDIRECT_COMMANDS_TOKEN_TYPE_VERTEX_BUFFER_NV,
+            .stream = 0,
+            .offset = offsetof(DrawBatchCommand, object_id_vb),
+            .vertexBindingUnit = 1,
+            .vertexDynamicStride = VK_FALSE,
+        }
+    };
+    const auto create_info = VkIndirectCommandsLayoutCreateInfoNV{
+        .sType = VK_STRUCTURE_TYPE_INDIRECT_COMMANDS_LAYOUT_CREATE_INFO_NV,
+        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .tokenCount = static_cast<uint32_t>(tokens.size()),
+        .pTokens = tokens.data(),
+        .streamCount = 1,
+    };
+    // vkCreateIndirectCommandsLayoutNV(device, &create_info, nullptr, &command_signature);
+}
+
+void DepthCullingPhase::draw_visible_objects(
+    RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& view_descriptor,
+    const BufferHandle primitive_buffer, const uint32_t num_primitives
+) const {
+    // Translate last frame's list of objects to indirect draw commands
+
+    const auto& [draw_commands_buffer, draw_count_buffer, primitive_id_buffer] =
+        translate_visibility_list_to_draw_commands(
+            graph,
+            visible_objects,
+            primitive_buffer,
+            num_primitives,
+            drawer.get_mesh_storage().get_draw_args_buffer()
+        );
+
+    // Draw last frame's visible objects
+
+    graph.add_render_pass(
+        {
+            .name = "Rasterize last frame's visible objects",
+            .buffers = {
+                {
+                    draw_commands_buffer,
+                    {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}
+                },
+                {draw_count_buffer, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
+                {primitive_id_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
+            },
+            .descriptor_sets = std::vector{view_descriptor},
+            .depth_attachment = RenderingAttachmentInfo{
+                .image = depth_buffer,
+                .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                .clear_value = {.depthStencil = {.depth = 1.0}}
+            },
+            .execute = [&](CommandBuffer& commands) {
+                commands.bind_descriptor_set(0, view_descriptor);
+
+                drawer.draw_indirect(
+                    commands,
+                    draw_commands_buffer,
+                    draw_count_buffer,
+                    primitive_id_buffer
+                );
+            }
+        });
 }

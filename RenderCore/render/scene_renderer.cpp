@@ -252,6 +252,7 @@ void SceneRenderer::render() {
 
     // Shadows
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
+    // TODO: Switch to ray traced shadows
     {
         auto& sun = scene->get_sun_light();
         const auto set = backend.get_transient_descriptor_allocator()
@@ -276,7 +277,8 @@ void SceneRenderer::render() {
                 .name = "Sun shadow",
                 .descriptor_sets = {set},
                 .depth_attachment = RenderingAttachmentInfo{
-                    .image = shadowmap_handle, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .image = shadowmap_handle,
+                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .clear_value = {.depthStencil = {.depth = 1.f}}
                 },
                 .execute = [&](CommandBuffer& commands) {

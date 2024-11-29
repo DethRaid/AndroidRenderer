@@ -173,6 +173,7 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                                .build();
     inject_scene_depth_into_gv_pipeline = backend.begin_building_pipeline("Inject scene depth into GV")
                                                  .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+                                                 .use_imgui_vertex_layout()
                                                  .set_vertex_shader("shaders/lpv/inject_scene_depth_into_gv.vert.spv")
                                                  .set_geometry_shader("shaders/lpv/inject_scene_depth_into_gv.geom.spv")
                                                  .set_fragment_shader("shaders/lpv/inject_scene_depth_into_gv.frag.spv")
@@ -927,30 +928,31 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
     ZoneScoped;
 
     const auto sampler = backend.get_default_sampler();
-    const auto set = backend.get_transient_descriptor_allocator().build_set(inject_rsm_depth_into_gv_pipeline, 0)
-        .bind(0, normal_target, sampler)
-        .bind(1, depth_buffer, sampler)
-        .bind(2, cascade_data_buffer)
-        .bind(3, view_uniform_buffer)
-        .build();
-    
+    const auto set = backend.get_transient_descriptor_allocator().build_set(inject_scene_depth_into_gv_pipeline, 0)
+                            .bind(0, normal_target, sampler)
+                            .bind(1, depth_buffer, sampler)
+                            .bind(2, cascade_data_buffer)
+                            .bind(3, view_uniform_buffer)
+                            .build();
+
     graph.add_render_pass(
         {
-            .name = "Inject RSM into GV",
+            .name = "Inject scene depth into GV",
             .descriptor_sets = {set},
+            .color_attachments = {{.image = geometry_volume_handle}},
             .execute = [&](CommandBuffer& commands) {
                 const auto effective_resolution = resolution / glm::uvec2{2};
-    
+
                 commands.bind_descriptor_set(0, set);
-    
+
                 commands.set_push_constant(0, effective_resolution.x);
                 commands.set_push_constant(1, effective_resolution.y);
                 commands.set_push_constant(2, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
-    
+
                 commands.bind_pipeline(inject_scene_depth_into_gv_pipeline);
-    
+
                 commands.draw(effective_resolution.x * effective_resolution.y / 4);
-    
+
                 commands.clear_descriptor_set(0);
             }
         });
@@ -1143,50 +1145,18 @@ void LightPropagationVolume::add_lighting_to_scene(
 
     commands.bind_descriptor_set(0, gbuffers_descriptor);
 
-    auto lpv_descriptor = *vkutil::DescriptorBuilder::begin(
-                               backend,
-                               backend.get_transient_descriptor_allocator()
-                           )
-                           .bind_image(
-                               0,
-                               {
-                                   .sampler = linear_sampler, .image = lpv_a_red,
-                                   .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                               },
-                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                               VK_SHADER_STAGE_FRAGMENT_BIT
-                           )
-                           .bind_image(
-                               1,
-                               {
-                                   .sampler = linear_sampler, .image = lpv_a_green,
-                                   .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                               },
-                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                               VK_SHADER_STAGE_FRAGMENT_BIT
-                           )
-                           .bind_image(
-                               2,
-                               {
-                                   .sampler = linear_sampler, .image = lpv_a_blue,
-                                   .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                               },
-                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                               VK_SHADER_STAGE_FRAGMENT_BIT
-                           )
-                           .bind_buffer(
-                               3,
-                               {.buffer = cascade_data_buffer},
-                               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                               VK_SHADER_STAGE_FRAGMENT_BIT
-                           )
-                           .bind_buffer(
-                               4,
-                               {.buffer = scene_view_buffer},
-                               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                               VK_SHADER_STAGE_FRAGMENT_BIT
-                           )
-                           .build();
+    const auto lpv_descriptor = backend.get_transient_descriptor_allocator().build_set(lpv_render_shader, 1)
+        .bind(0, lpv_a_red, linear_sampler)
+        .bind(1, lpv_a_green, linear_sampler)
+        .bind(2, lpv_a_blue, linear_sampler)
+        .bind(3, cascade_data_buffer)
+        .bind(4, scene_view_buffer)
+        .build();
+
+    auto& allocator = backend.get_global_allocator();
+    const auto& lpv_a_actual = allocator.get_texture(lpv_a_red);
+    logger->debug("Binding LPV A {} (handle {})", lpv_a_actual.name, static_cast<uint32_t>(lpv_a_red));
+
     commands.bind_descriptor_set(1, lpv_descriptor);
 
     commands.bind_pipeline(lpv_render_shader);

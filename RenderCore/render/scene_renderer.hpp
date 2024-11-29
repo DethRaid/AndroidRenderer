@@ -78,7 +78,7 @@ private:
     glm::uvec2 scene_render_resolution = glm::uvec2{};
 
     std::unique_ptr<LightPropagationVolume> lpv;
-        
+            
     TextureHandle shadowmap_handle = TextureHandle::None;
 
     TextureHandle gbuffer_color_handle = TextureHandle::None;

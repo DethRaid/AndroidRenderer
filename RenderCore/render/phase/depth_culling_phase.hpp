@@ -3,6 +3,7 @@
 
 #include "render/mip_chain_generator.hpp"
 #include "render/backend/compute_shader.hpp"
+#include "render/backend/descriptor_set_builder.hpp"
 #include "render/backend/handles.hpp"
 
 class TextureDescriptorPool;
@@ -74,4 +75,22 @@ private:
     MipChainGenerator downsampler;
 
     ComputePipelineHandle hi_z_culling_shader;
+
+    VkIndirectCommandsLayoutNV command_signature;
+
+    /**
+     * Draws visible objects using device-generated commands
+     */
+    void draw_visible_objects_dgc(RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& descriptors, BufferHandle primitive_buffer, uint32_t num_primitives);
+
+    void create_command_signature();
+
+    /**
+     * Draws visible objects, using a different draw command for each material type
+     */
+    void draw_visible_objects(
+        RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& view_descriptor, BufferHandle primitive_buffer,
+        uint32_t num_primitives
+    ) const;
+
 };

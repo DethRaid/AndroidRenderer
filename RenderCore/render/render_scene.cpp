@@ -120,6 +120,14 @@ const std::vector<PooledObject<MeshPrimitive>>& RenderScene::get_solid_primitive
     return solid_primitives;
 }
 
+const std::vector<MeshPrimitiveHandle>& RenderScene::get_masked_primitives() const {
+    return cutout_primitives;
+}
+
+const std::vector<MeshPrimitiveHandle>& RenderScene::get_transparent_primitives() const {
+    return translucent_primitives;
+}
+
 BufferHandle RenderScene::get_primitive_buffer() const {
     return primitive_data_buffer;
 }

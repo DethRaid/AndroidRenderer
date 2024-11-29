@@ -19,6 +19,7 @@ static std::string TEXCOORD_VERTEX_ATTRIBUTE_NAME = "texcoord_in";
 static std::string NORMAL_VERTEX_ATTRIBUTE_NAME = "normal_in";
 static std::string TANGENT_VERTEX_ATTRIBUTE_NAME = "tangent_in";
 static std::string COLOR_VERTEX_ATTRIBUTE_NAME = "color_in";
+static std::string PRIMITIVE_ID_VERTEX_ATTRIBUTE_NAME = "primitive_id_in";
 
 static auto standard_vertex_layout = VertexLayout{
     .input_bindings = {
@@ -31,6 +32,12 @@ static auto standard_vertex_layout = VertexLayout{
             .binding = 1,
             .stride = sizeof(StandardVertexData),
             .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+
+        },
+        {
+            .binding = 2,
+            .stride = sizeof(uint32_t),
+            .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE
 
         }
     },
@@ -70,6 +77,13 @@ static auto standard_vertex_layout = VertexLayout{
                 .offset = offsetof(StandardVertexData, color),
             }
         },
+        {
+            PRIMITIVE_ID_VERTEX_ATTRIBUTE_NAME, {
+                .binding = 2,
+                .format = VK_FORMAT_R32_UINT,
+                .offset = 0,
+            }
+        },
     }
 };
 
@@ -106,7 +120,7 @@ static auto imgui_vertex_layout = VertexLayout{
     },
 };
 
-VkDescriptorType to_vk_type(SpvReflectDescriptorType type);
+static VkDescriptorType to_vk_type(SpvReflectDescriptorType type);
 
 /**
  * Collects the descriptor sets from the provided list of descriptor sets. Performs basic validation that the sets
@@ -117,32 +131,37 @@ VkDescriptorType to_vk_type(SpvReflectDescriptorType type);
  * @param shader_stage The shader stage these descriptor sets came from
  * @return True if there was an error, false if everything's fine
  */
-bool collect_descriptor_sets(
+static bool collect_descriptor_sets(
     const std::filesystem::path& shader_path,
     const std::vector<SpvReflectDescriptorSet*>& sets,
     VkShaderStageFlagBits shader_stage,
     absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_sets
 );
 
-bool collect_push_constants(
+static bool collect_push_constants(
     const std::filesystem::path& shader_path,
     const std::vector<SpvReflectBlockVariable*>& spv_push_constants,
     VkShaderStageFlagBits shader_stage,
     std::vector<VkPushConstantRange>& push_constants
 );
 
-void collect_vertex_attributes(
+static void collect_vertex_attributes(
     const VertexLayout& vertex_layout,
     const std::vector<SpvReflectInterfaceVariable*>& inputs,
     std::vector<VkVertexInputAttributeDescription>& vertex_attributes,
     bool& needs_position_buffer,
-    bool& needs_data_buffer
+    bool& needs_data_buffer,
+    bool& needs_primitive_id_buffer
 );
+
+static void init_logger() {
+    logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
+    logger->set_level(spdlog::level::trace);
+}
 
 GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cache{cache_in} {
     if(logger == nullptr) {
-        logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
-        logger->set_level(spdlog::level::warn);
+        init_logger();
     }
 
     use_standard_vertex_layout();
@@ -251,7 +270,8 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
         spv_vertex_inputs,
         vertex_attributes,
         need_position_buffer,
-        need_data_buffer
+        need_data_buffer,
+        need_primitive_id_buffer
     );
 
     return *this;
@@ -413,6 +433,9 @@ GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
         if(need_data_buffer) {
             vertex_inputs.push_back(vertex_layout->input_bindings.at(1));
         }
+        if (need_primitive_id_buffer) {
+            vertex_inputs.push_back(vertex_layout->input_bindings.at(2));
+        }
     }
 
     return cache.create_pipeline(*this);
@@ -424,6 +447,10 @@ bool collect_descriptor_sets(
     const VkShaderStageFlagBits shader_stage,
     absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_sets
 ) {
+    if (logger == nullptr) {
+        init_logger();
+    }
+
     const auto texture_array_size = static_cast<uint32_t>(*CVarSystem::Get()->GetIntCVar("r.RHI.SampledImageCount"));
 
     bool has_error = false;
@@ -434,84 +461,38 @@ bool collect_descriptor_sets(
             // the new shader stage
             auto& set_info = itr->second;
             num_bindings = static_cast<uint32_t>(set_info.bindings.size());
-            auto& known_bindings = set_info.bindings;
-            if(known_bindings.empty()) {
-                known_bindings.resize(8);
+            if(set_info.bindings.empty()) {
+                set_info.bindings.resize(8);
             }
             for(auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
                 const auto vk_type = to_vk_type(binding->descriptor_type);
-                const auto binding_itr = std::ranges::find_if(
-                    known_bindings,
-                    [&](const DescriptorInfo& other) {
-                        return other.binding == binding->binding;
-                    });
-                if(binding_itr != known_bindings.end()) {
-                    // We saw this binding already. Verify that it's the same
-                    auto& existing_binding = *binding_itr;
+                logger->trace(
+                    "Adding info about descriptor {}.{} with count {} to existing set for shader stage {}",
+                    set->set,
+                    binding->binding,
+                    binding->count,
+                    magic_enum::enum_name(shader_stage)
+                );
 
-                    if (existing_binding.descriptorCount > 0) {
-                        if (existing_binding.descriptorCount != binding->count) {
-                            logger->error(
-                                "Descriptor set={} binding={} in shader {} has count {}, previous shader said it had count {}",
-                                set->set,
-                                binding->binding,
-                                shader_path.string(),
-                                binding->count,
-                                binding_itr->descriptorCount
-                            );
-                            has_error = true;
-                        }
+                if(set_info.bindings.size() <= binding->binding) {
+                    set_info.bindings.resize(binding->binding * 2);
+                }
+                const auto existing_stage_flags = set_info.bindings[binding->binding].stageFlags;
+                set_info.bindings[binding->binding] =
+                    DescriptorInfo{
+                        {
+                            .binding = binding->binding,
+                            .descriptorType = vk_type,
+                            .descriptorCount = binding->count > 0 ? binding->count : texture_array_size,
+                            .stageFlags = shader_stage | existing_stage_flags,
+                            .pImmutableSamplers = nullptr
+                        },
+                        (binding->decoration_flags & SPV_REFLECT_DECORATION_NON_WRITABLE) != 0
+                    };
+                num_bindings = std::max(num_bindings, binding->binding);
 
-                        if (existing_binding.descriptorType != vk_type) {
-                            logger->error(
-                                "Descriptor set={} binding={} in shader {} has type {}, previous shader said it had type {}",
-                                binding->set,
-                                binding->binding,
-                                shader_path.string(),
-                                vk_type,
-                                existing_binding.descriptorType
-                            );
-                            has_error = true;
-                        }
-                    }
-
-                    logger->trace(
-                        "Appending shader stage {} to descriptor {}.{}",
-                        magic_enum::enum_name(shader_stage),
-                        set->set,
-                        binding->binding
-                    );
-
-                    existing_binding.stageFlags |= shader_stage;
-                } else {
-                    logger->trace(
-                        "Adding new descriptor {}.{} with count {} to existing set for shader stage {}",
-                        set->set,
-                        binding->binding,
-                        binding->count,
-                        magic_enum::enum_name(shader_stage)
-                    );
-
-                    // This binding is new! Create it and add it
-                    if (known_bindings.size() <= binding->binding) {
-                        known_bindings.resize(binding->binding * 2);
-                    }
-                    known_bindings[binding->binding] =
-                        DescriptorInfo{
-                            {
-                                .binding = binding->binding,
-                                .descriptorType = vk_type,
-                                .descriptorCount = binding->count > 0 ? binding->count : texture_array_size,
-                                .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
-                                .pImmutableSamplers = nullptr
-                            },
-                            (binding->decoration_flags & SPV_REFLECT_DECORATION_NON_WRITABLE) != 0
-                        };
-                    num_bindings = std::max(num_bindings, binding->binding);
-
-                    if(binding->count == 0) {
-                        set_info.has_variable_count_binding = true;
-                    }
+                if(binding->count == 0) {
+                    set_info.has_variable_count_binding = true;
                 }
             }
         } else {
@@ -660,7 +641,8 @@ void collect_vertex_attributes(
     const std::vector<SpvReflectInterfaceVariable*>& inputs,
     std::vector<VkVertexInputAttributeDescription>& vertex_attributes,
     bool& needs_position_buffer,
-    bool& needs_data_buffer
+    bool& needs_data_buffer,
+    bool& needs_primitive_id_buffer
 ) {
     needs_position_buffer = false;
     needs_data_buffer = false;
@@ -680,10 +662,56 @@ void collect_vertex_attributes(
             needs_data_buffer = true;
         } else if(input->name == COLOR_VERTEX_ATTRIBUTE_NAME) {
             needs_data_buffer = true;
+        } else if(input->name == PRIMITIVE_ID_VERTEX_ATTRIBUTE_NAME) {
+            needs_primitive_id_buffer = true;
         } else if(input->location != -1) {
             // -1 is used for some builtin things i guess
             // I can't
             logger->error("Vertex input {} unrecognized", input->location);
         }
+    }
+}
+
+VkDescriptorType to_vk_type(SpvReflectDescriptorType type) {
+    switch (type) {
+    case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER:
+        return VK_DESCRIPTOR_TYPE_SAMPLER;
+
+    case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+        return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+    case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+        return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+
+    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+        return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
+    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+        return VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+
+    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+        return VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
+
+    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+        return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+        return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+
+    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+        return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+
+    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
+        return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+
+    case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+        return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+
+    case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
+        return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+
+    default:
+        spdlog::error("Unknown descriptor type {}", type);
+        return VK_DESCRIPTOR_TYPE_MAX_ENUM;
     }
 }

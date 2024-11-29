@@ -135,32 +135,13 @@ LightingPhase::add_sun_lighting(
 
     commands.bind_descriptor_set(0, gbuffers_descriptor_set);
 
-    auto sun_descriptor_set = *vkutil::DescriptorBuilder::begin(
-                                   backend,
-                                   backend.get_transient_descriptor_allocator()
-                               )
-                               .bind_image(
-                                   0,
-                                   {
-                                       .sampler = sampler, .image = shadowmap,
-                                       .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                   },
-                                   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                   VK_SHADER_STAGE_FRAGMENT_BIT
-                               )
-                               .bind_buffer(
-                                   1,
-                                   {.buffer = sun_buffer, .offset = 0, .range = sizeof(SunLightConstants)},
-                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                   VK_SHADER_STAGE_FRAGMENT_BIT
-                               )
-                               .bind_buffer(
-                                   2,
-                                   {.buffer = view.get_buffer(), .offset = 0, .range = sizeof(ViewDataGPU)},
-                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                   VK_SHADER_STAGE_FRAGMENT_BIT
-                               )
-                               .build();
+    const auto sun_descriptor_set = backend.get_transient_descriptor_allocator()
+                                           .build_set(sun_pipeline, 1)
+                                           .bind(0, shadowmap, sampler)
+                                           .bind(1, sun_buffer)
+                                           .bind(2, view.get_buffer())
+                                           .build();
+
     commands.bind_descriptor_set(1, sun_descriptor_set);
 
     commands.draw_triangle();

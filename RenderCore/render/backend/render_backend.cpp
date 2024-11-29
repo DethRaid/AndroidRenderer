@@ -281,20 +281,7 @@ void RenderBackend::create_instance_and_device() {
     }
 
     physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
-    physical_device.enable_extension_features_if_present(
-        VkPhysicalDeviceAccelerationStructureFeaturesKHR{
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
-            .accelerationStructure = VK_TRUE,
-        });
-
     physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-    physical_device.enable_extension_features_if_present(
-        VkPhysicalDeviceRayTracingPipelineFeaturesKHR{
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
-            .rayTracingPipeline = VK_TRUE,
-            .rayTracingPipelineTraceRaysIndirect = VK_TRUE,
-        });
-
     physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_KHR_RAY_QUERY_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
@@ -302,11 +289,6 @@ void RenderBackend::create_instance_and_device() {
 
     physical_device.enable_extension_if_present(VK_NV_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_NV_DEVICE_GENERATED_COMMANDS_COMPUTE_EXTENSION_NAME);
-    physical_device.enable_extension_features_if_present(
-        VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV{
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV,
-            .deviceGeneratedCommands = VK_TRUE,
-        });
 
     supports_nv_shader_reorder = physical_device.enable_extension_if_present(
         VK_NV_RAY_TRACING_INVOCATION_REORDER_EXTENSION_NAME);
