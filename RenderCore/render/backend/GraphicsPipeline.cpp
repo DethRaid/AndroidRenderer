@@ -85,3 +85,5 @@ VkShaderStageFlags GraphicsPipeline::get_push_constant_shader_stages() const { r
 const DescriptorSetInfo& GraphicsPipeline::get_descriptor_set_info(const uint32_t set_index) const {
     return descriptor_sets.at(set_index);
 }
+
+VkPipeline GraphicsPipeline::get_pipeline() const { return pipeline; }

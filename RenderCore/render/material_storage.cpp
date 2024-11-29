@@ -5,26 +5,32 @@ MaterialStorage::MaterialStorage() {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
     material_buffer_handle = allocator.create_buffer(
-        "Materials buffer", sizeof(BasicPbrMaterialGpu) * 65536,
+        "Materials buffer",
+        sizeof(BasicPbrMaterialGpu) * 65536,
         BufferUsage::StorageBuffer
     );
 }
 
 PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMaterial&& new_material) {
+    ZoneScoped;
     auto& backend = RenderBackend::get();
     auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
 
     new_material.gpu_data.base_color_texture_index = texture_descriptor_pool.create_texture_srv(
-        new_material.base_color_texture, new_material.base_color_sampler
+        new_material.base_color_texture,
+        new_material.base_color_sampler
     );
     new_material.gpu_data.normal_texture_index = texture_descriptor_pool.create_texture_srv(
-        new_material.normal_texture, new_material.normal_sampler
+        new_material.normal_texture,
+        new_material.normal_sampler
     );
     new_material.gpu_data.data_texture_index = texture_descriptor_pool.create_texture_srv(
-        new_material.metallic_roughness_texture, new_material.metallic_roughness_sampler
+        new_material.metallic_roughness_texture,
+        new_material.metallic_roughness_sampler
     );
     new_material.gpu_data.emission_texture_index = texture_descriptor_pool.create_texture_srv(
-        new_material.emission_texture, new_material.emission_sampler
+        new_material.emission_texture,
+        new_material.emission_sampler
     );
 
     const auto handle = material_pool.add_object(std::make_pair(new_material, MaterialProxy{}));
@@ -42,11 +48,11 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
     // meshes to a new vertex buffer. Skinned objects will therefore need their own vertex buffers
 
     const auto cull_mode = static_cast<VkCullModeFlags>(new_material.double_sided
-                                                            ? VK_CULL_MODE_NONE
-                                                            : VK_CULL_MODE_BACK_BIT);
+        ? VK_CULL_MODE_NONE
+        : VK_CULL_MODE_BACK_BIT);
     const auto front_face = static_cast<VkFrontFace>(new_material.front_face_ccw
-                                                         ? VK_FRONT_FACE_COUNTER_CLOCKWISE
-                                                         : VK_FRONT_FACE_CLOCKWISE);
+        ? VK_FRONT_FACE_COUNTER_CLOCKWISE
+        : VK_FRONT_FACE_CLOCKWISE);
 
     // Depth prepass
     const auto depth_prepass_pipeline = backend.begin_building_pipeline(
@@ -59,8 +65,9 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                                        .front_face = front_face
                                                    }
                                                )
+                                               .enable_dgc()
                                                .build();
-    proxy.pipelines.emplace(ScenePassType::DepthPrepass, depth_prepass_pipeline);
+    proxy.pipelines[static_cast<size_t>(ScenePassType::DepthPrepass)] = depth_prepass_pipeline;
 
     // gbuffer
     const auto gbuffer_pipeline = backend.begin_building_pipeline(new_material.name)
@@ -84,7 +91,7 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                              }
                                          )
                                          .build();
-    proxy.pipelines.emplace(ScenePassType::Gbuffer, gbuffer_pipeline);
+    proxy.pipelines[static_cast<size_t>(ScenePassType::Gbuffer)] = gbuffer_pipeline;
 
     // RSM
     const auto rsm_pipeline = backend.begin_building_pipeline(fmt::format("{} RSM", new_material.name))
@@ -99,7 +106,7 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                          }
                                      )
                                      .build();
-    proxy.pipelines.emplace(ScenePassType::RSM, rsm_pipeline);
+    proxy.pipelines[static_cast<size_t>(ScenePassType::RSM)] = rsm_pipeline;
 
     // Shadow
     const auto shadow_pipeline = backend.begin_building_pipeline(fmt::format("{} SHADOW", new_material.name))
@@ -112,7 +119,7 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                             }
                                         )
                                         .build();
-    proxy.pipelines.emplace(ScenePassType::Shadow, shadow_pipeline);
+    proxy.pipelines[static_cast<size_t>(ScenePassType::Shadow)] = shadow_pipeline;
 
     // Voxelization
     auto voxel_blend_state = new_material.blend_state;
@@ -132,7 +139,56 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                               .set_raster_state({.cull_mode = VK_CULL_MODE_NONE})
                                               .set_blend_state(0, voxel_blend_state)
                                               .build();
-    proxy.pipelines.emplace(ScenePassType::Vozelization, voxelization_pipeline);
+    proxy.pipelines[static_cast<size_t>(ScenePassType::Vozelization)] = voxelization_pipeline;
+
+    if(backend.use_device_generated_commands()) {
+        ZoneScopedN("Create VkPipelines");
+        [[maybe_unused]] const auto forced_depth_prepass_pipeline = backend
+                                                                    .get_pipeline_cache()
+                                                                    .get_pipeline_for_dynamic_rendering(
+                                                                        depth_prepass_pipeline,
+                                                                        {},
+                                                                        VK_FORMAT_D32_SFLOAT,
+                                                                        0);
+        [[maybe_unused]] const auto forced_gbuffer_pipeline = backend
+                                                              .get_pipeline_cache()
+                                                              .get_pipeline_for_dynamic_rendering(
+                                                                  gbuffer_pipeline,
+                                                                  std::array{
+                                                                      VK_FORMAT_R8G8B8A8_SRGB,
+                                                                      VK_FORMAT_R16G16B16A16_SFLOAT,
+                                                                      VK_FORMAT_R8G8B8A8_UNORM,
+                                                                      VK_FORMAT_R8G8B8A8_SRGB
+                                                                  },
+                                                                  VK_FORMAT_D32_SFLOAT,
+                                                                  0);
+        [[maybe_unused]] const auto forced_rsm_pipeline = backend
+                                                          .get_pipeline_cache()
+                                                          .get_pipeline_for_dynamic_rendering(
+                                                              rsm_pipeline,
+                                                              std::array{
+                                                                  VK_FORMAT_R8G8B8A8_SRGB,
+                                                                  VK_FORMAT_R8G8B8A8_UNORM,
+                                                              },
+                                                              VK_FORMAT_D16_UNORM,
+                                                              0);
+        [[maybe_unused]] const auto forced_shadow_pipeline = backend
+                                                             .get_pipeline_cache()
+                                                             .get_pipeline_for_dynamic_rendering(
+                                                                 shadow_pipeline,
+                                                                 {},
+                                                                 VK_FORMAT_D16_UNORM,
+                                                                 0);
+        [[maybe_unused]] const auto forced_voxelization_pipeline = backend
+                                                                   .get_pipeline_cache()
+                                                                   .get_pipeline_for_dynamic_rendering(
+                                                                       voxelization_pipeline,
+                                                                       {},
+                                                                       VK_FORMAT_D32_SFLOAT,
+                                                                       0);
+    }
+
+    is_pipeline_group_dirty = true;
 
     return handle;
 }
@@ -145,4 +201,32 @@ void MaterialStorage::flush_material_buffer(RenderGraph& graph) {
     material_upload.flush_to_buffer(graph, material_buffer_handle);
 }
 
-BufferHandle MaterialStorage::get_material_buffer() const { return material_buffer_handle; }
+BufferHandle MaterialStorage::get_material_buffer() const {
+    return material_buffer_handle;
+}
+
+GraphicsPipelineHandle MaterialStorage::get_pipeline_group() {
+    if(!is_pipeline_group_dirty & pipeline_group.is_valid()) {
+        return pipeline_group;
+    }
+
+    auto& backend = RenderBackend::get();
+    auto& pipeline_allocator = backend.get_pipeline_cache();
+
+    auto pipelines_in_group = std::vector<GraphicsPipelineHandle>{};
+    pipelines_in_group.reserve(1024);
+    const auto& material_proxies = material_pool.get_data();
+    for(auto i = 0; i < material_proxies.size(); i++) {
+        const auto& proxy = material_pool.make_handle(i);
+        pipelines_in_group.insert(
+            pipelines_in_group.end(),
+            proxy->second.pipelines.begin(),
+            proxy->second.pipelines.end());
+    }
+
+    pipeline_group = pipeline_allocator.create_pipeline_group(pipelines_in_group);
+
+    is_pipeline_group_dirty = false;
+
+    return pipeline_group;
+}

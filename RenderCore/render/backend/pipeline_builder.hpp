@@ -116,6 +116,11 @@ public:
 
     GraphicsPipelineBuilder& set_blend_state(uint32_t color_target_index, const VkPipelineColorBlendAttachmentState& blend);
 
+    /**
+     * Enables using the pipeline in a pipeline group
+     */
+    GraphicsPipelineBuilder& enable_dgc();
+
     GraphicsPipelineHandle build();
 
 private:
@@ -166,5 +171,7 @@ private:
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     VertexLayout* vertex_layout;
+
+    bool should_enable_dgc;
 };
 

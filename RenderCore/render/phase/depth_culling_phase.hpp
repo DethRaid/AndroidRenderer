@@ -4,8 +4,10 @@
 #include "render/mip_chain_generator.hpp"
 #include "render/backend/compute_shader.hpp"
 #include "render/backend/descriptor_set_builder.hpp"
+#include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
+class MaterialStorage;
 class TextureDescriptorPool;
 class RenderGraph;
 class ResourceAllocator;
@@ -27,7 +29,7 @@ public:
 
     void set_render_resolution(const glm::uvec2& resolution);
 
-    void render(RenderGraph& graph, const SceneDrawer& drawer, BufferHandle view_data_buffer);
+    void render(RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials, BufferHandle view_data_buffer);
 
     TextureHandle get_depth_buffer() const;
 
@@ -81,11 +83,11 @@ private:
     /**
      * Draws visible objects using device-generated commands
      */
-    void draw_visible_objects_dgc(RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& descriptors, BufferHandle primitive_buffer, uint32_t num_primitives);
+    void draw_visible_objects_dgc(RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials, const DescriptorSet& descriptors, BufferHandle primitive_buffer, uint32_t num_primitives);
 
     void create_command_signature();
 
-    std::optional<BufferHandle> create_preprocess_buffer(uint32_t num_primitives);
+    std::optional<BufferHandle> create_preprocess_buffer(GraphicsPipelineHandle pipeline, uint32_t num_primitives);
 
     /**
      * Draws visible objects, using a different draw command for each material type

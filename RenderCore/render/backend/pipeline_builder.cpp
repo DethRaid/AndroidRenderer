@@ -413,6 +413,12 @@ GraphicsPipelineBuilder::set_blend_state(
     return *this;
 }
 
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::enable_dgc() {
+    should_enable_dgc = true;
+
+    return *this;
+}
+
 GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
     vertex_inputs.clear();
     vertex_inputs.reserve(2);

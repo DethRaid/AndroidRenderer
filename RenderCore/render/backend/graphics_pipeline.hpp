@@ -34,8 +34,12 @@ public:
 
     const DescriptorSetInfo& get_descriptor_set_info(uint32_t set_index) const;
 
+    VkPipeline get_pipeline() const;
+
 private:
     std::string pipeline_name;
+
+    VkPipelineCreateFlags flags;
 
     std::string vertex_shader_name;
 

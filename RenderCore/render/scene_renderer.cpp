@@ -297,7 +297,7 @@ void SceneRenderer::render() {
 
     // Depth and stuff
 
-    depth_culling_phase.render(render_graph, depth_prepass_drawer, player_view.get_buffer());
+    depth_culling_phase.render(render_graph, depth_prepass_drawer, material_storage, player_view.get_buffer());
 
     // Gbuffers, lighting, and translucency
 

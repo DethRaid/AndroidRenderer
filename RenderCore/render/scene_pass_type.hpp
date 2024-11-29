@@ -26,6 +26,8 @@ enum class ScenePassType {
      * \brief Depth-only prepass
      */
     DepthPrepass,
+
+    Count,
 };
 
 inline bool is_color_pass(const ScenePassType pass_type) {

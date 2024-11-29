@@ -72,6 +72,10 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
 
     pipeline.pipeline_name = pipeline_builder.name;
 
+    if(pipeline_builder.should_enable_dgc && backend.use_device_generated_commands()) {
+        pipeline.flags |= VK_PIPELINE_CREATE_INDIRECT_BINDABLE_BIT_NV;
+    }
+
     if(pipeline_builder.vertex_shader) {
         ZoneScopedN("Compile vertex shader");
 
@@ -320,15 +324,45 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         });
 }
 
+GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<GraphicsPipelineHandle> pipelines_in) {
+    auto graphics_pipeline = GraphicsPipeline{};
+
+    auto vk_pipelines = std::vector<VkPipeline>{};
+    vk_pipelines.reserve(pipelines_in.size());
+    for(const auto& pipeline : pipelines_in) {
+        vk_pipelines.emplace_back(pipeline->pipeline);
+    }
+    const auto group_info = VkGraphicsPipelineShaderGroupsCreateInfoNV{
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_SHADER_GROUPS_CREATE_INFO_NV,
+        .pipelineCount = static_cast<uint32_t>(pipelines_in.size()),
+        .pPipelines = vk_pipelines.data()
+    };
+    const auto create_info = VkGraphicsPipelineCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        TODO: FIll out more of this, I guess?
+
+        .pNext = &group_info,
+    };
+    vkCreateGraphicsPipelines(
+        backend.get_device(),
+        vk_pipeline_cache,
+        1,
+        &create_info,
+        nullptr,
+        &graphics_pipeline.pipeline);
+
+    return pipelines.add_object(std::move(graphics_pipeline));
+}
+
 VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
-    GraphicsPipelineHandle pipeline, std::span<VkFormat> color_attachment_formats,
+    GraphicsPipelineHandle pipeline, std::span<const VkFormat> color_attachment_formats,
     std::optional<VkFormat> depth_format, const uint32_t view_mask
 ) const {
 
     ZoneScoped;
 
     if(pipeline->pipeline != VK_NULL_HANDLE) {
-        // logger->warn("Recompiling pipeline. {} This is cringe", pipeline->pipeline_name);
+        return pipeline->pipeline;
     }
 
     auto stages = std::vector{pipeline->vertex_stage};
@@ -395,6 +429,8 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
     auto create_info = VkGraphicsPipelineCreateInfo{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext = &rendering_info,
+
+        .flags = pipeline->flags,
 
         .stageCount = static_cast<uint32_t>(stages.size()),
         .pStages = stages.data(),
@@ -505,6 +541,8 @@ VkPipeline PipelineCache::get_pipeline(
 
     auto create_info = VkGraphicsPipelineCreateInfo{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+
+        .flags = pipeline->flags,
 
         .stageCount = static_cast<uint32_t>(stages.size()),
         .pStages = stages.data(),

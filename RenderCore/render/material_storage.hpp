@@ -20,7 +20,12 @@ public:
 
     BufferHandle get_material_buffer() const;
 
+    GraphicsPipelineHandle get_pipeline_group();
+
 private:
+    bool is_pipeline_group_dirty = true;
+    GraphicsPipelineHandle pipeline_group{};
+
     ObjectPool<BasicPbrMaterialProxy> material_pool;
 
     ScatterUploadBuffer<BasicPbrMaterialGpu> material_upload;

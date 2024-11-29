@@ -4,6 +4,7 @@
 #include <glm/exponential.hpp>
 
 #include "core/system_interface.hpp"
+#include "render/material_storage.hpp"
 #include "render/mesh_drawer.hpp"
 #include "render/mesh_storage.hpp"
 #include "render/render_scene.hpp"
@@ -104,7 +105,7 @@ void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
     hi_z_index = texture_descriptor_pool.create_texture_srv(hi_z_buffer, max_reduction_sampler);
 }
 
-void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, const BufferHandle view_data_buffer) {
+void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials, const BufferHandle view_data_buffer) {
     ZoneScoped;
 
     graph.begin_label("Depth/culling pass");
@@ -141,7 +142,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, co
     }
 
     if(backend.use_device_generated_commands()) {
-        draw_visible_objects_dgc(graph, drawer, view_descriptor, primitive_buffer, num_primitives);
+        draw_visible_objects_dgc(graph, drawer, materials, view_descriptor, primitive_buffer, num_primitives);
     } else {
         draw_visible_objects(graph, drawer, view_descriptor, primitive_buffer, num_primitives);
     }
@@ -354,9 +355,8 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
 
 
 void DepthCullingPhase::draw_visible_objects_dgc(
-    RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& descriptors,
-    const BufferHandle primitive_buffer,
-    const uint32_t num_primitives
+    RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials, const DescriptorSet& descriptors,
+    const BufferHandle primitive_buffer, const uint32_t num_primitives
 ) {
     /*
      * Run a compute shader over the visible objects list. Sort object IDs and draw commands by transparency
@@ -373,7 +373,9 @@ void DepthCullingPhase::draw_visible_objects_dgc(
         create_command_signature();
     }
 
-    create_preprocess_buffer(num_primitives);
+    const auto pipeline_group = materials.get_pipeline_group();
+
+    create_preprocess_buffer(pipeline_group, num_primitives);
 
     // Translate last frame's list of objects to indirect draw commands
 
@@ -413,8 +415,7 @@ void DepthCullingPhase::draw_visible_objects_dgc(
 
 struct DrawBatchCommand {
     VkBindShaderGroupIndirectCommandNV shader;
-    uint32_t padding0;
-    DeviceAddress object_id_vb;
+    VkBindVertexBufferIndirectCommandNV object_id_vb;
     VkDrawIndexedIndirectCommand draw_command;
 };
 
@@ -456,25 +457,27 @@ void DepthCullingPhase::create_command_signature() {
     vkCreateIndirectCommandsLayoutNV(backend.get_device(), &create_info, nullptr, &command_signature);
 }
 
-std::optional<BufferHandle> DepthCullingPhase::create_preprocess_buffer(const uint32_t num_primitives) {
+std::optional<BufferHandle> DepthCullingPhase::create_preprocess_buffer(const GraphicsPipelineHandle pipeline, const uint32_t num_primitives) {
     auto& backend = RenderBackend::get();
 
     const auto info = VkGeneratedCommandsMemoryRequirementsInfoNV{
         .sType = VK_STRUCTURE_TYPE_GENERATED_COMMANDS_MEMORY_REQUIREMENTS_INFO_NV,
         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-        .pipeline = {},
+        .pipeline = pipeline->get_pipeline(),
         .indirectCommandsLayout = command_signature,
         .maxSequencesCount = num_primitives
     };
-    auto requirements = VkMemoryRequirements2{ .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2 };
+    auto requirements = VkMemoryRequirements2{.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2};
     vkGetGeneratedCommandsMemoryRequirementsNV(backend.get_device(), &info, &requirements);
 
-    if (requirements.memoryRequirements.size > 0) {
+    if(requirements.memoryRequirements.size > 0) {
         // Allocate and return a buffer
         auto& allocator = backend.get_global_allocator();
-        return allocator.create_buffer("Preprocess Buffer", requirements.memoryRequirements.size, BufferUsage::StorageBuffer);
-    }
-    else {
+        return allocator.create_buffer(
+            "Preprocess Buffer",
+            requirements.memoryRequirements.size,
+            BufferUsage::StorageBuffer);
+    } else {
         return std::nullopt;
     }
 }

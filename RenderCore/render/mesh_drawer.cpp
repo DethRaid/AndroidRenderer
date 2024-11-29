@@ -31,7 +31,7 @@ void SceneDrawer::draw(CommandBuffer& commands) const {
     for (const auto& primitive : solids) {
         const auto& mesh = primitive->mesh;
 
-        commands.bind_pipeline(primitive->material->second.pipelines[type]);
+        commands.bind_pipeline(primitive->material->second.pipelines[static_cast<size_t>(type)]);
         commands.set_push_constant(2, primitive.index);
         commands.draw_indexed(mesh->num_indices, 1, static_cast<uint32_t>(mesh->first_index), static_cast<uint32_t>(mesh->first_vertex), 0);
     }
@@ -65,7 +65,7 @@ void SceneDrawer::draw_indirect(
     // Assume all the pipelines are the same - because they are
     // TODO: Provide a better way to classify draws by material
 
-    commands.bind_pipeline(solids[0]->material->second.pipelines[type]);
+    commands.bind_pipeline(solids[0]->material->second.pipelines[static_cast<size_t>(type)]);
     commands.draw_indexed_indirect(indirect_buffer, draw_count_buffer, static_cast<uint32_t>(solids.size()));
 
     if (is_color_pass(type)) {

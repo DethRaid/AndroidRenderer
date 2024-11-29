@@ -19,7 +19,7 @@ struct PooledObject {
 
     ObjectType& operator*() const;
 
-    operator bool() const;
+    explicit operator bool() const;
 
     bool operator!() const;
 
@@ -49,6 +49,8 @@ public:
     ObjectType free_object(const PooledObject<ObjectType>& handle);
 
     ObjectType free_object(uint32_t index);
+
+    PooledObject<ObjectType> make_handle(uint32_t index_in);
 
     std::vector<ObjectType>& get_data();
 
@@ -172,6 +174,11 @@ ObjectType ObjectPool<ObjectType>::free_object(uint32_t index) {
     available_handles.emplace_back(PooledObject<ObjectType>{.index = index, .pool = this});
 
     return object;
+}
+
+template <typename ObjectType>
+PooledObject<ObjectType> ObjectPool<ObjectType>::make_handle(uint32_t index_in) {
+    return { index_in, this };
 }
 
 template <typename ObjectType>

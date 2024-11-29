@@ -19,9 +19,11 @@ public:
 
     ComputePipelineHandle create_pipeline(const std::string& shader_file_path);
 
+    GraphicsPipelineHandle create_pipeline_group(std::span<GraphicsPipelineHandle> pipelines_in);
+
     VkPipeline get_pipeline_for_dynamic_rendering(
         GraphicsPipelineHandle pipeline,
-        std::span<VkFormat> color_attachment_formats,
+        std::span<const VkFormat> color_attachment_formats,
         std::optional<VkFormat> depth_format = std::nullopt,
         uint32_t view_mask = 0xFF
     ) const;
@@ -31,6 +33,7 @@ public:
     ) const;
 
     VkPipeline get_pipeline(ComputePipelineHandle pipeline);
+
 
 private:
     RenderBackend& backend;
