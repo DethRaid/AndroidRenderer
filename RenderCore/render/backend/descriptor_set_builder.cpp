@@ -151,7 +151,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(
     }
 #endif
 
-    bindings[binding_index].address = acceleration_structure->as_address;
+    bindings[binding_index].address = acceleration_structure;
 
     return *this;
 }
@@ -172,7 +172,6 @@ DescriptorSet DescriptorSetBuilder::build() {
             );
 
         } else if(is_texture_type(binding_info.descriptorType)) {
-            const auto& texture_actual = resources.get_texture(resource.texture);
             builder.bind_image(
                 binding,
                 {
@@ -183,8 +182,8 @@ DescriptorSet DescriptorSetBuilder::build() {
                 binding_info.stageFlags
             );
 
-        } else if(is_combined_image_sampler(binding_info.descriptorType)) {
-            const auto& texture_actual = resources.get_texture(resource.combined_image_sampler.texture);
+        }
+        else if (is_combined_image_sampler(binding_info.descriptorType)) {
             builder.bind_image(
                 binding,
                 {
@@ -196,6 +195,8 @@ DescriptorSet DescriptorSetBuilder::build() {
                 binding_info.stageFlags
             );
 
+        } else if(is_acceleration_structure(binding_info.descriptorType)) {
+            builder.bind_acceleration_structure(binding, {.as = resource.address}, binding_info.stageFlags);
 
         } else {
             throw std::runtime_error{"Unknown descriptor type!"};

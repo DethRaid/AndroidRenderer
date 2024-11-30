@@ -36,6 +36,8 @@ void RaytracingScene::finalize() {
     commit_tlas_builds();
 }
 
+AccelerationStructureHandle RaytracingScene::get_acceleration_structure() const { return acceleration_structure; }
+
 void RaytracingScene::commit_tlas_builds() {
     if(!is_dirty) {
         return;
@@ -99,14 +101,14 @@ void RaytracingScene::commit_tlas_builds() {
         &count_instance,
         &size_info);
 
-    opaque_scene = allocator.create_acceleration_structure(size_info.accelerationStructureSize, VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR);
+    acceleration_structure = allocator.create_acceleration_structure(size_info.accelerationStructureSize, VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR);
 
     const auto scratch_buffer = allocator.create_buffer("TLAS build scratch buffer", size_info.buildScratchSize, BufferUsage::AccelerationStructure);
     allocator.destroy_buffer(scratch_buffer);
 
     // Update build information
     build_info.srcAccelerationStructure = VK_NULL_HANDLE;
-    build_info.dstAccelerationStructure = opaque_scene->acceleration_structure;
+    build_info.dstAccelerationStructure = acceleration_structure->acceleration_structure;
     build_info.scratchData.deviceAddress = scratch_buffer->address;
 
     graph.add_pass({

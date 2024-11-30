@@ -53,24 +53,27 @@ void LightingPhase::render(
                                           .bind(4, gbuffer.depth, sampler)
                                           .build();
 
+    auto texture_usages = absl::flat_hash_map<TextureHandle, TextureUsageToken>{};
+    const auto sun_shadowmap_handle = sun.get_shadowmap_handle();
+    if(sun_shadowmap_handle != TextureHandle::None) {
+        texture_usages.emplace(
+            sun.get_shadowmap_handle(),
+            TextureUsageToken{
+                .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            });
+    }
+
     render_graph.add_render_pass(
         {
             .name = "Lighting",
-            .textures = {
-                {
-                    shadowmap,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
-                }
-            },
+            .textures = texture_usages,
             .descriptor_sets = {gbuffers_descriptor_set},
             .color_attachments = {
                 RenderingAttachmentInfo{.image = lit_scene_texture, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR}
             },
             .execute = [&](CommandBuffer& commands) {
-                add_sun_lighting(commands, gbuffers_descriptor_set, view);
+                sun.render(commands, gbuffers_descriptor_set, view, scene->get_raytracing_scene().get_acceleration_structure());
 
                 if(lpv) {
                     lpv->add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer());
@@ -91,65 +94,9 @@ void LightingPhase::set_gbuffer(const GBuffer& gbuffer_in) {
     gbuffer = gbuffer_in;
 }
 
-void LightingPhase::set_shadowmap(const TextureHandle shadowmap_in) {
-    shadowmap = shadowmap_in;
-}
 
 void LightingPhase::set_scene(RenderScene& scene_in) {
     scene = &scene_in;
-}
-
-void
-LightingPhase::add_sun_lighting(
-    CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneTransform& view
-) const {
-    ZoneScoped;
-
-    commands.begin_label("LightingPhase::add_sun_lighting");
-
-    auto& backend = RenderBackend::get();
-    auto& allocator = backend.get_global_allocator();
-
-    // Hardware PCF sampler
-    auto sampler = allocator.get_sampler(
-        VkSamplerCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-            .magFilter = VK_FILTER_LINEAR,
-            .minFilter = VK_FILTER_LINEAR,
-            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .compareEnable = VK_TRUE,
-            .compareOp = VK_COMPARE_OP_LESS,
-            .minLod = 0,
-            .maxLod = 16,
-        }
-    );
-
-    auto& sun = scene->get_sun_light();
-    auto& sun_pipeline = sun.get_pipeline();
-    commands.bind_pipeline(sun_pipeline);
-
-    const auto sun_buffer = sun.get_constant_buffer();
-
-    commands.bind_descriptor_set(0, gbuffers_descriptor_set);
-
-    const auto sun_descriptor_set = backend.get_transient_descriptor_allocator()
-                                           .build_set(sun_pipeline, 1)
-                                           .bind(0, shadowmap, sampler)
-                                           .bind(1, sun_buffer)
-                                           .bind(2, view.get_buffer())
-                                           .build();
-
-    commands.bind_descriptor_set(1, sun_descriptor_set);
-
-    commands.draw_triangle();
-
-    commands.clear_descriptor_set(0);
-    commands.clear_descriptor_set(1);
-
-    commands.end_label();
 }
 
 void LightingPhase::add_raytraced_mesh_lighting(

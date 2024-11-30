@@ -304,9 +304,13 @@ void RenderBackend::create_instance_and_device() {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
         .pNext = &ray_pipeline_features
     };
+    ray_query_features = VkPhysicalDeviceRayQueryFeaturesKHR{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
+        .pNext = &acceleration_structure_features,
+    };
     device_generated_commands_features = VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV,
-        .pNext = &acceleration_structure_features,
+        .pNext = &ray_query_features,
     };
 
     device_features = VkPhysicalDeviceFeatures2{
@@ -332,6 +336,7 @@ void RenderBackend::create_instance_and_device() {
     if(acceleration_structure_features.accelerationStructure) {
         device_builder.add_pNext(&acceleration_structure_features);
         device_builder.add_pNext(&ray_pipeline_features);
+        device_builder.add_pNext(&ray_query_features);
     }
 
     if(device_generated_commands_features.deviceGeneratedCommands) {

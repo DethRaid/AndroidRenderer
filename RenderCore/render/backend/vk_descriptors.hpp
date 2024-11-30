@@ -6,6 +6,7 @@
 #include <volk.h>
 #include <absl/container/flat_hash_map.h>
 
+#include "acceleration_structure.hpp"
 #include "render/backend/handles.hpp"
 
 class RenderBackend;
@@ -32,7 +33,10 @@ namespace vkutil {
 
         void reset_pools();
 
-        bool allocate(VkDescriptorSet* set, VkDescriptorSetLayout layout, const VkDescriptorSetVariableDescriptorCountAllocateInfo* variable_count_info = nullptr);
+        bool allocate(
+            VkDescriptorSet* set, VkDescriptorSetLayout layout,
+            const VkDescriptorSetVariableDescriptorCountAllocateInfo* variable_count_info = nullptr
+        );
 
         void init(VkDevice newDevice);
 
@@ -93,6 +97,10 @@ namespace vkutil {
             std::optional<uint32_t> mip_level = std::nullopt;
         };
 
+        struct AccelerationStructureInfo {
+            AccelerationStructureHandle as = {};
+        };
+
         static DescriptorBuilder begin(RenderBackend& backend, vkutil::DescriptorAllocator& allocator);
 
         DescriptorBuilder& bind_buffer(
@@ -113,13 +121,18 @@ namespace vkutil {
             VkDescriptorType type, VkShaderStageFlags stage_flags
         );
 
+        DescriptorBuilder& bind_acceleration_structure(
+            uint32_t binding, const AccelerationStructureInfo& info, VkShaderStageFlags stage_flags
+        );
+
         DescriptorBuilder& bind_buffer(
             uint32_t binding, const VkDescriptorBufferInfo* buffer_infos, VkDescriptorType type,
             VkShaderStageFlags stageFlags, uint32_t count = 1
         );
 
         DescriptorBuilder& bind_image(
-            uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t count = 1
+            uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags,
+            uint32_t count = 1
         );
 
         std::optional<VkDescriptorSet> build(VkDescriptorSetLayout& layout);
@@ -129,6 +142,7 @@ namespace vkutil {
     private:
         RenderBackend& backend;
 
+        std::vector<VkWriteDescriptorSetAccelerationStructureKHR> as_writes;
         std::vector<VkWriteDescriptorSet> writes;
         std::vector<VkDescriptorSetLayoutBinding> bindings;
 
@@ -137,6 +151,7 @@ namespace vkutil {
 
         std::vector<std::vector<VkDescriptorBufferInfo>> buffer_infos_to_delete;
         std::vector<std::vector<VkDescriptorImageInfo>> image_infos_to_delete;
+        std::vector<std::vector<VkDescriptorBufferInfo>> as_infos_to_delete;
 
         DescriptorBuilder(RenderBackend& backend_in, vkutil::DescriptorAllocator& allocator_in);
     };

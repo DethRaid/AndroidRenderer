@@ -1,6 +1,8 @@
 #version 460 core
 
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_ray_query : enable
 
 #include "shared/sun_light_constants.hpp"
 #include "shared/view_data.hpp"
@@ -32,6 +34,7 @@ layout(set = 1, binding = 1) uniform DirectionalLightUbo {
 layout(set = 1, binding = 2) uniform ViewUniformBuffer {
     ViewDataGPU view_info;
 };
+layout(set = 1, binding = 3) uniform accelerationStructureEXT rtas;
 
 // Texcoord from the vertex shader
 layout(location = 0) in vec2 texcoord;
@@ -74,6 +77,48 @@ medfloat get_shadow_factor(vec3 worldspace_position, uint cascade_index, float b
     return texture(sun_shadowmap, shadow_lookup);
 }
 
+medfloat sample_csm(vec3 worldspace_position, float viewspace_depth, float ndotl) {
+    uint cascade_index = 0;
+    for(uint i = 0; i < 4; i++) {
+        if(viewspace_depth < sun_light.data[i].x) {
+            cascade_index = i + 1;
+        }
+    }
+
+    medfloat shadow = get_shadow_factor(worldspace_position, cascade_index, 0.025 * (1.f - ndotl));
+    if(cascade_index > 3) {
+        shadow = 1.f;
+    }
+
+    return shadow;
+}
+
+medfloat query_ray_visibility(const vec3 worldspace_position) {
+    // V1: Send a ray directly at the sun
+    // V2: Send rays in a cone, accumulate over a few frames
+
+    rayQueryEXT rq;
+
+    rayQueryInitializeEXT(
+        rq, 
+        rtas, 
+        gl_RayFlagsTerminateOnFirstHitEXT, 
+        0xFF,
+        worldspace_position, 
+        0, 
+        normalize(sun_light.direction_and_size.xyz), 
+        100000);
+
+    // Traverse the acceleration structure and store information about the first intersection (if any)
+    rayQueryProceedEXT(rq);
+
+    if (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) {
+        return 0;
+    } else {
+        return 1;
+    }
+}
+
 void main() {
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     medvec3 base_color_sample = texelFetch(gbuffer_base_color, pixel, 0).rgb;
@@ -98,23 +143,21 @@ void main() {
     surface.emission = emission_sample.rgb;
     surface.location = worldspace_position.xyz;
 
-    uint cascade_index = 0;
-    for(uint i = 0; i < 4; i++) {
-        if(viewspace_position.z < sun_light.data[i].x) {
-            cascade_index = i + 1;
-        }
-    }
-
     medfloat ndotl = clamp(dot(normal_sample, light_vector), 0.f, 1.f);
 
-    medfloat shadow = get_shadow_factor(worldspace_position.xyz, cascade_index, 0.025 * (1.f - ndotl));
-    if(cascade_index > 3) {
-        shadow = 1.f;
+    medfloat shadow = 1;
+
+    if(ndotl > 0) {
+        if(sun_light.shadow_mode == SHADOW_MODE_CSM) {
+            shadow = sample_csm(worldspace_position.xyz, viewspace_position.z, ndotl);    
+        } else if(sun_light.shadow_mode == SHADOW_MODE_RT) {
+            shadow = query_ray_visibility(worldspace_position.xyz);
+        }
     }
 
     medvec3 brdf_result = brdf(surface, light_vector, worldspace_view_vector);
 
-    medvec3 direct_light = ndotl * brdf_result * sun_light.color.rgb;// * shadow;
+    medvec3 direct_light = ndotl * brdf_result * sun_light.color.rgb * shadow;
 
     // Number chosen based on what happened to look fine
     const medfloat exposure_factor = 0.0001f;

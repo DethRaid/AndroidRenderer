@@ -1,7 +1,5 @@
 #pragma once
 
-#include <volk.h>
-
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
@@ -35,8 +33,6 @@ public:
 
     void set_gbuffer(const GBuffer& gbuffer_in);
 
-    void set_shadowmap(TextureHandle shadowmap_in);
-
     void render(RenderGraph& render_graph, const SceneTransform& view, TextureHandle lit_scene_texture, const LightPropagationVolume* lpv) const;
 
 private:
@@ -46,11 +42,7 @@ private:
 
     GraphicsPipelineHandle emission_pipeline;
 
-    void add_sun_lighting(CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneTransform& view) const;
-
     void add_raytraced_mesh_lighting(CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, BufferHandle view_buffer) const;
 
     void add_emissive_lighting(CommandBuffer& commands, const DescriptorSet& gbuffer_descriptor_set) const;
-
-    TextureHandle shadowmap = TextureHandle::None;
 };

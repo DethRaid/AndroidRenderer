@@ -11,20 +11,6 @@
 static std::shared_ptr<spdlog::logger> logger;
 
 // ReSharper disable CppDeclaratorNeverUsed
-static auto cvar_num_shadow_cascades = AutoCVar_Int{"r.Shadow.NumCascades", "Number of shadow cascades", 4};
-
-static auto cvar_shadow_cascade_resolution = AutoCVar_Int{
-    "r.Shadow.CascadeResolution",
-    "Resolution of one cascade in the shadowmap", 1024
-};
-
-static auto cvar_max_shadow_distance = AutoCVar_Float{"r.Shadow.Distance", "Maximum distance of shadows", 128};
-
-static auto cvar_shadow_cascade_split_lambda = AutoCVar_Float{
-    "r.Shadow.CascadeSplitLambda",
-    "Factor to use when calculating shadow cascade splits", 0.95
-};
-
 static auto cvar_enable_sun_gi = AutoCVar_Int{
     "r.EnableSunGI", "Whether or not to enable GI from the sun", 1
 };
@@ -58,8 +44,6 @@ SceneRenderer::SceneRenderer() : ui_phase{*this} {
         static_cast<float>(render_resolution.x),
         0.05f
     );
-
-    create_shadow_render_targets();
 
     set_render_resolution(render_resolution);
 
@@ -131,7 +115,6 @@ void SceneRenderer::render() {
     ui_phase.add_data_upload_passes(backend.get_upload_queue());
 
     const auto gbuffer_depth_handle = depth_culling_phase.get_depth_buffer();
-
     lighting_pass.set_gbuffer(
         GBuffer{
             .color = gbuffer_color_handle,
@@ -252,43 +235,9 @@ void SceneRenderer::render() {
 
     // Shadows
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
-    // TODO: Switch to ray traced shadows
     {
         auto& sun = scene->get_sun_light();
-        const auto set = backend.get_transient_descriptor_allocator()
-                                .build_set(
-                                    {
-                                        .bindings = {
-                                            {
-                                                {
-                                                    .binding = 0,
-                                                    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                    .descriptorCount = 1,
-                                                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                                                }
-                                            }
-                                        }
-                                    })
-                                .bind(0, sun.get_constant_buffer())
-                                .build();
-
-        render_graph.add_render_pass(
-            {
-                .name = "Sun shadow",
-                .descriptor_sets = {set},
-                .depth_attachment = RenderingAttachmentInfo{
-                    .image = shadowmap_handle,
-                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .clear_value = {.depthStencil = {.depth = 1.f}}
-                },
-                .execute = [&](CommandBuffer& commands) {
-                    commands.bind_descriptor_set(0, set);
-
-                    sun_shadow_drawer.draw(commands);
-
-                    commands.clear_descriptor_set(0);
-                }
-            });
+        sun.render_shadows(render_graph, sun_shadow_drawer);
     }
 
     if(lpv) {
@@ -439,29 +388,6 @@ TextureLoader& SceneRenderer::get_texture_loader() {
 
 MaterialStorage& SceneRenderer::get_material_storage() {
     return material_storage;
-}
-
-void SceneRenderer::create_shadow_render_targets() {
-    auto& backend = RenderBackend::get();
-    auto& allocator = backend.get_global_allocator();
-
-    if(shadowmap_handle != TextureHandle::None) {
-        allocator.destroy_texture(shadowmap_handle);
-    }
-
-    shadowmap_handle = allocator.create_texture(
-        "Sun shadowmap",
-        VK_FORMAT_D16_UNORM,
-        glm::uvec2{
-            cvar_shadow_cascade_resolution.Get(),
-            cvar_shadow_cascade_resolution.Get()
-        },
-        1,
-        TextureUsage::RenderTarget,
-        cvar_num_shadow_cascades.Get()
-    );
-
-    lighting_pass.set_shadowmap(shadowmap_handle);
 }
 
 void SceneRenderer::create_scene_render_targets() {

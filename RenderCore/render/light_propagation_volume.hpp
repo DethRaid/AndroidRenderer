@@ -18,7 +18,7 @@ class ResourceAllocator;
 class CommandBuffer;
 class RenderScene;
 class SceneTransform;
-class SunLight;
+class DirectionalLight;
 class MeshStorage;
 
 struct CascadeData {
@@ -80,7 +80,7 @@ public:
     /**
      * Updates the transform of this LPV to match the scene view
      */
-    void update_cascade_transforms(const SceneTransform& view, const SunLight& light);
+    void update_cascade_transforms(const SceneTransform& view, const DirectionalLight& light);
 
     void update_buffers(CommandBuffer& commands) const;
 

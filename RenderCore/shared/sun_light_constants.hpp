@@ -3,6 +3,10 @@
 
 #include "shared/prelude.h"
 
+#define SHADOW_MODE_OFF 0
+#define SHADOW_MODE_CSM 1
+#define SHADOW_MODE_RT  2
+
 struct SunLightConstants {
     vec4 direction_and_size;
     vec4 color;
@@ -21,6 +25,15 @@ struct SunLightConstants {
      * Matrix that goes from shadow NDC -> world space
      */
     mat4 cascade_inverse_matrices[4];
+
+    /**
+     * How to handle this light's shadows. See SHADOW_MODE_ above
+     */
+    uint shadow_mode;
+
+    uint padding0;
+    uint padding1;
+    uint padding2;
 };
 
 #endif

@@ -5,7 +5,7 @@
 #include "render/backend/handles.hpp"
 #include "render/scene_primitive.hpp"
 #include "render/backend/scatter_upload_buffer.hpp"
-#include "render/sun_light.hpp"
+#include "render/directional_light.hpp"
 #include "sdf/voxel_cache.hpp"
 
 class MaterialStorage;
@@ -36,7 +36,7 @@ public:
 
     uint32_t get_total_num_primitives() const;
 
-    SunLight &get_sun_light();
+    DirectionalLight &get_sun_light();
 
     /**
      * Retrieves a list of all solid primitives that lie within the given bounds
@@ -66,7 +66,7 @@ private:
      */
     std::unique_ptr<VoxelCache> voxel_cache = nullptr;
 
-    SunLight sun;
+    DirectionalLight sun;
 
     ObjectPool<MeshPrimitive> mesh_primitives;
 

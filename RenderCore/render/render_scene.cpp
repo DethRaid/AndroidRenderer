@@ -140,7 +140,7 @@ uint32_t RenderScene::get_total_num_primitives() const {
     return total_num_primitives;
 }
 
-SunLight& RenderScene::get_sun_light() {
+DirectionalLight& RenderScene::get_sun_light() {
     return sun;
 }
 

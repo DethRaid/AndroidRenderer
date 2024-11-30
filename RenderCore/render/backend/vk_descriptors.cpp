@@ -7,7 +7,6 @@
 #include "render/backend/render_backend.hpp"
 
 namespace vkutil {
-
     /**
      * Some heuristics for checking if a binding is _probably_ a variable-count descriptor array
      *
@@ -15,7 +14,8 @@ namespace vkutil {
      */
     static bool is_descriptor_array(const VkDescriptorSetLayoutBinding& binding) {
         const auto variable_descriptor_array_max_size = *CVarSystem::Get()->GetIntCVar("r.RHI.SampledImageCount");
-        return binding.descriptorCount == variable_descriptor_array_max_size && (binding.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+        return binding.descriptorCount == variable_descriptor_array_max_size && (binding.descriptorType ==
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     }
 
     VkDescriptorPool
@@ -25,7 +25,7 @@ namespace vkutil {
     ) {
         std::vector<VkDescriptorPoolSize> sizes;
         sizes.reserve(poolSizes.sizes.size());
-        for (auto sz : poolSizes.sizes) {
+        for(auto sz : poolSizes.sizes) {
             sizes.push_back({sz.first, uint32_t(sz.second * count)});
         }
         VkDescriptorPoolCreateInfo pool_info = {};
@@ -42,7 +42,7 @@ namespace vkutil {
     }
 
     void DescriptorAllocator::reset_pools() {
-        for (auto p : usedPools) {
+        for(auto p : usedPools) {
             vkResetDescriptorPool(device, p, 0);
         }
 
@@ -55,7 +55,7 @@ namespace vkutil {
         VkDescriptorSet* set, VkDescriptorSetLayout layout,
         const VkDescriptorSetVariableDescriptorCountAllocateInfo* variable_count_info
     ) {
-        if (currentPool == VK_NULL_HANDLE) {
+        if(currentPool == VK_NULL_HANDLE) {
             currentPool = grab_pool();
             usedPools.push_back(currentPool);
         }
@@ -72,7 +72,7 @@ namespace vkutil {
         VkResult allocResult = vkAllocateDescriptorSets(device, &allocInfo, set);
         bool needReallocate = false;
 
-        switch (allocResult) {
+        switch(allocResult) {
         case VK_SUCCESS:
             //all good, return
             return true;
@@ -88,7 +88,7 @@ namespace vkutil {
             return false;
         }
 
-        if (needReallocate) {
+        if(needReallocate) {
             //allocate a new pool and retry
             currentPool = grab_pool();
             usedPools.push_back(currentPool);
@@ -96,7 +96,7 @@ namespace vkutil {
             allocResult = vkAllocateDescriptorSets(device, &allocInfo, set);
 
             //if it still fails then we have big issues
-            if (allocResult == VK_SUCCESS) {
+            if(allocResult == VK_SUCCESS) {
                 return true;
             }
         }
@@ -110,16 +110,16 @@ namespace vkutil {
 
     void DescriptorAllocator::cleanup() {
         //delete every pool held
-        for (auto p : freePools) {
+        for(auto p : freePools) {
             vkDestroyDescriptorPool(device, p, nullptr);
         }
-        for (auto p : usedPools) {
+        for(auto p : usedPools) {
             vkDestroyDescriptorPool(device, p, nullptr);
         }
     }
 
     VkDescriptorPool DescriptorAllocator::grab_pool() {
-        if (freePools.size() > 0) {
+        if(freePools.size() > 0) {
             VkDescriptorPool pool = freePools.back();
             freePools.pop_back();
             return pool;
@@ -139,19 +139,20 @@ namespace vkutil {
         layout_info.bindings.reserve(info->bindingCount);
         bool is_sorted = true;
         int32_t last_binding_idx = -1;
-        for (uint32_t i = 0; i < info->bindingCount; i++) {
+        for(uint32_t i = 0; i < info->bindingCount; i++) {
             layout_info.bindings.push_back(info->pBindings[i]);
 
             //check that the bindings are in strict increasing order
-            if (static_cast<int32_t>(info->pBindings[i].binding) > last_binding_idx) {
+            if(static_cast<int32_t>(info->pBindings[i].binding) > last_binding_idx) {
                 last_binding_idx = static_cast<int32_t>(info->pBindings[i].binding);
             } else {
                 is_sorted = false;
             }
         }
-        if (!is_sorted) {
+        if(!is_sorted) {
             std::sort(
-                layout_info.bindings.begin(), layout_info.bindings.end(),
+                layout_info.bindings.begin(),
+                layout_info.bindings.end(),
                 [](const VkDescriptorSetLayoutBinding& a, const VkDescriptorSetLayoutBinding& b) {
                     return a.binding < b.binding;
                 }
@@ -160,7 +161,7 @@ namespace vkutil {
         auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
         auto flags = std::vector<VkDescriptorBindingFlags>{};
         const auto& last_binding = info->pBindings[info->bindingCount - 1];
-        if (is_descriptor_array(last_binding)) {
+        if(is_descriptor_array(last_binding)) {
             flags.resize(info->bindingCount);
             flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
                 VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
@@ -174,7 +175,7 @@ namespace vkutil {
         }
 
         auto it = layoutCache.find(layout_info);
-        if (it != layoutCache.end()) {
+        if(it != layoutCache.end()) {
             return (*it).second;
         } else {
             VkDescriptorSetLayout layout;
@@ -189,7 +190,7 @@ namespace vkutil {
 
     void DescriptorLayoutCache::cleanup() {
         //delete every descriptor layout held
-        for (auto pair : layoutCache) {
+        for(auto pair : layoutCache) {
             vkDestroyDescriptorSetLayout(device, pair.second, nullptr);
         }
     }
@@ -200,9 +201,9 @@ namespace vkutil {
     }
 
     DescriptorBuilder& DescriptorBuilder::bind_buffer(
-        const uint32_t binding, 
+        const uint32_t binding,
         const DescriptorBuilder::BufferInfo& info,
-        const VkDescriptorType type, 
+        const VkDescriptorType type,
         const VkShaderStageFlags stage_flags
     ) {
         auto& vk_info = buffer_infos_to_delete.emplace_back(
@@ -228,7 +229,7 @@ namespace vkutil {
 
         vk_infos.reserve(infos.size());
 
-        for (const auto& info : infos) {
+        for(const auto& info : infos) {
             vk_infos.emplace_back(
                 VkDescriptorBufferInfo{
                     .buffer = info.buffer->buffer,
@@ -250,7 +251,7 @@ namespace vkutil {
         if(info.mip_level) {
             image_view = image_actual.mip_views[*info.mip_level];
         }
-        if (type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
+        if(type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
             image_view = image_actual.attachment_view;
         }
 
@@ -276,13 +277,13 @@ namespace vkutil {
 
         vk_infos.reserve(infos.size());
 
-        for (const auto& info : infos) {
+        for(const auto& info : infos) {
             const auto& image_actual = allocator.get_texture(info.image);
             auto image_view = image_actual.image_view;
-            if (info.mip_level) {
+            if(info.mip_level) {
                 image_view = image_actual.mip_views[*info.mip_level];
             }
-            if (type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
+            if(type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
                 image_view = image_actual.attachment_view;
             }
 
@@ -296,6 +297,40 @@ namespace vkutil {
         }
 
         return bind_image(binding, vk_infos.data(), type, stage_flags, static_cast<uint32_t>(vk_infos.size()));
+    }
+
+    DescriptorBuilder& DescriptorBuilder::bind_acceleration_structure(
+        const uint32_t binding, const AccelerationStructureInfo& info,
+        const VkShaderStageFlags stage_flags
+    ) {
+        constexpr auto type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+
+        const auto new_binding = VkDescriptorSetLayoutBinding{
+            .binding = binding,
+            .descriptorType = type,
+            .descriptorCount = 1,
+            .stageFlags = stage_flags,
+        };
+
+        bindings.push_back(new_binding);
+
+        const auto& desc_as_info = as_writes.emplace_back(
+            VkWriteDescriptorSetAccelerationStructureKHR{
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+                .accelerationStructureCount = 1,
+                .pAccelerationStructures = &info.as->acceleration_structure,
+            });
+
+        const auto new_write = VkWriteDescriptorSet{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = &desc_as_info,
+            .dstBinding = binding,
+            .descriptorCount = 1,
+            .descriptorType = type,
+        };
+
+        writes.push_back(new_write);
+        return *this;
     }
 
     DescriptorBuilder& DescriptorBuilder::bind_buffer(
@@ -353,9 +388,10 @@ namespace vkutil {
     }
 
     std::optional<VkDescriptorSet> DescriptorBuilder::build(VkDescriptorSetLayout& layout) {
-        const auto variable_descriptor_array_max_size = static_cast<uint32_t>(*CVarSystem::Get()->GetIntCVar("r.RHI.SampledImageCount"));
+        const auto variable_descriptor_array_max_size = static_cast<uint32_t>(*CVarSystem::Get()->GetIntCVar(
+            "r.RHI.SampledImageCount"));
 
-        if (is_descriptor_array(bindings.back())) {
+        if(is_descriptor_array(bindings.back())) {
             bindings.back().descriptorCount = variable_descriptor_array_max_size;
         }
 
@@ -373,7 +409,7 @@ namespace vkutil {
         VkDescriptorSet set;
 
         //allocate descriptor
-        if (is_descriptor_array(bindings.back())) {
+        if(is_descriptor_array(bindings.back())) {
             const auto count_info = VkDescriptorSetVariableDescriptorCountAllocateInfo{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
                 .descriptorSetCount = 1,
@@ -384,20 +420,23 @@ namespace vkutil {
             success = alloc.allocate(&set, layout);
         }
 
-        if (!success) {
+        if(!success) {
             return std::nullopt;
         }
 
         //write descriptor
 
-        for (VkWriteDescriptorSet& w : writes) {
+        for(VkWriteDescriptorSet& w : writes) {
             w.dstSet = set;
         }
 
         {
             ZoneScopedN("vkUpdateDescriptorSets");
             vkUpdateDescriptorSets(
-                alloc.device, static_cast<uint32_t>(writes.size()), writes.data(), 0,
+                alloc.device,
+                static_cast<uint32_t>(writes.size()),
+                writes.data(),
+                0,
                 nullptr
             );
         }
@@ -417,27 +456,28 @@ namespace vkutil {
         backend{backend_in}, cache{backend.get_descriptor_cache()}, alloc{allocator_in} {
         writes.reserve(32);
         bindings.reserve(32);
+        as_writes.reserve(1024); // If we need more than this, things will break. Be careful
     }
 
 
     bool DescriptorLayoutCache::DescriptorLayoutInfo::operator==(
         const DescriptorLayoutInfo& other
     ) const {
-        if (other.bindings.size() != bindings.size()) {
+        if(other.bindings.size() != bindings.size()) {
             return false;
         } else {
             //compare each of the bindings is the same. Bindings are sorted so they will match
-            for (int i = 0; i < bindings.size(); i++) {
-                if (other.bindings[i].binding != bindings[i].binding) {
+            for(int i = 0; i < bindings.size(); i++) {
+                if(other.bindings[i].binding != bindings[i].binding) {
                     return false;
                 }
-                if (other.bindings[i].descriptorType != bindings[i].descriptorType) {
+                if(other.bindings[i].descriptorType != bindings[i].descriptorType) {
                     return false;
                 }
-                if (other.bindings[i].descriptorCount != bindings[i].descriptorCount) {
+                if(other.bindings[i].descriptorCount != bindings[i].descriptorCount) {
                     return false;
                 }
-                if (other.bindings[i].stageFlags != bindings[i].stageFlags) {
+                if(other.bindings[i].stageFlags != bindings[i].stageFlags) {
                     return false;
                 }
             }
@@ -451,7 +491,7 @@ namespace vkutil {
 
         size_t result = hash<size_t>()(bindings.size());
 
-        for (const VkDescriptorSetLayoutBinding& b : bindings) {
+        for(const VkDescriptorSetLayoutBinding& b : bindings) {
             //pack the binding data into a single int64. Not fully correct but its ok
             size_t binding_hash = b.binding | b.descriptorType << 8 | b.descriptorCount << 16 |
                 b.stageFlags << 24;

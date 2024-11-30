@@ -19,12 +19,14 @@ public:
      */
     void finalize();
 
+    AccelerationStructureHandle get_acceleration_structure() const;
+
 private:
     RenderScene& scene;
 
     std::vector<VkAccelerationStructureInstanceKHR> placed_blases;
     bool is_dirty = false;
-    AccelerationStructureHandle opaque_scene;
+    AccelerationStructureHandle acceleration_structure;
 
     /**
      * \brief Finishes the raytracing scene by committing pending TLAS builds. Called by finalize()

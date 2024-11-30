@@ -115,8 +115,6 @@ private:
     RenderVisualization active_visualization = RenderVisualization::VoxelizedMeshes;
 
     VoxelVisualizer voxel_visualizer;
-
-    void create_shadow_render_targets();
     
     void create_scene_render_targets();
 

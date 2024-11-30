@@ -254,6 +254,7 @@ private:
     std::vector<CommandBuffer> queued_command_buffers = {};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR ray_pipeline_features = {};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
+    VkPhysicalDeviceRayQueryFeaturesKHR ray_query_features = {};
     VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV device_generated_commands_features;
     VkPhysicalDeviceFeatures2 device_features = {};
 
