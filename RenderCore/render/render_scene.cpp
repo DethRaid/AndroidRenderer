@@ -113,6 +113,10 @@ void RenderScene::pre_frame(RenderGraph& graph) {
     // Gotta flush it again now that we have the SRVs. Kinda annoying but all well
     primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
 
+    if(raytracing_scene) {
+        raytracing_scene->finalize();
+    }
+
     new_primitives.clear();
 }
 

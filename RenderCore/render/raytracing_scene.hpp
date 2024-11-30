@@ -24,7 +24,7 @@ private:
 
     std::vector<VkAccelerationStructureInstanceKHR> placed_blases;
     bool is_dirty = false;
-    VkAccelerationStructureKHR opaque_scene;
+    AccelerationStructureHandle opaque_scene;
 
     /**
      * \brief Finishes the raytracing scene by committing pending TLAS builds. Called by finalize()

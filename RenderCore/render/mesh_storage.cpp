@@ -473,16 +473,19 @@ AccelerationStructureHandle MeshStorage::create_blas_for_mesh(
         .pGeometries = &geometry,
     };
     auto size_info = VkAccelerationStructureBuildSizesInfoKHR{
-        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR  
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR
     };
     vkGetAccelerationStructureBuildSizesKHR(
-        backend.get_device(), 
-        VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, 
-        &build_info, 
+        backend.get_device(),
+        VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+        &build_info,
         &num_triangles,
         &size_info);
 
-    const auto as = backend.get_global_allocator().create_acceleration_structure(static_cast<uint32_t>(size_info.accelerationStructureSize));
+    const auto as = backend.get_global_allocator()
+                           .create_acceleration_structure(
+                               static_cast<uint32_t>(size_info.accelerationStructureSize),
+                               VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR);
 
     as->scratch_buffer_size = size_info.buildScratchSize;
 

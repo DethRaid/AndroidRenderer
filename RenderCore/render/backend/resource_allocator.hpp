@@ -125,7 +125,7 @@ public:
 
     void destroy_buffer(BufferHandle handle);
 
-    AccelerationStructureHandle create_acceleration_structure(uint32_t acceleration_structure_size);
+    AccelerationStructureHandle create_acceleration_structure(uint64_t acceleration_structure_size, VkAccelerationStructureTypeKHR type);
 
     void destroy_acceleration_structure(AccelerationStructureHandle handle);
 

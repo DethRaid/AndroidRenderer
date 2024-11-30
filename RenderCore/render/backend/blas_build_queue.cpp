@@ -42,6 +42,8 @@ void BlasBuildQueue::flush_pending_builds(RenderGraph& graph) {
         max_scratch_buffer_size * batch_size,
         BufferUsage::StorageBuffer);
 
+    allocator.destroy_buffer(scratch_buffer);
+
     for(auto i = 0; i < pending_jobs.size(); i += batch_size) {
         auto barriers = absl::flat_hash_map<BufferHandle, BufferUsageToken>{
             {

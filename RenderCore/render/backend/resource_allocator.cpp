@@ -374,6 +374,9 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
     switch(usage) {
     case BufferUsage::StagingBuffer:
         vk_usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        if (backend.use_ray_tracing()) {
+            vk_usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+        }
         vma_flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
         break;
@@ -415,7 +418,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
 
     case BufferUsage::AccelerationStructure:
         vk_usage |= VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
-            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+            VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT_KHR | VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT_KHR;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
     }
@@ -464,11 +467,13 @@ void* ResourceAllocator::map_buffer(const BufferHandle buffer_handle) const {
         vmaMapMemory(vma, buffer_handle->allocation, &buffer_handle->allocation_info.pMappedData);
     }
 
+    assert(buffer_handle->allocation_info.pMappedData != nullptr);
+
     return buffer_handle->allocation_info.pMappedData;
 }
 
 AccelerationStructureHandle ResourceAllocator::create_acceleration_structure(
-    const uint32_t acceleration_structure_size
+    const uint64_t acceleration_structure_size, VkAccelerationStructureTypeKHR type
 ) {
     ZoneScoped;
     AccelerationStructure as;
@@ -482,7 +487,7 @@ AccelerationStructureHandle ResourceAllocator::create_acceleration_structure(
         .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
         .buffer = as.buffer->buffer,
         .size = acceleration_structure_size,
-        .type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+        .type = type,
     };
     vkCreateAccelerationStructureKHR(
         backend.get_device(),
