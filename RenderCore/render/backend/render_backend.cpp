@@ -493,6 +493,8 @@ void RenderBackend::advance_frame() {
         frame_descriptor_allocators[cur_frame_idx].reset_pools();
     }
 
+    vkResetFences(device, 1, &frame_fences[cur_frame_idx]);
+
     swapchain_semaphore = create_transient_semaphore("Acquire swapchain semaphore");
     {
         ZoneScopedN("Acquire swapchain image");
@@ -621,15 +623,6 @@ void RenderBackend::flush_batched_command_buffers() {
         transfer_barriers.clear();
     }
 
-    {
-        auto graph = create_render_graph();
-
-        blas_build_queue->flush_pending_builds(graph);
-
-        graph.finish();
-        execute_graph(std::move(graph));
-    }
-
     if(!queued_command_buffers.empty()) {
         auto command_buffers = std::vector<VkCommandBuffer>{};
         command_buffers.reserve(queued_command_buffers.size() * 2);
@@ -667,7 +660,8 @@ void RenderBackend::flush_batched_command_buffers() {
         {
             ZoneScopedN("vkQueueSubmit graphics");
 
-            vkResetFences(device, 1, &frame_fences[cur_frame_idx]);
+            logger->debug("Submitting graphics commands");
+            logger->flush();
             const auto result = vkQueueSubmit(graphics_queue, 1, &submit, frame_fences[cur_frame_idx]);
             logger->trace("Submitted submission fence for frame {}", cur_frame_idx);
 
@@ -686,7 +680,7 @@ void RenderBackend::flush_batched_command_buffers() {
 
         last_submission_semaphores.emplace_back(signal_semaphore);
     } else {
-        logger->warn("No queues command buffers this frame? Things might get wonky");
+        logger->warn("No queued command buffers this frame? Things might get wonky");
     }
 }
 

@@ -3,6 +3,8 @@
 
 #include "model_import/gltf_model.hpp"
 #include "render/scene_renderer.hpp"
+
+#include "backend/blas_build_queue.hpp"
 #include "render/backend/render_graph.hpp"
 #include "core/system_interface.hpp"
 #include "core/user_options.hpp"
@@ -158,6 +160,8 @@ void SceneRenderer::render() {
             }
         }
     );
+
+    backend.get_blas_build_queue().flush_pending_builds(render_graph);
 
     material_storage.flush_material_buffer(render_graph);
 
@@ -374,8 +378,6 @@ void SceneRenderer::render() {
     last_frame_normal_usage = render_graph.get_last_usage_token(normal_target_mip_chain);
 
     backend.execute_graph(std::move(render_graph));
-
-    backend.flush_batched_command_buffers();
 }
 
 SceneTransform& SceneRenderer::get_local_player() {

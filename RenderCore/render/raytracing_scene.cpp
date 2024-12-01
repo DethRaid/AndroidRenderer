@@ -36,7 +36,9 @@ void RaytracingScene::finalize() {
     commit_tlas_builds();
 }
 
-AccelerationStructureHandle RaytracingScene::get_acceleration_structure() const { return acceleration_structure; }
+AccelerationStructureHandle RaytracingScene::get_acceleration_structure() const {
+    return acceleration_structure;
+}
 
 void RaytracingScene::commit_tlas_builds() {
     if(!is_dirty) {
@@ -101,9 +103,14 @@ void RaytracingScene::commit_tlas_builds() {
         &count_instance,
         &size_info);
 
-    acceleration_structure = allocator.create_acceleration_structure(size_info.accelerationStructureSize, VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR);
+    acceleration_structure = allocator.create_acceleration_structure(
+        size_info.accelerationStructureSize,
+        VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR);
 
-    const auto scratch_buffer = allocator.create_buffer("TLAS build scratch buffer", size_info.buildScratchSize, BufferUsage::AccelerationStructure);
+    const auto scratch_buffer = allocator.create_buffer(
+        "TLAS build scratch buffer",
+        size_info.buildScratchSize,
+        BufferUsage::AccelerationStructure);
     allocator.destroy_buffer(scratch_buffer);
 
     // Update build information
@@ -111,17 +118,34 @@ void RaytracingScene::commit_tlas_builds() {
     build_info.dstAccelerationStructure = acceleration_structure->acceleration_structure;
     build_info.scratchData.deviceAddress = scratch_buffer->address;
 
-    graph.add_pass({
-        .name ="Build TLAS",
-        .buffers = {},
-        .execute = [=](CommandBuffer& commands) {
-            // Build Offsets info: n instances
-            VkAccelerationStructureBuildRangeInfoKHR        build_offset_info{ count_instance, 0, 0, 0 };
-            const VkAccelerationStructureBuildRangeInfoKHR* p_build_offset_info = &build_offset_info;
+    graph.add_pass(
+        {
+            .name = "Build TLAS",
+            .buffers = {
+                {
+                    instances_buffer,
+                    {
+                        .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                        .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
+                    }
+                },
+                {
+                    scratch_buffer,
+                    {
+                        .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                        .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
+                    }
+                }
+            },
+            .execute = [=](CommandBuffer& commands) {
+                // Build Offsets info: n instances
+                VkAccelerationStructureBuildRangeInfoKHR build_offset_info{count_instance, 0, 0, 0};
+                const VkAccelerationStructureBuildRangeInfoKHR* p_build_offset_info = &build_offset_info;
 
-            // Build the TLAS
-            vkCmdBuildAccelerationStructuresKHR(commands.get_vk_commands(), 1, &build_info, &p_build_offset_info);
-            
-        }
-    });
+                // Build the TLAS
+                vkCmdBuildAccelerationStructuresKHR(commands.get_vk_commands(), 1, &build_info, &p_build_offset_info);
+            }
+        });
+
+    is_dirty = false;
 }
