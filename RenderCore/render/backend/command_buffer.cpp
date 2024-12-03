@@ -180,11 +180,10 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) {
     const auto& allocator = backend->get_global_allocator();
 
     for(const auto& color_attachment : info.color_attachments) {
-        const auto& texture = allocator.get_texture(color_attachment.image);
         attachment_infos.emplace_back(
             VkRenderingAttachmentInfo{
                 .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-                .imageView = texture.attachment_view,
+                .imageView = color_attachment.image->attachment_view,
                 .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
                 .loadOp = color_attachment.load_op,
                 .storeOp = color_attachment.store_op,
@@ -192,16 +191,15 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) {
             }
         );
 
-        bound_color_attachment_formats.emplace_back(texture.create_info.format);
+        bound_color_attachment_formats.emplace_back(color_attachment.image->create_info.format);
     }
 
     VkRenderingAttachmentInfo* depth_attachment_ptr = nullptr;
     if(info.depth_attachment) {
-        const auto& texture = allocator.get_texture(info.depth_attachment->image);
         attachment_infos.emplace_back(
             VkRenderingAttachmentInfo{
                 .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-                .imageView = texture.attachment_view,
+                .imageView = info.depth_attachment->image->attachment_view,
                 .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
                 .loadOp = info.depth_attachment->load_op,
                 .storeOp = info.depth_attachment->store_op,
@@ -209,7 +207,7 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) {
             }
         );
         depth_attachment_ptr = &attachment_infos.back();
-        bound_depth_attachment_format = texture.create_info.format;
+        bound_depth_attachment_format = info.depth_attachment->image->create_info.format;
     }
 
     const auto rendering_info = VkRenderingInfo{
@@ -430,14 +428,10 @@ void CommandBuffer::dispatch_indirect(const BufferHandle indirect_buffer) {
 }
 
 void CommandBuffer::copy_image_to_image(const TextureHandle src, const TextureHandle dst) const {
-    auto& allocator = backend->get_global_allocator();
-    const auto& src_actual = allocator.get_texture(src);
-    const auto& dst_actual = allocator.get_texture(dst);
-
     const auto region = VkImageCopy2{
         .sType = VK_STRUCTURE_TYPE_IMAGE_COPY_2,
         .srcSubresource = {
-            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(src_actual.create_info.format)
+            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(src->create_info.format)
                 ? VK_IMAGE_ASPECT_DEPTH_BIT
                 : VK_IMAGE_ASPECT_COLOR_BIT),
             .mipLevel = 0,
@@ -446,7 +440,7 @@ void CommandBuffer::copy_image_to_image(const TextureHandle src, const TextureHa
         },
         .srcOffset = {},
         .dstSubresource = {
-            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(dst_actual.create_info.format)
+            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(dst->create_info.format)
                 ? VK_IMAGE_ASPECT_DEPTH_BIT
                 : VK_IMAGE_ASPECT_COLOR_BIT),
             .mipLevel = 0,
@@ -454,14 +448,14 @@ void CommandBuffer::copy_image_to_image(const TextureHandle src, const TextureHa
             .layerCount = 1,
         },
         .dstOffset = {},
-        .extent = src_actual.create_info.extent,
+        .extent = src->create_info.extent,
     };
 
     const auto copy_info = VkCopyImageInfo2{
         .sType = VK_STRUCTURE_TYPE_COPY_IMAGE_INFO_2,
-        .srcImage = src_actual.image,
+        .srcImage = src->image,
         .srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        .dstImage = dst_actual.image,
+        .dstImage = dst->image,
         .dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         .regionCount = 1,
         .pRegions = &region

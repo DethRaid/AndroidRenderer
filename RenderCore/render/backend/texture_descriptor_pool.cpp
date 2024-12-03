@@ -73,13 +73,10 @@ uint32_t TextureDescriptorPool::create_texture_srv(const TextureHandle texture, 
     const auto handle = available_handles.back();
     available_handles.pop_back();
 
-    const auto& allocator = backend.get_global_allocator();
-    const auto& texture_actual = allocator.get_texture(texture);
-
     auto image_info = std::make_unique<VkDescriptorImageInfo>(
         VkDescriptorImageInfo{
             .sampler = sampler,
-            .imageView = texture_actual.image_view,
+            .imageView = texture->image_view,
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }
     );

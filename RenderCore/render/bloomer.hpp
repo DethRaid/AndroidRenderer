@@ -24,7 +24,7 @@ private:
 
     VkSampler bilinear_sampler;
 
-    glm::uvec2 bloom_tex_resolution;
+    glm::uvec2 bloom_tex_resolution = {};
 
     void create_bloom_tex(TextureHandle scene_color);
 };

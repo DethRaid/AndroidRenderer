@@ -371,7 +371,7 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
     }
 }
 
-void LightPropagationVolume::update_buffers(CommandBuffer& commands) const {
+void LightPropagationVolume::update_buffers(const CommandBuffer& commands) const {
     ZoneScoped;
 
     auto cascade_matrices = std::vector<LPVCascadeMatrices>{};
@@ -404,10 +404,10 @@ void LightPropagationVolume::inject_indirect_sun_light(
     // will select the brightest VPL in each subgroup, and write it to a buffer
     // Then, we dispatch one VS invocation for each VPL. We use a geometry shader to send the VPL to the correct part
     // of the cascade
-    // Why do this? I want to keep the large, heavy RSM targets in tile memory. I have to use a FS for VPL extraction
-    // because only a FS can read from tile memory. I reduce the 1024x1024 RSM to only 65k VPLs, so there's much less
+    // Why do this? I want to keep the large, heavy RSM targets in tile memory. I have to use an FS for VPL extraction
+    // because only an FS can read from tile memory. I reduce the 1024x1024 RSM to only 65k VPLs, so there's much less
     // data flushed to main memory
-    // Unfortunately there's a sync point between the VPL generation FS and the VPL injection pass. Not sure I can get
+    // Unfortunately there's a sync point between the VPL generation FS and the VPL injection pass. Not sure if I can get
     // rid of that
 
     graph.begin_label("LPV indirect sun light injection");
@@ -1158,9 +1158,7 @@ void LightPropagationVolume::add_lighting_to_scene(
         .bind(4, scene_view_buffer)
         .build();
 
-    auto& allocator = backend.get_global_allocator();
-    const auto& lpv_a_actual = allocator.get_texture(lpv_a_red);
-    logger->debug("Binding LPV A {} (handle {})", lpv_a_actual.name, static_cast<uint32_t>(lpv_a_red));
+    logger->debug("Binding LPV A {} (handle {})", lpv_a_red->name, static_cast<void*>(lpv_a_red));
 
     commands.bind_descriptor_set(1, lpv_descriptor);
 

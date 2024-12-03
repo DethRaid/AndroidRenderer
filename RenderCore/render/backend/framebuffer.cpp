@@ -24,34 +24,31 @@ Framebuffer Framebuffer::create(const RenderBackend& backend, const std::vector<
     {
         ZoneScopedN("Collect attachments from TextureHandles");
         for (const auto& color_att : color_attachments) {
-            const auto& attachment_actual = allocator.get_texture(color_att);
-
-            attachments[attachment_write_idx] = attachment_actual.attachment_view;
+            attachments[attachment_write_idx] = color_att->attachment_view;
             attachment_write_idx++;
 
             // Assumes that all render targets have the same depth
             // If they don't all have the same depth, I'll get very sad
-            num_layers = attachment_actual.create_info.extent.depth;
+            num_layers = color_att->create_info.extent.depth;
 
             if (render_area.extent.width == 0) {
-                render_area.extent.width = attachment_actual.create_info.extent.width;
-                render_area.extent.height = attachment_actual.create_info.extent.height;
+                render_area.extent.width = color_att->create_info.extent.width;
+                render_area.extent.height = color_att->create_info.extent.height;
             }
         }
 
         if (depth_attachment) {
-            const auto& attachment_actual = allocator.get_texture(*depth_attachment);
-
-            attachments[attachment_write_idx] = attachment_actual.attachment_view;
+            auto depth_handle = *depth_attachment;
+            attachments[attachment_write_idx] = depth_handle->attachment_view;
             attachment_write_idx++;
 
             // Assumes that all render targets have the same depth
             // If they don't all have the same depth, I'll get very sad
-            num_layers = attachment_actual.create_info.extent.depth;
+            num_layers = depth_handle->create_info.extent.depth;
 
             if (render_area.extent.width == 0) {
-                render_area.extent.width = attachment_actual.create_info.extent.width;
-                render_area.extent.height = attachment_actual.create_info.extent.height;
+                render_area.extent.width = depth_handle->create_info.extent.width;
+                render_area.extent.height = depth_handle->create_info.extent.height;
             }
         }
     }

@@ -62,7 +62,7 @@ void MipChainGenerator::fill_mip_chain(
                     }
                 }
             },
-            .execute = [this](CommandBuffer& commands) {
+            .execute = [this](const CommandBuffer& commands) {
                 commands.fill_buffer(counter_buffer, 0);
             }
         }
@@ -98,27 +98,24 @@ void MipChainGenerator::fill_mip_chain(
             },
             .execute = [=, this](CommandBuffer& commands) {
                 auto& backend = RenderBackend::get();
-                auto& allocator = backend.get_global_allocator();
-                const auto& src_texture_actual = allocator.get_texture(src_texture);
-                const auto& dest_texture_actual = allocator.get_texture(dest_texture);
 
-                const auto dest_texture_format = dest_texture_actual.create_info.format;
+                const auto dest_texture_format = dest_texture->create_info.format;
                 const auto& shader = shaders.at(dest_texture_format);
 
                 auto uavs = std::vector<VkDescriptorImageInfo>{};
                 uavs.reserve(12);
-                for (auto mip_level = 0u; mip_level < dest_texture_actual.create_info.mipLevels; mip_level++) {
+                for (auto mip_level = 0u; mip_level < dest_texture->create_info.mipLevels; mip_level++) {
                     uavs.emplace_back(
                         VkDescriptorImageInfo{
-                            .imageView = dest_texture_actual.mip_views[mip_level],
+                            .imageView = dest_texture->mip_views[mip_level],
                             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                         }
                     );
                 }
-                for (auto mip_level = dest_texture_actual.create_info.mipLevels; mip_level < 12; mip_level++) {
+                for (auto mip_level = dest_texture->create_info.mipLevels; mip_level < 12; mip_level++) {
                     uavs.emplace_back(
                         VkDescriptorImageInfo{
-                            .imageView = dest_texture_actual.mip_views[1],
+                            .imageView = dest_texture->mip_views[1],
                             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                         }
                     );
@@ -148,7 +145,7 @@ void MipChainGenerator::fill_mip_chain(
                 varAU2(work_group_offset);
                 varAU2(num_work_groups_and_mips);
                 varAU4(rect_info) = initAU4(
-                    0, 0, src_texture_actual.create_info.extent.width, src_texture_actual.create_info.extent.height
+                    0, 0, src_texture->create_info.extent.width, src_texture->create_info.extent.height
                 );
                 SpdSetup(dispatch_thread_group_count_xy, work_group_offset, num_work_groups_and_mips, rect_info);
 

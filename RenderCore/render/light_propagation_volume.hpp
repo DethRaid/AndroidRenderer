@@ -82,7 +82,7 @@ public:
      */
     void update_cascade_transforms(const SceneTransform& view, const DirectionalLight& light);
 
-    void update_buffers(CommandBuffer& commands) const;
+    void update_buffers(const CommandBuffer& commands) const;
 
     void clear_volume(RenderGraph& render_graph);
 

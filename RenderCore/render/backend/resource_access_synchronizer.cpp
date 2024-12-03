@@ -39,10 +39,8 @@ ResourceAccessTracker::ResourceAccessTracker(RenderBackend& backend_in) : backen
 void ResourceAccessTracker::set_resource_usage(
     TextureHandle texture, const TextureUsageToken& usage, const bool skip_barrier
 ) {
-    auto& allocator = backend.get_global_allocator();
-    const auto& texture_actual = allocator.get_texture(texture);
     auto aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-    if (is_depth_format(texture_actual.create_info.format)) {
+    if (is_depth_format(texture->create_info.format)) {
         aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
     }
 
@@ -63,13 +61,13 @@ void ResourceAccessTracker::set_resource_usage(
                     .dstAccessMask = usage.access,
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = usage.layout,
-                    .image = texture_actual.image,
+                    .image = texture->image,
                     .subresourceRange = {
                         .aspectMask = static_cast<VkImageAspectFlags>(aspect),
                         .baseMipLevel = 0,
-                        .levelCount = texture_actual.create_info.mipLevels,
+                        .levelCount = texture->create_info.mipLevels,
                         .baseArrayLayer = 0,
-                        .layerCount = texture_actual.create_info.arrayLayers,
+                        .layerCount = texture->create_info.arrayLayers,
                     }
                 }
             );
@@ -99,13 +97,13 @@ void ResourceAccessTracker::set_resource_usage(
                         .dstAccessMask = usage.access,
                         .oldLayout = itr->second.layout,
                         .newLayout = usage.layout,
-                        .image = texture_actual.image,
+                        .image = texture->image,
                         .subresourceRange = {
                             .aspectMask = static_cast<VkImageAspectFlags>(aspect),
                             .baseMipLevel = 0,
-                            .levelCount = texture_actual.create_info.mipLevels,
+                            .levelCount = texture->create_info.mipLevels,
                             .baseArrayLayer = 0,
-                            .layerCount = texture_actual.create_info.arrayLayers,
+                            .layerCount = texture->create_info.arrayLayers,
                         }
                     }
                 );

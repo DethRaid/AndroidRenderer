@@ -135,8 +135,7 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
             });
 
         // Assumes that all render targets have the same depth
-        const auto& attachment_actual = allocator.get_texture(attachment_token.image);
-        num_layers = attachment_actual.create_info.extent.depth;
+        num_layers = attachment_token.image->create_info.extent.depth;
     }
 
     if(pass.depth_attachment) {
@@ -149,8 +148,7 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
             });
 
         // Assumes that all render targets have the same depth
-        const auto& attachment_actual = allocator.get_texture(pass.depth_attachment->image);
-        num_layers = std::max(attachment_actual.create_info.extent.depth, attachment_actual.create_info.arrayLayers);
+        num_layers = pass.depth_attachment->image->create_info.extent.depth;
     }
 
 
@@ -162,14 +160,12 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
 
         auto render_area_size = glm::uvec2{};
         if(pass.depth_attachment) {
-            const auto& depth_attachment_actual = allocator.get_texture(pass.depth_attachment->image);
             render_area_size = {
-                depth_attachment_actual.create_info.extent.width, depth_attachment_actual.create_info.extent.height
+                pass.depth_attachment->image->create_info.extent.width, pass.depth_attachment->image->create_info.extent.height
             };
         } else if(!pass.color_attachments.empty()) {
-            const auto& attachment_actual = allocator.get_texture(pass.color_attachments[0].image);
             render_area_size = {
-                attachment_actual.create_info.extent.width, attachment_actual.create_info.extent.height
+                pass.color_attachments[0].image->create_info.extent.width, pass.color_attachments[0].image->create_info.extent.height
             };
         }
 
@@ -216,8 +212,7 @@ void RenderGraph::add_render_pass_internal(RenderPass&& pass) {
     render_targets.reserve(pass.attachments.size());
     auto depth_target = std::optional<TextureHandle>{};
     for(const auto& render_target : pass.attachments) {
-        const auto& render_target_actual = allocator.get_texture(render_target);
-        if(is_depth_format(render_target_actual.create_info.format)) {
+        if(is_depth_format(render_target->create_info.format)) {
             depth_target = render_target;
             access_tracker.set_resource_usage(
                 render_target,
@@ -277,8 +272,7 @@ void RenderGraph::add_render_pass_internal(RenderPass&& pass) {
         for(const auto& subpass : pass.subpasses) {
             for(const auto input_attachment_idx : subpass.input_attachments) {
                 const auto& input_attachment = pass.attachments[input_attachment_idx];
-                const auto& attachment_actual = allocator.get_texture(input_attachment);
-                if(is_depth_format(attachment_actual.create_info.format)) {
+                if(is_depth_format(input_attachment->create_info.format)) {
                     access_tracker.set_resource_usage(
                         input_attachment,
                         {

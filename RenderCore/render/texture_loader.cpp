@@ -250,8 +250,6 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
     );
 
     if(backend.has_separate_transfer_queue()) {
-        const auto& texture = allocator.get_texture(handle);
-
         backend.add_transfer_barrier(
             VkImageMemoryBarrier2{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -263,7 +261,7 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
                 .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 .srcQueueFamilyIndex = backend.get_transfer_queue_family_index(),
                 .dstQueueFamilyIndex = backend.get_graphics_queue_family_index(),
-                .image = texture.image,
+                .image = handle->image,
                 .subresourceRange = {
                     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                     .baseMipLevel = 0,
@@ -277,7 +275,7 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
         logger->info(
             "Added queue transfer barrier for image {} (Vulkan handle {})",
             filepath.string(),
-            static_cast<void*>(texture.image));
+            static_cast<void*>(handle->image));
     }
 
     return handle;
