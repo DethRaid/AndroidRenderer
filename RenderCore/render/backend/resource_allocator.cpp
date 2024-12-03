@@ -94,7 +94,7 @@ TextureHandle ResourceAllocator::create_texture(
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     };
 
-    auto texture = Texture{
+    auto texture = GpuTexture{
         .type = TextureAllocationType::Vma
     };
 
@@ -184,8 +184,8 @@ TextureHandle ResourceAllocator::create_texture(
         texture.mip_views.emplace_back(view);
     }
 
-    auto handle = textures.add_object(std::move(texture));
-    return static_cast<TextureHandle>(handle.index);
+    auto handle = &(*textures.emplace(std::move(texture)));
+    return handle;
 }
 
 TextureHandle ResourceAllocator::create_volume_texture(
@@ -241,7 +241,7 @@ TextureHandle ResourceAllocator::create_volume_texture(
         .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     };
 
-    auto texture = Texture{
+    auto texture = GpuTexture{
         .type = TextureAllocationType::Vma
     };
 
@@ -304,11 +304,11 @@ TextureHandle ResourceAllocator::create_volume_texture(
     backend.set_object_name(texture.image_view, image_view_name);
     backend.set_object_name(texture.attachment_view, fmt::format("{} RTV", name));
 
-    auto handle = textures.add_object(std::move(texture));
-    return static_cast<TextureHandle>(handle.index);
+    auto handle = &(*textures.emplace(std::move(texture)));
+    return handle;
 }
 
-TextureHandle ResourceAllocator::emplace_texture(const std::string& name, Texture&& new_texture) {
+TextureHandle ResourceAllocator::emplace_texture(const std::string& name, GpuTexture&& new_texture) {
     if(new_texture.type == TextureAllocationType::Ktx) {
         // Name the image, create an image view, name the image view
 
@@ -349,12 +349,8 @@ TextureHandle ResourceAllocator::emplace_texture(const std::string& name, Textur
         new_texture.attachment_view = new_texture.image_view;
     }
 
-    auto handle = textures.add_object(std::move(new_texture));
-    return static_cast<TextureHandle>(handle.index);
-}
-
-const Texture& ResourceAllocator::get_texture(TextureHandle handle) const {
-    return textures[static_cast<uint32_t>(handle)];
+    auto handle = &(*textures.emplace(std::move(new_texture)));
+    return handle;
 }
 
 void ResourceAllocator::destroy_texture(TextureHandle handle) {
@@ -434,7 +430,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
         .usage = memory_usage,
     };
 
-    Buffer buffer;
+    GpuBuffer buffer;
     auto result = vmaCreateBuffer(
         vma,
         &create_info,
@@ -555,11 +551,10 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
     auto attachment_index = 0u;
 
     for(const auto& render_target : pass.attachments) {
-        const auto& render_target_actual = get_texture(render_target);
 
         auto load_action = VK_ATTACHMENT_LOAD_OP_LOAD;
         auto store_action = VK_ATTACHMENT_STORE_OP_STORE;
-        if(render_target_actual.is_transient) {
+        if(render_target->is_transient) {
             load_action = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             store_action = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         }
@@ -568,11 +563,11 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         }
 
         auto layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        if(is_depth_format(render_target_actual.create_info.format)) {
+        if(is_depth_format(render_target->create_info.format)) {
             layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         }
 
-        logger->debug("RenderPass attachment {} is {}", attachments.size(), render_target_actual.name);
+        logger->debug("RenderPass attachment {} is {}", attachments.size(), render_target->name);
         logger->debug(
             "\tloadOp={} initialLayout={}",
             magic_enum::enum_name(load_action),
@@ -587,7 +582,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
         attachments.emplace_back(
             VkAttachmentDescription2{
                 .sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
-                .format = render_target_actual.create_info.format,
+                .format = render_target->create_info.format,
                 .samples = VK_SAMPLE_COUNT_1_BIT,
                 .loadOp = load_action,
                 .storeOp = store_action,
@@ -619,8 +614,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             input_attachment_references.reserve(subpass.input_attachments.size());
             for(const auto& input_attachment_index : subpass.input_attachments) {
                 const auto input_attachment_handle = pass.attachments[input_attachment_index];
-                const auto& input_attachment_actual = get_texture(input_attachment_handle);
-                if(is_depth_format(input_attachment_actual.create_info.format)) {
+                if(is_depth_format(input_attachment_handle->create_info.format)) {
                     input_attachment_references.emplace_back(
                         VkAttachmentReference2{
                             .sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2,
@@ -832,21 +826,20 @@ void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
 
     auto& zombie_textures = texture_zombie_lists[frame_idx];
     for(auto handle : zombie_textures) {
-        auto& texture = textures[static_cast<uint32_t>(handle)];
-        vkDestroyImageView(device, texture.image_view, nullptr);
+        vkDestroyImageView(device, handle->image_view, nullptr);
 
-        switch(texture.type) {
+        switch(handle->type) {
         case TextureAllocationType::Vma:
-            vmaDestroyImage(vma, texture.image, texture.vma.allocation);
+            vmaDestroyImage(vma, handle->image, handle->vma.allocation);
             break;
 
         case TextureAllocationType::Ktx:
-            ktxVulkanTexture_Destruct(&texture.ktx.ktx_vk_tex, device, nullptr);
+            ktxVulkanTexture_Destruct(&handle->ktx.ktx_vk_tex, device, nullptr);
             break;
 
         case TextureAllocationType::Swapchain:
             // We just need to destroy the image view
-            vkDestroyImageView(device, texture.image_view, nullptr);
+            vkDestroyImageView(device, handle->image_view, nullptr);
             break;
 
         default:

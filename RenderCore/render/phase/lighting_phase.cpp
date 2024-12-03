@@ -55,7 +55,7 @@ void LightingPhase::render(
 
     auto texture_usages = absl::flat_hash_map<TextureHandle, TextureUsageToken>{};
     const auto sun_shadowmap_handle = sun.get_shadowmap_handle();
-    if(sun_shadowmap_handle != TextureHandle::None) {
+    if(sun_shadowmap_handle != nullptr) {
         texture_usages.emplace(
             sun.get_shadowmap_handle(),
             TextureUsageToken{

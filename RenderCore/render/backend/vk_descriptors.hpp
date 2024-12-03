@@ -131,7 +131,7 @@ namespace vkutil {
         );
 
         DescriptorBuilder& bind_image(
-            uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags,
+            uint32_t binding, const VkDescriptorImageInfo* image_info, VkDescriptorType type, VkShaderStageFlags stageFlags,
             uint32_t count = 1
         );
 

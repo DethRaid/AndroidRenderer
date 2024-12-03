@@ -273,7 +273,7 @@ void ResourceUploadQueue::flush_pending_uploads() {
 void ResourceUploadQueue::upload_ktx(
     const VkCommandBuffer cmds, 
     const KtxUploadJob& job, 
-    const Buffer& staging_buffer,
+    const GpuBuffer& staging_buffer,
     const size_t offset
 ) const {
     const auto num_copy_regions = job.source->numLevels;

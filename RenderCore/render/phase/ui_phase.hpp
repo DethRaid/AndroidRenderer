@@ -31,7 +31,7 @@ public:
 private:
     SceneRenderer& scene_renderer;
 
-    TextureHandle scene_color = TextureHandle::None;
+    TextureHandle scene_color = nullptr;
 
     glm::uvec2 render_resolution;
 

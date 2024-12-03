@@ -46,13 +46,13 @@ DepthCullingPhase::DepthCullingPhase() {
 DepthCullingPhase::~DepthCullingPhase() {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
-    if(depth_buffer != TextureHandle::None) {
+    if(depth_buffer != nullptr) {
         allocator.destroy_texture(depth_buffer);
-        depth_buffer = TextureHandle::None;
+        depth_buffer = nullptr;
     }
-    if(hi_z_buffer != TextureHandle::None) {
+    if(hi_z_buffer != nullptr) {
         allocator.destroy_texture(hi_z_buffer);
-        hi_z_buffer = TextureHandle::None;
+        hi_z_buffer = nullptr;
 
         auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
         texture_descriptor_pool.free_descriptor(hi_z_index);
@@ -71,13 +71,13 @@ void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
     auto& allocator = backend.get_global_allocator();
     auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
 
-    if(depth_buffer != TextureHandle::None) {
+    if(depth_buffer != nullptr) {
         allocator.destroy_texture(depth_buffer);
-        depth_buffer = TextureHandle::None;
+        depth_buffer = nullptr;
     }
-    if(hi_z_buffer != TextureHandle::None) {
+    if(hi_z_buffer != nullptr) {
         allocator.destroy_texture(hi_z_buffer);
-        hi_z_buffer = TextureHandle::None;
+        hi_z_buffer = nullptr;
 
         texture_descriptor_pool.free_descriptor(hi_z_index);
         hi_z_index = 0;

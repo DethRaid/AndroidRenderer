@@ -37,7 +37,7 @@ Bloomer::Bloomer() {
 void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color) {
     ZoneScoped;
 
-    if (bloom_tex == TextureHandle::None) {
+    if (bloom_tex == nullptr) {
         create_bloom_tex(scene_color);
     }
 

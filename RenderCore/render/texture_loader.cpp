@@ -122,7 +122,7 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_ktx(
         ktxTexture2_TranscodeBasis(ktx_texture, format, 0);
     }
 
-    auto texture = Texture{
+    auto texture = GpuTexture{
         .name = filepath.string(),
         .type = TextureAllocationType::Ktx,
     };

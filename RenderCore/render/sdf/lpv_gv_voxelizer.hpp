@@ -40,7 +40,7 @@ public:
     void voxelize_mesh(RenderGraph& graph, MeshHandle mesh, const MeshStorage& meshes);
 
     /**
-     * Extracts the rastered texture from the rasterizer, setting the internal texture to TextureHandle::None
+     * Extracts the rastered texture from the rasterizer, setting the internal texture to nullptr
      */
     TextureHandle extract_texture();
 
@@ -55,7 +55,7 @@ private:
      */
     uint32_t max_num_triangles = 0;
 
-    TextureHandle voxel_texture = TextureHandle::None;
+    TextureHandle voxel_texture = nullptr;
 
     BufferHandle volume_uniform_buffer = {};
 

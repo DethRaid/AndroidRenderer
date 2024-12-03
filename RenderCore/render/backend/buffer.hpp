@@ -7,7 +7,7 @@
 #include <vk_mem_alloc.h>
 #include "render/backend/device_address.hpp"
 
-struct Buffer {
+struct GpuBuffer {
     std::string name;
     VkBufferCreateInfo create_info;
 

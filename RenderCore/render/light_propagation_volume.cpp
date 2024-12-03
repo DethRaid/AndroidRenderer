@@ -1096,7 +1096,7 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
             lpv_b_blue,
             use_gv
         );
-        use_gv = true;
+        // use_gv = true;
         perform_propagation_step(
             render_graph,
             lpv_b_red,

@@ -12,11 +12,11 @@ class SceneTransform;
 class LightPropagationVolume;
 
 struct GBuffer {
-    TextureHandle color = TextureHandle::None;
-    TextureHandle normal = TextureHandle::None;
-    TextureHandle data = TextureHandle::None;
-    TextureHandle emission = TextureHandle::None;
-    TextureHandle depth = TextureHandle::None;
+    TextureHandle color = nullptr;
+    TextureHandle normal = nullptr;
+    TextureHandle data = nullptr;
+    TextureHandle emission = nullptr;
+    TextureHandle depth = nullptr;
 };
 
 /**

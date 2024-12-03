@@ -21,12 +21,12 @@ class PipelineCache;
 /**
  * Wraps a lot of low level Vulkan concerns
  *
- * The render backend is very stateful. It knows the current frame index, it has a command buffer for your use, etc
+ * The render backend is very stateful. It knows the current frame index, it has a command buffer for your use, etc.
  *
  * The command buffer is submitted and replaced with a new command buffer when you flush commands. We automatically
  * flush commands at the end of the frame, but you can flush more often to reduce latency
  *
- * When the frame begins, the backend does a couple things:
+ * When the frame begins, the backend does a couple of things:
  * - Wait for the GPU to finish processing the last commands for the current frame index
  * - Destroys the command buffers for this frame and resets the command pool
  */
@@ -218,8 +218,8 @@ private:
 
     VkPipelineCache vk_pipeline_cache = VK_NULL_HANDLE;
 
-    TextureHandle white_texture_handle = TextureHandle::None;
-    TextureHandle default_normalmap_handle = TextureHandle::None;
+    TextureHandle white_texture_handle = nullptr;
+    TextureHandle default_normalmap_handle = nullptr;
     VkSampler default_sampler = VK_NULL_HANDLE;
 
     vkb::Swapchain swapchain = {};

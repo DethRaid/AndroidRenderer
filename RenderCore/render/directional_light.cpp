@@ -94,12 +94,12 @@ void DirectionalLight::update_shadow_cascades(const SceneTransform& view) {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
-    if(has_dummy_shadowmap && shadowmap_handle != TextureHandle::None) {
+    if(has_dummy_shadowmap && shadowmap_handle != nullptr) {
         allocator.destroy_texture(shadowmap_handle);
-        shadowmap_handle = TextureHandle::None;
+        shadowmap_handle = nullptr;
     }
 
-    if(shadowmap_handle == TextureHandle::None) {
+    if(shadowmap_handle == nullptr) {
         shadowmap_handle = allocator.create_texture(
             "Sun shadowmap",
             VK_FORMAT_D16_UNORM,

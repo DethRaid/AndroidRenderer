@@ -141,15 +141,15 @@ private:
     // We store coefficients for the first two SH bands. Future work might add another band, at the cost of 2x the
     // memory
 
-    TextureHandle lpv_a_red = TextureHandle::None;
-    TextureHandle lpv_a_green = TextureHandle::None;
-    TextureHandle lpv_a_blue = TextureHandle::None;
+    TextureHandle lpv_a_red = nullptr;
+    TextureHandle lpv_a_green = nullptr;
+    TextureHandle lpv_a_blue = nullptr;
 
-    TextureHandle lpv_b_red = TextureHandle::None;
-    TextureHandle lpv_b_green = TextureHandle::None;
-    TextureHandle lpv_b_blue = TextureHandle::None;
+    TextureHandle lpv_b_red = nullptr;
+    TextureHandle lpv_b_green = nullptr;
+    TextureHandle lpv_b_blue = nullptr;
 
-    TextureHandle geometry_volume_handle = TextureHandle::None;
+    TextureHandle geometry_volume_handle = nullptr;
 
     VkSampler linear_sampler = VK_NULL_HANDLE;
 

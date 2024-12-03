@@ -79,24 +79,24 @@ private:
 
     std::unique_ptr<LightPropagationVolume> lpv;
             
-    TextureHandle shadowmap_handle = TextureHandle::None;
+    TextureHandle shadowmap_handle = nullptr;
 
-    TextureHandle gbuffer_color_handle = TextureHandle::None;
+    TextureHandle gbuffer_color_handle = nullptr;
 
-    TextureHandle gbuffer_normals_handle = TextureHandle::None;
+    TextureHandle gbuffer_normals_handle = nullptr;
 
-    TextureHandle gbuffer_data_handle = TextureHandle::None;
+    TextureHandle gbuffer_data_handle = nullptr;
 
-    TextureHandle gbuffer_emission_handle = TextureHandle::None;
+    TextureHandle gbuffer_emission_handle = nullptr;
 
     // This should be something like an extracted texture?
-    TextureHandle depth_buffer_mip_chain = TextureHandle::None;
+    TextureHandle depth_buffer_mip_chain = nullptr;
     TextureUsageToken last_frame_depth_usage = {};
     
-    TextureHandle normal_target_mip_chain = TextureHandle::None;
+    TextureHandle normal_target_mip_chain = nullptr;
     TextureUsageToken last_frame_normal_usage = {};
 
-    TextureHandle lit_scene_handle = TextureHandle::None;
+    TextureHandle lit_scene_handle = nullptr;
 
     std::vector<TextureHandle> swapchain_images;
 

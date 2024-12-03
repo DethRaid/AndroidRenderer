@@ -58,5 +58,5 @@ private:
     GraphicsPipelineHandle pipeline = {};
 
     bool has_dummy_shadowmap = true;
-    TextureHandle shadowmap_handle = TextureHandle::None;
+    TextureHandle shadowmap_handle = nullptr;
 };

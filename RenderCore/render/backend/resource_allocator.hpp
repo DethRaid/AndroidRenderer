@@ -6,11 +6,12 @@
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <absl/container/flat_hash_map.h>
+#include <plf_colony.h>
 
 #include "acceleration_structure.hpp"
 #include "extern/cityhash/city_hash.hpp"
 #include "core/object_pool.hpp"
-#include "render/backend/texture.hpp"
+#include "render/backend/GpuTexture.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/buffer.hpp"
 #include "render/backend/constants.hpp"
@@ -110,9 +111,7 @@ public:
         const std::string& name, VkFormat format, glm::uvec3 resolution, uint32_t num_mips, TextureUsage usage
     );
 
-    TextureHandle emplace_texture(const std::string& name, Texture&& new_texture);
-
-    const Texture& get_texture(TextureHandle handle) const;
+    TextureHandle emplace_texture(const std::string& name, GpuTexture&& new_texture);
 
     void destroy_texture(TextureHandle handle);
 
@@ -165,8 +164,8 @@ private:
 
     VmaAllocator vma = VK_NULL_HANDLE;
 
-    ObjectPool<Texture> textures;
-    ObjectPool<Buffer> buffers;
+    plf::colony<GpuTexture> textures;
+    ObjectPool<GpuBuffer> buffers;
     ObjectPool<AccelerationStructure> acceleration_structures;
 
     absl::flat_hash_map<std::string, VkRenderPass> cached_render_passes;

@@ -21,7 +21,7 @@ struct KtxTextureAllocation {
     ktxVulkanTexture ktx_vk_tex;
 };
 
-struct Texture {
+struct GpuTexture {
     std::string name;
 
     VkImageCreateInfo create_info;

@@ -17,7 +17,7 @@ public:
     TextureHandle get_bloom_tex() const;
 
 private:
-    TextureHandle bloom_tex = TextureHandle::None;
+    TextureHandle bloom_tex = nullptr;
 
     ComputePipelineHandle downsample_shader;
     ComputePipelineHandle upsample_shader;

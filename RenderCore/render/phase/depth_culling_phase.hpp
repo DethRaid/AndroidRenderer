@@ -55,9 +55,9 @@ public:
     ) const;
 
 private:
-    TextureHandle depth_buffer = TextureHandle::None;
+    TextureHandle depth_buffer = nullptr;
 
-    TextureHandle hi_z_buffer = TextureHandle::None;
+    TextureHandle hi_z_buffer = nullptr;
     VkSampler max_reduction_sampler;
 
     // Index of the hi-z descriptor in the texture descriptor array

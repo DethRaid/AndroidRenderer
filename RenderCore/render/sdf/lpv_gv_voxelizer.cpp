@@ -100,9 +100,9 @@ void ThreeDeeRasterizer::deinit_resources(ResourceAllocator& allocator) {
         allocator.destroy_buffer(bins);
         bins = {};
     }
-    if (voxel_texture != TextureHandle::None) {
+    if (voxel_texture != nullptr) {
         allocator.destroy_texture(voxel_texture);
-        voxel_texture = TextureHandle::None;
+        voxel_texture = nullptr;
     }
     if (volume_uniform_buffer) {
         allocator.destroy_buffer(volume_uniform_buffer);
@@ -437,7 +437,7 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
 
 TextureHandle ThreeDeeRasterizer::extract_texture() {
     auto output_texture = voxel_texture;
-    voxel_texture = TextureHandle::None;
+    voxel_texture = nullptr;
 
     return output_texture;
 }

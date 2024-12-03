@@ -69,34 +69,33 @@ namespace vkutil {
         allocInfo.descriptorSetCount = 1;
 
 
-        VkResult allocResult = vkAllocateDescriptorSets(device, &allocInfo, set);
-        bool needReallocate = false;
+        VkResult alloc_result = vkAllocateDescriptorSets(device, &allocInfo, set);
+        bool need_reallocate = false;
 
-        switch(allocResult) {
+        switch(alloc_result) {
         case VK_SUCCESS:
             //all good, return
             return true;
 
-            break;
         case VK_ERROR_FRAGMENTED_POOL:
         case VK_ERROR_OUT_OF_POOL_MEMORY:
             //reallocate pool
-            needReallocate = true;
+            need_reallocate = true;
             break;
         default:
             //unrecoverable error
             return false;
         }
 
-        if(needReallocate) {
+        if(need_reallocate) {
             //allocate a new pool and retry
             currentPool = grab_pool();
             usedPools.push_back(currentPool);
 
-            allocResult = vkAllocateDescriptorSets(device, &allocInfo, set);
+            alloc_result = vkAllocateDescriptorSets(device, &allocInfo, set);
 
             //if it still fails then we have big issues
-            if(allocResult == VK_SUCCESS) {
+            if(alloc_result == VK_SUCCESS) {
                 return true;
             }
         }
@@ -224,7 +223,6 @@ namespace vkutil {
         const uint32_t binding, const std::vector<BufferInfo>& infos,
         const VkDescriptorType type, const VkShaderStageFlags stage_flags
     ) {
-        auto& allocator = backend.get_global_allocator();
         auto& vk_infos = buffer_infos_to_delete.emplace_back();
 
         vk_infos.reserve(infos.size());
@@ -245,14 +243,12 @@ namespace vkutil {
     DescriptorBuilder& DescriptorBuilder::bind_image(
         const uint32_t binding, const ImageInfo& info, const VkDescriptorType type, const VkShaderStageFlags stage_flags
     ) {
-        auto& allocator = backend.get_global_allocator();
-        const auto& image_actual = allocator.get_texture(info.image);
-        auto image_view = image_actual.image_view;
+        auto image_view = info.image->image_view;
         if(info.mip_level) {
-            image_view = image_actual.mip_views[*info.mip_level];
+            image_view = info.image->mip_views[*info.mip_level];
         }
         if(type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
-            image_view = image_actual.attachment_view;
+            image_view = info.image->attachment_view;
         }
 
         auto& vk_info = image_infos_to_delete.emplace_back(
@@ -272,19 +268,17 @@ namespace vkutil {
         const uint32_t binding, const std::vector<ImageInfo>& infos, const VkDescriptorType type,
         const VkShaderStageFlags stage_flags
     ) {
-        auto& allocator = backend.get_global_allocator();
         auto& vk_infos = image_infos_to_delete.emplace_back();
 
         vk_infos.reserve(infos.size());
 
         for(const auto& info : infos) {
-            const auto& image_actual = allocator.get_texture(info.image);
-            auto image_view = image_actual.image_view;
+            auto image_view = info.image->image_view;
             if(info.mip_level) {
-                image_view = image_actual.mip_views[*info.mip_level];
+                image_view = info.image->mip_views[*info.mip_level];
             }
             if(type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
-                image_view = image_actual.attachment_view;
+                image_view = info.image->attachment_view;
             }
 
             vk_infos.emplace_back(
@@ -372,8 +366,8 @@ namespace vkutil {
     }
 
     DescriptorBuilder& DescriptorBuilder::bind_image(
-        uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags,
-        uint32_t count
+        const uint32_t binding, const VkDescriptorImageInfo* image_info, const VkDescriptorType type, const VkShaderStageFlags stageFlags,
+        const uint32_t count
     ) {
         VkDescriptorSetLayoutBinding newBinding{};
 
@@ -391,7 +385,7 @@ namespace vkutil {
 
         newWrite.descriptorCount = count;
         newWrite.descriptorType = type;
-        newWrite.pImageInfo = imageInfo;
+        newWrite.pImageInfo = image_info;
         newWrite.dstBinding = binding;
 
         writes.push_back(newWrite);

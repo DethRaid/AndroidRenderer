@@ -396,31 +396,31 @@ void SceneRenderer::create_scene_render_targets() {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
-    if(gbuffer_color_handle != TextureHandle::None) {
+    if(gbuffer_color_handle != nullptr) {
         allocator.destroy_texture(gbuffer_color_handle);
     }
 
-    if(gbuffer_normals_handle != TextureHandle::None) {
+    if(gbuffer_normals_handle != nullptr) {
         allocator.destroy_texture(gbuffer_normals_handle);
     }
 
-    if(gbuffer_data_handle != TextureHandle::None) {
+    if(gbuffer_data_handle != nullptr) {
         allocator.destroy_texture(gbuffer_data_handle);
     }
 
-    if(gbuffer_emission_handle != TextureHandle::None) {
+    if(gbuffer_emission_handle != nullptr) {
         allocator.destroy_texture(gbuffer_emission_handle);
     }
 
-    if(depth_buffer_mip_chain != TextureHandle::None) {
+    if(depth_buffer_mip_chain != nullptr) {
         allocator.destroy_texture(depth_buffer_mip_chain);
     }
 
-    if(normal_target_mip_chain != TextureHandle::None) {
+    if(normal_target_mip_chain != nullptr) {
         allocator.destroy_texture(normal_target_mip_chain);
     }
 
-    if(lit_scene_handle != TextureHandle::None) {
+    if(lit_scene_handle != nullptr) {
         allocator.destroy_texture(lit_scene_handle);
     }
 
@@ -492,7 +492,7 @@ void SceneRenderer::create_scene_render_targets() {
     for(auto swapchain_image_index = 0u; swapchain_image_index < swapchain.image_count; swapchain_image_index++) {
         const auto swapchain_image = allocator.emplace_texture(
             fmt::format("Swapchain image {}", swapchain_image_index),
-            Texture{
+            GpuTexture{
                 .create_info = {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                     .imageType = VK_IMAGE_TYPE_2D,
