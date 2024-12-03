@@ -87,7 +87,7 @@ medfloat sample_csm(vec3 worldspace_position, float viewspace_depth, float ndotl
 
     medfloat shadow = get_shadow_factor(worldspace_position, cascade_index, 0.025 * (1.f - ndotl));
     if(cascade_index > 3) {
-        shadow = 1.f;
+        shadow = 0.f;
     }
 
     return shadow;

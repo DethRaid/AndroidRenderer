@@ -297,6 +297,7 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const SceneDrawer& sun
                     .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .clear_value = {.depthStencil = {.depth = 1.f}}
                 },
+                .view_mask = 0x000F,
                 .execute = [&](CommandBuffer& commands) {
                     commands.bind_descriptor_set(0, set);
 
