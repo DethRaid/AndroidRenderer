@@ -392,7 +392,7 @@ void CVarSystemImpl::DrawImguiEditor() {
         if (!bHidden) {
             if (!(!bShowAdvanced && bIsAdvanced) && parameter->name.find(searchText) != std::string::npos) {
                 cachedEditParameters.push_back(parameter);
-            };
+            }
         }
     };
 
@@ -408,8 +408,8 @@ void CVarSystemImpl::DrawImguiEditor() {
 
     //alphabetical sort
     std::sort(
-        cachedEditParameters.begin(), cachedEditParameters.end(), [](CVarParameter* A, CVarParameter* B) {
-            return A->name < B->name;
+        cachedEditParameters.begin(), cachedEditParameters.end(), [](const CVarParameter* a, const CVarParameter* b) {
+            return a->name < b->name;
         }
     );
     float maxTextWidth = 0;

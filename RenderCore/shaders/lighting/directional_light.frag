@@ -34,7 +34,7 @@ layout(set = 1, binding = 1) uniform DirectionalLightUbo {
 layout(set = 1, binding = 2) uniform ViewUniformBuffer {
     ViewDataGPU view_info;
 };
-layout(set = 1, binding = 3) uniform accelerationStructureEXT rtas;
+// layout(set = 1, binding = 3) uniform accelerationStructureEXT rtas;
 
 // Texcoord from the vertex shader
 layout(location = 0) in vec2 texcoord;
@@ -66,7 +66,7 @@ medfloat get_shadow_factor(vec3 worldspace_position, uint cascade_index, float b
     shadowspace_position /= shadowspace_position.w;
 
     if(any(lessThan(shadowspace_position.xyz, vec3(0))) || any(greaterThan(shadowspace_position.xyz, vec3(1)))) {
-        return 0;
+        return 1;
     }
 
     // Use this cascade
@@ -93,31 +93,31 @@ medfloat sample_csm(vec3 worldspace_position, float viewspace_depth, float ndotl
     return shadow;
 }
 
-medfloat query_ray_visibility(const vec3 worldspace_position) {
-    // V1: Send a ray directly at the sun
-    // V2: Send rays in a cone, accumulate over a few frames
-
-    rayQueryEXT rq;
-
-    rayQueryInitializeEXT(
-        rq, 
-        rtas, 
-        gl_RayFlagsTerminateOnFirstHitEXT, 
-        0xFF,
-        worldspace_position, 
-        0, 
-        normalize(sun_light.direction_and_size.xyz), 
-        100000);
-
-    // Traverse the acceleration structure and store information about the first intersection (if any)
-    rayQueryProceedEXT(rq);
-
-    if (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) {
-        return 0;
-    } else {
-        return 1;
-    }
-}
+// medfloat query_ray_visibility(const vec3 worldspace_position) {
+//     // V1: Send a ray directly at the sun
+//     // V2: Send rays in a cone, accumulate over a few frames
+// 
+//     rayQueryEXT rq;
+// 
+//     rayQueryInitializeEXT(
+//         rq, 
+//         rtas, 
+//         gl_RayFlagsTerminateOnFirstHitEXT, 
+//         0xFF,
+//         worldspace_position, 
+//         0, 
+//         normalize(sun_light.direction_and_size.xyz), 
+//         100000);
+// 
+//     // Traverse the acceleration structure and store information about the first intersection (if any)
+//     rayQueryProceedEXT(rq);
+// 
+//     if (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) {
+//         return 0;
+//     } else {
+//         return 1;
+//     }
+// }
 
 void main() {
     ivec2 pixel = ivec2(gl_FragCoord.xy);
@@ -151,7 +151,7 @@ void main() {
         if(sun_light.shadow_mode == SHADOW_MODE_CSM) {
             shadow = sample_csm(worldspace_position.xyz, viewspace_position.z, ndotl);    
         } else if(sun_light.shadow_mode == SHADOW_MODE_RT) {
-            shadow = query_ray_visibility(worldspace_position.xyz);
+            // shadow = query_ray_visibility(worldspace_position.xyz);
         }
     }
 

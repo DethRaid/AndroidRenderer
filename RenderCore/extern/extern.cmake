@@ -108,6 +108,22 @@ else()
 endif()
 
 FetchContent_Declare(
+        plf_colony
+        GIT_REPOSITORY  https://github.com/mattreecebentley/plf_colony.git
+        GIT_TAG         5aeb1e6dbc7686f9f09eef685e57dc6acfe616c7
+)
+FetchContent_GetProperties(plf_colony)
+if(plf_colony_POPULATED)
+    message("plf::colony automatically populated")
+else()
+    FetchContent_Populate(plf_colony)
+    add_library(plf_colony INTERFACE)
+    target_include_directories(plf_colony INTERFACE
+            ${plf_colony_SOURCE_DIR}
+            )
+endif()
+
+FetchContent_Declare(
         fetch_stb
         GIT_REPOSITORY  https://github.com/nothings/stb.git
         GIT_TAG         8b5f1f37b5b75829fc72d38e7b5d4bcbf8a26d55

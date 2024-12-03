@@ -165,8 +165,6 @@ void SceneRenderer::render() {
 
     material_storage.flush_material_buffer(render_graph);
 
-    scene->pre_frame(render_graph);
-
     meshes.flush_mesh_draw_arg_uploads(render_graph);
 
     render_graph.add_transition_pass(
@@ -204,6 +202,8 @@ void SceneRenderer::render() {
             }
         }
     );
+
+    scene->begin_frame(render_graph);
 
     scene->generate_emissive_point_clouds(render_graph);
 

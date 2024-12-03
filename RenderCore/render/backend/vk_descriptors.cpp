@@ -314,16 +314,27 @@ namespace vkutil {
 
         bindings.push_back(new_binding);
 
-        const auto& desc_as_info = as_writes.emplace_back(
-            VkWriteDescriptorSetAccelerationStructureKHR{
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
-                .accelerationStructureCount = 1,
-                .pAccelerationStructures = &info.as->acceleration_structure,
-            });
+        VkWriteDescriptorSetAccelerationStructureKHR* desc_as_info;
+        if (info.as.is_valid()) {
+            desc_as_info = &as_writes.emplace_back(
+                VkWriteDescriptorSetAccelerationStructureKHR{
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+                    .accelerationStructureCount = 1,
+                    .pAccelerationStructures = &info.as->acceleration_structure,
+                });
+        } else {
+            desc_as_info = &as_writes.emplace_back(
+                VkWriteDescriptorSetAccelerationStructureKHR{
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+                    .accelerationStructureCount = 0,
+                    .pAccelerationStructures = nullptr,
+                });
+            
+        }
 
         const auto new_write = VkWriteDescriptorSet{
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .pNext = &desc_as_info,
+            .pNext = desc_as_info,
             .dstBinding = binding,
             .descriptorCount = 1,
             .descriptorType = type,

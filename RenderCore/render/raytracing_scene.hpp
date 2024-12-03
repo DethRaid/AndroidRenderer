@@ -2,6 +2,7 @@
 
 #include "render/scene_primitive.hpp"
 
+class RenderGraph;
 class RenderScene;
 
 class RaytracingScene {
@@ -17,7 +18,7 @@ public:
      * This is basically a barrier from raytracing acceleration structure build commands submit -> raytracing
      * acceleration structures available for raytracing
      */
-    void finalize();
+    void finalize(RenderGraph& graph);
 
     AccelerationStructureHandle get_acceleration_structure() const;
 
@@ -26,10 +27,10 @@ private:
 
     std::vector<VkAccelerationStructureInstanceKHR> placed_blases;
     bool is_dirty = false;
-    AccelerationStructureHandle acceleration_structure;
+    AccelerationStructureHandle acceleration_structure = {};
 
     /**
      * \brief Finishes the raytracing scene by committing pending TLAS builds. Called by finalize()
      */
-    void commit_tlas_builds();
+    void commit_tlas_builds(RenderGraph& graph);
 };

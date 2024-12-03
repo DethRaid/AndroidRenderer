@@ -150,7 +150,7 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
 
         // Assumes that all render targets have the same depth
         const auto& attachment_actual = allocator.get_texture(pass.depth_attachment->image);
-        num_layers = attachment_actual.create_info.extent.depth;
+        num_layers = std::max(attachment_actual.create_info.extent.depth, attachment_actual.create_info.arrayLayers);
     }
 
     cmds.begin_label(pass.name);

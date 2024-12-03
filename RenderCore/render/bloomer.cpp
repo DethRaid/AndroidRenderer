@@ -5,7 +5,7 @@
 #include "render/backend/render_backend.hpp"
 #include "core/system_interface.hpp"
 
-auto cvar_num_bloom_mips = AutoCVar_Int{"r.bloom.NumMips", "Number of mipmaps in the bloom chain", 6};
+static auto cvar_num_bloom_mips = AutoCVar_Int{"r.bloom.NumMips", "Number of mipmaps in the bloom chain", 6};
 
 static std::shared_ptr<spdlog::logger> logger;
 

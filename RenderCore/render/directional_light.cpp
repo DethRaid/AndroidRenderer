@@ -19,10 +19,10 @@ enum class SunShadowMode {
     RayPipeline
 };
 
-static AutoCVar_Enum cvar_sun_shadow_mode{
+static auto cvar_sun_shadow_mode = AutoCVar_Int{
     "r.Shadow.SunShadowMode",
     "How to calculate shadows for the sun.\n\t0 = off\n\t1 = Cascade Shadow Maps\n\t2 = Hardware ray queries\n\t3 = Hardware ray pipelines",
-    SunShadowMode::RayQuery
+    1
 };
 
 static auto cvar_num_shadow_cascades = AutoCVar_Int{"r.Shadow.NumCascades", "Number of shadow cascades", 4};
@@ -87,19 +87,19 @@ DirectionalLight::DirectionalLight() {
 }
 
 void DirectionalLight::update_shadow_cascades(const SceneTransform& view) {
-    if(cvar_sun_shadow_mode.Get() != SunShadowMode::CSM) {
+    if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) != SunShadowMode::CSM) {
         return;
     }
 
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
-    if(has_dummy_shadowmap  && shadowmap_handle != TextureHandle::None) {
+    if(has_dummy_shadowmap && shadowmap_handle != TextureHandle::None) {
         allocator.destroy_texture(shadowmap_handle);
         shadowmap_handle = TextureHandle::None;
     }
 
-    if (shadowmap_handle == TextureHandle::None) {
+    if(shadowmap_handle == TextureHandle::None) {
         shadowmap_handle = allocator.create_texture(
             "Sun shadowmap",
             VK_FORMAT_D16_UNORM,
@@ -270,7 +270,7 @@ glm::vec3 DirectionalLight::get_direction() const {
 
 void DirectionalLight::render_shadows(RenderGraph& graph, const SceneDrawer& sun_shadow_drawer) const {
     auto& backend = RenderBackend::get();
-    if(cvar_sun_shadow_mode.Get() == SunShadowMode::CSM) {
+    if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) == SunShadowMode::CSM) {
         const auto set = backend.get_transient_descriptor_allocator()
                                 .build_set(
                                     {
@@ -345,7 +345,7 @@ void DirectionalLight::render(
                                            .bind(0, shadowmap_handle, sampler)
                                            .bind(1, sun_buffer)
                                            .bind(2, view.get_buffer())
-                                           .bind(3, rtas)
+                                           //.bind(3, rtas)
                                            .build();
 
     commands.bind_descriptor_set(1, sun_descriptor_set);

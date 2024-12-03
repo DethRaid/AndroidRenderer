@@ -51,7 +51,7 @@ void main() {
     normal = vpl.normal;
 
     // Adjust position to be in the correct part of the cascade
-    position.x += cascade_index;
+    position.x += float(cascade_index);
     position.x /= float(num_cascades);
 
     gl_Position = vec4(position.xy * 2.f - 1.f, 0.f, 1.f);

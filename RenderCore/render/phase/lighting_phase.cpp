@@ -73,7 +73,12 @@ void LightingPhase::render(
                 RenderingAttachmentInfo{.image = lit_scene_texture, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR}
             },
             .execute = [&](CommandBuffer& commands) {
-                sun.render(commands, gbuffers_descriptor_set, view, scene->get_raytracing_scene().get_acceleration_structure());
+                AccelerationStructureHandle rtas = {};
+                if(RenderBackend::get().use_ray_tracing()) {
+                    rtas = scene->get_raytracing_scene().get_acceleration_structure();
+                }
+
+                sun.render(commands, gbuffers_descriptor_set, view, rtas);
 
                 if(lpv) {
                     lpv->add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer());

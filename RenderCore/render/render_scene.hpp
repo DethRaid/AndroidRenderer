@@ -24,7 +24,7 @@ public:
 
     MeshPrimitiveHandle add_primitive(RenderGraph& graph, MeshPrimitive primitive);
 
-    void pre_frame(RenderGraph& graph);
+    void begin_frame(RenderGraph& graph);
     
     const std::vector<MeshPrimitiveHandle>& get_solid_primitives() const;
 

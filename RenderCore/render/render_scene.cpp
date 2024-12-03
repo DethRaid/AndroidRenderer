@@ -25,7 +25,7 @@ RenderScene::RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in)
     sun.set_direction({0.1f, -1.f, -0.33f});
     sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 100000.f);
 
-    if(*CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable")) {
+    if(backend.use_ray_tracing()) {
         raytracing_scene.emplace(RaytracingScene{*this});
     }
 
@@ -83,8 +83,8 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
     return handle;
 }
 
-void RenderScene::pre_frame(RenderGraph& graph) {
-    primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
+void RenderScene::begin_frame(RenderGraph& graph) {
+    graph.begin_label("RenderScene::pre_frame");
 
     if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
         auto& backend = RenderBackend::get();
@@ -110,14 +110,15 @@ void RenderScene::pre_frame(RenderGraph& graph) {
         }
     }
 
-    // Gotta flush it again now that we have the SRVs. Kinda annoying but all well
     primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
 
     if(raytracing_scene) {
-        raytracing_scene->finalize();
+        raytracing_scene->finalize(graph);
     }
 
     new_primitives.clear();
+
+    graph.end_label();
 }
 
 const std::vector<PooledObject<MeshPrimitive>>& RenderScene::get_solid_primitives() const {

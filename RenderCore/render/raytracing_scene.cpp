@@ -5,7 +5,7 @@
 #include "console/cvars.hpp"
 #include "render/mesh_storage.hpp"
 
-static auto cvar_enable_raytracing = AutoCVar_Int{
+[[maybe_unused]] static auto cvar_enable_raytracing = AutoCVar_Int{
     "r.Raytracing.Enable", "Whether or not to enable raytracing", 1
 };
 
@@ -32,15 +32,15 @@ void RaytracingScene::add_primitive(const MeshPrimitiveHandle primitive) {
     is_dirty = true;
 }
 
-void RaytracingScene::finalize() {
-    commit_tlas_builds();
+void RaytracingScene::finalize(RenderGraph& graph) {
+    commit_tlas_builds(graph);
 }
 
 AccelerationStructureHandle RaytracingScene::get_acceleration_structure() const {
     return acceleration_structure;
 }
 
-void RaytracingScene::commit_tlas_builds() {
+void RaytracingScene::commit_tlas_builds(RenderGraph& graph) {
     if(!is_dirty) {
         return;
     }
@@ -49,8 +49,6 @@ void RaytracingScene::commit_tlas_builds() {
 
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
-
-    auto graph = backend.create_render_graph();
 
     const auto instances_buffer = allocator.create_buffer(
         "RT instances buffer",

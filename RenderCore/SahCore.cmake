@@ -69,6 +69,7 @@ target_link_libraries(SahCore PUBLIC
         imgui
         KTX::ktx
         magic_enum::magic_enum
+        plf_colony
         renderdoc
         slang
         spdlog::spdlog

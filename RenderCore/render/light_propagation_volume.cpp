@@ -52,8 +52,8 @@ static auto cvar_lpv_build_gv_mode = AutoCVar_Enum{
 
 static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
     "r.lpv.RsmResolution",
-    "Resolution for the RSM targets",
-    512
+    "Resolution for the RSM targets. Should be a multiple of 16",
+    64
 };
 
 static auto cvar_lpv_use_compute_vpl_injection = AutoCVar_Int{
@@ -283,6 +283,8 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
         BufferUsage::UniformBuffer
     );
 
+    const auto num_vpls = cvar_lpv_rsm_resolution.Get() * cvar_lpv_rsm_resolution.Get() / 4;
+
     cascades.resize(num_cascades);
     uint32_t cascade_index = 0;
     for(auto& cascade : cascades) {
@@ -294,7 +296,7 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
         );
         cascade.vpl_buffer = allocator.create_buffer(
             fmt::format("Cascade {} VPL List", cascade_index),
-            sizeof(PackedVPL) * 65536,
+            static_cast<uint64_t>(sizeof(PackedVPL) * num_vpls),
             BufferUsage::StorageBuffer
         );
         cascade_index++;
@@ -503,9 +505,11 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 DeviceAddress vpl_buffer_address;
                 int32_t cascade_index;
                 uint32_t cascade_resolution;
+                float lpv_cell_size;
             };
 
             const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
+            const auto dispatch_size = resolution / glm::uvec2{ 2 };    // Each thread selects one VPL from a 2x2 filter on the RSM
 
             graph.add_compute_dispatch<VplPipelineConstants>(
                 ComputeDispatch<VplPipelineConstants>{
@@ -516,8 +520,9 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         .vpl_buffer_address = cascade.vpl_buffer->address,
                         .cascade_index = static_cast<int32_t>(cascade_index),
                         .cascade_resolution = resolution.x,
+                        .lpv_cell_size = static_cast<float>(cvar_lpv_cell_size.Get())
                     },
-                    .num_workgroups = {(resolution + glm::uvec2{7}) / glm::uvec2{8}, 1},
+                    .num_workgroups = {(dispatch_size + glm::uvec2{7}) / glm::uvec2{8}, 1},
                     .compute_shader = vpl_pipeline
                 });
         }

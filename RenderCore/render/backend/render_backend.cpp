@@ -397,7 +397,7 @@ RenderBackend::~RenderBackend() {
 
 bool RenderBackend::use_ray_tracing() const {
     return *CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable") != 0 && 
-        acceleration_structure_features.accelerationStructure;
+        acceleration_structure_features.accelerationStructure && false;
 }
 
 bool RenderBackend::use_device_generated_commands() const {
