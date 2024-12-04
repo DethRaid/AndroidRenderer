@@ -309,7 +309,7 @@ namespace vkutil {
         bindings.push_back(new_binding);
 
         VkWriteDescriptorSetAccelerationStructureKHR* desc_as_info;
-        if (info.as.is_valid()) {
+        if (info.as) {
             desc_as_info = &as_writes.emplace_back(
                 VkWriteDescriptorSetAccelerationStructureKHR{
                     .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,

@@ -500,7 +500,8 @@ AccelerationStructureHandle ResourceAllocator::create_acceleration_structure(
         backend.get_device(),
         &acceleration_device_address_info);
 
-    return acceleration_structures.add_object(std::move(as));
+    auto handle = &(*acceleration_structures.emplace(std::move(as)));
+    return handle;
 }
 
 void ResourceAllocator::destroy_acceleration_structure(AccelerationStructureHandle handle) {
@@ -815,7 +816,7 @@ void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
     for(const auto& as : zombie_ases) {
         vkDestroyAccelerationStructureKHR(device, as->acceleration_structure, nullptr);
 
-        acceleration_structures.free_object(as);
+        std::erase(acceleration_structures, *as);
     }
     zombie_ases.clear();
 

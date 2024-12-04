@@ -1,8 +1,9 @@
 #pragma once
 
+#include <cstring>
+
 #include <volk.h>
 
-#include "core/object_pool.hpp"
 #include "render/backend/device_address.hpp"
 #include "render/backend/handles.hpp"
 
@@ -18,6 +19,10 @@ struct AccelerationStructure {
     uint64_t scratch_buffer_size = 0;
 
     uint32_t num_triangles = 0;
+
+    bool operator==(const AccelerationStructure& other) const;
 };
 
-using AccelerationStructureHandle = PooledObject<AccelerationStructure>;
+inline bool AccelerationStructure::operator==(const AccelerationStructure& other) const {
+    return memcmp(this, &other, sizeof(AccelerationStructure)) == 0;
+}

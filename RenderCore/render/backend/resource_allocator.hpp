@@ -166,7 +166,7 @@ private:
 
     plf::colony<GpuTexture> textures;
     plf::colony<GpuBuffer> buffers;
-    ObjectPool<AccelerationStructure> acceleration_structures;
+    plf::colony<AccelerationStructure> acceleration_structures;
 
     absl::flat_hash_map<std::string, VkRenderPass> cached_render_passes;
 
