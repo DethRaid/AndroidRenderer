@@ -26,9 +26,9 @@ public:
 private:
     RenderBackend& backend;
 
-    absl::flat_hash_map<uint32_t, BufferUsageToken> initial_buffer_usages;
+    absl::flat_hash_map<BufferHandle, BufferUsageToken> initial_buffer_usages;
 
-    absl::flat_hash_map<uint32_t, BufferUsageToken> last_buffer_usages;
+    absl::flat_hash_map<BufferHandle, BufferUsageToken> last_buffer_usages;
 
     TextureUsageMap initial_texture_usages;
 

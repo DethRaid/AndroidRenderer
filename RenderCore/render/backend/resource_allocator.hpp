@@ -11,7 +11,7 @@
 #include "acceleration_structure.hpp"
 #include "extern/cityhash/city_hash.hpp"
 #include "core/object_pool.hpp"
-#include "render/backend/GpuTexture.hpp"
+#include "render/backend/gpu_texture.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/buffer.hpp"
 #include "render/backend/constants.hpp"
@@ -165,7 +165,7 @@ private:
     VmaAllocator vma = VK_NULL_HANDLE;
 
     plf::colony<GpuTexture> textures;
-    ObjectPool<GpuBuffer> buffers;
+    plf::colony<GpuBuffer> buffers;
     ObjectPool<AccelerationStructure> acceleration_structures;
 
     absl::flat_hash_map<std::string, VkRenderPass> cached_render_passes;

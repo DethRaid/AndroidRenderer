@@ -117,11 +117,11 @@ void ResourceAccessTracker::set_resource_usage(
 void ResourceAccessTracker::set_resource_usage(
     BufferHandle buffer, const VkPipelineStageFlags2 pipeline_stage, const VkAccessFlags2 access
 ) {
-    if (!initial_buffer_usages.contains(buffer.index)) {
-        initial_buffer_usages.emplace(buffer.index, BufferUsageToken{pipeline_stage, access});
+    if (!initial_buffer_usages.contains(buffer)) {
+        initial_buffer_usages.emplace(buffer, BufferUsageToken{pipeline_stage, access});
     }
 
-    if (const auto& itr = last_buffer_usages.find(buffer.index); itr != last_buffer_usages.end()) {
+    if (const auto& itr = last_buffer_usages.find(buffer); itr != last_buffer_usages.end()) {
         // Issue a barrier if either (or both) of the accesses require writing
         if (is_write_access(access) || is_write_access(itr->second.access)) {
             logger->trace(
@@ -145,7 +145,7 @@ void ResourceAccessTracker::set_resource_usage(
         }
     }
 
-    last_buffer_usages.insert_or_assign(buffer.index, BufferUsageToken{pipeline_stage, access});
+    last_buffer_usages.insert_or_assign(buffer, BufferUsageToken{pipeline_stage, access});
 }
 
 void ResourceAccessTracker::issue_barriers(const CommandBuffer& commands) {

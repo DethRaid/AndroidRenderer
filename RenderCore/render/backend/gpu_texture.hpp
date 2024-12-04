@@ -52,4 +52,10 @@ struct GpuTexture {
         VmaTextureAllocation vma;
         KtxTextureAllocation ktx;
     };
+
+    bool operator==(const GpuTexture& other) const;
 };
+
+inline bool GpuTexture::operator==(const GpuTexture& other) const {
+    return memcmp(this, &other, sizeof(GpuTexture)) == 0;
+}

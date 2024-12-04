@@ -3,6 +3,8 @@
 
 #include <filesystem>
 
+#include <volk.h>
+
 #include "render/backend/handles.hpp"
 #include "shared/basic_pbr_material.hpp"
 

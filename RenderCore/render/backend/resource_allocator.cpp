@@ -8,8 +8,9 @@
 #include <spdlog/fmt/bundled/format.h>
 #include <tracy/Tracy.hpp>
 
-#include "acceleration_structure.hpp"
 #include "core/system_interface.hpp"
+#include "render/backend/acceleration_structure.hpp"
+#include "render/backend/gpu_texture.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
@@ -454,7 +455,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
     };
     buffer.address = vkGetBufferDeviceAddress(device, &info);
 
-    const auto handle = buffers.add_object(std::move(buffer));
+    auto handle = &(*buffers.emplace(std::move(buffer)));
     return handle;
 }
 
@@ -813,13 +814,16 @@ void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
     auto& zombie_ases = as_zombie_lists[frame_idx];
     for(const auto& as : zombie_ases) {
         vkDestroyAccelerationStructureKHR(device, as->acceleration_structure, nullptr);
+
+        acceleration_structures.free_object(as);
     }
     zombie_ases.clear();
 
     auto& zombie_buffers = buffer_zombie_lists[frame_idx];
     for(auto handle : zombie_buffers) {
         vmaDestroyBuffer(vma, handle->buffer, handle->allocation);
-        buffers.free_object(handle);
+
+        std::erase(buffers, *handle);
     }
 
     zombie_buffers.clear();
@@ -845,6 +849,8 @@ void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
         default:
             throw std::runtime_error{"Unknown texture allocation type"};
         }
+
+        std::erase(textures, *handle);
     }
 
     zombie_textures.clear();
