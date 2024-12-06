@@ -72,7 +72,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
 
     pipeline.pipeline_name = pipeline_builder.name;
 
-    if(pipeline_builder.should_enable_dgc && backend.use_device_generated_commands()) {
+    if(pipeline_builder.should_enable_dgc && backend.supports_device_generated_commands()) {
         pipeline.flags |= VK_PIPELINE_CREATE_INDIRECT_BINDABLE_BIT_NV;
     }
 

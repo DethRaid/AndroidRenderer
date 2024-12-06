@@ -167,7 +167,7 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                               .build();
     proxy.pipelines[ScenePassType::Vozelization] = voxelization_pipeline;
 
-    if(backend.use_device_generated_commands()) {
+    if(backend.supports_device_generated_commands()) {
         ZoneScopedN("Create VkPipelines");
         [[maybe_unused]] const auto forced_depth_prepass_pipeline = backend
                                                                     .get_pipeline_cache()

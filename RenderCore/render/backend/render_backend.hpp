@@ -50,9 +50,9 @@ public:
 
     ~RenderBackend();
 
-    bool use_ray_tracing() const;
+    bool supports_ray_tracing() const;
 
-    bool use_device_generated_commands() const;
+    bool supports_device_generated_commands() const;
 
     RenderGraph create_render_graph();
 
@@ -188,6 +188,10 @@ private:
     vkb::PhysicalDevice physical_device;
     vkb::Device device;
 
+    bool supports_rt = false;
+
+    bool supports_dgc = false;
+
     VkQueue graphics_queue;
     uint32_t graphics_queue_family_index;
 
@@ -259,6 +263,8 @@ private:
     VkPhysicalDeviceFeatures2 device_features = {};
 
     void create_instance_and_device();
+
+    void query_physical_device_features();
 
     void create_swapchain();
 

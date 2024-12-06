@@ -6,7 +6,7 @@
 #include <volk.h>
 #include <absl/container/flat_hash_map.h>
 
-#include "acceleration_structure.hpp"
+#include "render/backend/acceleration_structure.hpp"
 #include "render/backend/handles.hpp"
 
 class RenderBackend;
@@ -52,7 +52,6 @@ namespace vkutil {
         std::vector<VkDescriptorPool> usedPools;
         std::vector<VkDescriptorPool> freePools;
     };
-
 
     class DescriptorLayoutCache {
     public:

@@ -25,7 +25,7 @@ RenderScene::RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in)
     sun.set_direction({0.1f, -1.f, -0.33f});
     sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 100000.f);
 
-    if(backend.use_ray_tracing()) {
+    if(backend.supports_ray_tracing()) {
         raytracing_scene.emplace(RaytracingScene{*this});
     }
 

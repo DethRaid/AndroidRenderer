@@ -74,7 +74,7 @@ void LightingPhase::render(
             },
             .execute = [&](CommandBuffer& commands) {
                 AccelerationStructureHandle rtas = {};
-                if(RenderBackend::get().use_ray_tracing()) {
+                if(RenderBackend::get().supports_ray_tracing()) {
                     rtas = scene->get_raytracing_scene().get_acceleration_structure();
                 }
 

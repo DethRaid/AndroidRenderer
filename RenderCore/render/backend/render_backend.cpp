@@ -9,6 +9,7 @@
 #include <vulkan/vk_enum_string_helper.h>
 
 #include "blas_build_queue.hpp"
+#include "p_next_chain.hpp"
 #include "rhi_globals.hpp"
 #include "render/backend/pipeline_cache.hpp"
 #include "console/cvars.hpp"
@@ -16,9 +17,9 @@
 #include "render/backend/resource_upload_queue.hpp"
 #include "core/issue_breakpoint.hpp"
 
-[[maybe_unused]] static auto cvar_use_dcg = AutoCVar_Int{
+[[maybe_unused]] static auto cvar_use_dgc = AutoCVar_Int{
     "r.RHI.DGC.Enable",
-    "Whether to use Device-Generated Commands when available. Reduced CPU load, but is not supported on all hardware. We currently use VK_NV_device_generated_commands, will switch to EXT when it reaches my GPU",
+    "Whether to use Device-Generated Commands when available. Reduces CPU load, but is not supported on all hardware. We currently use VK_NV_device_generated_commands, will switch to EXT when it reaches my GPU",
     0 // Keep this off until we have material functions working
 };
 
@@ -276,11 +277,14 @@ void RenderBackend::create_instance_and_device() {
 
     logger->info("Selected device {}", physical_device.name);
 
-    if(physical_device.enable_extension_if_present(VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME)) {
-        logger->info("Device Generated Commands is supported!");
+    if(cvar_use_dgc.Get()) {
+        supports_dgc = physical_device.enable_extension_if_present(VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME);
+        if(supports_dgc) {
+            logger->info("Device Generated Commands is supported!");
+        }
     }
 
-    physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    supports_rt = physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_KHR_RAY_QUERY_EXTENSION_NAME);
@@ -297,49 +301,17 @@ void RenderBackend::create_instance_and_device() {
     supports_nv_diagnostics_config = physical_device.enable_extension_if_present(
         VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME);
 
-    ray_pipeline_features = VkPhysicalDeviceRayTracingPipelineFeaturesKHR{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR
-    };
-    acceleration_structure_features = VkPhysicalDeviceAccelerationStructureFeaturesKHR{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
-        .pNext = &ray_pipeline_features
-    };
-    ray_query_features = VkPhysicalDeviceRayQueryFeaturesKHR{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
-        .pNext = &acceleration_structure_features,
-    };
-    device_generated_commands_features = VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV,
-        .pNext = &ray_query_features,
-    };
-
-    device_features = VkPhysicalDeviceFeatures2{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        .pNext = &device_generated_commands_features
-    };
-    vkGetPhysicalDeviceFeatures2(physical_device, &device_features);
-
-    if(SystemInterface::get().is_renderdoc_loaded()) {
-        logger->info("RenderDoc is loaded! Turning ray tracing features off");
-        acceleration_structure_features.accelerationStructure = VK_FALSE;
-        acceleration_structure_features.accelerationStructureCaptureReplay = VK_FALSE;
-        acceleration_structure_features.accelerationStructureIndirectBuild = VK_FALSE;
-        acceleration_structure_features.accelerationStructureHostCommands = VK_FALSE;
-    }
-
-    if(acceleration_structure_features.accelerationStructure) {
-        logger->info("Ray tracing supported");
-    }
+    query_physical_device_features();
 
     auto device_builder = vkb::DeviceBuilder{physical_device};
 
-    if(acceleration_structure_features.accelerationStructure) {
+    if(supports_ray_tracing()) {
         device_builder.add_pNext(&acceleration_structure_features);
         device_builder.add_pNext(&ray_pipeline_features);
         device_builder.add_pNext(&ray_query_features);
     }
 
-    if(device_generated_commands_features.deviceGeneratedCommands) {
+    if(supports_device_generated_commands()) {
         device_builder.add_pNext(&device_generated_commands_features);
     }
 
@@ -366,6 +338,55 @@ void RenderBackend::create_instance_and_device() {
     }
     device = *device_ret;
     volkLoadDevice(device.device);
+}
+
+void RenderBackend::query_physical_device_features() {
+    auto physical_device_features = ExtensibleStruct<VkPhysicalDeviceFeatures2>{};
+    physical_device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+
+    if (supports_ray_tracing()) {
+        ray_pipeline_features = VkPhysicalDeviceRayTracingPipelineFeaturesKHR{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR
+        };
+        physical_device_features.add_extension(&ray_pipeline_features);
+
+        acceleration_structure_features = VkPhysicalDeviceAccelerationStructureFeaturesKHR{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+        };
+        physical_device_features.add_extension(&acceleration_structure_features);
+
+        ray_query_features = VkPhysicalDeviceRayQueryFeaturesKHR{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR,
+        };
+        physical_device_features.add_extension(&ray_query_features);
+    }
+
+    if (supports_device_generated_commands()) {
+        device_generated_commands_features = VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV,
+        };
+        physical_device_features.add_extension(&device_generated_commands_features);
+    }
+
+    vkGetPhysicalDeviceFeatures2(physical_device, *physical_device_features);
+
+    device_features = **physical_device_features;
+
+    if (SystemInterface::get().is_renderdoc_loaded()) {
+        logger->info("RenderDoc is loaded! Turning ray tracing features off");
+        acceleration_structure_features.accelerationStructure = VK_FALSE;
+        acceleration_structure_features.accelerationStructureCaptureReplay = VK_FALSE;
+        acceleration_structure_features.accelerationStructureIndirectBuild = VK_FALSE;
+        acceleration_structure_features.accelerationStructureHostCommands = VK_FALSE;
+    }
+
+    if (acceleration_structure_features.accelerationStructure) {
+        logger->info("Ray tracing supported");
+    }
+
+    supports_rt &= acceleration_structure_features.accelerationStructure;
+
+    supports_dgc &= device_generated_commands_features.deviceGeneratedCommands;
 }
 
 void RenderBackend::create_swapchain() {
@@ -395,13 +416,12 @@ RenderBackend::~RenderBackend() {
     vkDeviceWaitIdle(device.device);
 }
 
-bool RenderBackend::use_ray_tracing() const {
-    return *CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable") != 0 && 
-        acceleration_structure_features.accelerationStructure && false;
+bool RenderBackend::supports_ray_tracing() const {
+    return supports_rt;
 }
 
-bool RenderBackend::use_device_generated_commands() const {
-    return cvar_use_dcg.Get() != 0 && device_generated_commands_features.deviceGeneratedCommands;
+bool RenderBackend::supports_device_generated_commands() const {
+    return supports_dgc;
 }
 
 RenderGraph RenderBackend::create_render_graph() {
@@ -479,6 +499,19 @@ void RenderBackend::advance_frame() {
         logger->trace("vkWaitForFences(frame_fences[{}]) result: {}", cur_frame_idx, string_VkResult(result));
     }
 
+    swapchain_semaphore = create_transient_semaphore("Acquire swapchain semaphore");
+    {
+        ZoneScopedN("Acquire swapchain image");
+        vkAcquireNextImageKHR(
+            device,
+            swapchain.swapchain,
+            std::numeric_limits<uint64_t>::max(),
+            swapchain_semaphore,
+            VK_NULL_HANDLE,
+            &cur_swapchain_image_idx
+        );
+    }
+
     if(!is_first_frame) {
         graphics_command_allocators[cur_frame_idx].reset();
 
@@ -494,19 +527,6 @@ void RenderBackend::advance_frame() {
     }
 
     vkResetFences(device, 1, &frame_fences[cur_frame_idx]);
-
-    swapchain_semaphore = create_transient_semaphore("Acquire swapchain semaphore");
-    {
-        ZoneScopedN("Acquire swapchain image");
-        vkAcquireNextImageKHR(
-            device,
-            swapchain.swapchain,
-            std::numeric_limits<uint64_t>::max(),
-            swapchain_semaphore,
-            VK_NULL_HANDLE,
-            &cur_swapchain_image_idx
-        );
-    }
 
     is_first_frame = false;
 }
@@ -544,6 +564,8 @@ void RenderBackend::flush_batched_command_buffers() {
 
         last_submission_semaphores.clear();
         last_submission_semaphores.emplace_back(submission_semaphore);
+
+        destroy_semaphore(submission_semaphore);
     }
 
     // Submit any transfer barriers
@@ -618,6 +640,9 @@ void RenderBackend::flush_batched_command_buffers() {
                 // No need for semaphores - the command buffer only contains barriers, those provide synchronization
             };
             vkQueueSubmit2(graphics_queue, 1, &submit, VK_NULL_HANDLE);
+
+
+            destroy_semaphore(transfer_semaphore);
         }
 
         transfer_barriers.clear();
@@ -631,7 +656,7 @@ void RenderBackend::flush_batched_command_buffers() {
             command_buffers.emplace_back(queued_commands.get_vk_commands());
         }
 
-        auto wait_stages = std::vector<VkPipelineStageFlags>{ VK_PIPELINE_STAGE_ALL_COMMANDS_BIT };
+        auto wait_stages = std::vector<VkPipelineStageFlags>{VK_PIPELINE_STAGE_ALL_COMMANDS_BIT};
         auto wait_semaphores = std::vector{swapchain_semaphore};
         if(!last_submission_semaphores.empty()) {
             wait_semaphores.insert(
@@ -644,7 +669,7 @@ void RenderBackend::flush_batched_command_buffers() {
             last_submission_semaphores.clear();
         }
 
-        auto signal_semaphore = create_transient_semaphore("Graphics submit semaphore");
+        auto signal_semaphore = create_transient_semaphore(fmt::format("Graphics submit semaphore {}", cur_frame_idx));
 
         const auto submit = VkSubmitInfo{
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -675,6 +700,8 @@ void RenderBackend::flush_batched_command_buffers() {
         for(const auto& queued_commands : queued_command_buffers) {
             graphics_command_allocators[cur_frame_idx].return_command_buffer(queued_commands.get_vk_commands());
         }
+
+        destroy_semaphore(swapchain_semaphore);
 
         queued_command_buffers.clear();
 
@@ -838,8 +865,6 @@ VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
         };
         vkSetDebugUtilsObjectNameEXT(device, &name_info);
     }
-
-    destroy_semaphore(semaphore);
 
     return semaphore;
 }

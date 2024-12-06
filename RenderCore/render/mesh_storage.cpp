@@ -179,7 +179,7 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
         }
     );
 
-    if(backend.use_ray_tracing()) {
+    if(backend.supports_ray_tracing()) {
         handle->blas = create_blas_for_mesh(
             static_cast<uint32_t>(handle->first_vertex),
             handle->num_vertices,

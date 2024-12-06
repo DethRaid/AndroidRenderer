@@ -141,7 +141,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, Ma
         );
     }
 
-    if(backend.use_device_generated_commands()) {
+    if(backend.supports_device_generated_commands()) {
         draw_visible_objects_dgc(graph, drawer, materials, view_descriptor, primitive_buffer, num_primitives);
     } else {
         draw_visible_objects(graph, drawer, view_descriptor, primitive_buffer, num_primitives);
