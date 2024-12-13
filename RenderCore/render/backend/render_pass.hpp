@@ -123,12 +123,21 @@ struct TransitionPass {
     absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
 };
 
+struct BufferCopyPass {
+    std::string name;
+
+    BufferHandle dst;
+
+    BufferHandle src;
+};
+
+
 struct ImageCopyPass {
     std::string name;
 
-    TextureHandle src_image;
+    TextureHandle dst;
 
-    TextureHandle dst_image;
+    TextureHandle src;
 };
 
 struct Subpass {

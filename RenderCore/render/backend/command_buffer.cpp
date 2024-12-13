@@ -54,7 +54,7 @@ CommandBuffer::update_buffer(
 
 void CommandBuffer::flush_buffer(const BufferHandle buffer) const {
     auto& resources = backend->get_global_allocator();
-    
+
     vmaFlushAllocation(resources.get_vma(), buffer->allocation, 0, VK_WHOLE_SIZE);
 }
 
@@ -106,7 +106,9 @@ void CommandBuffer::barrier(
     vkCmdPipelineBarrier2(commands, &dependency_info);
 }
 
-void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_value, const uint32_t dest_offset) const {
+void CommandBuffer::fill_buffer(
+    const BufferHandle buffer, const uint32_t fill_value, const uint32_t dest_offset
+) const {
     vkCmdFillBuffer(commands, buffer->buffer, dest_offset, buffer->create_info.size - dest_offset, fill_value);
 }
 
@@ -299,7 +301,7 @@ void CommandBuffer::draw_indirect(const BufferHandle indirect_buffer) {
 
 void CommandBuffer::draw_indexed_indirect(const BufferHandle indirect_buffer) {
     commit_bindings();
-        
+
     vkCmdDrawIndexedIndirect(commands, indirect_buffer->buffer, 0, 1, 0);
 }
 
@@ -370,7 +372,11 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
 
     VkPipeline vk_pipeline;
     if(current_render_pass == VK_NULL_HANDLE) {
-        vk_pipeline = cache.get_pipeline_for_dynamic_rendering(pipeline, bound_color_attachment_formats, bound_depth_attachment_format, bound_view_mask);
+        vk_pipeline = cache.get_pipeline_for_dynamic_rendering(
+            pipeline,
+            bound_color_attachment_formats,
+            bound_depth_attachment_format,
+            bound_view_mask);
     } else {
         vk_pipeline = cache.get_pipeline(pipeline, current_render_pass, current_subpass);
     }
@@ -425,6 +431,27 @@ void CommandBuffer::dispatch_indirect(const BufferHandle indirect_buffer) {
     commit_bindings();
 
     vkCmdDispatchIndirect(commands, indirect_buffer->buffer, 0);
+}
+
+void CommandBuffer::copy_buffer_to_buffer(
+    const BufferHandle dst, const uint32_t dst_offset, const BufferHandle src, const uint32_t src_offset
+) const {
+    const auto region = VkBufferCopy2{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+        .srcOffset = src_offset,
+        .dstOffset = dst_offset,
+        .size = src->create_info.size - src_offset
+    };
+
+    const auto copy_info = VkCopyBufferInfo2{
+        .sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+        .srcBuffer = src->buffer,
+        .dstBuffer = dst->buffer,
+        .regionCount = 1,
+        .pRegions = &region
+    };
+
+    vkCmdCopyBuffer2(commands, &copy_info);
 }
 
 void CommandBuffer::copy_image_to_image(const TextureHandle src, const TextureHandle dst) const {

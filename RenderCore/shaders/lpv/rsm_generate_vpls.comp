@@ -29,19 +29,11 @@ layout(set = 0, binding = 3, std430) uniform LPVCascadesBuffer {
     LPVCascadeMatrices cascade_matrices[4];
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) buffer CountBuffer {
-     uint    vertex_count;
-     uint    instance_count;
-     uint    first_vertex;
-     uint    first_instance;
-};
-
 layout(buffer_reference, std430, buffer_reference_align = 16) writeonly buffer VplListBuffer  {
      PackedVPL lights[];
 };
 
 layout(push_constant) uniform Constants {
-    CountBuffer vpl_count_buffer;
     VplListBuffer vpl_list_buffer;
     int cascade_index;
     uint cascade_size;
@@ -58,8 +50,8 @@ vec4 get_worldspace_position(ivec2 texel) {
     return worldspace_position;
 }
 
-void store_light(in VPL light) {
-    uint light_index = atomicAdd(vpl_count_buffer.vertex_count, 1);
+void store_light(in VPL light, uvec2 thread_coords) {
+    const uint light_index = thread_coords.y * cascade_size + thread_coords.x;
 
     PackedVPL packed_light;
     packed_light.data.x = packHalf2x16(light.position.xy);
@@ -139,7 +131,5 @@ void main() {
         result.normal /= num_samples;
     }
 
-    store_light(result);
-
-    vpl_count_buffer.instance_count = 1; 
+    store_light(result, gl_GlobalInvocationID.xy);
 }

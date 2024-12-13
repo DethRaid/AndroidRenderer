@@ -31,6 +31,11 @@ public:
     void add_transition_pass(TransitionPass&& pass);
 
     /**
+     * \brief Adds a pass to copy a buffer into another
+     */
+    void add_copy_pass(BufferCopyPass&& pass);
+
+    /**
      * \brief Adds a pass to copy mip 0 of one image to mip 0 of the other
      */
     void add_copy_pass(ImageCopyPass&& pass);

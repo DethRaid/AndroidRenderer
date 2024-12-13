@@ -38,11 +38,6 @@ struct CascadeData {
     TextureHandle depth_target;
 
     /**
-     * Count of the number of VPLs in this cascade
-     */
-    BufferHandle count_buffer = {};
-
-    /**
      * VPLs in this cascade
      */
     BufferHandle vpl_buffer = {};
@@ -153,7 +148,7 @@ private:
 
     VkSampler linear_sampler = VK_NULL_HANDLE;
 
-    ComputePipelineHandle vpl_pipeline;
+    ComputePipelineHandle rsm_generate_vpls_pipeline;
 
     ComputePipelineHandle clear_lpv_shader;
 

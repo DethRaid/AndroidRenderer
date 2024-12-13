@@ -210,6 +210,8 @@ public:
 
     void dispatch_indirect(BufferHandle indirect_buffer);
 
+    void copy_buffer_to_buffer(BufferHandle dst, uint32_t dst_offset, BufferHandle src, uint32_t src_offset) const;
+
     void copy_image_to_image(TextureHandle src, TextureHandle dst) const;
 
     void reset_event(VkEvent event, VkPipelineStageFlags stages) const;

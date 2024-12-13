@@ -35,22 +35,43 @@ void RenderGraph::add_transition_pass(TransitionPass&& pass) {
     );
 }
 
+void RenderGraph::add_copy_pass(BufferCopyPass&& pass) {
+    add_pass(
+        {
+            .name = pass.name,
+            .buffers = {
+                {
+                    pass.src,
+                    {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT}
+                },
+                {
+                    pass.dst,
+                    {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT}
+                }
+            },
+            .execute = [=](const CommandBuffer& commands) {
+                commands.copy_buffer_to_buffer(pass.dst, 0, pass.src, 0);
+            }
+        }
+    );
+}
+
 void RenderGraph::add_copy_pass(ImageCopyPass&& pass) {
     add_pass(
         {
             .name = pass.name,
             .textures = {
                 {
-                    pass.src_image,
+                    pass.src,
                     {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL}
                 },
                 {
-                    pass.dst_image,
+                    pass.dst,
                     {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL}
                 }
             },
             .execute = [=](const CommandBuffer& commands) {
-                commands.copy_image_to_image(pass.src_image, pass.dst_image);
+                commands.copy_image_to_image(pass.src, pass.dst);
             }
         }
     );

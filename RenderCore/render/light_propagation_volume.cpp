@@ -51,7 +51,7 @@ static auto cvar_lpv_build_gv_mode = AutoCVar_Enum{
 };
 
 static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
-    "r.lpv.RsmResolution",
+    "r.LPV.RsmResolution",
     "Resolution for the RSM targets. Should be a multiple of 16",
     64
 };
@@ -94,7 +94,7 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
         }
     );
 
-    vpl_pipeline = pipeline_cache.create_pipeline("shaders/lpv/rsm_generate_vpls.comp.spv");
+    rsm_generate_vpls_pipeline = pipeline_cache.create_pipeline("shaders/lpv/rsm_generate_vpls.comp.spv");
 
     if(cvar_lpv_use_compute_vpl_injection.Get() == 0) {
         vpl_injection_pipeline = backend.begin_building_pipeline("VPL Injection")
@@ -289,11 +289,6 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
     uint32_t cascade_index = 0;
     for(auto& cascade : cascades) {
         cascade.create_render_targets(allocator);
-        cascade.count_buffer = allocator.create_buffer(
-            fmt::format("Cascade {} VPL Count", cascade_index),
-            sizeof(VkDrawIndirectCommand),
-            BufferUsage::IndirectBuffer
-        );
         cascade.vpl_buffer = allocator.create_buffer(
             fmt::format("Cascade {} VPL List", cascade_index),
             static_cast<uint64_t>(sizeof(PackedVPL) * num_vpls),
@@ -414,21 +409,6 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
     auto cascade_index = 0u;
     for(const auto& cascade : cascades) {
-        graph.add_pass(
-            {
-                .name = "Clear count buffer",
-                .buffers = {
-                    {
-                        cascade.count_buffer,
-                        {.stage = VK_PIPELINE_STAGE_TRANSFER_BIT, .access = VK_ACCESS_TRANSFER_WRITE_BIT}
-                    }
-                },
-                .execute = [&](const CommandBuffer& commands) {
-                    commands.fill_buffer(cascade.count_buffer, 0);
-                }
-            }
-        );
-
         const auto set_info = DescriptorSetInfo{
             .bindings = {
                 {
@@ -493,7 +473,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
         {
             auto descriptor_set = backend.get_transient_descriptor_allocator()
-                                         .build_set(vpl_pipeline, 0)
+                                         .build_set(rsm_generate_vpls_pipeline, 0)
                                          .bind(0, cascade.flux_target, backend.get_default_sampler())
                                          .bind(1, cascade.normals_target, backend.get_default_sampler())
                                          .bind(2, cascade.depth_target, backend.get_default_sampler())
@@ -501,7 +481,6 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                          .build();
 
             struct VplPipelineConstants {
-                DeviceAddress count_buffer_address;
                 DeviceAddress vpl_buffer_address;
                 int32_t cascade_index;
                 uint32_t cascade_resolution;
@@ -509,21 +488,21 @@ void LightPropagationVolume::inject_indirect_sun_light(
             };
 
             const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
-            const auto dispatch_size = resolution / glm::uvec2{ 2 };    // Each thread selects one VPL from a 2x2 filter on the RSM
+            const auto dispatch_size = resolution / glm::uvec2{2};
+            // Each thread selects one VPL from a 2x2 filter on the RSM
 
             graph.add_compute_dispatch<VplPipelineConstants>(
                 ComputeDispatch<VplPipelineConstants>{
                     .name = "Extract VPLs",
                     .descriptor_sets = std::vector{descriptor_set},
                     .push_constants = VplPipelineConstants{
-                        .count_buffer_address = cascade.count_buffer->address,
                         .vpl_buffer_address = cascade.vpl_buffer->address,
                         .cascade_index = static_cast<int32_t>(cascade_index),
                         .cascade_resolution = resolution.x,
                         .lpv_cell_size = static_cast<float>(cvar_lpv_cell_size.Get())
                     },
                     .num_workgroups = {(dispatch_size + glm::uvec2{7}) / glm::uvec2{8}, 1},
-                    .compute_shader = vpl_pipeline
+                    .compute_shader = rsm_generate_vpls_pipeline
                 });
         }
 
@@ -549,6 +528,8 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
                                  .bind(0, cascade_data_buffer)
                                  .build();
 
+    const auto num_vpls = cvar_lpv_rsm_resolution.Get() * cvar_lpv_rsm_resolution.Get() / 2;
+
     if(cvar_lpv_use_compute_vpl_injection.Get() == 0) {
         graph.add_render_pass(
             DynamicRenderingPass{
@@ -556,10 +537,6 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
                 .buffers = {
                     {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                    {
-                        cascade.count_buffer,
-                        {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}
-                    },
                 },
                 .descriptor_sets = std::vector{descriptor_set},
                 .color_attachments = {
@@ -589,7 +566,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
 
                     commands.bind_pipeline(vpl_injection_pipeline);
 
-                    commands.draw_indirect(cascade.count_buffer);
+                    commands.draw(num_vpls);
 
                     commands.clear_descriptor_set(0);
                 }
@@ -609,16 +586,12 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
         };
 
         graph.add_compute_dispatch<VplInjectionConstants>(
-            IndirectComputeDispatch<VplInjectionConstants>{
+            ComputeDispatch<VplInjectionConstants>{
                 .name = "VPL Injection",
                 .descriptor_sets = std::vector{descriptor_set},
                 .buffers = {
                     {cascade_data_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                    {
-                        cascade.count_buffer,
-                        {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}
-                    },
                 },
                 .push_constants = VplInjectionConstants{
                     backend.get_global_allocator(),
@@ -626,7 +599,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
                     cascade_index,
                     static_cast<uint32_t>(cvar_lpv_num_cascades.Get())
                 },
-                .dispatch = cascade.count_buffer,
+                .num_workgroups = {(num_vpls + 63) / 64, 1, 1},
                 .compute_shader = vpl_injection_compute_pipeline
             }
         );
@@ -653,7 +626,6 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
                 .buffers = {
                     {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                    {cascade.count_buffer, {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT}},
                 },
                 .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
             }
@@ -1151,12 +1123,12 @@ void LightPropagationVolume::add_lighting_to_scene(
     commands.bind_descriptor_set(0, gbuffers_descriptor);
 
     const auto lpv_descriptor = backend.get_transient_descriptor_allocator().build_set(lpv_render_shader, 1)
-        .bind(0, lpv_a_red, linear_sampler)
-        .bind(1, lpv_a_green, linear_sampler)
-        .bind(2, lpv_a_blue, linear_sampler)
-        .bind(3, cascade_data_buffer)
-        .bind(4, scene_view_buffer)
-        .build();
+                                       .bind(0, lpv_a_red, linear_sampler)
+                                       .bind(1, lpv_a_green, linear_sampler)
+                                       .bind(2, lpv_a_blue, linear_sampler)
+                                       .bind(3, cascade_data_buffer)
+                                       .bind(4, scene_view_buffer)
+                                       .build();
 
     logger->debug("Binding LPV A {} (handle {})", lpv_a_red->name, static_cast<void*>(lpv_a_red));
 
