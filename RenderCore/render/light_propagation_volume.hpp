@@ -38,6 +38,13 @@ struct CascadeData {
     TextureHandle depth_target;
 
     /**
+     * Buffer that stores the count of the VPLs in this cascade
+     *
+     * The buffer is as big as a non-indexed drawcall
+     */
+    BufferHandle vpl_count_buffer = {};
+
+    /**
      * VPLs in this cascade
      */
     BufferHandle vpl_buffer = {};

@@ -155,7 +155,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, Ma
 
     // All the primitives that are visible this frame, whether they're newly visible or not
     const auto this_frame_visible_objects = allocator.create_buffer(
-        "This frame visibility mask",
+        fmt::format("Frame {} visibility mask", backend.get_current_gpu_frame()),
         sizeof(uint32_t) * num_primitives,
         BufferUsage::StorageBuffer
     );
@@ -352,7 +352,6 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
 
     return std::make_tuple(draw_commands_buffer, draw_count_buffer, primitive_id_buffer);
 }
-
 
 void DepthCullingPhase::draw_visible_objects_dgc(
     RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials, const DescriptorSet& descriptors,

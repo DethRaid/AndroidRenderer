@@ -20,7 +20,7 @@ layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer Pr
     PrimitiveDataGPU primitive_datas[];
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveVisibilityBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer PrimitiveVisibilityBuffer {
     uint visible[];
 };
 
@@ -32,14 +32,14 @@ layout(buffer_reference, scalar, buffer_reference_align = 16) writeonly buffer D
     DrawCommand draw_commands[];
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) buffer DrawCountBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 16) buffer DrawCountBuffer {
     uint opaque_draw_count;
     uint opaque_draw_offset;
     uint masked_draw_count;
     uint masked_draw_offset;
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) writeonly buffer PrimitiveIdBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 16) writeonly buffer PrimitiveIdBuffer {
     uint primitive_ids[];
 };
 
@@ -61,26 +61,24 @@ void main() {
         return;
     }
 
-    uint primitive_id = gl_GlobalInvocationID.x;
+    const uint primitive_id = gl_GlobalInvocationID.x;
 
-    uint visible = primitive_visibility_buffer.visible[primitive_id];
+    const uint visible = primitive_visibility_buffer.visible[primitive_id];
 
-    if(visible == 0) {
-        return;
+    if(visible != 0) {
+        PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
+
+        uint draw_id;
+        if(primitive_data.type == PRIMITIVE_TYPE_SOLID) {
+            draw_id = atomicAdd(draw_count_buffer.opaque_draw_count, 1);
+        } else {
+            atomicAdd(draw_count_buffer.masked_draw_count, 1);
+            draw_id = atomicAdd(draw_count_buffer.masked_draw_offset, -1);
+        }
+
+        primitive_id_buffer.primitive_ids[draw_id] = primitive_id;
+        
+        draw_command_buffer.draw_commands[draw_id] = mesh_args_buffer.meshes[primitive_data.mesh_id];
+        draw_command_buffer.draw_commands[draw_id].firstInstance = draw_id;
     }
-
-    PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
-
-    uint draw_id;
-    if(primitive_data.type == PRIMITIVE_TYPE_SOLID) {
-        draw_id = atomicAdd(draw_count_buffer.opaque_draw_count, 1);
-    } else {
-        atomicAdd(draw_count_buffer.masked_draw_count, 1);
-        draw_id = atomicAdd(draw_count_buffer.masked_draw_offset, -1);
-    }
-
-    primitive_id_buffer.primitive_ids[draw_id] = primitive_id;
-    
-    draw_command_buffer.draw_commands[draw_id] = mesh_args_buffer.meshes[primitive_data.mesh_id];
-    draw_command_buffer.draw_commands[draw_id].firstInstance = draw_id;
 }

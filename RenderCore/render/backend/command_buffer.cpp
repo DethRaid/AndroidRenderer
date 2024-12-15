@@ -109,7 +109,13 @@ void CommandBuffer::barrier(
 void CommandBuffer::fill_buffer(
     const BufferHandle buffer, const uint32_t fill_value, const uint32_t dest_offset
 ) const {
-    vkCmdFillBuffer(commands, buffer->buffer, dest_offset, buffer->create_info.size - dest_offset, fill_value);
+    fill_buffer(buffer, fill_value, dest_offset, buffer->create_info.size - dest_offset);
+}
+
+void CommandBuffer::fill_buffer(
+    const BufferHandle buffer, const uint32_t fill_value, const uint32_t dest_offset, const uint32_t amount_to_write
+) const {
+    vkCmdFillBuffer(commands, buffer->buffer, dest_offset, amount_to_write, fill_value);
 }
 
 void CommandBuffer::build_acceleration_structures(

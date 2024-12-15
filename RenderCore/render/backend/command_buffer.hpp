@@ -90,6 +90,8 @@ public:
      */
     void fill_buffer(BufferHandle buffer, uint32_t fill_value = 0, uint32_t dest_offset = 0) const;
 
+    void fill_buffer(BufferHandle buffer, uint32_t fill_value, uint32_t dest_offset, uint32_t amount_to_write) const;
+
     void build_acceleration_structures(
         std::span<const VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos,
         std::span<VkAccelerationStructureBuildRangeInfoKHR* const> build_range_info_ptrs

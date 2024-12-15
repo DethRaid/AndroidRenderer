@@ -8,9 +8,9 @@
 #include <absl/container/flat_hash_map.h>
 #include <plf_colony.h>
 
-#include "acceleration_structure.hpp"
 #include "extern/cityhash/city_hash.hpp"
 #include "core/object_pool.hpp"
+#include "render/backend/acceleration_structure.hpp"
 #include "render/backend/gpu_texture.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/buffer.hpp"

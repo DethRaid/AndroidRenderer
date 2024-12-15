@@ -44,6 +44,9 @@ public:
     explicit ResourceUploadQueue(RenderBackend& backend_in);
 
     template<typename DataType>
+    void upload_to_buffer(BufferHandle buffer, const DataType& data, uint32_t dest_offset = 0);
+
+    template<typename DataType>
     void upload_to_buffer(BufferHandle buffer, std::span<const DataType> data, uint32_t dest_offset = 0);
 
     template<typename DataType>
@@ -81,6 +84,11 @@ private:
 
     void upload_ktx(VkCommandBuffer cmds, const KtxUploadJob& job, const GpuBuffer& staging_buffer, size_t offset) const;
 };
+
+template <typename DataType>
+void ResourceUploadQueue::upload_to_buffer(BufferHandle buffer, const DataType& data, uint32_t dest_offset) {
+    upload_to_buffer(buffer, std::span{ &data, 1 }, dest_offset);
+}
 
 template <typename DataType>
 void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<const DataType> data, const uint32_t dest_offset) {

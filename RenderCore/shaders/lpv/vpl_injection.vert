@@ -58,7 +58,7 @@ void main() {
     gl_Layer = int(position.z * 32.f);
     gl_PointSize = 1.f;
 
-    if(length(normal) < 1) {
+    if(length(normal) < 1|| length(color) == 0) {
         gl_Position = vec4(intBitsToFloat(int(0xFFC00000u)));
     }
 }

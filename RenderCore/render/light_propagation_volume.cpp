@@ -285,10 +285,28 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
 
     const auto num_vpls = cvar_lpv_rsm_resolution.Get() * cvar_lpv_rsm_resolution.Get() / 4;
 
+    auto& upload_queue = backend.get_upload_queue();
+
     cascades.resize(num_cascades);
     uint32_t cascade_index = 0;
     for(auto& cascade : cascades) {
         cascade.create_render_targets(allocator);
+
+        cascade.vpl_count_buffer = allocator.create_buffer(
+            fmt::format("Cascade {} VPL count", cascade_index),
+            sizeof(VkDrawIndirectCommand),
+            BufferUsage::IndirectBuffer
+        );
+
+        upload_queue.upload_to_buffer(
+            cascade.vpl_count_buffer,
+            VkDrawIndirectCommand{
+                .vertexCount = 0,
+                .instanceCount = 1,
+                .firstVertex = 0,
+                .firstInstance = 0
+            });
+
         cascade.vpl_buffer = allocator.create_buffer(
             fmt::format("Cascade {} VPL List", cascade_index),
             static_cast<uint64_t>(sizeof(PackedVPL) * num_vpls),
@@ -471,6 +489,20 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 }
             });
 
+        graph.add_pass(
+            ComputePass{
+                .name = "Clear VPL Count",
+                .buffers = {
+                    {
+                        cascade.vpl_count_buffer,
+                        {.stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT, .access = VK_ACCESS_2_TRANSFER_WRITE_BIT}
+                    }
+                },
+                .execute = [buffer = cascade.vpl_count_buffer](CommandBuffer& commands) {
+                    commands.fill_buffer(buffer, 0, 0, sizeof(uint32_t));
+                }
+            });
+
         {
             auto descriptor_set = backend.get_transient_descriptor_allocator()
                                          .build_set(rsm_generate_vpls_pipeline, 0)
@@ -481,6 +513,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                          .build();
 
             struct VplPipelineConstants {
+                DeviceAddress count_buffer_address;
                 DeviceAddress vpl_buffer_address;
                 int32_t cascade_index;
                 uint32_t cascade_resolution;
@@ -495,7 +528,22 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 ComputeDispatch<VplPipelineConstants>{
                     .name = "Extract VPLs",
                     .descriptor_sets = std::vector{descriptor_set},
+                    .buffers = {
+                        {
+                            cascade.vpl_count_buffer,
+                            {
+                                .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
+                            }
+                        },
+                        {
+                            cascade.vpl_buffer,
+                            {.stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_WRITE_BIT}
+                        }
+
+                    },
                     .push_constants = VplPipelineConstants{
+                        .count_buffer_address = cascade.vpl_count_buffer->address,
                         .vpl_buffer_address = cascade.vpl_buffer->address,
                         .cascade_index = static_cast<int32_t>(cascade_index),
                         .cascade_resolution = resolution.x,
@@ -537,6 +585,13 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
                 .buffers = {
                     {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
                     {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+                    {
+                        cascade.vpl_count_buffer,
+                        {
+                            .stage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                            .access = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
+                        }
+                    }
                 },
                 .descriptor_sets = std::vector{descriptor_set},
                 .color_attachments = {
@@ -566,7 +621,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
 
                     commands.bind_pipeline(vpl_injection_pipeline);
 
-                    commands.draw(num_vpls);
+                    commands.draw_indirect(cascade.vpl_count_buffer);
 
                     commands.clear_descriptor_set(0);
                 }
