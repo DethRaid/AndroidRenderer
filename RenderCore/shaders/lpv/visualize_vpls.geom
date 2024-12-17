@@ -21,9 +21,6 @@ layout(location = 0) out mediump vec3 color_out;
 layout(location = 1) out mediump vec3 normal_out;
 
 void main() {
-    color_out = color_in[0];
-    normal_out = normal_in[0];
-
     // Generate a quad that's 32x32 pixels and aligned to the camera
 
     const vec4 worldspace_position = gl_in[0].gl_Position;
@@ -34,15 +31,23 @@ void main() {
 
     const vec2 offset = 32.f / view_info.render_resolution.xy;
 
+    color_out = color_in[0];
+    normal_out = normal_in[0];
     gl_Position = ndc_position + vec4( offset.x, -offset.y, 0, 0);
     EmitVertex();
     
+    color_out = color_in[0];
+    normal_out = normal_in[0];
     gl_Position = ndc_position + vec4(-offset.x, -offset.y, 0, 0);
     EmitVertex();
     
+    color_out = color_in[0];
+    normal_out = normal_in[0];
     gl_Position = ndc_position + vec4( offset.x,  offset.y, 0, 0);
     EmitVertex();
     
+    color_out = color_in[0];
+    normal_out = normal_in[0];
     gl_Position = ndc_position + vec4(-offset.x,  offset.y, 0, 0);
     EmitVertex();
 }
