@@ -53,7 +53,7 @@ static auto cvar_lpv_build_gv_mode = AutoCVar_Enum{
 static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
     "r.LPV.RsmResolution",
     "Resolution for the RSM targets. Should be a multiple of 16",
-    64
+    128
 };
 
 static auto cvar_lpv_use_compute_vpl_injection = AutoCVar_Int{
@@ -200,7 +200,7 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
     lpv_render_shader = backend.begin_building_pipeline("LPV Rendering")
                                .set_vertex_shader("shaders/common/fullscreen.vert.spv")
                                .set_fragment_shader("shaders/lpv/overlay.frag.spv")
-                               .set_depth_state({.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE})
+                               .set_depth_state({.enable_depth_test = false, .enable_depth_write = false})
                                .set_blend_state(
                                    0,
                                    {
@@ -216,6 +216,14 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                    }
                                )
                                .build();
+
+    vpl_visualization_pipeline = backend.begin_building_pipeline("VPL Visualization")
+                                        .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+                                        .set_vertex_shader("shaders/lpv/visualize_vpls.vert.spv")
+                                        .set_geometry_shader("shaders/lpv/visualize_vpls.geom.spv")
+                                        .set_fragment_shader("shaders/lpv/visualize_vpls.frag.spv")
+                                        .set_depth_state({.enable_depth_write = false})
+                                        .build();
 }
 
 void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
@@ -498,7 +506,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         {.stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT, .access = VK_ACCESS_2_TRANSFER_WRITE_BIT}
                     }
                 },
-                .execute = [buffer = cascade.vpl_count_buffer](CommandBuffer& commands) {
+                .execute = [buffer = cascade.vpl_count_buffer](const CommandBuffer& commands) {
                     commands.fill_buffer(buffer, 0, 0, sizeof(uint32_t));
                 }
             });
@@ -1200,6 +1208,48 @@ void LightPropagationVolume::add_lighting_to_scene(
 
     commands.end_label();
 
+}
+
+void LightPropagationVolume::visualize_vpls(
+    RenderGraph& graph, const BufferHandle scene_view_buffer, const TextureHandle lit_scene,
+    const TextureHandle depth_buffer
+) {
+    auto buffer_barriers = absl::flat_hash_map<BufferHandle, BufferUsageToken>{};
+    buffer_barriers.reserve(cascades.size() * 2);
+
+    for(const auto& cascade : cascades) {
+        buffer_barriers.emplace(
+            cascade.vpl_count_buffer,
+            BufferUsageToken{
+                .stage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, .access = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
+            });
+        buffer_barriers.emplace(
+            cascade.vpl_buffer,
+            BufferUsageToken{.stage = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT});
+    }
+
+    const auto view_descriptor_set = backend.get_transient_descriptor_allocator()
+                                            .build_set(vpl_visualization_pipeline, 0)
+                                            .bind(0, scene_view_buffer)
+                                            .build();
+
+    graph.add_render_pass(
+        {
+            .name = "VPL Visualization",
+            .buffers = buffer_barriers,
+            .descriptor_sets = {view_descriptor_set},
+            .color_attachments = {{.image = lit_scene}},
+            .depth_attachment = RenderingAttachmentInfo{.image = depth_buffer},
+            .view_mask = {},
+            .execute = [&](CommandBuffer& commands) {
+                commands.bind_pipeline(vpl_visualization_pipeline);
+                commands.bind_descriptor_set(0, view_descriptor_set);
+                for(const auto& cascade : cascades) {
+                    commands.bind_buffer_reference(0, cascade.vpl_buffer);
+                    commands.draw_indirect(cascade.vpl_count_buffer);
+                }
+            }
+        });
 }
 
 void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(

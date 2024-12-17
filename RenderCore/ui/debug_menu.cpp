@@ -285,9 +285,8 @@ void DebugUI::draw_debug_menu() {
     if (ImGui::Begin("Debug Menu", &is_debug_menu_open)) {
         if (ImGui::CollapsingHeader("Visualizers")) {
             for (auto visualizer : magic_enum::enum_values<RenderVisualization>()) {
-                const auto name = magic_enum::enum_name(visualizer);
-                const auto name_str = std::string{name}; // This is so sad
-                if (ImGui::Selectable(name_str.c_str(), selected_visualizer == visualizer)) {
+                const auto name = to_string(visualizer);
+                if (ImGui::Selectable(name, selected_visualizer == visualizer)) {
                     selected_visualizer = visualizer;
                 }
             }

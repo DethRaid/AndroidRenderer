@@ -134,6 +134,10 @@ public:
         CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor, BufferHandle scene_view_buffer
     ) const;
 
+    void visualize_vpls(
+        RenderGraph& graph, BufferHandle scene_view_buffer, TextureHandle lit_scene, TextureHandle depth_buffer
+    );
+
 private:
     RenderBackend& backend;
 
@@ -174,6 +178,14 @@ private:
      * Renders the LPV into the lighting buffer
      */
     GraphicsPipelineHandle lpv_render_shader;
+
+    /**
+     * Renders a visualization of each VPL
+     *
+     * Takes in a list of VPLs. A geometry shader generates a quad for each, then the fragment shader draws a sphere
+     * with the VPL's light on the surface
+     */
+    GraphicsPipelineHandle vpl_visualization_pipeline;
 
     SceneDrawer rsm_drawer = {};
 

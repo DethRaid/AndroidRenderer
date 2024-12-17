@@ -527,6 +527,14 @@ void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
             voxel_visualizer.render(render_graph, *scene, lit_scene_handle, player_view.get_buffer());
         }
         break;
+
+    case RenderVisualization::VPLs:
+        lpv->visualize_vpls(
+            render_graph,
+            player_view.get_buffer(),
+            lit_scene_handle,
+            depth_culling_phase.get_depth_buffer());
+        break;
     }
 }
 
