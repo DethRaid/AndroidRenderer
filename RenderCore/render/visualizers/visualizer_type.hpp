@@ -1,6 +1,6 @@
 #pragma once
 
-enum class RenderVisualization {
+enum class RenderVisualization : uint8_t {
     None,
     VoxelizedMeshes,
     VPLs,

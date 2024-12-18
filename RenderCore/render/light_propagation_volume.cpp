@@ -53,13 +53,19 @@ static auto cvar_lpv_build_gv_mode = AutoCVar_Enum{
 static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
     "r.LPV.RsmResolution",
     "Resolution for the RSM targets. Should be a multiple of 16",
-    128
+    64
 };
 
 static auto cvar_lpv_use_compute_vpl_injection = AutoCVar_Int{
     "r.LPV.ComputeVPL",
     "Whether to use a compute pipeline or a raster pipeline to inject VPLs into the LPVs",
     0
+};
+
+static auto cvar_lpv_vpl_visualization_size = AutoCVar_Float{
+    "r.LPV.VPL.VisualizationSize",
+    "Size of one VPL, in pixels, when drawn in the visualization pass",
+    32.f
 };
 
 static std::shared_ptr<spdlog::logger> logger;
@@ -403,6 +409,7 @@ void LightPropagationVolume::update_buffers(const CommandBuffer& commands) const
                 .rsm_vp = cascade.rsm_vp,
                 .inverse_rsm_vp = glm::inverse(cascade.rsm_vp),
                 .world_to_cascade = cascade.world_to_cascade,
+                .cascade_to_world = glm::inverse(cascade.world_to_cascade)
             }
         );
     }
@@ -524,7 +531,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 DeviceAddress count_buffer_address;
                 DeviceAddress vpl_buffer_address;
                 int32_t cascade_index;
-                uint32_t cascade_resolution;
+                uint32_t rsm_resolution;
                 float lpv_cell_size;
             };
 
@@ -554,7 +561,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         .count_buffer_address = cascade.vpl_count_buffer->address,
                         .vpl_buffer_address = cascade.vpl_buffer->address,
                         .cascade_index = static_cast<int32_t>(cascade_index),
-                        .cascade_resolution = resolution.x,
+                        .rsm_resolution = resolution.x,
                         .lpv_cell_size = static_cast<float>(cvar_lpv_cell_size.Get())
                     },
                     .num_workgroups = {(dispatch_size + glm::uvec2{7}) / glm::uvec2{8}, 1},
@@ -1246,6 +1253,7 @@ void LightPropagationVolume::visualize_vpls(
                 commands.bind_descriptor_set(0, view_descriptor_set);
                 for(const auto& cascade : cascades) {
                     commands.bind_buffer_reference(0, cascade.vpl_buffer);
+                    commands.set_push_constant(2, static_cast<float>(cvar_lpv_vpl_visualization_size.Get() / 2.0));
                     commands.draw_indirect(cascade.vpl_count_buffer);
                 }
             }

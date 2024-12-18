@@ -18,6 +18,7 @@ layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Vp
 
 layout(push_constant) uniform Constants {
     VplListBuffer vpl_list_buffer;
+    float vpl_size;
 };
 
 layout(location = 0) out mediump vec3 color;

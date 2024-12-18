@@ -11,6 +11,11 @@ layout(set = 0, binding = 0) uniform ViewUniformBuffer {
     ViewDataGPU view_info;
 };
 
+layout(push_constant) uniform Constants {
+    uvec2 vpl_list_buffer;
+    float vpl_size;
+};
+
 layout(points) in;
 layout(triangle_strip, max_vertices = 4) out;
 
@@ -29,7 +34,7 @@ void main() {
     vec4 ndc_position = view_info.projection * viewspace_position;
     ndc_position /= ndc_position.w;
 
-    const vec2 offset = 32.f / view_info.render_resolution.xy;
+    const vec2 offset = vpl_size / view_info.render_resolution.xy;
 
     color_out = color_in[0];
     normal_out = normal_in[0];

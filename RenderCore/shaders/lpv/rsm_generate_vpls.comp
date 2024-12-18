@@ -41,13 +41,13 @@ layout(push_constant) uniform Constants {
     CountBuffer vpl_count;
     VplListBuffer vpl_list_buffer;
     int cascade_index;
-    uint cascade_size;
+    uint rsm_resolution;
     float grid_cell_size;   // Size of one cell in the LPV, in world units
 };
 
 vec4 get_worldspace_position(ivec2 texel) {
     float depth = texelFetch(rsm_depth, texel, 0).r;
-    vec2 texcoord = vec2(float(texel) / float(cascade_size));
+    vec2 texcoord = vec2(vec2(texel) / float(rsm_resolution));
     vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
     vec4 worldspace_position = cascade_matrices[cascade_index].inverse_rsm_vp * ndc_position;
     worldspace_position /= worldspace_position.w;
@@ -90,7 +90,7 @@ vec3 position_to_grid_cell(vec3 position) {
 void main() {
     ivec3 texel = ivec3(gl_GlobalInvocationID) * 2;
 
-    if(texel.x >= cascade_size || texel.y >= cascade_size) {
+    if(texel.x >= rsm_resolution || texel.y >= rsm_resolution) {
         return;
     }
 
