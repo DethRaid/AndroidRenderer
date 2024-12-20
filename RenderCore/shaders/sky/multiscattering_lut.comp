@@ -1,0 +1,145 @@
+// Included first because life is hard
+// Don't worry about it
+// It's fine
+// It's FINE
+SamplerState bilinear_sampler : register(s1);
+
+#include "sky/common.hlsli"
+
+// Buffer B is the multiple-scattering LUT. Each pixel coordinate corresponds to a height and sun zenith angle, and
+// the value is the multiple scattering approximation (Psi_ms from the paper, Eq. 10).
+static const float mulScattSteps = 20.0;
+static const int sqrtSamples = 8;
+
+float3 getSphericalDir(float theta, float phi)
+{
+    float cosPhi = cos(phi);
+    float sinPhi = sin(phi);
+    float cosTheta = cos(theta);
+    float sinTheta = sin(theta);
+    return float3(sinPhi * sinTheta, cosPhi, sinPhi * cosTheta);
+}
+
+// Calculates Equation (5) and (7) from the paper.
+void getMulScattValues(float3 pos, float3 sunDir, const Texture2D<float4> transmittance_lut, out float3 lumTotal, out float3 fms)
+{
+    lumTotal = 0.0;
+    fms = 0.0;
+    
+    float invSamples = 1.0 / float(sqrtSamples * sqrtSamples);
+    for (int i = 0; i < sqrtSamples; i++)
+    {
+        for (int j = 0; j < sqrtSamples; j++)
+        {
+            // This integral is symmetric about theta = 0 (or theta = PI), so we
+            // only need to integrate from zero to PI, not zero to 2*PI.
+            float theta = PI * (float(i) + 0.5) / float(sqrtSamples);
+            float phi = safeacos(1.0 - 2.0 * (float(j) + 0.5) / float(sqrtSamples));
+            float3 rayDir = getSphericalDir(theta, phi);
+            
+            float atmoDist = rayIntersectSphere(pos, rayDir, atmosphereRadiusMM);
+            float groundDist = rayIntersectSphere(pos, rayDir, groundRadiusMM);
+            float tMax = atmoDist;
+            if (groundDist > 0.0)
+            {
+                tMax = groundDist;
+            }
+            
+            float cosTheta = dot(rayDir, sunDir);
+    
+            float miePhaseValue = getMiePhase(cosTheta);
+            float rayleighPhaseValue = getRayleighPhase(-cosTheta);
+            
+            float3 lum = 0.0;
+            float3 lumFactor = 0.0;
+            float3 transmittance = 1.0;
+            float t = 0.0;
+            for (float stepI = 0.0; stepI < mulScattSteps; stepI += 1.0)
+            {
+                float newT = ((stepI + 0.3) / mulScattSteps) * tMax;
+                float dt = newT - t;
+                t = newT;
+
+                float3 newPos = pos + t * rayDir;
+
+                float3 rayleighScattering;
+                float3 extinction;
+                float mieScattering;
+                getScatteringValues(newPos, rayleighScattering, mieScattering, extinction);
+
+                float3 sampleTransmittance = exp(-dt * extinction);
+                
+                // Integrate within each segment.
+                float3 scatteringNoPhase = rayleighScattering + mieScattering;
+                float3 scatteringF = (scatteringNoPhase - scatteringNoPhase * sampleTransmittance) / extinction;
+                lumFactor += transmittance * scatteringF;
+                
+                // This is slightly different from the paper, but I think the paper has a mistake?
+                // In equation (6), I think S(x,w_s) should be S(x-tv,w_s).
+                float3 sunTransmittance = getValFromTLUT(transmittance_lut, newPos, sunDir);
+
+                float3 rayleighInScattering = rayleighScattering * rayleighPhaseValue;
+                float mieInScattering = mieScattering * miePhaseValue;
+                float3 inScattering = (rayleighInScattering + mieInScattering) * sunTransmittance;
+
+                // Integrated scattering within path segment.
+                float3 scatteringIntegral = (inScattering - inScattering * sampleTransmittance) / extinction;
+
+                lum += scatteringIntegral * transmittance;
+                transmittance *= sampleTransmittance;
+            }
+            
+            if (groundDist > 0.0)
+            {
+                float3 hitPos = pos + groundDist * rayDir;
+                if (dot(pos, sunDir) > 0.0)
+                {
+                    hitPos = normalize(hitPos) * groundRadiusMM;
+                    lum += transmittance * groundAlbedo * getValFromTLUT(transmittance_lut, hitPos, sunDir);
+                }
+            }
+            
+            fms += lumFactor * invSamples;
+            lumTotal += lum * invSamples;
+        }
+    }
+}
+
+struct Constants {
+    uint transmittance_lut_idx;
+    uint multiscattering_lut_idx;
+} constants;
+
+[numthreads(8, 8, 1)]
+void main(uint3 thread_id : SV_DispatchThreadID)
+{
+    RWTexture2D<float4> multiscattering_lut = ResourceDescriptorHeap[constants.multiscattering_lut_idx];
+    float2 lut_dimensions;
+    multiscattering_lut.GetDimensions(lut_dimensions.x, lut_dimensions.y);
+
+    if (thread_id.x > lut_dimensions.x || thread_id.y > lut_dimensions.y)
+    {
+        return;
+    }
+
+    float u = (float) thread_id.x / lut_dimensions.x;
+    float v = (float) thread_id.y / lut_dimensions.y;
+        
+    float sunCosTheta = 2.0 * u - 1.0;
+    float sunTheta = safeacos(sunCosTheta);
+    float height = lerp(groundRadiusMM, atmosphereRadiusMM, v);
+    
+    float3 pos = float3(0.0, height, 0.0);
+    float3 sunDir = normalize(float3(0.0, sunCosTheta, -sin(sunTheta)));
+
+    const Texture2D<float4> transmittance_lut = ResourceDescriptorHeap[constants.transmittance_lut_idx];
+    float3 lum;
+    float3 f_ms;
+    getMulScattValues(pos, sunDir, transmittance_lut, lum, f_ms);
+    
+    // Equation 10 from the paper.
+    float3 psi = lum / (1.0 - f_ms);
+
+    multiscattering_lut[thread_id.xy] = float4(psi, 1.f);
+}
+

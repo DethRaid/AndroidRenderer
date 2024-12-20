@@ -3,6 +3,7 @@
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
+class ProceduralSky;
 struct DescriptorSet;
 class RenderGraph;
 class CommandBuffer;
@@ -33,7 +34,10 @@ public:
 
     void set_gbuffer(const GBuffer& gbuffer_in);
 
-    void render(RenderGraph& render_graph, const SceneTransform& view, TextureHandle lit_scene_texture, const LightPropagationVolume* lpv) const;
+    void render(
+        RenderGraph& render_graph, const SceneTransform& view, TextureHandle lit_scene_texture,
+        const LightPropagationVolume* lpv, const ProceduralSky& sky
+    ) const;
 
 private:
     RenderScene* scene = nullptr;
@@ -42,7 +46,9 @@ private:
 
     GraphicsPipelineHandle emission_pipeline;
 
-    void add_raytraced_mesh_lighting(CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, BufferHandle view_buffer) const;
+    void add_raytraced_mesh_lighting(
+        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, BufferHandle view_buffer
+    ) const;
 
     void add_emissive_lighting(CommandBuffer& commands, const DescriptorSet& gbuffer_descriptor_set) const;
 };

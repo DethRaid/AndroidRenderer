@@ -207,6 +207,8 @@ void SceneRenderer::render() {
 
     scene->generate_emissive_point_clouds(render_graph);
 
+    sky.update_sky_luts(render_graph, player_view.get_buffer());
+
     if(lpv) {
         lpv->clear_volume(render_graph);
 
@@ -319,7 +321,7 @@ void SceneRenderer::render() {
             }
         });
 
-    lighting_pass.render(render_graph, player_view, lit_scene_handle, lpv.get());
+    lighting_pass.render(render_graph, player_view, lit_scene_handle, lpv.get(), sky);
 
     // Bloom
 

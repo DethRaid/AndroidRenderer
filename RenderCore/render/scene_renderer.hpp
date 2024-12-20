@@ -9,6 +9,7 @@
 #include "render/texture_loader.hpp"
 #include "mesh_storage.hpp"
 #include "mip_chain_generator.hpp"
+#include "procedural_sky.hpp"
 #include "phase/depth_culling_phase.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
@@ -101,6 +102,8 @@ private:
     std::vector<TextureHandle> swapchain_images;
 
     SceneDrawer sun_shadow_drawer;
+
+    ProceduralSky sky;
 
     DepthCullingPhase depth_culling_phase;
 

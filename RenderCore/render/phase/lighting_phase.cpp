@@ -1,5 +1,6 @@
 #include "lighting_phase.hpp"
 
+#include "render/procedural_sky.hpp"
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
 #include "shared/view_data.hpp"
@@ -31,7 +32,7 @@ LightingPhase::LightingPhase() {
 
 void LightingPhase::render(
     RenderGraph& render_graph, const SceneTransform& view, const TextureHandle lit_scene_texture,
-    const LightPropagationVolume* lpv
+    const LightPropagationVolume* lpv, const ProceduralSky& sky
 ) const {
     ZoneScoped;
 
@@ -89,10 +90,10 @@ void LightingPhase::render(
                 }
 
                 add_emissive_lighting(commands, gbuffers_descriptor_set);
+
+                sky.render_sky(commands, view.get_buffer());
             }
         });
-
-
 }
 
 void LightingPhase::set_gbuffer(const GBuffer& gbuffer_in) {
