@@ -1,2 +1,2 @@
-# Ignore the vendored vuk while I make it workable
-vuk/
+# Ignore Nvidia's source code
+Optical_Flow_SDK_5.0.7/

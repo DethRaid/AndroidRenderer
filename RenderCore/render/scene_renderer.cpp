@@ -250,6 +250,32 @@ void SceneRenderer::render() {
         lpv->propagate_lighting(render_graph);
     }
 
+    /*
+     * TODO: Use the contrast image from last frame and the depth buffer from last frame to initialize a shading rate
+     * image. We'll take more samples in areas of higher contrast and in areas of depth increasing
+     *
+     *How to handle disocclusions:
+     * If the depth increases, something went in front of the current pixel and we should use the old pixel's contrast.
+     * If the depth decreases, the pixel is recently disoccluded and we should use the maximum sample rate
+     *
+     * Once we ask for samples, we need to scale them by the available number of samples. Reduce the number of samples,
+     * decreasing larger numbers the most, so that we don't take more samples than the hardware supports
+     *
+     * uint num_samples_4x = num_samples_if_we_take_a_max_of_4_samples_per_pixel()
+     * uint num_samples_2x = you get the drill;
+     * uint num_samples_1x = yada yada;
+     *
+     * if(sample_budget <= num_samples_4x) {
+     *  write_shading_rate_image(4);
+     * } else if(sample_budget <= num_samples_2x_msaa) {
+     *  write_shading_rate_image(2);
+     * } else {
+     *  write_shading_rate_image(1);
+     * }
+     *
+     * Writing the shading rate image allows any sample value below or equal to the max
+     */
+
     // Depth and stuff
 
     depth_culling_phase.render(render_graph, depth_prepass_drawer, material_storage, player_view.get_buffer());
@@ -323,6 +349,13 @@ void SceneRenderer::render() {
 
     lighting_pass.render(render_graph, player_view, lit_scene_handle, lpv.get(), sky);
 
+    // VRS
+
+    /*
+     * TODO: Run a contrast detector (sobel filter?) over the image, before any upscaling or denoising steps. Save to
+     * a texture
+     */
+
     // Bloom
 
     bloomer.fill_bloom_tex(render_graph, lit_scene_handle);
@@ -336,6 +369,12 @@ void SceneRenderer::render() {
     if(active_visualization != RenderVisualization::None) {
         draw_debug_visualizers(render_graph);
     }
+
+    // Optical Flow
+
+    /*
+     * Use https://developer.nvidia.com/optical-flow-sdk to generation motion vectors if available
+     */
 
     // UI
 
