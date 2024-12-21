@@ -91,7 +91,7 @@ void LightingPhase::render(
 
                 add_emissive_lighting(commands, gbuffers_descriptor_set);
 
-                sky.render_sky(commands, view.get_buffer());
+                sky.render_sky(commands, view.get_buffer(), sun.get_direction(), gbuffers_descriptor_set);
             }
         });
 }

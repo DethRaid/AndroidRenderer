@@ -1,9 +1,11 @@
 #pragma once
 
+#include "glm/vec3.hpp"
 #include "render/backend/compute_shader.hpp"
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
+struct DescriptorSet;
 class CommandBuffer;
 
 class RenderGraph;
@@ -20,12 +22,12 @@ class ProceduralSky {
 public:
     explicit ProceduralSky();
 
-    void update_sky_luts(
-        RenderGraph& graph,
-        BufferHandle view_buffer
-    ) const;
+    void update_sky_luts(RenderGraph& graph, const glm::vec3& light_vector) const;
 
-    void render_sky(CommandBuffer& commands, BufferHandle view_buffer) const;
+    void render_sky(
+        CommandBuffer& commands, BufferHandle view_buffer, const glm::vec3& light_vector,
+        const DescriptorSet& gbuffer_descriptor_set
+    ) const;
 
     TextureHandle get_sky_view_lut() const;
 
@@ -41,4 +43,6 @@ private:
     TextureHandle transmittance_lut;
     TextureHandle multiscattering_lut;
     TextureHandle sky_view_lut;
+
+    VkSampler linear_sampler;
 };

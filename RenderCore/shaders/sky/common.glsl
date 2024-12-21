@@ -1,3 +1,6 @@
+#ifndef SKY_COMMON_GLSL
+#define SKY_COMMON_GLSL
+
 #ifndef PI
     #define PI 3.14159265358
 #endif
@@ -28,8 +31,7 @@ const float mieAbsorptionBase = 4.4;
 // const vec3 ozoneAbsorptionBase = vec3(0.650, 1.881, .085);        // Original Hillaire
 const vec3 ozoneAbsorptionBase = vec3(2.26, 1.54, 0);                // From https://github.com/FarukEroglu2048/ARPC
 
-float getMiePhase(float cosTheta)
-{
+float getMiePhase(float cosTheta) {
     const float g = 0.8;
     const float scale = 3.0 / (8.0 * PI);
     
@@ -39,8 +41,7 @@ float getMiePhase(float cosTheta)
     return scale * num / denom;
 }
 
-float getRayleighPhase(float cosTheta)
-{
+float getRayleighPhase(float cosTheta) {
     const float k = 3.0 / (16.0 * PI);
     return k * (1.0 + cosTheta * cosTheta);
 }
@@ -48,8 +49,7 @@ float getRayleighPhase(float cosTheta)
 void getScatteringValues(vec3 pos,
                          out vec3 rayleighScattering,
                          out float mieScattering,
-                         out vec3 extinction)
-{
+                         out vec3 extinction) {
     float altitudeKM = max(0, (length(pos) - groundRadiusMM)) * 1000.0;
     // Note: Paper gets these switched up.
     float rayleighDensity = exp(-altitudeKM / 8.0);
@@ -66,28 +66,23 @@ void getScatteringValues(vec3 pos,
     extinction = rayleighScattering + rayleighAbsorption + mieScattering + mieAbsorption + ozoneAbsorption;
 }
 
-float safeacos(const float x)
-{
+float safeacos(const float x) {
     return acos(clamp(x, -1.0, 1.0));
 }
 
 // From https://gamedev.stackexchange.com/questions/96459/fast-ray-sphere-collision-code.
-float rayIntersectSphere(vec3 ro, vec3 rd, float rad)
-{
+float rayIntersectSphere(vec3 ro, vec3 rd, float rad) {
     float b = dot(ro, rd);
     float c = dot(ro, ro) - rad * rad;
-    if (c > 0.0f && b > 0.0)
-    {
+    if (c > 0.0f && b > 0.0) {
         return -1.0;
     }
     float discr = b * b - c;
-    if (discr < 0.0)
-    {
+    if (discr < 0.0) {
         return -1.0;
     }
     // Special case: inside sphere, use far discriminant
-    if (discr > b * b)
-    {
+    if (discr > b * b) {
         return (-b + sqrt(discr));
     }
     return -b - sqrt(discr);
@@ -96,22 +91,22 @@ float rayIntersectSphere(vec3 ro, vec3 rd, float rad)
 /*
  * Same parameterization here.
  */
-vec3 getValFromTLUT(sampler2D tex, vec3 pos, vec3 sunDir)
-{
+vec3 getValFromTLUT(sampler2D tex, vec3 pos, vec3 sunDir) {
     float height = length(pos);
     vec3 up = pos / height;
     float sunCosZenithAngle = dot(sunDir, up);
     vec2 uv = vec2(clamp(0.5 + 0.5 * sunCosZenithAngle, 0.0, 1.0),
                        max(0.0, min(1.0, (height - groundRadiusMM) / (atmosphereRadiusMM - groundRadiusMM))));
-    return texture(tex, uv, 0).rgb;
+    return textureLod(tex, uv, 0).rgb;
 }
 
-vec3 getValFromMultiScattLUT(sampler2D tex, vec3 pos, vec3 sunDir)
-{
+vec3 getValFromMultiScattLUT(sampler2D tex, vec3 pos, vec3 sunDir) {
     float height = length(pos);
     vec3 up = pos / height;
     float sunCosZenithAngle = dot(sunDir, up);
     vec2 uv = vec2(clamp(0.5 + 0.5 * sunCosZenithAngle, 0.0, 1.0),
                        max(0.0, min(1.0, (height - groundRadiusMM) / (atmosphereRadiusMM - groundRadiusMM))));
-    return texture(tex, uv, 0).rgb;
+    return textureLod(tex, uv, 0).rgb;
 }
+
+#endif

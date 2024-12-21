@@ -35,7 +35,7 @@ static auto cvar_lpv_num_cascades = AutoCVar_Int{
 
 static auto cvar_lpv_num_propagation_steps = AutoCVar_Int{
     "r.LPV.NumPropagationSteps",
-    "Number of times to propagate lighting through the LPV", 16
+    "Number of times to propagate lighting through the LPV", 8
 };
 
 static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
@@ -53,7 +53,7 @@ static auto cvar_lpv_build_gv_mode = AutoCVar_Enum{
 static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
     "r.LPV.RsmResolution",
     "Resolution for the RSM targets. Should be a multiple of 16",
-    64
+    256
 };
 
 static auto cvar_lpv_use_compute_vpl_injection = AutoCVar_Int{

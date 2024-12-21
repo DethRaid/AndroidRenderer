@@ -22,7 +22,9 @@ using mat4 = glm::mat4;
 
 // A couple useful things for GLSL
 
+#ifndef PI
 #define PI 3.1415927
+#endif
 
 #endif
 

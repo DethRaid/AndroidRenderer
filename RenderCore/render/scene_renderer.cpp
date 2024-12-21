@@ -207,7 +207,7 @@ void SceneRenderer::render() {
 
     scene->generate_emissive_point_clouds(render_graph);
 
-    sky.update_sky_luts(render_graph, player_view.get_buffer());
+    sky.update_sky_luts(render_graph, scene->get_sun_light().get_direction());
 
     if(lpv) {
         lpv->clear_volume(render_graph);
@@ -352,8 +352,7 @@ void SceneRenderer::render() {
     // VRS
 
     /*
-     * TODO: Run a contrast detector (sobel filter?) over the image, before any upscaling or denoising steps. Save to
-     * a texture
+     * TODO: Run a contrast detector (sobel filter?) over the image, before any upscaling or denoising steps. Save to a texture
      */
 
     // Bloom

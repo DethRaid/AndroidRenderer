@@ -38,6 +38,8 @@ public:
 
     bool supports_nv_shader_reorder = false;
 
+    bool supports_shading_rate_image = false;
+
     explicit RenderBackend();
 
     RenderBackend(const RenderBackend& other) = delete;
@@ -259,7 +261,8 @@ private:
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR ray_pipeline_features = {};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
     VkPhysicalDeviceRayQueryFeaturesKHR ray_query_features = {};
-    VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV device_generated_commands_features;
+    VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV device_generated_commands_features = {};
+    VkPhysicalDeviceShadingRateImageFeaturesNV shading_rate_image_features = {};
     VkPhysicalDeviceFeatures2 device_features = {};
 
     void create_instance_and_device();

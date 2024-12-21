@@ -154,7 +154,7 @@ void main() {
     mediump vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
-    const mediump float exposure_factor = 20.0;
+    const mediump float exposure_factor = 2.0;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 

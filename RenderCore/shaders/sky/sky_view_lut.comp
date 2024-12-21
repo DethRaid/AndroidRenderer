@@ -1,34 +1,31 @@
-// Included first because life is hard
-// Don't worry about it
-// It's fine
-// It's FINE
-SamplerState bilinear_sampler : register(s1);
+#version 460
 
-#include "sky/common.hlsli"
-#include "shared_structs.hpp"
+#extension GL_GOOGLE_include_directive : enable
+
+#include "sky/common.glsl"
 
 // Buffer C calculates the actual sky-view! It's a lat-long map (or maybe altitude-azimuth is the better term),
 // but the latitude/altitude is non-linear to get more resolution near the horizon.
 
-static const int numScatteringSteps = 32;
+const int numScatteringSteps = 32;
 
-struct Constants
-{
-    uint frame_constants_buffer_idx;
-    uint transmittance_lut_idx;
-    uint multiscattering_lut_idx;
-    uint sky_view_lut_idx;
+layout(set = 0, binding = 0) uniform sampler2D transmittance_lut;
+layout(set = 0, binding = 1) uniform sampler2D multiscattering_lut;
+layout(set = 0, binding = 2, rgba16f) uniform image2D sky_view_lut;
+
+layout(push_constant) uniform Constants {
+    vec3 light_dir;
 } constants;
 
-float3 raymarchScattering(float3 pos, float3 rayDir, float3 sunDir, float tMax, float numSteps, Texture2D<float4> transmittance_lut, Texture2D<float4> multiscattering_lut)
+vec3 raymarchScattering(vec3 pos, vec3 rayDir, vec3 sunDir, float tMax, float numSteps)
 {
     float cosTheta = dot(rayDir, sunDir);
     
     float miePhaseValue = getMiePhase(cosTheta);
     float rayleighPhaseValue = getRayleighPhase(-cosTheta);
     
-    float3 lum = 0.0;
-    float3 transmittance = 1.0;
+    vec3 lum = vec3(0.0);
+    vec3 transmittance = vec3(1.0);
     float t = 0.0;
     for (float i = 0.0; i < numSteps; i += 1.0)
     {
@@ -36,23 +33,23 @@ float3 raymarchScattering(float3 pos, float3 rayDir, float3 sunDir, float tMax, 
         float dt = newT - t;
         t = newT;
         
-        float3 newPos = pos + t * rayDir;
+        vec3 newPos = pos + t * rayDir;
         
-        float3 rayleighScattering, extinction;
+        vec3 rayleighScattering, extinction;
         float mieScattering;
         getScatteringValues(newPos, rayleighScattering, mieScattering, extinction);
         
-        float3 sampleTransmittance = exp(-dt * extinction);
+        vec3 sampleTransmittance = exp(-dt * extinction);
 
-        float3 sunTransmittance = getValFromTLUT(transmittance_lut, newPos, sunDir);
-        float3 psiMS = getValFromMultiScattLUT(multiscattering_lut, newPos, sunDir);
+        vec3 sunTransmittance = getValFromTLUT(transmittance_lut, newPos, sunDir);
+        vec3 psiMS = getValFromMultiScattLUT(multiscattering_lut, newPos, sunDir);
         
-        float3 rayleighInScattering = rayleighScattering * (rayleighPhaseValue * sunTransmittance + psiMS);
-        float3 mieInScattering = mieScattering * (miePhaseValue * sunTransmittance + psiMS);
-        float3 inScattering = (rayleighInScattering + mieInScattering);
+        vec3 rayleighInScattering = rayleighScattering * (rayleighPhaseValue * sunTransmittance + psiMS);
+        vec3 mieInScattering = mieScattering * (miePhaseValue * sunTransmittance + psiMS);
+        vec3 inScattering = (rayleighInScattering + mieInScattering);
 
         // Integrated scattering within path segment.
-        float3 scatteringIntegral = (inScattering - inScattering * sampleTransmittance) / extinction;
+        vec3 scatteringIntegral = (inScattering - inScattering * sampleTransmittance) / extinction;
 
         lum += scatteringIntegral * transmittance;
         
@@ -61,20 +58,18 @@ float3 raymarchScattering(float3 pos, float3 rayDir, float3 sunDir, float tMax, 
     return lum;
 }
 
-[numthreads(8, 8, 1)]
-void main(uint3 thread_id : SV_DispatchThreadID) {
-    
-    RWTexture2D<float4> sky_view_lut = ResourceDescriptorHeap[constants.sky_view_lut_idx];
-    float2 lut_dimensions;
-    sky_view_lut.GetDimensions(lut_dimensions.x, lut_dimensions.y);
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
-    if (thread_id.x > lut_dimensions.x || thread_id.y > lut_dimensions.y)
+void main() {
+    vec2 lut_dimensions = imageSize(sky_view_lut);
+
+    if (gl_GlobalInvocationID.x > lut_dimensions.x || gl_GlobalInvocationID.y > lut_dimensions.y)
     {
         return;
     }
     
-    float u = (float) thread_id.x / lut_dimensions.x;
-    float v = (float) thread_id.y / lut_dimensions.y;
+    float u = float(gl_GlobalInvocationID.x) / float(lut_dimensions.x);
+    float v = float(gl_GlobalInvocationID.y) / float(lut_dimensions.y);
     
     float azimuthAngle = (u - 0.5) * 2.0 * PI;
     // Non-linear mapping of altitude. See Section 5.3 of the paper.
@@ -91,28 +86,20 @@ void main(uint3 thread_id : SV_DispatchThreadID) {
     }
     
     float height = length(viewPos);
-    float3 up = viewPos / height;
+    vec3 up = viewPos / height;
     float horizonAngle = safeacos(sqrt(height * height - groundRadiusMM * groundRadiusMM) / height) - 0.5 * PI;
     float altitudeAngle = adjV * 0.5 * PI - horizonAngle;
     
     float cosAltitude = cos(altitudeAngle);
-    float3 rayDir = float3(cosAltitude * sin(azimuthAngle), sin(altitudeAngle), -cosAltitude * cos(azimuthAngle));
+    vec3 rayDir = vec3(cosAltitude * sin(azimuthAngle), sin(altitudeAngle), -cosAltitude * cos(azimuthAngle));
     
-    const StructuredBuffer<FrameConstants> frame_data_buffer = ResourceDescriptorHeap[constants.frame_constants_buffer_idx];
-    const FrameConstants per_frame_data = frame_data_buffer[0];
-    const StructuredBuffer<Light> light_buffer = ResourceDescriptorHeap[per_frame_data.light_buffer_index];
-    const Light sun = light_buffer[per_frame_data.sun_index];
+    float sunAltitude = (0.5 * PI) - acos(dot(-constants.light_dir, up));
+    vec3 sunDir = vec3(0.0, sin(sunAltitude), -cos(sunAltitude));
 
-    float sunAltitude = (0.5 * PI) - acos(dot(-sun.direction_or_location.xyz, up));
-    float3 sunDir = float3(0.0, sin(sunAltitude), -cos(sunAltitude));
-
-    const Texture2D<float4> transmittance_lut = ResourceDescriptorHeap[constants.transmittance_lut_idx];
-    const Texture2D<float4> multiscattering_lut = ResourceDescriptorHeap[constants.multiscattering_lut_idx];
     float atmoDist = rayIntersectSphere(viewPos, rayDir, atmosphereRadiusMM);
     float groundDist = rayIntersectSphere(viewPos, rayDir, groundRadiusMM);
     float tMax = (groundDist < 0.0) ? atmoDist : groundDist;
-    float3 lum = raymarchScattering(viewPos, rayDir, sunDir, tMax, float(numScatteringSteps), transmittance_lut, multiscattering_lut);
+    vec3 lum = raymarchScattering(viewPos, rayDir, sunDir, tMax, float(numScatteringSteps));
 
-    sky_view_lut[thread_id.xy] = float4(lum, 1.f);
+    imageStore(sky_view_lut, ivec2(gl_GlobalInvocationID), vec4(lum, 1.f));
 }
-

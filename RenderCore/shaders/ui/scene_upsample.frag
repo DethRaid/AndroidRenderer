@@ -62,10 +62,10 @@ void main() {
 
     scene_color.rgb = pow(scene_color.rgb, vec3(1.f / 2.2f));
 
-    // Simple reinhard
+    // Simple reinhard - it desaturates the scene and looks terrible, though
     mediump float luma = to_luminance(scene_color.rgb);
     mediump float factor = luma / (luma + 1.f);
     mediump vec3 mapped_color = scene_color.rgb * factor;
 
-    color_out = vec4(mapped_color.rgb, 1.f);
+    color_out = vec4(scene_color.rgb, 1.f);
 }

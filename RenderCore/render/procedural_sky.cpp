@@ -36,7 +36,7 @@ ProceduralSky::ProceduralSky() {
 
     auto& pipelines = backend.get_pipeline_cache();
 
-    transmittance_lut_pso = pipelines.create_pipeline("shaders/sky/transmittance.comp.spv");
+    transmittance_lut_pso = pipelines.create_pipeline("shaders/sky/transmittance_lut.comp.spv");
 
     multiscattering_lut_pso = pipelines.create_pipeline("shaders/sky/multiscattering_lut.comp.spv");
 
@@ -47,14 +47,20 @@ ProceduralSky::ProceduralSky() {
                                  .set_fragment_shader("shaders/sky/hillaire.frag.spv")
                                  .set_depth_state({.enable_depth_write = false})
                                  .build();
+
+    linear_sampler = allocator.get_sampler(
+        {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+        });
 }
 
-void ProceduralSky::update_sky_luts(
-    RenderGraph& graph,
-    BufferHandle view_buffer
-) const {
+void ProceduralSky::update_sky_luts(RenderGraph& graph, const glm::vec3& light_vector) const {
     auto& backend = RenderBackend::get();
     auto& descriptors = backend.get_transient_descriptor_allocator();
+
+    graph.begin_label("Update sky LUTs");
 
     {
         const auto set = descriptors.build_set(transmittance_lut_pso, 0)
@@ -72,7 +78,7 @@ void ProceduralSky::update_sky_luts(
 
     {
         const auto set = descriptors.build_set(multiscattering_lut_pso, 0)
-                                    .bind(0, transmittance_lut)
+                                    .bind(0, transmittance_lut, linear_sampler)
                                     .bind(1, multiscattering_lut)
                                     .build();
 
@@ -87,41 +93,73 @@ void ProceduralSky::update_sky_luts(
 
     {
         const auto set = descriptors.build_set(sky_view_lut_pso, 0)
-                                    .bind(0, transmittance_lut)
-                                    .bind(1, multiscattering_lut)
+                                    .bind(0, transmittance_lut, linear_sampler)
+                                    .bind(1, multiscattering_lut, linear_sampler)
                                     .bind(2, sky_view_lut)
                                     .build();
 
         graph.add_compute_dispatch(
-            ComputeDispatch<uint32_t>{
+            ComputeDispatch<glm::vec3>{
                 .name = "Compute sky view LUT",
                 .descriptor_sets = {set},
+                .push_constants = light_vector,
                 .num_workgroups = glm::uvec3{(200 / 8) + 1, (200 / 8) + 1, 1},
                 .compute_shader = sky_view_lut_pso
             });
     }
+
+    graph.add_transition_pass(
+        {
+            .textures = {
+                {
+                    transmittance_lut,
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                },
+                {
+                    multiscattering_lut,
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                },
+                {
+                    sky_view_lut,
+                    {
+                        .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    }
+                },
+            }
+        });
+
+    graph.end_label();
 }
 
-void ProceduralSky::render_sky(CommandBuffer& commands, const BufferHandle view_buffer) const {
+void ProceduralSky::render_sky(CommandBuffer& commands, const BufferHandle view_buffer, const glm::vec3& light_vector,
+                               const DescriptorSet& gbuffer_descriptor_set) const {
     auto& backend = RenderBackend::get();
 
     const auto set = backend.get_transient_descriptor_allocator().build_set(sky_application_pso, 0)
-                            .bind(0, transmittance_lut)
-                            .bind(1, sky_view_lut)
+                            .bind(0, transmittance_lut, linear_sampler)
+                            .bind(1, sky_view_lut, linear_sampler)
                             .bind(2, view_buffer)
                             .build();
 
     commands.bind_pipeline(sky_application_pso);
 
     commands.bind_descriptor_set(0, set);
+    commands.bind_descriptor_set(1, gbuffer_descriptor_set);
+    commands.set_push_constant(0, light_vector.x);
+    commands.set_push_constant(1, light_vector.y);
+    commands.set_push_constant(2, light_vector.z);
+    
+    commands.draw(3);
 
-TODO:
-    Bind the LUTs and relevanet buffers, and also make a way to get barrier information out of
-    this
-    class
-        commands
-    .
-    draw(3);
+    commands.clear_descriptor_set(0);
+    commands.clear_descriptor_set(1);
 }
 
 TextureHandle ProceduralSky::get_sky_view_lut() const {

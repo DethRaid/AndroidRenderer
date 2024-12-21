@@ -301,6 +301,8 @@ void RenderBackend::create_instance_and_device() {
     supports_nv_diagnostics_config = physical_device.enable_extension_if_present(
         VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME);
 
+    supports_shading_rate_image = physical_device.enable_extension_if_present(VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME);
+
     query_physical_device_features();
 
     auto device_builder = vkb::DeviceBuilder{physical_device};
@@ -366,6 +368,13 @@ void RenderBackend::query_physical_device_features() {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV,
         };
         physical_device_features.add_extension(&device_generated_commands_features);
+    }
+
+    if(supports_shading_rate_image) {
+        shading_rate_image_features = VkPhysicalDeviceShadingRateImageFeaturesNV{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADING_RATE_IMAGE_FEATURES_NV,
+        };
+        physical_device_features.add_extension(&shading_rate_image_features);
     }
 
     vkGetPhysicalDeviceFeatures2(physical_device, *physical_device_features);

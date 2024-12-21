@@ -42,7 +42,13 @@ layout(set = 0, binding = 2) uniform ViewUniformBuffer {
     ViewDataGPU view_info;
 };
 
-struct Constants {
+layout(set = 1, binding = 0) uniform sampler2D gbuffer_base_color;
+layout(set = 1, binding = 1) uniform sampler2D gbuffer_normal;
+layout(set = 1, binding = 2) uniform sampler2D gbuffer_data;
+layout(set = 1, binding = 3) uniform sampler2D gbuffer_emission;
+layout(set = 1, binding = 4) uniform sampler2D gbuffer_depth;
+
+layout(push_constant) uniform Constants {
     vec3 sun_direction;
 } constants;
 
@@ -100,15 +106,19 @@ float sunWithBloom(vec3 rayDir, vec3 sunDir)
     return gaussianBloom + invBloom;
 }
 
-void main()
-{
+void main() {
+    const float depth = texelFetch(gbuffer_depth, ivec2(gl_FragCoord.xy), 0).r;
+    if(depth != 1.f) {
+        discard;
+    }
+
     // Screen position for the ray
     vec2 location_screen = gl_FragCoord.xy / view_info.render_resolution.xy;
  
     vec4 location_clipspace = vec4(location_screen, 1.f, 1.f);
     vec4 location_viewspace = view_info.inverse_projection * location_clipspace;
     location_viewspace /= location_viewspace.w;
-    const vec3 view_vector_worldspace = normalize((view_info.inverse_view * vec4(location_viewspace.xyz, 0)).xyz);
+    const vec3 view_vector_worldspace = -normalize((view_info.inverse_view * vec4(location_viewspace.xyz, 0)).xyz);
 
     vec3 sunDir = -constants.sun_direction;
         
@@ -135,7 +145,7 @@ void main()
     lum *= 20.f;
     
     // Number chosen based on what happened to look fine
-    const medfloat exposure_factor = 0.0001f;
+    const medfloat exposure_factor = 1.f;
 
     lum *= exposure_factor;
 
