@@ -90,30 +90,21 @@ void main() {
 
     mediump vec4 normal_coefficients = dir_to_sh(lpv_normal);
 
-    mediump float weights_total = 0;
-    mediump float cascade_weights[4] = float[](0, 0, 0, 0);
+    uint selected_cascade = 0;
     for(uint i = 0; i < num_cascades; i++) {
         mediump vec4 cascade_position = cascade_matrices[i].world_to_cascade * worldspace_position;
         if(all(greaterThan(cascade_position.xyz, vec3(0))) && all(lessThan(cascade_position.xyz, vec3(1)))) {
-            cascade_weights[i] = pow(2.0, float(num_cascades - i));
-            weights_total += cascade_weights[i];
+            selected_cascade = i;
+            break;
         }
     }
      
-    mediump vec3 indirect_light = vec3(0);
-    for(uint i = 0; i < num_cascades; i++) {
-        mediump vec4 offset = vec4(0);
-        offset.xyz = surface.normal + float(i) * 0.01f;
-        indirect_light += sample_light_from_cascade(normal_coefficients, worldspace_position + offset, i) * cascade_weights[i];
-    }
-
-    if(weights_total > 0) {
-        indirect_light /= weights_total;
-    }
+    mediump vec4 offset = vec4(surface.normal + float(selected_cascade) * 0.01f, 0);
+    const mediump vec3 indirect_light = sample_light_from_cascade(normal_coefficients, worldspace_position + offset, selected_cascade);
 
     vec3 reflection_vector = reflect(-worldspace_view_vector, surface.normal);
     mediump vec3 specular_light = vec3(0);
-    {
+    if(selected_cascade == 0) {
         vec4 cascade_position = cascade_matrices[0].world_to_cascade * worldspace_position;
     
         mediump vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
@@ -149,12 +140,12 @@ void main() {
 
     const mediump vec3 diffuse_factor = Fd(surface, surface.normal, surface.normal);
 
-    const mediump vec3 specular_factor = Fr(surface, surface.normal, reflection_vector);
+    const mediump vec3 specular_factor = Fr(surface, surface.normal, reflection_vector) * vec3(0.f);
 
     mediump vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
-    const mediump float exposure_factor = 2.0;
+    const mediump float exposure_factor = 0.5f;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 

@@ -35,7 +35,7 @@ static auto cvar_lpv_num_cascades = AutoCVar_Int{
 
 static auto cvar_lpv_num_propagation_steps = AutoCVar_Int{
     "r.LPV.NumPropagationSteps",
-    "Number of times to propagate lighting through the LPV", 8
+    "Number of times to propagate lighting through the LPV", 16
 };
 
 static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
