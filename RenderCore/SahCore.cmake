@@ -64,6 +64,8 @@ target_include_directories(SahCore PUBLIC
 target_link_libraries(SahCore PUBLIC
         absl::flat_hash_map
         fastgltf::fastgltf
+        ffx_api
+        fidelityfx
         glm::glm-header-only
         GPUOpen::VulkanMemoryAllocator
         imgui
@@ -94,6 +96,20 @@ elseif(WIN32)
     target_compile_options(SahCore PUBLIC 
         "/MP"
     )
+    
+    add_custom_command(TARGET SahCore POST_BUILD     
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different  
+        "${fidelityfx_SOURCE_DIR}/PrebuiltSignedDLL/amd_fidelityfx_vk.dll"
+        $<TARGET_FILE_DIR:SahCore>)
+        
+    add_custom_command(TARGET SahCore POST_BUILD     
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different  
+        "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk/ffx_backend_vk_x64d.dll"
+        $<TARGET_FILE_DIR:SahCore>)
+    add_custom_command(TARGET SahCore POST_BUILD     
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different  
+        "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk/ffx_cacao_x64d.dll"
+        $<TARGET_FILE_DIR:SahCore>)
 endif()
 
 #######################

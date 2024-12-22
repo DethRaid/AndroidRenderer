@@ -393,9 +393,9 @@ void RenderBackend::query_physical_device_features() {
         logger->info("Ray tracing supported");
     }
 
-    supports_rt &= acceleration_structure_features.accelerationStructure;
+    supports_rt &= acceleration_structure_features.accelerationStructure == VK_TRUE;
 
-    supports_dgc &= device_generated_commands_features.deviceGeneratedCommands;
+    supports_dgc &= device_generated_commands_features.deviceGeneratedCommands == VK_TRUE;
 }
 
 void RenderBackend::create_swapchain() {

@@ -10,6 +10,7 @@
 #include "mesh_storage.hpp"
 #include "mip_chain_generator.hpp"
 #include "procedural_sky.hpp"
+#include "phase/ambient_occlusion_phase.hpp"
 #include "phase/depth_culling_phase.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
@@ -90,6 +91,8 @@ private:
 
     TextureHandle gbuffer_emission_handle = nullptr;
 
+    TextureHandle ao_handle = nullptr;
+
     // This should be something like an extracted texture?
     TextureHandle depth_buffer_mip_chain = nullptr;
     TextureUsageToken last_frame_depth_usage = {};
@@ -110,6 +113,8 @@ private:
     SceneDrawer depth_prepass_drawer;
 
     SceneDrawer gbuffer_drawer;
+
+    AmbientOcclusionPhase ao_phase;
     
     LightingPhase lighting_pass;
 

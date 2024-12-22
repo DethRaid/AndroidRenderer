@@ -347,6 +347,8 @@ void SceneRenderer::render() {
             }
         });
 
+    ao_phase.generate_ao(render_graph, player_view, gbuffer_normals_handle, gbuffer_depth_handle, ao_handle);
+
     lighting_pass.render(render_graph, player_view, lit_scene_handle, lpv.get(), sky);
 
     // VRS
@@ -460,6 +462,10 @@ void SceneRenderer::create_scene_render_targets() {
         allocator.destroy_texture(normal_target_mip_chain);
     }
 
+    if(ao_handle != nullptr) {
+        allocator.destroy_texture(ao_handle);
+    }
+
     if(lit_scene_handle != nullptr) {
         allocator.destroy_texture(lit_scene_handle);
     }
@@ -515,6 +521,14 @@ void SceneRenderer::create_scene_render_targets() {
         VK_FORMAT_R16G16B16A16_SFLOAT,
         mip_chain_resolution,
         num_mips,
+        TextureUsage::StorageImage
+    );
+
+    ao_handle = allocator.create_texture(
+        "AO",
+        VK_FORMAT_R32_SFLOAT,
+        scene_render_resolution,
+        1,
         TextureUsage::StorageImage
     );
 
