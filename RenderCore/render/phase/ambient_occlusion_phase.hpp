@@ -32,7 +32,7 @@ public:
 private:
     FfxInterface ffx_interface;
 
-    ffxContext ffx = nullptr;
+    // ffxContext ffx = nullptr;
     FfxDevice ffx_device;
     bool has_context = false;
     FfxCacaoContext context = {};

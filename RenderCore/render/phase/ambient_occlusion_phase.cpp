@@ -1,47 +1,159 @@
 #include "ambient_occlusion_phase.hpp"
 
-#include <ffx_api/vk/ffx_api_vk.hpp>
+#include <ffx_api/vk/ffx_api_vk.h>
 #include <FidelityFX/host/backends/vk/ffx_vk.h>
 
 #include "console/cvars.hpp"
 #include "render/scene_view.hpp"
 #include "render/backend/render_backend.hpp"
 
+static AutoCVar_Int cvar_cacao_enabled{
+    "r.CACAO.Enabled", "Whether to use CACAO or not", false
+};
+
 static AutoCVar_Enum<FfxCacaoQuality> cvar_cacao_quality{
     "r.CACAO.Quality", "Quality of CACAO", FFX_CACAO_QUALITY_HIGHEST
 };
 
+static std::string to_string(const ffxReturnCode_t code) {
+    switch(code) {
+    case FFX_API_RETURN_OK:
+        return "The operation was successful";
+
+    case FFX_API_RETURN_ERROR:
+        return "An error occurred that is not further specified.";
+
+    case FFX_API_RETURN_ERROR_UNKNOWN_DESCTYPE:
+        return
+            "The structure type given was not recognized for the function or context with which it was used. This is likely a programming error.";
+
+    case FFX_API_RETURN_ERROR_RUNTIME_ERROR:
+        return "The underlying runtime (e.g. D3D12, Vulkan) or effect returned an error code.";
+
+    case FFX_API_RETURN_NO_PROVIDER:
+        return "No provider was found for the given structure type. This is likely a programming error.";
+
+    case FFX_API_RETURN_ERROR_MEMORY:
+        return "A memory allocation failed";
+
+    case FFX_API_RETURN_ERROR_PARAMETER:
+        return "A parameter was invalid, e.g. a null pointer, empty resource or out-of-bounds enum value.";
+
+    case FFX_ERROR_INVALID_POINTER:
+        return "The operation failed due to an invalid pointer.";
+
+    case FFX_ERROR_INVALID_ALIGNMENT:
+        return "The operation failed due to an invalid alignment.";
+
+    case FFX_ERROR_INVALID_SIZE:
+        return "The operation failed due to an invalid size.";
+
+    case FFX_EOF:
+        return "The end of the file was encountered.";
+
+    case FFX_ERROR_INVALID_PATH:
+        return "The operation failed because the specified path was invalid.";
+
+    case FFX_ERROR_EOF:
+        return "The operation failed because end of file was reached.";
+
+    case FFX_ERROR_MALFORMED_DATA:
+        return "The operation failed because of some malformed data.";
+
+    case FFX_ERROR_OUT_OF_MEMORY:
+        return "The operation failed because it ran out of memory.";
+
+    case FFX_ERROR_INCOMPLETE_INTERFACE:
+        return "The operation failed because the interface was not fully configured.";
+
+    case FFX_ERROR_INVALID_ENUM:
+        return "The operation failed because of an invalid enumeration value.";
+
+    case FFX_ERROR_INVALID_ARGUMENT:
+        return "The operation failed because an argument was invalid.";
+
+    case FFX_ERROR_OUT_OF_RANGE:
+        return "The operation failed because a value was out of range.";
+
+    case FFX_ERROR_NULL_DEVICE:
+        return "The operation failed because a device was null.";
+
+    case FFX_ERROR_BACKEND_API_ERROR:
+        return "The operation failed because the backend API returned an error code.";
+
+    case FFX_ERROR_INSUFFICIENT_MEMORY:
+        return "The operation failed because there was not enough memory.";
+
+    case FFX_ERROR_INVALID_VERSION:
+        return "The operation failed because the wrong backend was linked.";
+
+    default:
+        return "Unknown error";
+    }
+}
+
 AmbientOcclusionPhase::AmbientOcclusionPhase() {
     const auto& backend = RenderBackend::get();
-    auto vk_desc = ffx::CreateBackendVKDesc{};
-    vk_desc.vkDevice = backend.get_device();
-    vk_desc.vkPhysicalDevice = backend.get_physical_device();
-    vk_desc.vkDeviceProcAddr = vkGetDeviceProcAddr;
+    // auto vk_desc = ffxCreateBackendVKDesc{
+    //     .header = {.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_BACKEND_VK},
+    //     .vkDevice = backend.get_device(),
+    //     .vkPhysicalDevice = backend.get_physical_device(),
+    //     .vkDeviceProcAddr = vkGetDeviceProcAddr,
+    // };
+    // 
+    // const auto result = ffxCreateContext(&ffx, &vk_desc.header, nullptr);
+    // if(result != FFX_API_RETURN_OK) {
+    //     const auto error_message = to_string(result);
+    //     throw std::runtime_error{
+    //         fmt::format("Could not create FFX context! {} (error code {})", error_message, result)
+    //     };
+    // }
 
-    ffx::CreateContext(ffx, nullptr, vk_desc);
+    auto device_context = VkDeviceContext{
+        .vkDevice = backend.get_device(),
+        .vkPhysicalDevice = backend.get_physical_device(),
+        .vkDeviceProcAddr = vkGetDeviceProcAddr
+    };
+    ffx_device = ffxGetDeviceVK(&device_context);
+    if(ffx_device == nullptr) {
+        throw std::runtime_error{"Could not get VK device!"};
+    }
 
-    ffx_device = ffxGetDeviceVK(reinterpret_cast<VkDeviceContext*>(&vk_desc));
+    ffx_interface.scratchBuffer = nullptr;
 
-    const auto scratch_memory_size = ffxGetScratchMemorySizeVK(backend.get_physical_device(), FFX_CACAO_CONTEXT_COUNT);
+    const auto scratch_memory_size = ffxGetScratchMemorySizeVK(backend.get_physical_device(), FFX_CACAO_CONTEXT_COUNT * 2);
     auto scratch_memory = std::vector<uint8_t>(scratch_memory_size);
-    ffxGetInterfaceVK(
+    auto result = ffxGetInterfaceVK(
         &ffx_interface,
         ffx_device,
         scratch_memory.data(),
         scratch_memory.size(),
-        FFX_CACAO_CONTEXT_COUNT);
+        FFX_CACAO_CONTEXT_COUNT * 2);
+
+    if(result != FFX_API_RETURN_OK) {
+        const auto error_string = to_string(result);
+        throw std::runtime_error{
+            fmt::format("Could not get the FFX VK interface: {} (Error code {})", error_string, result)
+        };
+    }
 }
 
 AmbientOcclusionPhase::~AmbientOcclusionPhase() {
-    ffxCacaoContextDestroy(&context);
+    if (has_context) {
+        ffxCacaoContextDestroy(&context);
+    }
 
-    ffx::DestroyContext(ffx);
+    // ffxDestroyContext(&ffx, nullptr);
 }
 
 void AmbientOcclusionPhase::generate_ao(
     RenderGraph& graph, const SceneTransform& view, TextureHandle gbuffer_normals, TextureHandle gbuffer_depth,
     TextureHandle ao_out
 ) {
+    if(cvar_cacao_enabled.Get() == 0) {
+        return;
+    }
+
     ZoneScoped;
 
     if(!has_context) {
@@ -52,7 +164,10 @@ void AmbientOcclusionPhase::generate_ao(
         description.useDownsampledSsao = false;
         const auto error_code = ffxCacaoContextCreate(&context, &description);
         if(error_code != FFX_OK) {
-            spdlog::error("Could not initialize FFX CACAO context");
+            spdlog::error(
+                "Could not initialize FFX CACAO context: {} (error code {})",
+                to_string(error_code),
+                error_code);
             return;
         }
 
