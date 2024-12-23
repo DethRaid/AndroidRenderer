@@ -396,6 +396,16 @@ void RenderBackend::query_physical_device_features() {
     supports_rt &= acceleration_structure_features.accelerationStructure == VK_TRUE;
 
     supports_dgc &= device_generated_commands_features.deviceGeneratedCommands == VK_TRUE;
+
+    if(supports_shading_rate_image) {
+        auto count = uint32_t{};
+        vkGetPhysicalDeviceFragmentShadingRatesKHR(physical_device, &count, nullptr);
+
+        auto shading_rates = std::vector< VkPhysicalDeviceFragmentShadingRateKHR>(count);
+        vkGetPhysicalDeviceFragmentShadingRatesKHR(physical_device, &count, shading_rates.data());
+
+        logger->debug("We support {} shading rates", count);
+    }
 }
 
 void RenderBackend::create_swapchain() {

@@ -12,6 +12,7 @@
 #include "procedural_sky.hpp"
 #include "phase/ambient_occlusion_phase.hpp"
 #include "phase/depth_culling_phase.hpp"
+#include "phase/sampling_rate_calculator.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
@@ -80,8 +81,6 @@ private:
     glm::uvec2 scene_render_resolution = glm::uvec2{};
 
     std::unique_ptr<LightPropagationVolume> lpv;
-            
-    TextureHandle shadowmap_handle = nullptr;
 
     TextureHandle gbuffer_color_handle = nullptr;
 
@@ -117,6 +116,8 @@ private:
     AmbientOcclusionPhase ao_phase;
     
     LightingPhase lighting_pass;
+
+    std::unique_ptr<VRSAA> vrsaa;
 
     UiPhase ui_phase;
 

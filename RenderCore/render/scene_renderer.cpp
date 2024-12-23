@@ -4,6 +4,7 @@
 #include "model_import/gltf_model.hpp"
 #include "render/scene_renderer.hpp"
 
+#include "antialiasing_type.hpp"
 #include "backend/blas_build_queue.hpp"
 #include "render/backend/render_graph.hpp"
 #include "core/system_interface.hpp"
@@ -27,6 +28,10 @@ static auto cvar_raytrace_mesh_lights = AutoCVar_Int{
 
 static auto cvar_use_lpv = AutoCVar_Int{
     "r.lpv.Enable", "Whether to enable the LPV", 1
+};
+
+static auto cvar_anti_aliasing = AutoCVar_Enum{
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::VRSAA
 };
 // ReSharper restore CppDeclaratorNeverUsed
 
@@ -57,6 +62,14 @@ SceneRenderer::SceneRenderer() : ui_phase{*this} {
 
     if(lpv) {
         lpv->init_resources(backend.get_global_allocator());
+    }
+
+    if(!backend.supports_shading_rate_image) {
+        cvar_anti_aliasing.Set(AntiAliasingType::None);
+    }
+
+    if(cvar_anti_aliasing.Get() == AntiAliasingType::VRSAA) {
+        vrsaa = std::make_unique<VRSAA>();
     }
 
     logger->info("Initialized SceneRenderer");
@@ -113,6 +126,12 @@ void SceneRenderer::render() {
     backend.advance_frame();
 
     logger->trace("Beginning frame");
+
+    if(cvar_anti_aliasing.Get() != AntiAliasingType::VRSAA) {
+        vrsaa = nullptr;
+    } else if(vrsaa == nullptr) {
+        vrsaa = std::make_unique<VRSAA>();
+    }
 
     ui_phase.add_data_upload_passes(backend.get_upload_queue());
 
@@ -251,10 +270,10 @@ void SceneRenderer::render() {
     }
 
     /*
-     * TODO: Use the contrast image from last frame and the depth buffer from last frame to initialize a shading rate
-     * image. We'll take more samples in areas of higher contrast and in areas of depth increasing
+     * Use the contrast image from last frame and the depth buffer from last frame to initialize a shading rate image.
+     * We'll take more samples in areas of higher contrast and in areas of depth increasing
      *
-     *How to handle disocclusions:
+     * How to handle disocclusions:
      * If the depth increases, something went in front of the current pixel and we should use the old pixel's contrast.
      * If the depth decreases, the pixel is recently disoccluded and we should use the maximum sample rate
      *
@@ -275,6 +294,10 @@ void SceneRenderer::render() {
      *
      * Writing the shading rate image allows any sample value below or equal to the max
      */
+
+    if(vrsaa) {
+        
+    }
 
     // Depth and stuff
 
@@ -353,9 +376,9 @@ void SceneRenderer::render() {
 
     // VRS
 
-    /*
-     * TODO: Run a contrast detector (sobel filter?) over the image, before any upscaling or denoising steps. Save to a texture
-     */
+    if (vrsaa) {
+        vrsaa->measure_aliasing(render_graph, lit_scene_handle);
+    }
 
     // Bloom
 
