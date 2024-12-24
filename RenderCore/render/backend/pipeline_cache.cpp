@@ -355,7 +355,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<Grap
 
 VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
     GraphicsPipelineHandle pipeline, std::span<const VkFormat> color_attachment_formats,
-    std::optional<VkFormat> depth_format, const uint32_t view_mask
+    std::optional<VkFormat> depth_format, const uint32_t view_mask, const bool use_fragment_shading_rate_attachment
 ) const {
 
     ZoneScoped;
@@ -450,6 +450,10 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
 
         .layout = pipeline->pipeline_layout
     };
+
+    if(use_fragment_shading_rate_attachment) {
+        create_info.flags |= VK_PIPELINE_CREATE_RENDERING_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR;
+    }
 
     const auto device = backend.get_device().device;
     vkCreateGraphicsPipelines(

@@ -25,7 +25,8 @@ public:
         GraphicsPipelineHandle pipeline,
         std::span<const VkFormat> color_attachment_formats,
         std::optional<VkFormat> depth_format = std::nullopt,
-        uint32_t view_mask = 0xFF
+        uint32_t view_mask = 0xFF,
+        bool use_fragment_shading_rate_attachment = false
     ) const;
 
     VkPipeline get_pipeline(

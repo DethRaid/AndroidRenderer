@@ -56,7 +56,7 @@ mediump float to_luminance(const mediump vec3 color) { return color.r * 0.2126 +
 void main() {
     mediump vec3 bloom = sample_bloom_chain(texcoord);
 
-    mediump vec4 scene_color = textureLod(scene_color_texture, texcoord, 0) * 3.1415927;
+    mediump vec4 scene_color = textureLod(scene_color_texture, texcoord, 0);
 
     // scene_color.rgb += bloom * 0.314159;
 

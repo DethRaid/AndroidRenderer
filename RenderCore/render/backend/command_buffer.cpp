@@ -4,6 +4,7 @@
 
 #include "pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
+#include "render/backend/gpu_texture.hpp"
 #include "utils.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
@@ -185,8 +186,6 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) {
 
     bound_color_attachment_formats.reserve(info.color_attachments.size());
 
-    const auto& allocator = backend->get_global_allocator();
-
     for(const auto& color_attachment : info.color_attachments) {
         attachment_infos.emplace_back(
             VkRenderingAttachmentInfo{
@@ -218,7 +217,7 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) {
         bound_depth_attachment_format = info.depth_attachment->image->create_info.format;
     }
 
-    const auto rendering_info = VkRenderingInfo{
+    auto rendering_info = VkRenderingInfo{
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
         .renderArea = {
             .offset = {.x = info.render_area_begin.x, .y = info.render_area_begin.y},
@@ -230,6 +229,22 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) {
         .pColorAttachments = attachment_infos.data(),
         .pDepthAttachment = depth_attachment_ptr,
     };
+
+    auto shading_rate_info = VkRenderingFragmentShadingRateAttachmentInfoKHR{
+        .sType = VK_STRUCTURE_TYPE_RENDERING_FRAGMENT_SHADING_RATE_ATTACHMENT_INFO_KHR,
+    };
+    if(info.shading_rate_image) {
+        shading_rate_info.imageView = info.shading_rate_image.value()->image_view;
+        shading_rate_info.imageLayout = VK_IMAGE_LAYOUT_FRAGMENT_SHADING_RATE_ATTACHMENT_OPTIMAL_KHR;
+
+        const auto texel_size = glm::uvec2{ RenderBackend::get().get_max_shading_rate_texel_size() };
+        shading_rate_info.shadingRateAttachmentTexelSize.width = texel_size.x;
+        shading_rate_info.shadingRateAttachmentTexelSize.height = texel_size.y;
+
+        rendering_info.pNext = &shading_rate_info;
+
+        using_fragment_shading_rate_attachment = true;
+    }
 
     bound_view_mask = info.view_mask;
 
@@ -254,6 +269,7 @@ void CommandBuffer::end_rendering() {
     bound_color_attachment_formats.clear();
     bound_depth_attachment_format = std::nullopt;
     bound_view_mask = 0;
+    using_fragment_shading_rate_attachment = false;
 }
 
 void CommandBuffer::set_scissor_rect(const glm::ivec2& upper_left, const glm::ivec2& lower_right) const {
@@ -382,7 +398,8 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
             pipeline,
             bound_color_attachment_formats,
             bound_depth_attachment_format,
-            bound_view_mask);
+            bound_view_mask,
+            using_fragment_shading_rate_attachment);
     } else {
         vk_pipeline = cache.get_pipeline(pipeline, current_render_pass, current_subpass);
     }

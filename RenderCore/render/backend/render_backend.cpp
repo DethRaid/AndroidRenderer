@@ -207,6 +207,7 @@ void RenderBackend::create_instance_and_device() {
 
     constexpr auto required_features = VkPhysicalDeviceFeatures{
         .geometryShader = VK_TRUE,
+        .sampleRateShading = VK_TRUE,
         .depthClamp = VK_TRUE,
         .samplerAnisotropy = VK_TRUE,
 #if defined(__ANDROID__)
@@ -284,12 +285,12 @@ void RenderBackend::create_instance_and_device() {
         }
     }
 
-    supports_rt = physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
-    physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-    physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
-    physical_device.enable_extension_if_present(VK_KHR_RAY_QUERY_EXTENSION_NAME);
-    physical_device.enable_extension_if_present(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
-    physical_device.enable_extension_if_present(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+    supports_rt  = physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    supports_rt &= physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+    supports_rt &= physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
+    supports_rt &= physical_device.enable_extension_if_present(VK_KHR_RAY_QUERY_EXTENSION_NAME);
+    supports_rt &= physical_device.enable_extension_if_present(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
+    supports_rt &= physical_device.enable_extension_if_present(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
 
     physical_device.enable_extension_if_present(VK_NV_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME);
     physical_device.enable_extension_if_present(VK_NV_DEVICE_GENERATED_COMMANDS_COMPUTE_EXTENSION_NAME);

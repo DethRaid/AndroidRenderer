@@ -218,6 +218,8 @@ struct DynamicRenderingPass {
 
     std::optional<RenderingAttachmentInfo> depth_attachment;
 
+    std::optional<TextureHandle> shading_rate_image;
+
     tl::optional<uint32_t> view_mask;
 
     std::function<void(CommandBuffer&)> execute;    

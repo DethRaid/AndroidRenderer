@@ -10,7 +10,7 @@
 VRSAA::VRSAA() {
     auto& pipelines = RenderBackend::get().get_pipeline_cache();
     generate_shading_rate_image_shader = pipelines.create_pipeline("shaders/vrsaa/generate_shading_rate_image.comp.spv");
-    contrast_shader = pipelines.create_pipeline("shaders/util/contrast_detection.comp.spv");
+    contrast_shader = pipelines.create_pipeline("shaders/vrsaa/contrast_detection.comp.spv");
 
     sampler = RenderBackend::get().get_global_allocator().get_sampler(
         {
@@ -69,16 +69,21 @@ void VRSAA::measure_aliasing(RenderGraph& graph, const TextureHandle lit_scene) 
         });
 }
 
+TextureHandle VRSAA::get_shading_rate_image() const {
+    return shading_rate_image;
+}
+
 void VRSAA::create_contrast_image(const glm::vec2& resolution) {
     auto& allocator = RenderBackend::get().get_global_allocator();
 
     if(contrast_image != nullptr) {
         allocator.destroy_texture(contrast_image);
+        contrast_image = nullptr;
     }
 
     contrast_image = allocator.create_texture(
         "Contrast",
-        VK_FORMAT_R16_SFLOAT,
+        VK_FORMAT_R16G16_SFLOAT,
         resolution,
         1,
         TextureUsage::StorageImage);
@@ -101,7 +106,7 @@ void VRSAA::create_shading_rate_image(const glm::vec2& resolution) {
     shading_rate_image = allocator.create_texture(
         "Shading rate",
         VK_FORMAT_R8_UINT,
-        shading_rate_image_size,
+        glm::ceil(shading_rate_image_size),
         1,
         TextureUsage::ShadingRateImage);
 }

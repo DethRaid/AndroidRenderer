@@ -5,7 +5,7 @@
 layout(set = 0, binding = 0, rg16f) uniform readonly image2D gradients_image;
 layout(set = 0, binding = 1, r8ui) uniform writeonly uimage2D shading_rate_image;
 
-layout(set = 0, binding = 2, scalar) uniform FrequencyInformation
+layout(set = 0, binding = 2, scalar) readonly uniform FrequencyInformation
 {
     uvec2 contrast_image_resolution;
     uvec2 shading_rate_image_resolution;
@@ -23,10 +23,20 @@ void main() {
         return;
     }
 
-    // Assume the contrast image and shading rate image are the same size
+    const uvec2 delta = max(uvec2(1, 1), uint(round(float(params.contrast_image_resolution) / float(params.shading_rate_image_resolution))));
 
-    const vec2 gradient = imageLoad(gradients_image, ivec2(pixel)).xy;
-    const vec2 adjusted_gradient = min(1.25 * sqrt(gradient), vec2(1, 1));
+	vec2 max_gradient = vec2(0, 0);
+	for (uint i = 0; i < delta.x; ++i)
+	{
+		for (uint j = 0; j < delta.y; ++j)
+		{
+			ivec2 coord = ivec2(delta.x * pixel.x + i, delta.y * pixel.y + j);
+			vec2 gradient = imageLoad(gradients_image, coord).xy;
+			max_gradient = max(max_gradient, gradient);
+		}
+	}
+	
+	const vec2 adjusted_gradient = min(1.25 * sqrt(max_gradient), vec2(1, 1));
 
     const float min_rate = 1;
     const float max_rate = max(params.max_rate.x, params.max_rate.y);

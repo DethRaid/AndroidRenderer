@@ -16,7 +16,7 @@ void main() {
     mediump vec4 emission_sample = texelFetch(gbuffer_emission, ivec2(gl_FragCoord.xy), 0);
 
     // Number chosen based on what happened to look fine
-    const mediump float exposure_factor = 1.f;
+    const mediump float exposure_factor = 3.1415927;
 
     lighting = vec4(emission_sample.rgb * exposure_factor, 1.f);
 }

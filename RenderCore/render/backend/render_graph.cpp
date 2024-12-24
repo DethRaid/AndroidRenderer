@@ -164,12 +164,24 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
             pass.depth_attachment->image,
             TextureUsageToken{
                 .stage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                .access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                .access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                 .layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
             });
 
         // Assumes that all render targets have the same depth
         num_layers = pass.depth_attachment->image->create_info.extent.depth;
+    }
+
+    if(pass.shading_rate_image) {
+        access_tracker.set_resource_usage(
+            *pass.shading_rate_image,
+            {
+                .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR,
+                .access = VK_ACCESS_2_FRAGMENT_SHADING_RATE_ATTACHMENT_READ_BIT_KHR,
+                .layout = VK_IMAGE_LAYOUT_FRAGMENT_SHADING_RATE_ATTACHMENT_OPTIMAL_KHR
+            }
+        );
     }
 
 
@@ -182,11 +194,13 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
         auto render_area_size = glm::uvec2{};
         if(pass.depth_attachment) {
             render_area_size = {
-                pass.depth_attachment->image->create_info.extent.width, pass.depth_attachment->image->create_info.extent.height
+                pass.depth_attachment->image->create_info.extent.width,
+                pass.depth_attachment->image->create_info.extent.height
             };
         } else if(!pass.color_attachments.empty()) {
             render_area_size = {
-                pass.color_attachments[0].image->create_info.extent.width, pass.color_attachments[0].image->create_info.extent.height
+                pass.color_attachments[0].image->create_info.extent.width,
+                pass.color_attachments[0].image->create_info.extent.height
             };
         }
 
@@ -196,7 +210,8 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
             .layer_count = num_layers,
             .view_mask = pass.view_mask.value_or(0),
             .color_attachments = pass.color_attachments,
-            .depth_attachment = pass.depth_attachment
+            .depth_attachment = pass.depth_attachment,
+            .shading_rate_image = pass.shading_rate_image,
         };
 
         cmds.begin_rendering(rendering_info);

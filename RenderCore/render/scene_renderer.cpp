@@ -68,10 +68,6 @@ SceneRenderer::SceneRenderer() : ui_phase{*this} {
         cvar_anti_aliasing.Set(AntiAliasingType::None);
     }
 
-    if(cvar_anti_aliasing.Get() == AntiAliasingType::VRSAA) {
-        vrsaa = std::make_unique<VRSAA>();
-    }
-
     logger->info("Initialized SceneRenderer");
 }
 
@@ -131,9 +127,6 @@ void SceneRenderer::render() {
         vrsaa = nullptr;
     } else if(vrsaa == nullptr) {
         vrsaa = std::make_unique<VRSAA>();
-    }
-
-    if(vrsaa) {
         vrsaa->init(scene_render_resolution);
     }
 
@@ -305,8 +298,10 @@ void SceneRenderer::render() {
      * Writing the shading rate image allows any sample value below or equal to the max
      */
 
+    std::optional<TextureHandle> vrsaa_shading_rate_image = std::nullopt;
     if (vrsaa) {
         vrsaa->generate_shading_rate_image(render_graph);
+        vrsaa_shading_rate_image = vrsaa->get_shading_rate_image();
     }
 
     // Gbuffers, lighting, and translucency
@@ -322,7 +317,7 @@ void SceneRenderer::render() {
         );
 
     render_graph.add_render_pass(
-        {
+        DynamicRenderingPass{
             .name = "Gbuffer",
             .buffers = {
                 {draw_commands, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
@@ -353,6 +348,7 @@ void SceneRenderer::render() {
                 },
             },
             .depth_attachment = RenderingAttachmentInfo{.image = gbuffer_depth_handle},
+            .shading_rate_image = vrsaa_shading_rate_image,
             .execute = [&](CommandBuffer& commands) {
                 auto global_set = *vkutil::DescriptorBuilder::begin(
                                        backend,

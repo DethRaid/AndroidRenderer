@@ -18,6 +18,8 @@ public:
 
     void measure_aliasing(RenderGraph& graph, TextureHandle lit_scene) const;
 
+    TextureHandle get_shading_rate_image() const;
+
 private:
     TextureHandle contrast_image = nullptr;
 

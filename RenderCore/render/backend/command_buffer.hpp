@@ -32,6 +32,8 @@ struct RenderingInfo {
     std::vector<RenderingAttachmentInfo> color_attachments;
 
     std::optional<RenderingAttachmentInfo> depth_attachment;
+
+    std::optional<TextureHandle> shading_rate_image;
 };
 
 /**
@@ -254,6 +256,8 @@ private:
     std::vector<VkFormat> bound_color_attachment_formats;
 
     std::optional<VkFormat> bound_depth_attachment_format;
+
+    bool using_fragment_shading_rate_attachment = false;
 
     uint32_t current_subpass = 0;
 
