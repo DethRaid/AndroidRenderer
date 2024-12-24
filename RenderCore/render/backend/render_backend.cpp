@@ -5,15 +5,16 @@
 
 #include "render_backend.hpp"
 
+#include <glm/common.hpp>
 #include <tracy/Tracy.hpp>
 #include <vulkan/vk_enum_string_helper.h>
 
-#include "blas_build_queue.hpp"
-#include "p_next_chain.hpp"
-#include "rhi_globals.hpp"
-#include "render/backend/pipeline_cache.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
+#include "render/backend/blas_build_queue.hpp"
+#include "render/backend/p_next_chain.hpp"
+#include "render/backend/rhi_globals.hpp"
+#include "render/backend/pipeline_cache.hpp"
 #include "render/backend/resource_upload_queue.hpp"
 #include "core/issue_breakpoint.hpp"
 
@@ -484,10 +485,14 @@ const std::vector<glm::uvec2>& RenderBackend::get_shading_rates() const {
 }
 
 glm::vec2 RenderBackend::get_max_shading_rate_texel_size() const {
-    return glm::vec2{
+    const auto properties_max = glm::vec2{
         shading_rate_properties.maxFragmentShadingRateAttachmentTexelSize.width,
         shading_rate_properties.maxFragmentShadingRateAttachmentTexelSize.height
     };
+
+    const auto supported_max = glm::vec2{ 4 };
+
+    return properties_max;
 }
 
 RenderGraph RenderBackend::create_render_graph() {

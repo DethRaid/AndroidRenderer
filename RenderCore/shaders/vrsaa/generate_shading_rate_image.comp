@@ -32,7 +32,7 @@ void main() {
 		{
 			ivec2 coord = ivec2(delta.x * pixel.x + i, delta.y * pixel.y + j);
 			vec2 gradient = imageLoad(gradients_image, coord).xy;
-			max_gradient = max(max_gradient, gradient);
+			max_gradient = max(max_gradient, abs(gradient * gradient * gradient));
 		}
 	}
 	
@@ -41,7 +41,7 @@ void main() {
     const float min_rate = 1;
     const float max_rate = max(params.max_rate.x, params.max_rate.y);
 
-    const vec2 optimal_rate = adjusted_gradient * vec2(min_rate, min_rate) + (1 - adjusted_gradient) * vec2(max_rate, max_rate);
+    const vec2 optimal_rate = adjusted_gradient * vec2(min_rate, min_rate) + (1 - adjusted_gradient) *  vec2(max_rate, max_rate);
 
 	uint optimal_rate_index = 0;
 	float current_cost = 1 + 2 * max_rate * max_rate;

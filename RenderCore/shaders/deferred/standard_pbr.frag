@@ -3,6 +3,7 @@
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
+#extension GL_EXT_fragment_shading_rate : enable
 
 #include "shared/primitive_data.hpp"
 #include "shared/basic_pbr_material.hpp"
@@ -52,7 +53,7 @@ void main() {
     ));
     mediump vec3 normal_sample = texture(textures[nonuniformEXT(material.normal_texture_index)], vertex_texcoord).xyz * 2.0 - 1.0;
     mediump vec3 normal = tbn * normal_sample;
-    gbuffer_normal = vec4(vertex_normal, 0.f);
+    gbuffer_normal = vec4(vertex_normal, float(gl_ShadingRateEXT));
 
     // Data
     mediump vec4 data_sample = texture(textures[nonuniformEXT(material.data_texture_index)], vertex_texcoord);

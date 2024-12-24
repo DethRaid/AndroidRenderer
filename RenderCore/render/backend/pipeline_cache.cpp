@@ -339,7 +339,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<Grap
     };
     const auto create_info = VkGraphicsPipelineCreateInfo{
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        
+
         .pNext = &group_info,
     };
     vkCreateGraphicsPipelines(
@@ -416,7 +416,7 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         .pDynamicStates = dynamic_states.data(),
     };
 
-    const auto rendering_info = VkPipelineRenderingCreateInfo{
+    auto rendering_info = VkPipelineRenderingCreateInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
         .viewMask = view_mask,
         .colorAttachmentCount = static_cast<uint32_t>(color_attachment_formats.size()),
@@ -451,8 +451,19 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         .layout = pipeline->pipeline_layout
     };
 
+    auto shading_rate_create_info = VkPipelineFragmentShadingRateStateCreateInfoKHR{};
     if(use_fragment_shading_rate_attachment) {
         create_info.flags |= VK_PIPELINE_CREATE_RENDERING_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR;
+
+        shading_rate_create_info = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_FRAGMENT_SHADING_RATE_STATE_CREATE_INFO_KHR,
+            .pNext = nullptr,
+            .fragmentSize = {1, 1},
+            .combinerOps = {
+                VK_FRAGMENT_SHADING_RATE_COMBINER_OP_KEEP_KHR, VK_FRAGMENT_SHADING_RATE_COMBINER_OP_REPLACE_KHR
+            }
+        };
+        rendering_info.pNext = &shading_rate_create_info;
     }
 
     const auto device = backend.get_device().device;

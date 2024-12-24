@@ -379,7 +379,7 @@ void SceneRenderer::render() {
     // VRS
 
     if (vrsaa) {
-        vrsaa->measure_aliasing(render_graph, lit_scene_handle);
+        vrsaa->measure_aliasing(render_graph, gbuffer_color_handle, gbuffer_depth_handle);
     }
 
     // Bloom

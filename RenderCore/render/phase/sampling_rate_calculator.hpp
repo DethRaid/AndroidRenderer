@@ -16,7 +16,7 @@ public:
 
     void generate_shading_rate_image(RenderGraph& graph) const;
 
-    void measure_aliasing(RenderGraph& graph, TextureHandle lit_scene) const;
+    void measure_aliasing(RenderGraph& graph, TextureHandle scene_color, TextureHandle gbuffer_depth) const;
 
     TextureHandle get_shading_rate_image() const;
 

@@ -9,7 +9,8 @@
 
 VRSAA::VRSAA() {
     auto& pipelines = RenderBackend::get().get_pipeline_cache();
-    generate_shading_rate_image_shader = pipelines.create_pipeline("shaders/vrsaa/generate_shading_rate_image.comp.spv");
+    generate_shading_rate_image_shader = pipelines.create_pipeline(
+        "shaders/vrsaa/generate_shading_rate_image.comp.spv");
     contrast_shader = pipelines.create_pipeline("shaders/vrsaa/contrast_detection.comp.spv");
 
     sampler = RenderBackend::get().get_global_allocator().get_sampler(
@@ -26,7 +27,7 @@ void VRSAA::init(const glm::uvec2& resolution) {
     create_params_buffer();
 }
 
-void VRSAA::generate_shading_rate_image(RenderGraph & graph) const {
+void VRSAA::generate_shading_rate_image(RenderGraph& graph) const {
     ZoneScoped;
 
     const auto resolution = glm::vec2{
@@ -49,15 +50,16 @@ void VRSAA::generate_shading_rate_image(RenderGraph & graph) const {
 
 }
 
-void VRSAA::measure_aliasing(RenderGraph& graph, const TextureHandle lit_scene) const {
+void VRSAA::measure_aliasing(RenderGraph& graph, const TextureHandle scene_color, const TextureHandle gbuffer_depth) const {
     ZoneScoped;
 
     const auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(contrast_shader, 0)
-                                         .bind(0, lit_scene, sampler)
-                                         .bind(1, contrast_image)
+                                         .bind(0, scene_color, sampler)
+                                         .bind(1, gbuffer_depth, sampler)
+                                         .bind(2, contrast_image)
                                          .build();
 
-    const auto resolution = glm::vec2{lit_scene->create_info.extent.width, lit_scene->create_info.extent.height};
+    const auto resolution = glm::vec2{scene_color->create_info.extent.width, scene_color->create_info.extent.height};
 
     graph.add_compute_dispatch(
         ComputeDispatch<glm::vec2>{
