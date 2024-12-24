@@ -31,7 +31,7 @@ static auto cvar_use_lpv = AutoCVar_Int{
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
-    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::None
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::VRSAA
 };
 // ReSharper restore CppDeclaratorNeverUsed
 
