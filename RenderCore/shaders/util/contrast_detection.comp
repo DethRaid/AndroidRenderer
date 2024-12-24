@@ -31,7 +31,8 @@ void main() {
         -1, -2, -1
     );
 
-    mediump float gradient = 0;
+    mediump float gradient_x = 0;
+    mediump float gradient_y = 0;
 
     for(int y = 0; y <= 2; y++) {
         for(int x = 0; x <= 2; x++) {
@@ -40,10 +41,10 @@ void main() {
             const mediump vec3 color = textureLod(lit_scene, texcoord, 0).xyz;
             const mediump float luma = to_luminance(color);
             
-            gradient += luma * sobel_x[x][y];
-            gradient += luma * sobel_y[x][y];
+            gradient_x += luma * sobel_x[x][y];
+            gradient_y += luma * sobel_y[x][y];
         }
     }
 
-    imageStore(contrast_output, pixel, vec4(abs(gradient), 0, 0, 0));
+    imageStore(contrast_output, pixel, vec4(gradient_x, gradient_y, 0, 0));
 }

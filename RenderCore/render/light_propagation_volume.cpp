@@ -1200,8 +1200,6 @@ void LightPropagationVolume::add_lighting_to_scene(
                                        .bind(4, scene_view_buffer)
                                        .build();
 
-    logger->debug("Binding LPV A {} (handle {})", lpv_a_red->name, static_cast<void*>(lpv_a_red));
-
     commands.bind_descriptor_set(1, lpv_descriptor);
 
     commands.bind_pipeline(lpv_render_shader);

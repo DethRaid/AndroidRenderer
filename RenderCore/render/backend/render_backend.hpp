@@ -40,6 +40,8 @@ public:
 
     bool supports_shading_rate_image = false;
 
+    std::vector<glm::uvec2> supported_shading_rates;
+
     explicit RenderBackend();
 
     RenderBackend(const RenderBackend& other) = delete;
@@ -55,6 +57,10 @@ public:
     bool supports_ray_tracing() const;
 
     bool supports_device_generated_commands() const;
+
+    const std::vector<glm::uvec2>& get_shading_rates() const;
+
+    glm::vec2 get_max_shading_rate_texel_size() const;
 
     RenderGraph create_render_graph();
 
@@ -97,7 +103,7 @@ public:
      * Flushes all batched command buffers to their respective queues
      */
     void flush_batched_command_buffers();
-    
+
     void collect_tracy_data(const CommandBuffer& commands) const;
 
     TracyVkCtx get_tracy_context() const;
@@ -141,7 +147,7 @@ public:
      * @return A command buffer that can transfer data
      */
     VkCommandBuffer create_transfer_command_buffer(const std::string& name);
-    
+
     /**
      * Submits a command buffer to the backend
      *
@@ -163,7 +169,7 @@ public:
     vkb::Swapchain& get_swapchain();
 
     uint32_t get_current_swapchain_index() const;
-    
+
     vkutil::DescriptorLayoutCache& get_descriptor_cache();
 
     TextureHandle get_white_texture_handle() const;
@@ -172,7 +178,7 @@ public:
 
     VkSampler get_default_sampler() const;
 
-    template<typename VulkanType>
+    template <typename VulkanType>
     void set_object_name(VulkanType object, const std::string& name) const;
 
 private:
@@ -262,12 +268,20 @@ private:
     VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
     VkPhysicalDeviceRayQueryFeaturesKHR ray_query_features = {};
     VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV device_generated_commands_features = {};
-    VkPhysicalDeviceShadingRateImageFeaturesNV shading_rate_image_features = {};
+    VkPhysicalDeviceFragmentShadingRateFeaturesKHR shading_rate_image_features = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR,
+            .attachmentFragmentShadingRate = VK_TRUE, };
     VkPhysicalDeviceFeatures2 device_features = {};
+
+    VkPhysicalDeviceFragmentShadingRatePropertiesKHR shading_rate_properties = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_PROPERTIES_KHR
+    };
 
     void create_instance_and_device();
 
     void query_physical_device_features();
+
+    void query_physical_device_properties();
 
     void create_swapchain();
 
@@ -280,13 +294,13 @@ private:
      *
      * @return A semaphore that's only valid until the start of the next frame with the current frame's index
      */
-    VkSemaphore create_transient_semaphore(const std::string& name );
+    VkSemaphore create_transient_semaphore(const std::string& name);
 
     void destroy_semaphore(VkSemaphore semaphore);
 
     std::array<std::vector<VkSemaphore>, num_in_flight_frames> zombie_semaphores;
     std::vector<VkSemaphore> available_semaphores;
-    
+
     void create_default_resources();
 
     void set_object_name(uint64_t object_handle, VkObjectType object_type, const std::string& name) const;
@@ -296,28 +310,28 @@ private:
 template <typename VulkanType>
 void RenderBackend::set_object_name(VulkanType object, const std::string& name) const {
     auto object_type = VK_OBJECT_TYPE_UNKNOWN;
-    if constexpr (std::is_same_v<VulkanType, VkImage>) {
+    if constexpr(std::is_same_v<VulkanType, VkImage>) {
         object_type = VK_OBJECT_TYPE_IMAGE;
-    } else if constexpr (std::is_same_v<VulkanType, VkImageView>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkImageView>) {
         object_type = VK_OBJECT_TYPE_IMAGE_VIEW;
-    } else if constexpr (std::is_same_v<VulkanType, VkBuffer>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkBuffer>) {
         object_type = VK_OBJECT_TYPE_BUFFER;
-    } else if constexpr (std::is_same_v<VulkanType, VkRenderPass>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkRenderPass>) {
         object_type = VK_OBJECT_TYPE_RENDER_PASS;
-    } else if constexpr (std::is_same_v<VulkanType, VkPipeline>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkPipeline>) {
         object_type = VK_OBJECT_TYPE_PIPELINE;
-    } else if constexpr (std::is_same_v<VulkanType, VkPipelineLayout>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkPipelineLayout>) {
         object_type = VK_OBJECT_TYPE_PIPELINE_LAYOUT;
-    } else if constexpr (std::is_same_v<VulkanType, VkShaderModule>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkShaderModule>) {
         object_type = VK_OBJECT_TYPE_SHADER_MODULE;
-    } else if constexpr (std::is_same_v<VulkanType, VkQueue>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkQueue>) {
         object_type = VK_OBJECT_TYPE_QUEUE;
-    } else if constexpr (std::is_same_v<VulkanType, VkCommandPool>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkCommandPool>) {
         object_type = VK_OBJECT_TYPE_COMMAND_POOL;
-    } else if constexpr (std::is_same_v<VulkanType, VkCommandBuffer>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkCommandBuffer>) {
         object_type = VK_OBJECT_TYPE_COMMAND_BUFFER;
     } else {
-        throw std::runtime_error{ "Invalid object type" };
+        throw std::runtime_error{"Invalid object type"};
     }
 
     set_object_name(reinterpret_cast<uint64_t>(object), object_type, name);

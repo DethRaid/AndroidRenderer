@@ -133,6 +133,10 @@ void SceneRenderer::render() {
         vrsaa = std::make_unique<VRSAA>();
     }
 
+    if(vrsaa) {
+        vrsaa->init(scene_render_resolution);
+    }
+
     ui_phase.add_data_upload_passes(backend.get_upload_queue());
 
     const auto gbuffer_depth_handle = depth_culling_phase.get_depth_buffer();
@@ -269,6 +273,12 @@ void SceneRenderer::render() {
         lpv->propagate_lighting(render_graph);
     }
 
+    // Depth and stuff
+
+    depth_culling_phase.render(render_graph, depth_prepass_drawer, material_storage, player_view.get_buffer());
+
+    // Generate shading rate image
+
     /*
      * Use the contrast image from last frame and the depth buffer from last frame to initialize a shading rate image.
      * We'll take more samples in areas of higher contrast and in areas of depth increasing
@@ -295,13 +305,9 @@ void SceneRenderer::render() {
      * Writing the shading rate image allows any sample value below or equal to the max
      */
 
-    if(vrsaa) {
-        
+    if (vrsaa) {
+        vrsaa->generate_shading_rate_image(render_graph);
     }
-
-    // Depth and stuff
-
-    depth_culling_phase.render(render_graph, depth_prepass_drawer, material_storage, player_view.get_buffer());
 
     // Gbuffers, lighting, and translucency
 

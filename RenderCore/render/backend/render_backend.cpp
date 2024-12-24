@@ -301,9 +301,12 @@ void RenderBackend::create_instance_and_device() {
     supports_nv_diagnostics_config = physical_device.enable_extension_if_present(
         VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME);
 
-    supports_shading_rate_image = physical_device.enable_extension_if_present(VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME);
+    supports_shading_rate_image = physical_device.enable_extension_if_present(
+        VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME);
 
     query_physical_device_features();
+
+    query_physical_device_properties();
 
     auto device_builder = vkb::DeviceBuilder{physical_device};
 
@@ -315,6 +318,10 @@ void RenderBackend::create_instance_and_device() {
 
     if(supports_device_generated_commands()) {
         device_builder.add_pNext(&device_generated_commands_features);
+    }
+
+    if(supports_shading_rate_image) {
+        device_builder.add_pNext(&shading_rate_image_features);
     }
 
     // Set up device creation info for Aftermath feature flag configuration.
@@ -346,7 +353,7 @@ void RenderBackend::query_physical_device_features() {
     auto physical_device_features = ExtensibleStruct<VkPhysicalDeviceFeatures2>{};
     physical_device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 
-    if (supports_ray_tracing()) {
+    if(supports_ray_tracing()) {
         ray_pipeline_features = VkPhysicalDeviceRayTracingPipelineFeaturesKHR{
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR
         };
@@ -363,7 +370,7 @@ void RenderBackend::query_physical_device_features() {
         physical_device_features.add_extension(&ray_query_features);
     }
 
-    if (supports_device_generated_commands()) {
+    if(supports_device_generated_commands()) {
         device_generated_commands_features = VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV{
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV,
         };
@@ -371,8 +378,8 @@ void RenderBackend::query_physical_device_features() {
     }
 
     if(supports_shading_rate_image) {
-        shading_rate_image_features = VkPhysicalDeviceShadingRateImageFeaturesNV{
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADING_RATE_IMAGE_FEATURES_NV,
+        shading_rate_image_features = VkPhysicalDeviceFragmentShadingRateFeaturesKHR{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR,
         };
         physical_device_features.add_extension(&shading_rate_image_features);
     }
@@ -381,7 +388,7 @@ void RenderBackend::query_physical_device_features() {
 
     device_features = **physical_device_features;
 
-    if (SystemInterface::get().is_renderdoc_loaded()) {
+    if(SystemInterface::get().is_renderdoc_loaded()) {
         logger->info("RenderDoc is loaded! Turning ray tracing features off");
         acceleration_structure_features.accelerationStructure = VK_FALSE;
         acceleration_structure_features.accelerationStructureCaptureReplay = VK_FALSE;
@@ -389,7 +396,7 @@ void RenderBackend::query_physical_device_features() {
         acceleration_structure_features.accelerationStructureHostCommands = VK_FALSE;
     }
 
-    if (acceleration_structure_features.accelerationStructure) {
+    if(acceleration_structure_features.accelerationStructure) {
         logger->info("Ray tracing supported");
     }
 
@@ -397,15 +404,43 @@ void RenderBackend::query_physical_device_features() {
 
     supports_dgc &= device_generated_commands_features.deviceGeneratedCommands == VK_TRUE;
 
+    supports_shading_rate_image &= shading_rate_image_features.attachmentFragmentShadingRate == VK_TRUE;
+
     if(supports_shading_rate_image) {
         auto count = uint32_t{};
         vkGetPhysicalDeviceFragmentShadingRatesKHR(physical_device, &count, nullptr);
 
-        auto shading_rates = std::vector< VkPhysicalDeviceFragmentShadingRateKHR>(count);
+        auto shading_rates = std::vector<VkPhysicalDeviceFragmentShadingRateKHR>(
+            count,
+            VkPhysicalDeviceFragmentShadingRateKHR{
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_KHR
+            });
         vkGetPhysicalDeviceFragmentShadingRatesKHR(physical_device, &count, shading_rates.data());
+
+        supported_shading_rates = std::vector<glm::uvec2>{};
+        supported_shading_rates.reserve(count);
+        for(const auto& rate : shading_rates) {
+            supported_shading_rates.emplace_back(rate.fragmentSize.width, rate.fragmentSize.height);
+        }
 
         logger->debug("We support {} shading rates", count);
     }
+}
+
+void RenderBackend::query_physical_device_properties() {
+    auto physical_device_properties = ExtensibleStruct<VkPhysicalDeviceProperties2>{};
+    physical_device_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+
+    if (supports_shading_rate_image) {
+        physical_device_properties.add_extension(&shading_rate_properties);
+    }
+
+    vkGetPhysicalDeviceProperties2(physical_device, *physical_device_properties);
+
+    logger->debug(
+        "Max supported texel size: {}x{}",
+        shading_rate_properties.maxFragmentShadingRateAttachmentTexelSize.width,
+        shading_rate_properties.maxFragmentShadingRateAttachmentTexelSize.height);
 }
 
 void RenderBackend::create_swapchain() {
@@ -441,6 +476,17 @@ bool RenderBackend::supports_ray_tracing() const {
 
 bool RenderBackend::supports_device_generated_commands() const {
     return supports_dgc;
+}
+
+const std::vector<glm::uvec2>& RenderBackend::get_shading_rates() const {
+    return supported_shading_rates;
+}
+
+glm::vec2 RenderBackend::get_max_shading_rate_texel_size() const {
+    return glm::vec2{
+        shading_rate_properties.maxFragmentShadingRateAttachmentTexelSize.width,
+        shading_rate_properties.maxFragmentShadingRateAttachmentTexelSize.height
+    };
 }
 
 RenderGraph RenderBackend::create_render_graph() {

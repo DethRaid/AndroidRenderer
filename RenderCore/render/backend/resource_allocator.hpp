@@ -38,7 +38,22 @@ enum class TextureUsage {
      * The texture will be used as a storage image. It may be sampled
      */
     StorageImage,
+
+    /**
+     * The texture will be used as a shading rate image 
+     */
+    ShadingRateImage,
 };
+
+inline const char* to_string(const TextureUsage e) {
+    switch(e) {
+    case TextureUsage::RenderTarget: return "RenderTarget";
+    case TextureUsage::StaticImage: return "StaticImage";
+    case TextureUsage::StorageImage: return "StorageImage";
+    case TextureUsage::ShadingRateImage: return "ShadingRateImage";
+    default: return "unknown";
+    }
+}
 
 /**
  * How a buffer might be used
@@ -79,6 +94,19 @@ enum class BufferUsage {
      */
     AccelerationStructure,
 };
+
+inline const char* to_string(const BufferUsage e) {
+    switch(e) {
+    case BufferUsage::StagingBuffer: return "StagingBuffer";
+    case BufferUsage::VertexBuffer: return "VertexBuffer";
+    case BufferUsage::IndexBuffer: return "IndexBuffer";
+    case BufferUsage::IndirectBuffer: return "IndirectBuffer";
+    case BufferUsage::UniformBuffer: return "UniformBuffer";
+    case BufferUsage::StorageBuffer: return "StorageBuffer";
+    case BufferUsage::AccelerationStructure: return "AccelerationStructure";
+    default: return "unknown";
+    }
+}
 
 /**
  * Allocates all kinds of resources

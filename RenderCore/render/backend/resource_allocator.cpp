@@ -74,6 +74,10 @@ TextureHandle ResourceAllocator::create_texture(
     case TextureUsage::StorageImage:
         vk_usage |= VK_IMAGE_USAGE_STORAGE_BIT;
         break;
+
+    case TextureUsage::ShadingRateImage:
+        vk_usage = VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR | VK_IMAGE_USAGE_STORAGE_BIT;
+        break;
     }
 
     const auto image_create_info = VkImageCreateInfo{
