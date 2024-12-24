@@ -43,16 +43,16 @@ SceneRenderer::SceneRenderer() : ui_phase{*this} {
     player_view.rotate(0, glm::radians(90.f));
     player_view.set_position(glm::vec3{-7.f, 1.f, 0.0f});
 
-    const auto render_resolution = SystemInterface::get().get_resolution();
+    const auto screen_resolution = SystemInterface::get().get_resolution();
 
     player_view.set_perspective_projection(
         75.f,
-        static_cast<float>(render_resolution.y) /
-        static_cast<float>(render_resolution.x),
+        static_cast<float>(screen_resolution.y) /
+        static_cast<float>(screen_resolution.x),
         0.05f
     );
 
-    set_render_resolution(render_resolution);
+    set_render_resolution(screen_resolution);
 
     auto& backend = RenderBackend::get();
 
@@ -71,16 +71,21 @@ SceneRenderer::SceneRenderer() : ui_phase{*this} {
     logger->info("Initialized SceneRenderer");
 }
 
-void SceneRenderer::set_render_resolution(const glm::uvec2& resolution) {
+void SceneRenderer::set_render_resolution(const glm::uvec2& screen_resolution) {
     ZoneScoped;
 
-    if(resolution == scene_render_resolution) {
+    if(screen_resolution == scene_render_resolution) {
         return;
     }
 
-    logger->info("Setting resolution to {} by {}", resolution.x, resolution.y);
+    auto resolution_multiplier = 1u;
+    if(cvar_anti_aliasing.Get() == AntiAliasingType::VRSAA) {
+        resolution_multiplier = 2u;
+    }
 
-    scene_render_resolution = resolution;
+    scene_render_resolution = screen_resolution * resolution_multiplier;
+
+    logger->info("Setting resolution to {} by {}", scene_render_resolution.x, scene_render_resolution.y);
 
     player_view.set_render_resolution(scene_render_resolution);
 
@@ -374,7 +379,7 @@ void SceneRenderer::render() {
 
     ao_phase.generate_ao(render_graph, player_view, gbuffer_normals_handle, gbuffer_depth_handle, ao_handle);
 
-    lighting_pass.render(render_graph, player_view, lit_scene_handle, lpv.get(), sky);
+    lighting_pass.render(render_graph, player_view, lit_scene_handle, lpv.get(), sky, vrsaa_shading_rate_image);
 
     // VRS
 

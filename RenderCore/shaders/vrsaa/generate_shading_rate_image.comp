@@ -32,7 +32,7 @@ void main() {
 		{
 			ivec2 coord = ivec2(delta.x * pixel.x + i, delta.y * pixel.y + j);
 			vec2 gradient = imageLoad(gradients_image, coord).xy;
-			max_gradient = max(max_gradient, abs(gradient * gradient * gradient));
+			max_gradient = max(max_gradient, abs(gradient * gradient));
 		}
 	}
 	

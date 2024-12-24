@@ -36,7 +36,7 @@ public:
 
     void render(
         RenderGraph& render_graph, const SceneTransform& view, TextureHandle lit_scene_texture,
-        const LightPropagationVolume* lpv, const ProceduralSky& sky
+        const LightPropagationVolume* lpv, const ProceduralSky& sky, std::optional<TextureHandle> vrsaa_shading_rate_image
     ) const;
 
 private:

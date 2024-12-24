@@ -32,7 +32,7 @@ LightingPhase::LightingPhase() {
 
 void LightingPhase::render(
     RenderGraph& render_graph, const SceneTransform& view, const TextureHandle lit_scene_texture,
-    const LightPropagationVolume* lpv, const ProceduralSky& sky
+    const LightPropagationVolume* lpv, const ProceduralSky& sky, const std::optional<TextureHandle> vrsaa_shading_rate_image
 ) const {
     ZoneScoped;
 

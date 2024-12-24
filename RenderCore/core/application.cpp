@@ -102,8 +102,8 @@ void Application::load_scene(const std::filesystem::path& scene_path) {
 }
 
 void Application::update_resolution() const {
-    const auto& new_resolution = SystemInterface::get().get_resolution();
-    scene_renderer->set_render_resolution(new_resolution);
+    const auto& screen_resolution = SystemInterface::get().get_resolution();
+    scene_renderer->set_render_resolution(screen_resolution);
 }
 
 void Application::tick() {

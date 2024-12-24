@@ -33,9 +33,9 @@ public:
     /**
      * Sets the internal render resolution of the scene, recreating the internal render targets (and framebuffers)
      *
-     * @param resolution Resolution to render at
+     * @param screen_resolution Resolution to render at
      */
-    void set_render_resolution(const glm::uvec2& resolution);
+    void set_render_resolution(const glm::uvec2& screen_resolution);
 
     void set_scene(RenderScene& scene_in);
 
