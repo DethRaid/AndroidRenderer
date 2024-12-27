@@ -139,7 +139,7 @@ public:
         const std::string& name, VkFormat format, glm::uvec3 resolution, uint32_t num_mips, TextureUsage usage
     );
 
-    TextureHandle emplace_texture(const std::string& name, GpuTexture&& new_texture);
+    TextureHandle emplace_texture(GpuTexture&& new_texture);
 
     void destroy_texture(TextureHandle handle);
 

@@ -71,32 +71,18 @@ DirectionalLight::DirectionalLight() {
                           }
                       )
                       .build();
-
-    shadowmap_handle = allocator.create_texture(
-        "Dummy directional shadowmap",
-        VK_FORMAT_D16_UNORM,
-        glm::uvec2{
-            8,
-            8
-        },
-        1,
-        TextureUsage::RenderTarget,
-        static_cast<uint32_t>(cvar_num_shadow_cascades.Get())
-    );
-
 }
 
 void DirectionalLight::update_shadow_cascades(const SceneTransform& view) {
-    if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) != SunShadowMode::CSM) {
-        return;
-    }
-
-    auto& backend = RenderBackend::get();
+    const auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
-    if(has_dummy_shadowmap && shadowmap_handle != nullptr) {
-        allocator.destroy_texture(shadowmap_handle);
-        shadowmap_handle = nullptr;
+    if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) != SunShadowMode::CSM) {
+        if(shadowmap_handle != nullptr) {
+            allocator.destroy_texture(shadowmap_handle);
+            shadowmap_handle = nullptr;
+        }
+        return;
     }
 
     if(shadowmap_handle == nullptr) {

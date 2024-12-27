@@ -313,13 +313,11 @@ TextureHandle ResourceAllocator::create_volume_texture(
     return handle;
 }
 
-TextureHandle ResourceAllocator::emplace_texture(const std::string& name, GpuTexture&& new_texture) {
+TextureHandle ResourceAllocator::emplace_texture(GpuTexture&& new_texture) {
     if(new_texture.type == TextureAllocationType::Ktx) {
         // Name the image, create an image view, name the image view
 
         const auto device = backend.get_device().device;
-
-        const auto image_view_name = fmt::format("{} View", name);
 
         if(new_texture.image_view == VK_NULL_HANDLE) {
             VkImageAspectFlags view_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -342,17 +340,18 @@ TextureHandle ResourceAllocator::emplace_texture(const std::string& name, GpuTex
             };
             const auto result = vkCreateImageView(device, &view_create_info, nullptr, &new_texture.image_view);
             if(result != VK_SUCCESS) {
-                throw std::runtime_error{fmt::format("Could not create image view {}", image_view_name)};
+                throw std::runtime_error{fmt::format("Could not create image view for image {}", new_texture.name)};
             }
         }
-
-        backend.set_object_name(new_texture.image, name);
-        backend.set_object_name(new_texture.image_view, image_view_name);
     }
 
     if(new_texture.attachment_view == VK_NULL_HANDLE) {
         new_texture.attachment_view = new_texture.image_view;
     }
+
+    const auto image_view_name = fmt::format("{} View", new_texture.name);
+    backend.set_object_name(new_texture.image, new_texture.name);
+    backend.set_object_name(new_texture.image_view, image_view_name);
 
     auto handle = &(*textures.emplace(std::move(new_texture)));
     return handle;

@@ -263,6 +263,4 @@ BufferHandle RenderScene::generate_vpls_for_primitive(
         });
 
     return vpl_buffer_handle;
-
-
 }

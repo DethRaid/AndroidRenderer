@@ -184,7 +184,7 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_ktx(
     ktxTexture_Destroy(ktxTexture(ktx_texture));
 
     auto& allocator = backend.get_global_allocator();
-    const auto handle = allocator.emplace_texture(filepath.string(), std::move(texture));
+    const auto handle = allocator.emplace_texture(std::move(texture));
     loaded_textures.emplace(filepath.string(), handle);
 
     return handle;

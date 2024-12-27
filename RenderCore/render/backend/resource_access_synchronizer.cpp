@@ -32,7 +32,7 @@ static bool is_write_access(const VkAccessFlagBits2 access) {
 ResourceAccessTracker::ResourceAccessTracker(RenderBackend& backend_in) : backend{backend_in} {
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("ResourceAccessTracker");
-        logger->set_level(spdlog::level::debug);
+        logger->set_level(spdlog::level::trace);
     }
 }
 
@@ -48,10 +48,10 @@ void ResourceAccessTracker::set_resource_usage(
         initial_texture_usages.emplace(texture, TextureUsageToken{usage.stage, usage.access, usage.layout});
 
         if (!skip_barrier) {
-            // logger->trace(
-            //     "Transitioning image {} from {} to {}", texture_actual.name,
-            //     magic_enum::enum_name(VK_IMAGE_LAYOUT_UNDEFINED), magic_enum::enum_name(usage.layout)
-            // );
+            logger->trace(
+                "Transitioning image {} from {} to {} because it's the first usage of the image", texture->name,
+                string_VkImageLayout(VK_IMAGE_LAYOUT_UNDEFINED), string_VkImageLayout(usage.layout)
+            );
             image_barriers.emplace_back(
                 VkImageMemoryBarrier2{
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -81,13 +81,16 @@ void ResourceAccessTracker::set_resource_usage(
             const auto needs_transition_barrier = usage.layout != itr->second.layout;
             const auto needs_fussy_shader_barrier = usage.stage != itr->second.stage;
             if (needs_write_barrier || needs_transition_barrier || needs_fussy_shader_barrier) {
-                // logger->trace(
-                //     "Transitioning image {} from {} to {}\nsrcStage = {} srcAccess = {}\ndstStage = {} dstAccess = {}",
-                //     texture_actual.name,
-                //     magic_enum::enum_name(itr->second.layout), magic_enum::enum_name(usage.layout),
-                //     stage_to_string(itr->second.stage), access_to_string(itr->second.access),
-                //     stage_to_string(usage.stage), access_to_string(usage.access)
-                // );
+                if (itr->second.layout == VK_IMAGE_LAYOUT_UNDEFINED) {
+                    if(texture->name.empty()) {
+                        DebugBreak();
+                    }
+                    logger->trace(
+                        "Transitioning image {} from {} to {}",
+                        texture->name,
+                        magic_enum::enum_name(itr->second.layout), magic_enum::enum_name(usage.layout)
+                    );
+                }
                 image_barriers.emplace_back(
                     VkImageMemoryBarrier2{
                         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -124,12 +127,12 @@ void ResourceAccessTracker::set_resource_usage(
     if (const auto& itr = last_buffer_usages.find(buffer); itr != last_buffer_usages.end()) {
         // Issue a barrier if either (or both) of the accesses require writing
         if (is_write_access(access) || is_write_access(itr->second.access)) {
-            logger->trace(
-                "[{}]: Issuing a barrier from access {} to access {}",
-                buffer->name,
-                string_VkAccessFlags2(itr->second.access),
-                string_VkAccessFlags2(access)
-            );
+            // logger->trace(
+            //     "[{}]: Issuing a barrier from access {} to access {}",
+            //     buffer->name,
+            //     string_VkAccessFlags2(itr->second.access),
+            //     string_VkAccessFlags2(access)
+            // );
             
             buffer_barriers.emplace_back(
                 VkBufferMemoryBarrier2{

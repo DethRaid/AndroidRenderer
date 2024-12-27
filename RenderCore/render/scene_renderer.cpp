@@ -575,8 +575,8 @@ void SceneRenderer::create_scene_render_targets() {
     const auto& image_views = swapchain.get_image_views();
     for(auto swapchain_image_index = 0u; swapchain_image_index < swapchain.image_count; swapchain_image_index++) {
         const auto swapchain_image = allocator.emplace_texture(
-            fmt::format("Swapchain image {}", swapchain_image_index),
             GpuTexture{
+                .name = fmt::format("Swapchain image {}", swapchain_image_index),
                 .create_info = {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                     .imageType = VK_IMAGE_TYPE_2D,
@@ -590,6 +590,7 @@ void SceneRenderer::create_scene_render_targets() {
                 },
                 .image = images->at(swapchain_image_index),
                 .image_view = image_views->at(swapchain_image_index),
+                .type = TextureAllocationType::Swapchain,
             }
         );
 
