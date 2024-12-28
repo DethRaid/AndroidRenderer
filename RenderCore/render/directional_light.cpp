@@ -223,7 +223,7 @@ void DirectionalLight::set_color(const glm::vec4 color) {
     sun_buffer_dirty = true;
 }
 
-void DirectionalLight::update_buffer(CommandBuffer& commands) {
+void DirectionalLight::update_buffer(ResourceUploadQueue& queue) {
     // Write the data to the buffer
     // This is NOT safe. We'll probably write data while the GPU is reading data
     // A better solution might use virtual resources in the frontend and assign real resources
@@ -236,7 +236,7 @@ void DirectionalLight::update_buffer(CommandBuffer& commands) {
     }
 
     if(sun_buffer_dirty) {
-        commands.update_buffer(sun_buffer, constants);
+        queue.upload_to_buffer(sun_buffer, constants);
 
         sun_buffer_dirty = false;
     }

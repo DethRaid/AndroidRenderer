@@ -406,7 +406,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
         break;
 
     case BufferUsage::UniformBuffer:
-        vk_usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        vk_usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         vma_flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;

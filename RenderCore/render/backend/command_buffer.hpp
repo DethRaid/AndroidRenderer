@@ -62,9 +62,9 @@ public:
      * @param offset Offset in bytes
      */
     template <typename DataType>
-    void update_buffer(BufferHandle buffer, const DataType& data, uint32_t offset = 0);
+    void update_buffer_immediate(BufferHandle buffer, const DataType& data, uint32_t offset = 0);
 
-    void update_buffer(BufferHandle buffer, const void* data, uint32_t data_size, uint32_t offset = 0) const;
+    void update_buffer_immediate(BufferHandle buffer, const void* data, uint32_t data_size, uint32_t offset = 0) const;
 
     void flush_buffer(BufferHandle buffer) const;
 
@@ -289,8 +289,8 @@ private:
 };
 
 template <typename DataType>
-void CommandBuffer::update_buffer(BufferHandle buffer, const DataType& data, const uint32_t offset) {
-    update_buffer(buffer, &data, sizeof(DataType), offset);
+void CommandBuffer::update_buffer_immediate(BufferHandle buffer, const DataType& data, const uint32_t offset) {
+    update_buffer_immediate(buffer, &data, sizeof(DataType), offset);
 }
 
 template <typename IndexType>

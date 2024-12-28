@@ -85,12 +85,14 @@ void SceneRenderer::set_render_resolution(const glm::uvec2& screen_resolution) {
 
     scene_render_resolution = screen_resolution * resolution_multiplier;
 
-    logger->info("Setting resolution to {} by {}", scene_render_resolution.x, scene_render_resolution.y);
+    logger->info("Setting resolution to {} by {}", scene_render_resolution.x,
+                 scene_render_resolution.y);
 
     player_view.set_render_resolution(scene_render_resolution);
 
     player_view.set_aspect_ratio(
-        static_cast<float>(scene_render_resolution.x) / static_cast<float>(scene_render_resolution.y)
+        static_cast<float>(scene_render_resolution.x) / static_cast<float>(scene_render_resolution.
+            y)
     );
 
     create_scene_render_targets();
@@ -106,7 +108,8 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
         ScenePassType::Shadow, *scene, meshes, material_storage, backend.get_global_allocator()
     };
     depth_prepass_drawer = SceneDrawer{
-        ScenePassType::DepthPrepass, *scene, meshes, material_storage, backend.get_global_allocator()
+        ScenePassType::DepthPrepass, *scene, meshes, material_storage,
+        backend.get_global_allocator()
     };
     gbuffer_drawer = SceneDrawer{
         ScenePassType::Gbuffer, *scene, meshes, material_storage, backend.get_global_allocator()
@@ -114,7 +117,9 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
 
     if(lpv) {
         lpv->set_scene_drawer(
-            SceneDrawer{ScenePassType::RSM, *scene, meshes, material_storage, backend.get_global_allocator()}
+            SceneDrawer{
+                ScenePassType::RSM, *scene, meshes, material_storage, backend.get_global_allocator()
+            }
         );
     }
 }
@@ -150,6 +155,8 @@ void SceneRenderer::render() {
 
     backend.get_texture_descriptor_pool().commit_descriptors();
 
+    player_view.update_transforms(backend.get_upload_queue());
+
     auto render_graph = backend.create_render_graph();
 
     render_graph.set_resource_usage(depth_buffer_mip_chain, last_frame_depth_usage, true);
@@ -164,23 +171,17 @@ void SceneRenderer::render() {
         }
     );
 
-    render_graph.add_pass(
-        ComputePass{
-            .name = "Begin Frame",
-            .execute = [&](CommandBuffer& commands) {
-                auto& sun = scene->get_sun_light();
-                sun.update_shadow_cascades(player_view);
-                sun.update_buffer(commands);
+    {
+        ZoneScopedN("Begin Frame");
+        auto& sun = scene->get_sun_light();
+        sun.update_shadow_cascades(player_view);
+        sun.update_buffer(backend.get_upload_queue());
 
-                player_view.update_transforms(commands);
-
-                if(lpv) {
-                    lpv->update_cascade_transforms(player_view, scene->get_sun_light());
-                    lpv->update_buffers(commands);
-                }
-            }
+        if(lpv) {
+            lpv->update_cascade_transforms(player_view, scene->get_sun_light());
+            lpv->update_buffers(backend.get_upload_queue());
         }
-    );
+    }
 
     backend.get_blas_build_queue().flush_pending_builds(render_graph);
 
@@ -194,7 +195,8 @@ void SceneRenderer::render() {
                 {
                     scene->get_primitive_buffer(),
                     {
-                        .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                        .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                         .access = VK_ACCESS_SHADER_READ_BIT
                     }
@@ -230,12 +232,20 @@ void SceneRenderer::render() {
 
     sky.update_sky_luts(render_graph, scene->get_sun_light().get_direction());
 
+    // Depth and stuff
+
+    depth_culling_phase.render(render_graph, depth_prepass_drawer, material_storage,
+                               player_view.get_buffer());
+
+    // LPV
+
     if(lpv) {
         lpv->clear_volume(render_graph);
 
         const auto build_mode = LightPropagationVolume::get_build_mode();
 
-        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && build_mode == GvBuildMode::Voxels) {
+        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && build_mode ==
+            GvBuildMode::Voxels) {
             lpv->build_geometry_volume_from_voxels(render_graph, *scene);
         } else if(build_mode == GvBuildMode::DepthBuffers) {
             lpv->build_geometry_volume_from_scene_view(
@@ -263,17 +273,13 @@ void SceneRenderer::render() {
     // Shadows
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
     {
-        auto& sun = scene->get_sun_light();
+        const auto& sun = scene->get_sun_light();
         sun.render_shadows(render_graph, sun_shadow_drawer);
     }
 
     if(lpv) {
         lpv->propagate_lighting(render_graph);
     }
-
-    // Depth and stuff
-
-    depth_culling_phase.render(render_graph, depth_prepass_drawer, material_storage, player_view.get_buffer());
 
     // Generate shading rate image
 
@@ -304,7 +310,7 @@ void SceneRenderer::render() {
      */
 
     std::optional<TextureHandle> vrsaa_shading_rate_image = std::nullopt;
-    if (vrsaa) {
+    if(vrsaa) {
         vrsaa->generate_shading_rate_image(render_graph);
         vrsaa_shading_rate_image = vrsaa->get_shading_rate_image();
     }
@@ -325,9 +331,18 @@ void SceneRenderer::render() {
         DynamicRenderingPass{
             .name = "Gbuffer",
             .buffers = {
-                {draw_commands, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
-                {draw_count, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
-                {primitive_ids, {VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
+                {
+                    draw_commands,
+                    {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}
+                },
+                {
+                    draw_count,
+                    {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}
+                },
+                {
+                    primitive_ids,
+                    {VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                },
             },
             .color_attachments = {
                 RenderingAttachmentInfo{
@@ -377,13 +392,15 @@ void SceneRenderer::render() {
             }
         });
 
-    ao_phase.generate_ao(render_graph, player_view, gbuffer_normals_handle, gbuffer_depth_handle, ao_handle);
+    ao_phase.generate_ao(render_graph, player_view, gbuffer_normals_handle, gbuffer_depth_handle,
+                         ao_handle);
 
-    lighting_pass.render(render_graph, player_view, lit_scene_handle, lpv.get(), sky, vrsaa_shading_rate_image);
+    lighting_pass.render(render_graph, player_view, lit_scene_handle, lpv.get(), sky,
+                         vrsaa_shading_rate_image);
 
     // VRS
 
-    if (vrsaa) {
+    if(vrsaa) {
         vrsaa->measure_aliasing(render_graph, gbuffer_color_handle, gbuffer_depth_handle);
     }
 
@@ -436,7 +453,8 @@ void SceneRenderer::render() {
         });
 
     mip_chain_generator.fill_mip_chain(render_graph, gbuffer_depth_handle, depth_buffer_mip_chain);
-    mip_chain_generator.fill_mip_chain(render_graph, gbuffer_normals_handle, normal_target_mip_chain);
+    mip_chain_generator.fill_mip_chain(render_graph, gbuffer_normals_handle,
+                                       normal_target_mip_chain);
 
     render_graph.add_finish_frame_and_present_pass(
         {
@@ -573,7 +591,8 @@ void SceneRenderer::create_scene_render_targets() {
     auto& swapchain = backend.get_swapchain();
     const auto& images = swapchain.get_images();
     const auto& image_views = swapchain.get_image_views();
-    for(auto swapchain_image_index = 0u; swapchain_image_index < swapchain.image_count; swapchain_image_index++) {
+    for(auto swapchain_image_index = 0u; swapchain_image_index < swapchain.image_count;
+        swapchain_image_index++) {
         const auto swapchain_image = allocator.emplace_texture(
             GpuTexture{
                 .name = fmt::format("Swapchain image {}", swapchain_image_index),
@@ -597,7 +616,8 @@ void SceneRenderer::create_scene_render_targets() {
         swapchain_images.push_back(swapchain_image);
     }
 
-    ui_phase.set_resources(lit_scene_handle, glm::uvec2{swapchain.extent.width, swapchain.extent.height});
+    ui_phase.set_resources(lit_scene_handle,
+                           glm::uvec2{swapchain.extent.width, swapchain.extent.height});
 }
 
 void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
@@ -607,9 +627,11 @@ void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
         break;
 
     case RenderVisualization::VoxelizedMeshes:
-        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && *CVarSystem::Get()->GetIntCVar("r.voxel.Visualize")
+        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && *CVarSystem::Get()->GetIntCVar(
+                "r.voxel.Visualize")
             != 0) {
-            voxel_visualizer.render(render_graph, *scene, lit_scene_handle, player_view.get_buffer());
+            voxel_visualizer.render(render_graph, *scene, lit_scene_handle,
+                                    player_view.get_buffer());
         }
         break;
 

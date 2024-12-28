@@ -43,7 +43,7 @@ void CommandBuffer::set_marker(const std::string& marker_name) const {
 }
 
 void
-CommandBuffer::update_buffer(
+CommandBuffer::update_buffer_immediate(
     const BufferHandle buffer, const void* data, const uint32_t data_size, const uint32_t offset
 ) const {
     auto* write_ptr = static_cast<uint8_t*>(buffer->allocation_info.pMappedData) + offset;

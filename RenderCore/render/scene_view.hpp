@@ -5,6 +5,7 @@
 #include "render/backend/handles.hpp"
 #include "render/backend/command_buffer.hpp"
 #include "light_propagation_volume.hpp"
+#include "backend/resource_upload_queue.hpp"
 #include "shared/view_data.hpp"
 
 class ResourceAllocator;
@@ -39,7 +40,7 @@ public:
 
     BufferHandle get_buffer() const;
 
-    void update_transforms(CommandBuffer commands);
+    void update_transforms(ResourceUploadQueue& upload_queue);
 
     void set_aspect_ratio(float aspect_in);
 

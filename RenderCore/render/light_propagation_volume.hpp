@@ -10,6 +10,7 @@
 #include "render/backend/compute_shader.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
 
+class ResourceUploadQueue;
 struct DescriptorSet;
 class VoxelCache;
 class RenderGraph;
@@ -84,7 +85,7 @@ public:
      */
     void update_cascade_transforms(const SceneTransform& view, const DirectionalLight& light);
 
-    void update_buffers(const CommandBuffer& commands) const;
+    void update_buffers(ResourceUploadQueue& queue) const;
 
     void clear_volume(RenderGraph& render_graph);
 

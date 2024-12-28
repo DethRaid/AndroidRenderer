@@ -3,11 +3,11 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
-#include "backend/acceleration_structure.hpp"
 #include "render/backend/handles.hpp"
 #include "backend/graphics_pipeline.hpp"
 #include "shared/sun_light_constants.hpp"
 
+class ResourceUploadQueue;
 class SceneDrawer;
 class RenderGraph;
 struct DescriptorSet;
@@ -30,7 +30,7 @@ public:
 
     void set_color(glm::vec4 color);
 
-    void update_buffer(CommandBuffer& commands);
+    void update_buffer(ResourceUploadQueue& queue);
 
     BufferHandle get_constant_buffer() const;
 

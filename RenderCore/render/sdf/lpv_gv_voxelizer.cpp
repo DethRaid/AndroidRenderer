@@ -161,7 +161,7 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
 
                 commands.clear_descriptor_set(0);
 
-                commands.update_buffer(volume_uniform_buffer, world_to_voxel);
+                commands.update_buffer_immediate(volume_uniform_buffer, world_to_voxel);
             }
         }
     );

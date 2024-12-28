@@ -398,7 +398,7 @@ void LightPropagationVolume::update_cascade_transforms(const SceneTransform& vie
     }
 }
 
-void LightPropagationVolume::update_buffers(const CommandBuffer& commands) const {
+void LightPropagationVolume::update_buffers(ResourceUploadQueue& queue) const {
     ZoneScoped;
 
     auto cascade_matrices = std::vector<LPVCascadeMatrices>{};
@@ -414,12 +414,7 @@ void LightPropagationVolume::update_buffers(const CommandBuffer& commands) const
         );
     }
 
-    commands.update_buffer(
-        cascade_data_buffer,
-        cascade_matrices.data(),
-        static_cast<uint32_t>(cascade_matrices.size() * sizeof(LPVCascadeMatrices)),
-        0
-    );
+    queue.upload_to_buffer(cascade_data_buffer, std::span{ cascade_matrices });
 }
 
 void LightPropagationVolume::inject_indirect_sun_light(
@@ -906,7 +901,7 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
                     primitive_id_buffer = primitive_id_buffer](
                 CommandBuffer& commands
             ) {
-                    commands.update_buffer(
+                    commands.update_buffer_immediate(
                         primitive_id_buffer,
                         primitive_ids.data(),
                         primitive_ids.size() * sizeof(uint32_t),
@@ -1075,7 +1070,7 @@ void LightPropagationVolume::build_geometry_volume_from_point_clouds(
     //                 primitive_id_buffer = primitive_id_buffer](
     //             CommandBuffer& commands
     //         ) {
-    //                 commands.update_buffer(
+    //                 commands.update_buffer_immediate(
     //                     primitive_id_buffer, primitive_ids.data(), primitive_ids.size() * sizeof(uint32_t), 0
     //                 );
     // 
@@ -1283,7 +1278,7 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
         ComputePass{
             .name = "Update view buffer",
             .execute = [&](CommandBuffer& commands) {
-                commands.update_buffer(view_matrices, view);
+                commands.update_buffer_immediate(view_matrices, view);
             }
         }
     );
