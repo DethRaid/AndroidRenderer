@@ -31,7 +31,7 @@ UiPhase::UiPhase(SceneRenderer& renderer_in) :
             .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
             .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
             .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .maxLod = 16,
+            .maxLod = VK_LOD_CLAMP_NONE,
         }
     );
 }

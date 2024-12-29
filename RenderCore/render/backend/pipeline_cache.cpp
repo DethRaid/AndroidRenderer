@@ -319,7 +319,10 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
 
     return compute_pipelines.add_object(
         ComputeShader{
-            .layout = pipeline_layout, .pipeline = pipeline, .num_push_constants = num_push_constants,
+            .name = shader_file_path,
+            .layout = pipeline_layout,
+            .pipeline = pipeline,
+            .num_push_constants = num_push_constants,
             .descriptor_sets = descriptor_sets
         });
 }

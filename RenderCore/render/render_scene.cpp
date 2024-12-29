@@ -208,7 +208,7 @@ void RenderScene::create_voxel_cache() {
             .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
             .anisotropyEnable = VK_TRUE,
             .maxAnisotropy = 16.f,
-            .maxLod = 16.f,
+            .maxLod = VK_LOD_CLAMP_NONE,
         }
     );
 }

@@ -72,8 +72,9 @@ VoxelTextures MeshVoxelizer::voxelize_with_raster(
 
     auto set = DescriptorSetBuilder{
                    *backend,
-                backend->get_transient_descriptor_allocator(),
-                   voxelization_pipeline->get_descriptor_set_info(0)
+                   backend->get_transient_descriptor_allocator(),
+                   voxelization_pipeline->get_descriptor_set_info(0),
+                   "Mesh voxelizer descriptor set"
                }
                .bind(0, voxels)
                .bind(1, primitive_buffer)
@@ -83,13 +84,15 @@ VoxelTextures MeshVoxelizer::voxelize_with_raster(
         DynamicRenderingPass{
             .name = "Voxelization",
             .descriptor_sets = {set},
-            .execute = [this, &mesh_storage, &primitive, set = std::move(set)](CommandBuffer& commands) {
+            .execute = [this, &mesh_storage, &primitive, set = std::move(set)](
+            CommandBuffer& commands) {
                 commands.bind_vertex_buffer(0, mesh_storage.get_vertex_position_buffer());
                 commands.bind_vertex_buffer(1, mesh_storage.get_vertex_data_buffer());
                 commands.bind_index_buffer(mesh_storage.get_index_buffer());
 
                 commands.bind_descriptor_set(0, set);
-                commands.bind_descriptor_set(1, backend->get_texture_descriptor_pool().get_descriptor_set());
+                commands.bind_descriptor_set(
+                    1, backend->get_texture_descriptor_pool().get_descriptor_set());
 
                 commands.set_push_constant(0, primitive.index);
 
@@ -166,7 +169,10 @@ VoxelTextures MeshVoxelizer::voxelize_with_compute(
         }
     );
 
-    return {.num_voxels = voxel_texture_resolution, .color_texture = voxels_color, .normals_texture = voxels_normal};
+    return {
+        .num_voxels = voxel_texture_resolution, .color_texture = voxels_color,
+        .normals_texture = voxels_normal
+    };
 }
 
 VoxelTextures MeshVoxelizer::voxelize_primitive(

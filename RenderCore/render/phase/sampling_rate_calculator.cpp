@@ -18,6 +18,7 @@ VRSAA::VRSAA() {
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
             .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
             .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .maxLod = VK_LOD_CLAMP_NONE,
         });
 }
 

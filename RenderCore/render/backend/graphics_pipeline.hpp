@@ -36,6 +36,8 @@ public:
 
     VkPipeline get_pipeline() const;
 
+    std::string_view get_name() const;
+
 private:
     std::string pipeline_name;
 

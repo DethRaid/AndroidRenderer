@@ -72,6 +72,8 @@ private:
      */
     BufferHandle visible_objects = {};
 
+    ComputePipelineHandle init_dual_bump_point_pipeline;
+
     ComputePipelineHandle visibility_list_to_draw_commands;
 
     MipChainGenerator downsampler;

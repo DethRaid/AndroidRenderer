@@ -270,7 +270,8 @@ private:
     VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV device_generated_commands_features = {};
     VkPhysicalDeviceFragmentShadingRateFeaturesKHR shading_rate_image_features = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR,
-            .attachmentFragmentShadingRate = VK_TRUE, };
+        .attachmentFragmentShadingRate = VK_TRUE,
+    };
     VkPhysicalDeviceFeatures2 device_features = {};
 
     VkPhysicalDeviceFragmentShadingRatePropertiesKHR shading_rate_properties = {
@@ -303,7 +304,8 @@ private:
 
     void create_default_resources();
 
-    void set_object_name(uint64_t object_handle, VkObjectType object_type, const std::string& name) const;
+    void set_object_name(uint64_t object_handle, VkObjectType object_type,
+                         const std::string& name) const;
 };
 
 
@@ -330,6 +332,8 @@ void RenderBackend::set_object_name(VulkanType object, const std::string& name) 
         object_type = VK_OBJECT_TYPE_COMMAND_POOL;
     } else if constexpr(std::is_same_v<VulkanType, VkCommandBuffer>) {
         object_type = VK_OBJECT_TYPE_COMMAND_BUFFER;
+    } else if constexpr(std::is_same_v<VulkanType, VkDescriptorSet>) {
+        object_type = VK_OBJECT_TYPE_DESCRIPTOR_SET;
     } else {
         throw std::runtime_error{"Invalid object type"};
     }

@@ -148,7 +148,7 @@ void RenderBackend::create_instance_and_device() {
     // vkb enables the surface extensions for us
     auto instance_builder = vkb::InstanceBuilder{vkGetInstanceProcAddr}
                             .set_app_name("Renderer")
-                            .set_engine_name("Sarah")
+                            .set_engine_name("Sarah's Artisanal Handcrafted Renderer")
                             .set_app_version(0, 6, 0)
                             .require_api_version(1, 3, 0)
 #if defined(_WIN32 )
@@ -220,6 +220,7 @@ void RenderBackend::create_instance_and_device() {
         .fragmentStoresAndAtomics = VK_TRUE,
         .shaderSampledImageArrayDynamicIndexing = VK_TRUE,
         .shaderStorageBufferArrayDynamicIndexing = VK_TRUE,
+        .shaderInt64 = VK_TRUE,
         .shaderInt16 = VK_TRUE
     };
 
@@ -548,14 +549,17 @@ uint32_t RenderBackend::get_transfer_queue_family_index() const {
 void RenderBackend::advance_frame() {
     ZoneScoped;
 
-    total_num_frames++;
-    if(total_num_frames % 100 == 0) {
-        allocator->report_memory_usage();
-    }
+    if (!is_first_frame) {
+        total_num_frames++;
 
-    if(!is_first_frame) {
         cur_frame_idx++;
         cur_frame_idx %= num_in_flight_frames;
+    }
+
+    logger->info("Beginning frame {} (frame idx {})", total_num_frames, cur_frame_idx);
+
+    if (total_num_frames % 100 == 0) {
+        allocator->report_memory_usage();
     }
 
     {
@@ -566,8 +570,6 @@ void RenderBackend::advance_frame() {
             &frame_fences[cur_frame_idx],
             VK_TRUE,
             std::numeric_limits<uint64_t>::max());
-        logger->trace("Frame fence {} is signalled", cur_frame_idx);
-        logger->trace("vkWaitForFences(frame_fences[{}]) result: {}", cur_frame_idx, string_VkResult(result));
     }
 
     swapchain_semaphore = create_transient_semaphore("Acquire swapchain semaphore");
@@ -987,7 +989,8 @@ void RenderBackend::create_default_resources() {
 
     default_sampler = allocator->get_sampler(
         VkSamplerCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .maxLod = VK_LOD_CLAMP_NONE
         }
     );
 

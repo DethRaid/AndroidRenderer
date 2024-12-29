@@ -13,7 +13,7 @@ public:
 
     DescriptorSetBuilder build_set(ComputePipelineHandle pipeline, uint32_t set_index);
 
-    DescriptorSetBuilder build_set(const DescriptorSetInfo& info);
+    DescriptorSetBuilder build_set(const DescriptorSetInfo& info, std::string_view name);
 
 private:
     RenderBackend* backend;

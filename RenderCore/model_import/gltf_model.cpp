@@ -493,7 +493,7 @@ VkSampler GltfModel::to_vk_sampler(const fastgltf::Sampler& sampler, RenderBacke
         .magFilter = VK_FILTER_LINEAR,
         .minFilter = VK_FILTER_LINEAR,
         .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .maxLod = 16,
+        .maxLod = VK_LOD_CLAMP_NONE,
     };
 
     if (sampler.minFilter) {

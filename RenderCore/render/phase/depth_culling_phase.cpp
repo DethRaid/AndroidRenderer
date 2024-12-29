@@ -16,6 +16,9 @@ DepthCullingPhase::DepthCullingPhase() {
     auto& backend = RenderBackend::get();
     auto& pipeline_cache = backend.get_pipeline_cache();
 
+    init_dual_bump_point_pipeline = pipeline_cache.create_pipeline(
+        "shaders/util/init_dual_bump_point.comp.spv");
+
     visibility_list_to_draw_commands = pipeline_cache.create_pipeline(
         "shaders/util/visibility_list_to_draw_commands.comp.spv");
 
@@ -38,7 +41,7 @@ DepthCullingPhase::DepthCullingPhase() {
             .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
             .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
             .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .maxLod = 16,
+            .maxLod = VK_LOD_CLAMP_NONE,
         }
     );
 }
@@ -105,7 +108,8 @@ void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
     hi_z_index = texture_descriptor_pool.create_texture_srv(hi_z_buffer, max_reduction_sampler);
 }
 
-void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials, const BufferHandle view_data_buffer) {
+void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer,
+                               MaterialStorage& materials, const BufferHandle view_data_buffer) {
     ZoneScoped;
 
     graph.begin_label("Depth/culling pass");
@@ -117,14 +121,17 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, Ma
                                                     DescriptorInfo{
                                                         {
                                                             .binding = 0,
-                                                            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                            .descriptorType =
+                                                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                                             .descriptorCount = 1,
-                                                            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                                                            .stageFlags =
+                                                            VK_SHADER_STAGE_VERTEX_BIT,
                                                         },
                                                         true
                                                     }
                                                 }
-                                            })
+                                            },
+                                            "Main view descriptor set")
                                         .bind(0, view_data_buffer)
                                         .build();
 
@@ -142,7 +149,8 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, Ma
     }
 
     if(backend.supports_device_generated_commands()) {
-        draw_visible_objects_dgc(graph, drawer, materials, view_descriptor, primitive_buffer, num_primitives);
+        draw_visible_objects_dgc(graph, drawer, materials, view_descriptor, primitive_buffer,
+                                 num_primitives);
     } else {
         draw_visible_objects(graph, drawer, view_descriptor, primitive_buffer, num_primitives);
     }
@@ -180,10 +188,22 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, Ma
                 }
             },
             .buffers = {
-                {primitive_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                {visible_objects, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                {newly_visible_objects, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
-                {this_frame_visible_objects, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
+                {
+                    primitive_buffer,
+                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}
+                },
+                {
+                    visible_objects,
+                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}
+                },
+                {
+                    newly_visible_objects,
+                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}
+                },
+                {
+                    this_frame_visible_objects,
+                    {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}
+                },
             },
             .execute = [&](CommandBuffer& commands) {
                 auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
@@ -235,10 +255,22 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer, Ma
                 .buffers = {
                     {
                         draw_commands_buffer,
-                        {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}
+                        {
+                            VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                            VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
+                        }
                     },
-                    {draw_count_buffer, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
-                    {primitive_id_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
+                    {
+                        draw_count_buffer,
+                        {
+                            VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                            VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
+                        }
+                    },
+                    {
+                        primitive_id_buffer,
+                        {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                    },
                 },
                 .descriptor_sets = std::vector{view_descriptor},
                 .depth_attachment = RenderingAttachmentInfo{
@@ -268,7 +300,8 @@ BufferHandle DepthCullingPhase::get_visible_objects() const {
     return visible_objects;
 }
 
-std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translate_visibility_list_to_draw_commands(
+std::tuple<BufferHandle, BufferHandle, BufferHandle>
+DepthCullingPhase::translate_visibility_list_to_draw_commands(
     RenderGraph& graph,
     const BufferHandle visibility_list,
     const BufferHandle primitive_buffer,
@@ -294,38 +327,57 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
         BufferUsage::VertexBuffer
     );
 
-    graph.add_pass(
-        {
-            .name = "Clear draw count",
-            .buffers = {{draw_count_buffer, {VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT}}},
-            .execute = [&](const CommandBuffer& commands) {
-                commands.fill_buffer(draw_count_buffer);
-            }
-        }
-    );
-    graph.add_pass(
-        {
-            .name = "Init dual bump point",
-            .buffers = {{draw_count_buffer, {VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT}}},
-            .execute = [&](const CommandBuffer& commands) {
-                commands.fill_buffer(draw_count_buffer, num_primitives, 12);
-            }
-        }
-    );
+    struct DualBumpPointParams {
+        DeviceAddress dual_bump_point;
+        uint back;
+    };
+
+    graph.add_compute_dispatch<DualBumpPointParams>({
+        .name = "Init dual bump point",
+        .buffers = {
+            {draw_count_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}}
+        },
+        .push_constants = DualBumpPointParams{
+            .dual_bump_point = draw_count_buffer->address,
+            .back = num_primitives
+        },
+        .num_workgroups = {1, 1, 1},
+        .compute_shader = init_dual_bump_point_pipeline
+    });
+
+    spdlog::info("primitive_id_buffer->address={:x}", primitive_id_buffer->address);
 
     graph.add_pass(
         ComputePass{
             .name = "Translate visibility list",
             .buffers = {
-                {primitive_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
-                {visibility_list, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
-                {mesh_draw_args_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
-                {draw_commands_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}},
+                {
+                    primitive_buffer,
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                },
+                {
+                    visibility_list,
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                },
+                {
+                    mesh_draw_args_buffer,
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                },
+                {
+                    draw_commands_buffer,
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}
+                },
                 {
                     draw_count_buffer,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT}
+                    {
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
+                    }
                 },
-                {primitive_id_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}},
+                {
+                    primitive_id_buffer,
+                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}
+                },
 
             },
             .execute = [&](CommandBuffer& commands) {
@@ -354,7 +406,8 @@ std::tuple<BufferHandle, BufferHandle, BufferHandle> DepthCullingPhase::translat
 }
 
 void DepthCullingPhase::draw_visible_objects_dgc(
-    RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials, const DescriptorSet& descriptors,
+    RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials,
+    const DescriptorSet& descriptors,
     const BufferHandle primitive_buffer, const uint32_t num_primitives
 ) {
     /*
@@ -415,7 +468,6 @@ void DepthCullingPhase::draw_visible_objects_dgc(
             .depth_attachment = RenderingAttachmentInfo{depth_buffer},
             .execute = [=](CommandBuffer& commands) {
                 commands.execute_commands();
-
             }
         });
 }
@@ -461,10 +513,12 @@ void DepthCullingPhase::create_command_signature() {
         .streamCount = 1,
         .pStreamStrides = &stride
     };
-    vkCreateIndirectCommandsLayoutNV(backend.get_device(), &create_info, nullptr, &command_signature);
+    vkCreateIndirectCommandsLayoutNV(backend.get_device(), &create_info, nullptr,
+                                     &command_signature);
 }
 
-std::optional<BufferHandle> DepthCullingPhase::create_preprocess_buffer(const GraphicsPipelineHandle pipeline, const uint32_t num_primitives) {
+std::optional<BufferHandle> DepthCullingPhase::create_preprocess_buffer(
+    const GraphicsPipelineHandle pipeline, const uint32_t num_primitives) {
     auto& backend = RenderBackend::get();
 
     const auto info = VkGeneratedCommandsMemoryRequirementsInfoNV{
@@ -514,8 +568,14 @@ void DepthCullingPhase::draw_visible_objects(
                     draw_commands_buffer,
                     {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}
                 },
-                {draw_count_buffer, {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}},
-                {primitive_id_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}},
+                {
+                    draw_count_buffer,
+                    {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}
+                },
+                {
+                    primitive_id_buffer,
+                    {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                },
             },
             .descriptor_sets = std::vector{view_descriptor},
             .depth_attachment = RenderingAttachmentInfo{

@@ -95,7 +95,7 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
             .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
             .anisotropyEnable = VK_TRUE,
             .maxAnisotropy = 16,
-            .maxLod = 16,
+            .maxLod = VK_LOD_CLAMP_NONE,
             .borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
         }
     );
@@ -458,7 +458,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
             }
         };
         const auto set = backend.get_transient_descriptor_allocator().build_set(
-                                    set_info
+                                    set_info, "RSM Cascade Data and Light set"
                                 )
                                 .bind(0, cascade_data_buffer)
                                 .bind(1, scene.get_sun_light().get_constant_buffer())

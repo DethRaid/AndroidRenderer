@@ -36,12 +36,15 @@ public:
 
     absl::flat_hash_map<uint32_t, detail::BoundResource> bindings;
 
-    void get_resource_usage_information(TextureUsageMap& texture_usages, absl::flat_hash_map<BufferHandle, BufferUsageToken>& buffer_usages) const;
+    void get_resource_usage_information(TextureUsageMap& texture_usages,
+                                        absl::flat_hash_map<BufferHandle, BufferUsageToken>&
+                                        buffer_usages) const;
 };
 
 class DescriptorSetBuilder {
 public:
-    explicit DescriptorSetBuilder(RenderBackend& backend_in, DescriptorSetAllocator& allocator_in, DescriptorSetInfo set_info_in);
+    explicit DescriptorSetBuilder(RenderBackend& backend_in, DescriptorSetAllocator& allocator_in,
+                                  DescriptorSetInfo set_info_in, std::string_view name_in);
 
     DescriptorSetBuilder& bind(uint32_t binding_index, BufferHandle buffer);
 
@@ -49,7 +52,8 @@ public:
 
     DescriptorSetBuilder& bind(uint32_t binding_index, TextureHandle texture, VkSampler vk_sampler);
 
-    DescriptorSetBuilder& bind(uint32_t binding_index, AccelerationStructureHandle acceleration_structure);
+    DescriptorSetBuilder& bind(uint32_t binding_index,
+                               AccelerationStructureHandle acceleration_structure);
 
     /**
      * \brief Creates the Vulkan descriptor set 
@@ -65,4 +69,6 @@ private:
     DescriptorSetInfo set_info;
 
     absl::flat_hash_map<uint32_t, detail::BoundResource> bindings;
+
+    std::string name;
 };

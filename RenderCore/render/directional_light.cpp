@@ -270,7 +270,8 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const SceneDrawer& sun
                                                 }
                                             }
                                         }
-                                    })
+                                    },
+                                    "Directional shadow descriptor set")
                                 .bind(0, sun_buffer)
                                 .build();
 
@@ -319,7 +320,7 @@ void DirectionalLight::render(
             .compareEnable = VK_TRUE,
             .compareOp = VK_COMPARE_OP_LESS,
             .minLod = 0,
-            .maxLod = 16,
+            .maxLod = VK_LOD_CLAMP_NONE,
         }
     );
 

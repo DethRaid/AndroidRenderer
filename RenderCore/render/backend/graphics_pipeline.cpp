@@ -87,3 +87,7 @@ const DescriptorSetInfo& GraphicsPipeline::get_descriptor_set_info(const uint32_
 }
 
 VkPipeline GraphicsPipeline::get_pipeline() const { return pipeline; }
+
+std::string_view GraphicsPipeline::get_name() const {
+    return pipeline_name;
+}

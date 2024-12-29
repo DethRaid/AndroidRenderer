@@ -66,8 +66,9 @@ void DescriptorSet::get_resource_usage_information(
 }
 
 DescriptorSetBuilder::DescriptorSetBuilder(
-    RenderBackend& backend_in, DescriptorSetAllocator& allocator_in, DescriptorSetInfo set_info_in
-) : backend{&backend_in}, allocator{&allocator_in}, set_info{std::move(set_info_in)} {}
+    RenderBackend& backend_in, DescriptorSetAllocator& allocator_in, DescriptorSetInfo set_info_in, const std::string_view name_in
+) : backend{ &backend_in }, allocator{ &allocator_in }, set_info{ std::move(set_info_in) }, name{ name_in } {
+}
 
 DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, const BufferHandle buffer) {
 #ifndef _NDEBUG
@@ -205,6 +206,8 @@ DescriptorSet DescriptorSetBuilder::build() {
 
     VkDescriptorSetLayout layout;
     const auto descriptor_set = *builder.build(layout);
+
+    backend->set_object_name(descriptor_set, name);
 
     return DescriptorSet{
         descriptor_set, layout, std::move(set_info), std::move(bindings)

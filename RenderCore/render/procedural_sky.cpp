@@ -53,6 +53,7 @@ ProceduralSky::ProceduralSky() {
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
             .magFilter = VK_FILTER_LINEAR,
             .minFilter = VK_FILTER_LINEAR,
+            .maxLod = VK_LOD_CLAMP_NONE,
         });
 }
 
