@@ -4,6 +4,7 @@
  * Visualizes the VPLs in a given cascade
  */
 
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_ARB_shader_viewport_layer_array : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
@@ -12,7 +13,7 @@
 #include "shared/lpv.hpp"
 #include "shared/vpl.hpp"
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer VplListBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer VplListBuffer {
      PackedVPL vpls[];
 };
 

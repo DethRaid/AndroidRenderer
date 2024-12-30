@@ -1,5 +1,6 @@
 #version 460
 
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_KHR_shader_subgroup_ballot : enable
 #extension GL_KHR_shader_subgroup_arithmetic : enable
@@ -7,15 +8,15 @@
 #include "shared/vertex_data.hpp"
 #include "shared/triangle.hpp"
 
-layout(set = 0, binding = 0, std430) readonly buffer TriangleShBuffer {
+layout(set = 0, binding = 0, scalar) readonly buffer TriangleShBuffer {
     vec4 triangle_sh[];
 }; 
 
-layout(set = 0, binding = 1, std430) readonly buffer CoarseCellBitmaskBuffer {
+layout(set = 0, binding = 1, scalar) readonly buffer CoarseCellBitmaskBuffer {
     uint coarse_cell_bitmask[];
 };
 
-layout(set = 0, binding = 2, std430) readonly buffer CellBitmaskBuffer {
+layout(set = 0, binding = 2, scalar) readonly buffer CellBitmaskBuffer {
     uint cell_bitmask[];
 };
 

@@ -13,7 +13,7 @@
 #include "shared/mesh_point.hpp"
 #include "shared/vpl.hpp"
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
     PrimitiveDataGPU primitive_datas[];
 };
 
@@ -21,7 +21,7 @@ layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer Me
     StandardVertex vertices[];
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer VplBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer VplBuffer {
     PackedVPL vpls[];
 };
 

@@ -4,7 +4,7 @@
 #extension GL_EXT_buffer_reference_uvec2 : enable
 #extension GL_EXT_buffer_reference2 : enable
 
-layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer DualBumpPointBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer DualBumpPointBuffer {
     uint front_count;
     uint front_offset;
     uint back_count;

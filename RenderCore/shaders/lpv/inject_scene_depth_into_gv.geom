@@ -1,5 +1,6 @@
 #version 460
 
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_scalar_block_layout : enable
 
@@ -9,7 +10,7 @@
 layout(points) in;
 layout(points, max_vertices = 4) out;
 
-layout(set = 0, binding = 2, std430) uniform LpvCascadeBuffer {
+layout(set = 0, binding = 2, scalar) uniform LpvCascadeBuffer {
     LPVCascadeMatrices cascade_matrices[4];
 };
 

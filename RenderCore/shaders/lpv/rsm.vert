@@ -8,15 +8,15 @@
 #include "shared/primitive_data.hpp"
 #include "shared/lpv.hpp"
 
-layout(set = 0, binding = 0, std430) uniform LPVCascadesBuffer {
+layout(set = 0, binding = 0, scalar) uniform LPVCascadesBuffer {
     LPVCascadeMatrices cascade_matrices[4];
 } cascade_matrices_buffer;
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
     PrimitiveDataGPU primitive_datas[];
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveIdBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer PrimitiveIdBuffer {
     uint primitive_ids[];
 };
 

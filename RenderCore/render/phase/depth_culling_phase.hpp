@@ -70,7 +70,9 @@ private:
      *
      * The idea is that each view will have its own DepthCullingPhase and thus this list will be per-view
      */
-    BufferHandle visible_objects = {};
+    BufferHandle visible_objects = nullptr;
+
+    BufferHandle last_frame_visible_objects = nullptr;
 
     ComputePipelineHandle init_dual_bump_point_pipeline;
 

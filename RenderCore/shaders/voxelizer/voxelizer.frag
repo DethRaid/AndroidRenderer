@@ -1,5 +1,6 @@
 #version 460
 
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
@@ -9,7 +10,7 @@
 #include "shared/primitive_data.hpp"
 #include "shared/basic_pbr_material.hpp"
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer FrustumMatricesBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer FrustumMatricesBuffer {
     mat4 world_to_bounds;
 };
 

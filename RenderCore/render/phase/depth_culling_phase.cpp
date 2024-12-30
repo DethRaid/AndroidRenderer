@@ -250,7 +250,7 @@ void DepthCullingPhase::render(RenderGraph& graph, const SceneDrawer& drawer,
 
         graph.add_render_pass(
             DynamicRenderingPass{
-                .name = "Rasterize this frame's visible object",
+                .name = "Rasterize newly visible objects",
                 .textures = {},
                 .buffers = {
                     {
@@ -310,7 +310,7 @@ DepthCullingPhase::translate_visibility_list_to_draw_commands(
 ) const {
     ZoneScoped;
 
-    auto& backend = RenderBackend::get();
+    const auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
     const auto draw_commands_buffer = allocator.create_buffer(
         "Draw commands",

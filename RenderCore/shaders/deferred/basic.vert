@@ -1,5 +1,6 @@
 #version 460
 
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
 #extension GL_ARB_shader_draw_parameters : enable
@@ -7,7 +8,7 @@
 #include "shared/primitive_data.hpp"
 #include "shared/view_data.hpp"
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
     PrimitiveDataGPU primitive_datas[];
 };
 

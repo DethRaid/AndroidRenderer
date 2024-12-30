@@ -22,7 +22,7 @@ layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer Pr
     PrimitiveDataGPU primitive_datas[];
 };
 
-layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer PrimitiveVisibilityBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer PrimitiveVisibilityBuffer {
     uint visible[];
 };
 
@@ -34,14 +34,14 @@ layout(buffer_reference, scalar, buffer_reference_align = 16) writeonly buffer D
     DrawCommand draw_commands[];
 };
 
-layout(buffer_reference, scalar, buffer_reference_align = 16) buffer DrawCountBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 4) buffer DrawCountBuffer {
     uint opaque_draw_count;
     uint opaque_draw_offset;
     uint masked_draw_count;
     uint masked_draw_offset;
 };
 
-layout(buffer_reference, scalar, buffer_reference_align = 16) writeonly buffer PrimitiveIdBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 4) writeonly buffer PrimitiveIdBuffer {
     uint primitive_ids[];
 };
 
