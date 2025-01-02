@@ -55,7 +55,7 @@ def compile_shaders_in_path(path, root_dir, output_dir):
 
             if child_path.suffix == '.slang':
                 full_output_file = output_file.with_suffix('.spv')
-                compile_slang_shader(child_path, full_output_file, [root_dir, root_dir.parent, 'C:\\Source\\SahRenderer\\RenderCore\\extern'])
+                compile_slang_shader(child_path, full_output_file, [root_dir, root_dir.parent, 'D:\\Source\\SahRenderer\\RenderCore\\extern'])
             
             elif child_path.suffix == '.glsl':
                 # GLSL include file
@@ -63,7 +63,7 @@ def compile_shaders_in_path(path, root_dir, output_dir):
 
             else:
                 full_output_file = output_file.with_suffix(output_file.suffix + '.spv')
-                compile_glsl_shader(child_path, full_output_file, [root_dir, root_dir.parent, 'C:\\Source\\SahRenderer\\RenderCore\\extern'])
+                compile_glsl_shader(child_path, full_output_file, [root_dir, root_dir.parent, 'D:\\Source\\SahRenderer\\RenderCore\\extern'])
 
 
 if __name__ == '__main__':

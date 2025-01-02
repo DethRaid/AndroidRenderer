@@ -189,7 +189,7 @@ elseif(WIN32)
     set(ktx_DIR "D:/Program Files/KTX-Software/lib/cmake/ktx")
 endif()
 
-find_package(ktx)
+find_package(ktx REQUIRED)
 
 # Slang
 add_library(slang INTERFACE)
