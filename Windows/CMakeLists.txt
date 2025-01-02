@@ -52,9 +52,14 @@ set(SHADER_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../RenderCore)
 
 set(EXTERN_DIR ${SHADER_INCLUDE_DIR}/extern)
 
-target_glsl_shaders(SahWindows
-        PRIVATE ${SHADERS}
-        COMPILE_OPTIONS --target-env vulkan1.3 -V -g -o -Od -I${SHADER_INCLUDE_DIR} -I${SHADER_DIR} -I${EXTERN_DIR})
+#target_glsl_shaders(SahWindows
+#        PRIVATE ${SHADERS}
+#        COMPILE_OPTIONS --target-env vulkan1.3 -V -g -o -Od -I${SHADER_INCLUDE_DIR} -I${SHADER_DIR} -I${EXTERN_DIR})
+
+add_custom_target(compile_shaders
+        python ${CMAKE_CURRENT_LIST_DIR}/../Tools/compile_shaders.py ${CMAKE_CURRENT_LIST_DIR}/../RenderCore/shaders ${CMAKE_CURRENT_LIST_DIR}/build/shaders
+)
+add_dependencies(SahWindows compile_shaders)
 
 target_include_directories(SahWindows PUBLIC
         "$ENV{VK_SDK_PATH}/Include"

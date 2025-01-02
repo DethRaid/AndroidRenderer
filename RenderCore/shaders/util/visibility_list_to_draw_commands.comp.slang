@@ -1,13 +1,5 @@
 #version 460
 
-#extension GL_GOOGLE_include_directive : enable
-#extension GL_EXT_scalar_block_layout : enable
-#extension GL_EXT_nonuniform_qualifier : enable
-#extension GL_EXT_buffer_reference_uvec2 : enable
-#extension GL_EXT_buffer_reference2 : enable
-
-#extension GL_EXT_debug_printf : enable
-
 #include "shared/primitive_data.hpp"
 
 struct DrawCommand {
@@ -18,46 +10,26 @@ struct DrawCommand {
     uint firstInstance;
 };
 
-layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
-    PrimitiveDataGPU primitive_datas[];
-};
-
-layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer PrimitiveVisibilityBuffer {
-    uint visible[];
-};
-
-layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer MeshArgumentsBuffer {
-    DrawCommand meshes[];
-};
-
-layout(buffer_reference, scalar, buffer_reference_align = 16) writeonly buffer DrawCommandBuffer {
-    DrawCommand draw_commands[];
-};
-
-layout(buffer_reference, scalar, buffer_reference_align = 4) buffer DrawCountBuffer {
+struct DrawCountBuffer {
     uint opaque_draw_count;
     uint opaque_draw_offset;
     uint masked_draw_count;
     uint masked_draw_offset;
 };
 
-layout(buffer_reference, scalar, buffer_reference_align = 4) writeonly buffer PrimitiveIdBuffer {
-    uint primitive_ids[];
-};
-
-layout(local_size_x = 96, local_size_y = 1, local_size_z = 1) in;
-
-layout(push_constant) uniform Constants {
-    PrimitiveDataBuffer primitive_data_buffer;
-    PrimitiveVisibilityBuffer primitive_visibility_buffer;
-    MeshArgumentsBuffer mesh_args_buffer;
-    DrawCommandBuffer draw_command_buffer;
-    DrawCountBuffer draw_count_buffer;
-    PrimitiveIdBuffer primitive_id_buffer;
+cbuffer Constants {
+    PrimitiveDataGPU* primitive_datas;
+    uint* visible;
+    DrawCommand* meshes;
+    DrawCommand* draw_commands;
+    DrawCountBuffer *draw_count_buffer;
+    uint* primitive_ids;
 
     uint num_primitives;
 };
 
+[shader("compute")]
+[numthreads(96, 1, 1)]
 void main() {
     if(gl_GlobalInvocationID.x >= num_primitives) {
         return;
@@ -65,12 +37,12 @@ void main() {
 
     const uint primitive_id = gl_GlobalInvocationID.x;
 
-    const uint visible = primitive_visibility_buffer.visible[primitive_id];
+    const uint visible = visible[primitive_id];
 
-    debugPrintfEXT("primitive_id=%d visible=%d", primitive_id, visible);
+    //debugPrintfEXT("primitive_id=%d visible=%d", primitive_id, visible);
 
     if(visible != 0) {
-        PrimitiveDataGPU primitive_data = primitive_data_buffer.primitive_datas[primitive_id];
+        PrimitiveDataGPU primitive_data = primitive_datas[primitive_id];
 
         uint draw_id;
         if(primitive_data.type == PRIMITIVE_TYPE_SOLID) {
@@ -80,11 +52,12 @@ void main() {
             draw_id = atomicAdd(draw_count_buffer.masked_draw_offset, -1);
         }
 
-        debugPrintfEXT("draw_id=%d", draw_id);
+       // debugPrintfEXT("draw_id=%d", draw_id);
 
-        primitive_id_buffer.primitive_ids[draw_id] = primitive_id;
+        primitive_ids[draw_id] = primitive_id;
         
-        draw_command_buffer.draw_commands[draw_id] = mesh_args_buffer.meshes[primitive_data.mesh_id];
-        draw_command_buffer.draw_commands[draw_id].firstInstance = draw_id;
+        draw_commands[draw_id] = meshes[primitive_data.mesh_id];
+        draw_commands[draw_id].firstInstance = draw_id;
     }
 }
+

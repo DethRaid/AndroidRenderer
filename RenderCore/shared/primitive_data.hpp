@@ -9,7 +9,7 @@
 #if defined(__cplusplus)
 #include "render/backend/device_address.hpp"
 #define MATERIAL_BUFFER_REFERENCE DeviceAddress
-#else
+#elif defined(GL_core_profile)
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
 #extension GL_EXT_shader_16bit_storage : enable
@@ -20,6 +20,9 @@ layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer Ma
 };
 
 #define MATERIAL_BUFFER_REFERENCE MaterialDataBuffer
+
+#else // slang
+#define MATERIAL_BUFFER_REFERENCE uint64_t
 
 #endif
 
