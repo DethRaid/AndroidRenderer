@@ -121,7 +121,9 @@ AmbientOcclusionPhase::AmbientOcclusionPhase() {
 
     ffx_interface.scratchBuffer = nullptr;
 
-    const auto scratch_memory_size = ffxGetScratchMemorySizeVK(backend.get_physical_device(), FFX_CACAO_CONTEXT_COUNT * 2);
+    const auto scratch_memory_size = ffxGetScratchMemorySizeVK(
+        backend.get_physical_device(),
+        FFX_CACAO_CONTEXT_COUNT * 2);
     auto scratch_memory = std::vector<uint8_t>(scratch_memory_size);
     auto result = ffxGetInterfaceVK(
         &ffx_interface,
@@ -139,7 +141,7 @@ AmbientOcclusionPhase::AmbientOcclusionPhase() {
 }
 
 AmbientOcclusionPhase::~AmbientOcclusionPhase() {
-    if (has_context) {
+    if(has_context) {
         ffxCacaoContextDestroy(&context);
     }
 
@@ -219,25 +221,22 @@ void AmbientOcclusionPhase::generate_ao(
             .name = "CACAO",
             .textures = {
                 {
-                    gbuffer_normals,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    .texture = gbuffer_normals,
+                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .access = VK_ACCESS_2_SHADER_READ_BIT,
+                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
                 {
-                    gbuffer_depth,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    .texture = gbuffer_depth,
+                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .access = VK_ACCESS_2_SHADER_READ_BIT,
+                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
                 {
-                    ao_out,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    .texture = ao_out,
+                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .access = VK_ACCESS_2_SHADER_READ_BIT,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL
                 },
             },
             .execute = [=, this](CommandBuffer& commands) {

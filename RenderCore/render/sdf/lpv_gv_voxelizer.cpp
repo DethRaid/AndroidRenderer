@@ -16,7 +16,7 @@ static_assert(sizeof(Triangle) == 36);
 static std::shared_ptr<spdlog::logger> logger;
 
 ThreeDeeRasterizer::ThreeDeeRasterizer(RenderBackend& backend_in) : backend{&backend_in} {
-    if (logger == nullptr) {
+    if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("3D Rasterizer");
     }
 
@@ -45,8 +45,11 @@ void ThreeDeeRasterizer::init_resources(const glm::uvec3 voxel_texture_resolutio
     max_num_triangles = num_triangles;
 
     logger->debug(
-        "Creating resources to rasterize {} triangles to a volume of resolution {}, {}, {}", num_triangles,
-        voxel_texture_resolution.x, voxel_texture_resolution.y, voxel_texture_resolution.z
+        "Creating resources to rasterize {} triangles to a volume of resolution {}, {}, {}",
+        num_triangles,
+        voxel_texture_resolution.x,
+        voxel_texture_resolution.y,
+        voxel_texture_resolution.z
     );
 
     auto& allocator = backend->get_global_allocator();
@@ -61,50 +64,66 @@ void ThreeDeeRasterizer::init_resources(const glm::uvec3 voxel_texture_resolutio
     const auto num_coarse_uints_per_cell = (num_uints_per_bin + 31) / 32;
 
     voxel_texture = allocator.create_volume_texture(
-        "Voxels", VK_FORMAT_R16G16B16A16_SFLOAT, voxel_texture_resolution, 1, TextureUsage::StorageImage
+        "Voxels",
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        voxel_texture_resolution,
+        1,
+        TextureUsage::StorageImage
     );
 
     volume_uniform_buffer = allocator.create_buffer(
-        "Voxel transform buffer", sizeof(glm::mat4), BufferUsage::UniformBuffer
+        "Voxel transform buffer",
+        sizeof(glm::mat4),
+        BufferUsage::UniformBuffer
     );
 
     const auto triangle_size = sizeof(Triangle);
 
     transformed_triangle_cache = allocator.create_buffer(
-        "Transformed triangles", triangle_size * max_num_triangles, BufferUsage::StorageBuffer
+        "Transformed triangles",
+        triangle_size * max_num_triangles,
+        BufferUsage::StorageBuffer
     );
 
     triangle_sh_cache = allocator.create_buffer(
-        "Triangles SH", sizeof(glm::vec4) * max_num_triangles, BufferUsage::StorageBuffer
+        "Triangles SH",
+        sizeof(glm::vec4) * max_num_triangles,
+        BufferUsage::StorageBuffer
     );
 
     bins = allocator.create_buffer(
-        "Bin bitmask", sizeof(uint32_t) * num_uints_per_bin * num_bins, BufferUsage::StorageBuffer
+        "Bin bitmask",
+        sizeof(uint32_t) * num_uints_per_bin * num_bins,
+        BufferUsage::StorageBuffer
     );
 
     cell_bitmask_coarse = allocator.create_buffer(
-        "Coarse cell bitmask", sizeof(uint32_t) * num_coarse_uints_per_cell * num_cells, BufferUsage::StorageBuffer
+        "Coarse cell bitmask",
+        sizeof(uint32_t) * num_coarse_uints_per_cell * num_cells,
+        BufferUsage::StorageBuffer
     );
 
     cell_bitmask = allocator.create_buffer(
-        "Cell bitmask", sizeof(uint32_t) * num_uints_per_bin * num_cells, BufferUsage::StorageBuffer
+        "Cell bitmask",
+        sizeof(uint32_t) * num_uints_per_bin * num_cells,
+        BufferUsage::StorageBuffer
     );
 }
 
 void ThreeDeeRasterizer::deinit_resources(ResourceAllocator& allocator) {
-    if (transformed_triangle_cache) {
+    if(transformed_triangle_cache) {
         allocator.destroy_buffer(transformed_triangle_cache);
         transformed_triangle_cache = {};
     }
-    if (bins) {
+    if(bins) {
         allocator.destroy_buffer(bins);
         bins = {};
     }
-    if (voxel_texture != nullptr) {
+    if(voxel_texture != nullptr) {
         allocator.destroy_texture(voxel_texture);
         voxel_texture = nullptr;
     }
-    if (volume_uniform_buffer) {
+    if(volume_uniform_buffer) {
         allocator.destroy_buffer(volume_uniform_buffer);
         volume_uniform_buffer = {};
     }
@@ -132,24 +151,25 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
             .textures = {
                 {
                     voxel_texture,
-                    {
-                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL
                 }
             },
             .buffers = {
                 {
                     volume_uniform_buffer,
-                    {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT}
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT
                 }
             },
             .execute = [&, world_to_voxel](CommandBuffer& commands) {
                 const auto set = *vkutil::DescriptorBuilder::begin(
-                                      *backend, backend->get_transient_descriptor_allocator()
+                                      *backend,
+                                      backend->get_transient_descriptor_allocator()
                                   )
                                   .bind_image(
-                                      0, {.image = voxel_texture, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
-                                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                                      0,
+                                      {.image = voxel_texture, .image_layout = VK_IMAGE_LAYOUT_GENERAL},
+                                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                      VK_SHADER_STAGE_COMPUTE_BIT
                                   )
                                   .build();
 
@@ -167,32 +187,45 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
     );
 
     const auto triangle_shader_set = *vkutil::DescriptorBuilder::begin(
-                                          *backend, backend->get_transient_descriptor_allocator()
+                                          *backend,
+                                          backend->get_transient_descriptor_allocator()
                                       )
                                       .bind_buffer(
-                                          0, {.buffer = meshes.get_vertex_position_buffer()},
-                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                          0,
+                                          {.buffer = meshes.get_vertex_position_buffer()},
+                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                          VK_SHADER_STAGE_COMPUTE_BIT
                                       )
                                       .bind_buffer(
-                                          1, {.buffer = meshes.get_vertex_data_buffer()},
-                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                          1,
+                                          {.buffer = meshes.get_vertex_data_buffer()},
+                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                          VK_SHADER_STAGE_COMPUTE_BIT
                                       )
                                       .bind_buffer(
-                                          2, {.buffer = meshes.get_index_buffer()},
-                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                          2,
+                                          {.buffer = meshes.get_index_buffer()},
+                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                          VK_SHADER_STAGE_COMPUTE_BIT
                                       )
                                       .bind_buffer(
-                                          3, {.buffer = volume_uniform_buffer},
-                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                          3,
+                                          {.buffer = volume_uniform_buffer},
+                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                          VK_SHADER_STAGE_COMPUTE_BIT
                                       )
                                       .bind_buffer(
-                                          4, {.buffer = transformed_triangle_cache},
-                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                          4,
+                                          {.buffer = transformed_triangle_cache},
+                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                          VK_SHADER_STAGE_COMPUTE_BIT
                                       )
 
                                       .bind_buffer(
-                                          5, {.buffer = triangle_sh_cache},
-                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                          5,
+                                          {.buffer = triangle_sh_cache},
+                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                          VK_SHADER_STAGE_COMPUTE_BIT
                                       )
                                       .build();
 
@@ -206,27 +239,27 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
             .buffers = {
                 {
                     meshes.get_vertex_position_buffer(),
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT
                 },
                 {
                     meshes.get_vertex_data_buffer(),
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT
                 },
                 {
                     meshes.get_index_buffer(),
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT
                 },
                 {
                     volume_uniform_buffer,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT}
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT
                 },
                 {
                     transformed_triangle_cache,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT
                 },
                 {
                     triangle_sh_cache,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT
                 },
             },
             .execute = [&, this](CommandBuffer& commands) {
@@ -257,27 +290,29 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
             .buffers = {
                 {
                     transformed_triangle_cache,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_READ_BIT
                 },
                 {
                     bins,
-                    {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
-                    }
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
                 }
             },
             .execute = [&](CommandBuffer& commands) {
                 const auto set = *vkutil::DescriptorBuilder::begin(
-                                      *backend, backend->get_transient_descriptor_allocator()
+                                      *backend,
+                                      backend->get_transient_descriptor_allocator()
                                   )
                                   .bind_buffer(
-                                      0, {.buffer = transformed_triangle_cache},
+                                      0,
+                                      {.buffer = transformed_triangle_cache},
                                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                       VK_SHADER_STAGE_COMPUTE_BIT
                                   )
                                   .bind_buffer(
-                                      1, {
+                                      1,
+                                      {
                                           .buffer = bins
                                       },
                                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -303,51 +338,51 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
             .buffers = {
                 {
                     transformed_triangle_cache,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_READ_BIT
                 },
                 {
                     bins,
-                    {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        VK_ACCESS_2_SHADER_READ_BIT
-                    }
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_READ_BIT
                 },
                 {
                     cell_bitmask_coarse,
-                    {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
-                    }
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
                 },
                 {
                     cell_bitmask,
-                    {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
-                    }
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
                 }
             },
             .execute = [&](CommandBuffer& commands) {
                 const auto set = *vkutil::DescriptorBuilder::begin(
-                                      *backend, backend->get_transient_descriptor_allocator()
+                                      *backend,
+                                      backend->get_transient_descriptor_allocator()
                                   )
                                   .bind_buffer(
-                                      0, {.buffer = transformed_triangle_cache},
+                                      0,
+                                      {.buffer = transformed_triangle_cache},
                                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                       VK_SHADER_STAGE_COMPUTE_BIT
                                   )
                                   .bind_buffer(
-                                      1, {.buffer = bins},
+                                      1,
+                                      {.buffer = bins},
                                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                       VK_SHADER_STAGE_COMPUTE_BIT
                                   )
                                   .bind_buffer(
-                                      2, {.buffer = cell_bitmask_coarse},
+                                      2,
+                                      {.buffer = cell_bitmask_coarse},
                                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                       VK_SHADER_STAGE_COMPUTE_BIT
                                   )
                                   .bind_buffer(
-                                      3, {.buffer = cell_bitmask},
+                                      3,
+                                      {.buffer = cell_bitmask},
                                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                                       VK_SHADER_STAGE_COMPUTE_BIT
                                   )
@@ -377,47 +412,55 @@ void ThreeDeeRasterizer::voxelize_mesh(RenderGraph& graph, const MeshHandle mesh
             .textures = {
                 {
                     voxel_texture,
-                    {
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT,
-                        VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_WRITE_BIT,
+                    VK_IMAGE_LAYOUT_GENERAL
                 }
             },
             .buffers = {
                 {
                     triangle_sh_cache,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT
                 },
                 {
                     cell_bitmask_coarse,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT
                 },
                 {
                     cell_bitmask,
-                    {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT
                 }
             },
             .execute = [&](CommandBuffer& commands) {
                 const auto set = *vkutil::DescriptorBuilder::begin(
-                                      *backend, backend->get_transient_descriptor_allocator()
+                                      *backend,
+                                      backend->get_transient_descriptor_allocator()
                                   )
                                   .bind_buffer(
-                                      0, {.buffer = triangle_sh_cache},
-                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                      0,
+                                      {.buffer = triangle_sh_cache},
+                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                      VK_SHADER_STAGE_COMPUTE_BIT
                                   )
                                   .bind_buffer(
-                                      1, {.buffer = cell_bitmask_coarse},
-                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                      1,
+                                      {.buffer = cell_bitmask_coarse},
+                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                      VK_SHADER_STAGE_COMPUTE_BIT
                                   )
                                   .bind_buffer(
-                                      2, {.buffer = cell_bitmask},
-                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
+                                      2,
+                                      {.buffer = cell_bitmask},
+                                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                      VK_SHADER_STAGE_COMPUTE_BIT
                                   )
                                   .bind_image(
-                                      3, {
+                                      3,
+                                      {
                                           .image = voxel_texture, .image_layout = VK_IMAGE_LAYOUT_GENERAL
                                       },
-                                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                                      VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                      VK_SHADER_STAGE_COMPUTE_BIT
                                   )
                                   .build();
 

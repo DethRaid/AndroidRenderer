@@ -414,7 +414,7 @@ void LightPropagationVolume::update_buffers(ResourceUploadQueue& queue) const {
         );
     }
 
-    queue.upload_to_buffer(cascade_data_buffer, std::span{ cascade_matrices });
+    queue.upload_to_buffer(cascade_data_buffer, std::span{cascade_matrices});
 }
 
 void LightPropagationVolume::inject_indirect_sun_light(
@@ -458,7 +458,8 @@ void LightPropagationVolume::inject_indirect_sun_light(
             }
         };
         const auto set = backend.get_transient_descriptor_allocator().build_set(
-                                    set_info, "RSM Cascade Data and Light set"
+                                    set_info,
+                                    "RSM Cascade Data and Light set"
                                 )
                                 .bind(0, cascade_data_buffer)
                                 .bind(1, scene.get_sun_light().get_constant_buffer())
@@ -504,8 +505,9 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 .name = "Clear VPL Count",
                 .buffers = {
                     {
-                        cascade.vpl_count_buffer,
-                        {.stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT, .access = VK_ACCESS_2_TRANSFER_WRITE_BIT}
+                        .buffer = cascade.vpl_count_buffer,
+                        .stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                        .access = VK_ACCESS_2_TRANSFER_WRITE_BIT
                     }
                 },
                 .execute = [buffer = cascade.vpl_count_buffer](const CommandBuffer& commands) {
@@ -540,15 +542,15 @@ void LightPropagationVolume::inject_indirect_sun_light(
                     .descriptor_sets = std::vector{descriptor_set},
                     .buffers = {
                         {
-                            cascade.vpl_count_buffer,
-                            {
-                                .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                                .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
-                            }
+                            .buffer = cascade.vpl_count_buffer,
+                            .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
+
                         },
                         {
-                            cascade.vpl_buffer,
-                            {.stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_WRITE_BIT}
+                            .buffer = cascade.vpl_buffer,
+                            .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                            .access = VK_ACCESS_2_SHADER_WRITE_BIT
                         }
 
                     },
@@ -593,14 +595,13 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
             DynamicRenderingPass{
                 .name = "VPL Injection",
                 .buffers = {
-                    {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
-                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+                    {cascade_data_buffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT},
+                    {cascade.vpl_buffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT},
                     {
-                        cascade.vpl_count_buffer,
-                        {
-                            .stage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-                            .access = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
-                        }
+                        .buffer = cascade.vpl_count_buffer,
+                        .stage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                        .access = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
+
                     }
                 },
                 .descriptor_sets = std::vector{descriptor_set},
@@ -655,8 +656,8 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
                 .name = "VPL Injection",
                 .descriptor_sets = std::vector{descriptor_set},
                 .buffers = {
-                    {cascade_data_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
-                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+                    {cascade_data_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT},
+                    {cascade.vpl_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT},
                 },
                 .push_constants = VplInjectionConstants{
                     backend.get_global_allocator(),
@@ -689,8 +690,8 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
             {
                 .name = "VPL Injection",
                 .buffers = {
-                    {cascade_data_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT}},
-                    {cascade.vpl_buffer, {VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
+                    {cascade_data_buffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT},
+                    {cascade.vpl_buffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT},
                 },
                 .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
             }
@@ -744,34 +745,30 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
     render_graph.add_pass(
         {
             .name = "LightPropagationVolume::clear_volume",
-            .textures = {
+            .textures = std::vector<TextureUsageToken>{
                 {
-                    lpv_a_red,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_WRITE_BIT,
-                        .layout = VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    .texture = lpv_a_red,
+                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .access = VK_ACCESS_2_SHADER_WRITE_BIT,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL
                 },
                 {
-                    lpv_a_green,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_WRITE_BIT,
-                        .layout = VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    .texture = lpv_a_green,
+                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .
+                    access = VK_ACCESS_2_SHADER_WRITE_BIT,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL
                 },
                 {
-                    lpv_a_blue,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_WRITE_BIT,
-                        .layout = VK_IMAGE_LAYOUT_GENERAL
-                    }
+                    .texture = lpv_a_blue,
+                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .access = VK_ACCESS_2_SHADER_WRITE_BIT,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL
                 },
                 {
-                    geometry_volume_handle,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, .access = VK_ACCESS_2_SHADER_WRITE_BIT,
-                        .layout = VK_IMAGE_LAYOUT_GENERAL,
-                    }
+                    .texture = geometry_volume_handle,
+                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .access = VK_ACCESS_2_SHADER_WRITE_BIT,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL,
                 }
             },
             .execute = [&](CommandBuffer& commands) {
@@ -887,15 +884,14 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
                 .textures = {
                     {
                         geometry_volume_handle,
-                        {
-                            VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                            VK_IMAGE_LAYOUT_GENERAL
-                        },
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                        VK_IMAGE_LAYOUT_GENERAL
                     }
                 },
                 .buffers = {
-                    {cascade_data_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT}},
-                    {primitive_id_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT}}
+                    {cascade_data_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT},
+                    {primitive_id_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT}
                 },
                 .execute = [&, primitive_ids = std::move(primitive_ids), textures = std::move(textures),
                     primitive_id_buffer = primitive_id_buffer](
@@ -1151,22 +1147,22 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
         {
             .textures = {
                 {
-                    lpv_a_red, {
-                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    lpv_a_red,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    VK_ACCESS_SHADER_READ_BIT,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
                 {
-                    lpv_a_green, {
-                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    lpv_a_green,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    VK_ACCESS_SHADER_READ_BIT,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
                 {
-                    lpv_a_blue, {
-                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    lpv_a_blue,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    VK_ACCESS_SHADER_READ_BIT,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 }
             }
         }
@@ -1214,18 +1210,22 @@ void LightPropagationVolume::visualize_vpls(
     RenderGraph& graph, const BufferHandle scene_view_buffer, const TextureHandle lit_scene,
     const TextureHandle depth_buffer
 ) {
-    auto buffer_barriers = absl::flat_hash_map<BufferHandle, BufferUsageToken>{};
+    auto buffer_barriers = std::vector<BufferUsageToken>{};
     buffer_barriers.reserve(cascades.size() * 2);
 
     for(const auto& cascade : cascades) {
-        buffer_barriers.emplace(
-            cascade.vpl_count_buffer,
+        buffer_barriers.emplace_back(
             BufferUsageToken{
-                .stage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, .access = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
+                .buffer = cascade.vpl_count_buffer,
+                .stage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                .access = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
             });
-        buffer_barriers.emplace(
-            cascade.vpl_buffer,
-            BufferUsageToken{.stage = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT});
+        buffer_barriers.emplace_back(
+            BufferUsageToken{
+                .buffer = cascade.vpl_buffer,
+                .stage = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
+                .access = VK_ACCESS_2_SHADER_READ_BIT
+            });
     }
 
     const auto view_descriptor_set = backend.get_transient_descriptor_allocator()

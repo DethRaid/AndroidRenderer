@@ -22,53 +22,79 @@ static bool is_combined_image_sampler(VkDescriptorType vk_type);
 static bool is_acceleration_structure(VkDescriptorType vk_type);
 
 void DescriptorSet::get_resource_usage_information(
-    TextureUsageMap& texture_usages, absl::flat_hash_map<BufferHandle, BufferUsageToken>& buffer_usages
+    std::vector<TextureUsageToken>& texture_usages, std::vector<BufferUsageToken>& buffer_usages
 ) const {
-    for(const auto& [binding, resource] : bindings) {
-        const auto& binding_info = set_info.bindings.at(binding);
+    auto binding_idx = 0;
+    for(const auto& resource : bindings) {
+        const auto& binding_info = set_info.bindings.at(binding_idx);
         if(is_buffer_type(binding_info.descriptorType)) {
             const auto& buffer_handle = resource.buffer;
-            if (const auto itr = buffer_usages.find(buffer_handle);  itr != buffer_usages.end()) {
-                itr->second.access |= to_vk_access(binding_info.descriptorType, binding_info.is_read_only);
-                itr->second.stage |= to_pipeline_stage(binding_info.stageFlags);
+            if(const auto itr = std::ranges::find_if(
+                buffer_usages,
+                [=](const auto& usage) {
+                    return usage.buffer == buffer_handle;
+                }); itr != buffer_usages.end()) {
+                itr->access |= to_vk_access(binding_info.descriptorType, binding_info.is_read_only);
+                itr->stage |= to_pipeline_stage(binding_info.stageFlags);
+
             } else {
-                buffer_usages[buffer_handle] = {
-                    .stage = to_pipeline_stage(binding_info.stageFlags),
-                    .access = to_vk_access(binding_info.descriptorType, binding_info.is_read_only)
-                };
+                buffer_usages.emplace_back(
+                    BufferUsageToken{
+                        .buffer = buffer_handle,
+                        .stage = to_pipeline_stage(binding_info.stageFlags),
+                        .access = to_vk_access(binding_info.descriptorType, binding_info.is_read_only)
+                    });
             }
+
         } else if(is_texture_type(binding_info.descriptorType)) {
             const auto& texture_handle = resource.texture;
-            if(auto itr = texture_usages.find(texture_handle); itr != texture_usages.end()) {
-                itr->second.access |= to_vk_access(binding_info.descriptorType, binding_info.is_read_only);
-                itr->second.stage |= to_pipeline_stage(binding_info.stageFlags);
+            if(auto itr = std::ranges::find_if(
+                texture_usages,
+                [=](const auto& usage) {
+                    return usage.texture == texture_handle;
+                }); itr != texture_usages.end()) {
+                itr->access |= to_vk_access(binding_info.descriptorType, binding_info.is_read_only);
+                itr->stage |= to_pipeline_stage(binding_info.stageFlags);
+
             } else {
-                texture_usages[texture_handle] = {
-                    .stage = to_pipeline_stage(binding_info.stageFlags),
-                    .access = to_vk_access(binding_info.descriptorType, binding_info.is_read_only),
-                    .layout = to_image_layout(binding_info.descriptorType)
-                };
+                texture_usages.emplace_back(
+                    TextureUsageToken{
+                        .texture = texture_handle,
+                        .stage = to_pipeline_stage(binding_info.stageFlags),
+                        .access = to_vk_access(binding_info.descriptorType, binding_info.is_read_only),
+                        .layout = to_image_layout(binding_info.descriptorType)
+                    });
             }
+
         } else if(is_combined_image_sampler(binding_info.descriptorType)) {
             const auto& texture_handle = resource.combined_image_sampler.texture;
-            if(auto itr = texture_usages.find(texture_handle); itr != texture_usages.end()) {
-                itr->second.access |= to_vk_access(binding_info.descriptorType, binding_info.is_read_only);
-                itr->second.stage |= to_pipeline_stage(binding_info.stageFlags);
+            if(auto itr = std::ranges::find_if(
+                texture_usages,
+                [=](const auto& usage) {
+                    return usage.texture == texture_handle;
+                }); itr != texture_usages.end()) {
+                itr->access |= to_vk_access(binding_info.descriptorType, binding_info.is_read_only);
+                itr->stage |= to_pipeline_stage(binding_info.stageFlags);
+
             } else {
-                texture_usages[texture_handle] = {
-                    .stage = to_pipeline_stage(binding_info.stageFlags),
-                    .access = to_vk_access(binding_info.descriptorType, binding_info.is_read_only),
-                    .layout = to_image_layout(binding_info.descriptorType)
-                };
+                texture_usages.emplace_back(
+                    TextureUsageToken{
+                        .texture = texture_handle,
+                        .stage = to_pipeline_stage(binding_info.stageFlags),
+                        .access = to_vk_access(binding_info.descriptorType, binding_info.is_read_only),
+                        .layout = to_image_layout(binding_info.descriptorType)
+                    });
             }
         }
+
+        binding_idx++;
     }
 }
 
 DescriptorSetBuilder::DescriptorSetBuilder(
-    RenderBackend& backend_in, DescriptorSetAllocator& allocator_in, DescriptorSetInfo set_info_in, const std::string_view name_in
-) : backend{ &backend_in }, allocator{ &allocator_in }, set_info{ std::move(set_info_in) }, name{ name_in } {
-}
+    RenderBackend& backend_in, DescriptorSetAllocator& allocator_in, DescriptorSetInfo set_info_in,
+    const std::string_view name_in
+) : backend{&backend_in}, allocator{&allocator_in}, set_info{std::move(set_info_in)}, name{name_in} {}
 
 DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, const BufferHandle buffer) {
 #ifndef _NDEBUG
@@ -86,14 +112,17 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, c
     }
 #endif
 
-    bindings.emplace(binding_index, detail::BoundResource{.buffer = buffer});
+    if(bindings.size() <= binding_index) {
+        bindings.resize(binding_index + 1);
+    }
+    bindings[binding_index] = detail::BoundResource{.buffer = buffer};
 
     return *this;
 }
 
 DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, const TextureHandle texture) {
 #ifndef _NDEBUG
-    if (binding_index >= set_info.bindings.size()) {
+    if(binding_index >= set_info.bindings.size()) {
         throw std::runtime_error{
             fmt::format(
                 "Tried to bind a resource to binding {}, but that does not exist in this descriptor set",
@@ -112,9 +141,9 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, c
     return *this;
 }
 
-DescriptorSetBuilder& DescriptorSetBuilder::bind(uint32_t binding_index, TextureHandle texture, VkSampler vk_sampler) {
+DescriptorSetBuilder& DescriptorSetBuilder::bind(uint32_t binding_index, const TextureHandle texture, const VkSampler vk_sampler) {
 #ifndef _NDEBUG
-    if (binding_index >= set_info.bindings.size()) {
+    if(binding_index >= set_info.bindings.size()) {
         throw std::runtime_error{
             fmt::format(
                 "Tried to bind a resource to binding {}, but that does not exist in this descriptor set",
@@ -138,7 +167,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(
     const uint32_t binding_index, const AccelerationStructureHandle acceleration_structure
 ) {
 #ifndef _NDEBUG
-    if (binding_index >= set_info.bindings.size()) {
+    if(binding_index >= set_info.bindings.size()) {
         throw std::runtime_error{
             fmt::format(
                 "Tried to bind a resource to binding {}, but that does not exist in this descriptor set",
@@ -161,12 +190,12 @@ DescriptorSet DescriptorSetBuilder::build() {
     ZoneScoped;
 
     auto builder = vkutil::DescriptorBuilder::begin(*backend, *allocator);
-    auto& resources = backend->get_global_allocator();
-    for(const auto& [binding, resource] : bindings) {
-        const auto& binding_info = set_info.bindings.at(binding);
+    auto binding_idx = 0u;
+    for(const auto& resource : bindings) {
+        const auto& binding_info = set_info.bindings.at(binding_idx);
         if(is_buffer_type(binding_info.descriptorType)) {
             builder.bind_buffer(
-                binding,
+                binding_idx,
                 {.buffer = resource.buffer},
                 binding_info.descriptorType,
                 binding_info.stageFlags
@@ -174,7 +203,7 @@ DescriptorSet DescriptorSetBuilder::build() {
 
         } else if(is_texture_type(binding_info.descriptorType)) {
             builder.bind_image(
-                binding,
+                binding_idx,
                 {
                     .image = resource.texture,
                     .image_layout = to_image_layout(binding_info.descriptorType)
@@ -183,10 +212,9 @@ DescriptorSet DescriptorSetBuilder::build() {
                 binding_info.stageFlags
             );
 
-        }
-        else if (is_combined_image_sampler(binding_info.descriptorType)) {
+        } else if(is_combined_image_sampler(binding_info.descriptorType)) {
             builder.bind_image(
-                binding,
+                binding_idx,
                 {
                     .sampler = resource.combined_image_sampler.sampler,
                     .image = resource.texture,
@@ -197,11 +225,13 @@ DescriptorSet DescriptorSetBuilder::build() {
             );
 
         } else if(is_acceleration_structure(binding_info.descriptorType)) {
-            builder.bind_acceleration_structure(binding, {.as = resource.address}, binding_info.stageFlags);
+            builder.bind_acceleration_structure(binding_idx, {.as = resource.address}, binding_info.stageFlags);
 
         } else {
             throw std::runtime_error{"Unknown descriptor type!"};
         }
+
+        binding_idx++;
     }
 
     VkDescriptorSetLayout layout;

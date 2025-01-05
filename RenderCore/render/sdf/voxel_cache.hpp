@@ -35,7 +35,7 @@ private:
     /**
      * Map from mesh index and material index to voxel
      */
-    absl::flat_hash_map<uint64_t, VoxelObject> voxels;
+    std::unordered_map<uint64_t, VoxelObject> voxels;
 
     static uint64_t make_key(MeshPrimitiveHandle primitive);
 };

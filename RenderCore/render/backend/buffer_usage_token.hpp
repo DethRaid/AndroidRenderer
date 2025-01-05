@@ -5,6 +5,8 @@
 #include "render/backend/handles.hpp"
 
 struct BufferUsageToken {
+    BufferHandle buffer = nullptr;
+
     VkPipelineStageFlags2 stage;
 
     VkAccessFlags2 access;

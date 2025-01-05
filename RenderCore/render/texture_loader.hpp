@@ -60,7 +60,7 @@ private:
 
     std::shared_ptr<spdlog::logger> logger;
 
-    absl::flat_hash_map<std::string, TextureHandle> loaded_textures;
+    std::unordered_map<std::string, TextureHandle> loaded_textures;
 
     tl::optional<TextureHandle> load_texture_ktx(const std::filesystem::path& filepath, TextureType type);
 

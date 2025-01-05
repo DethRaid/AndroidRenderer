@@ -83,14 +83,14 @@ private:
 
     VkShaderStageFlags push_constant_stages = 0;
 
-    absl::flat_hash_map<uint32_t, DescriptorSetInfo> descriptor_sets;
+    std::vector<DescriptorSetInfo> descriptor_sets;
 
     std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
 
     uint32_t group_index;
 
     void create_pipeline_layout(
-        RenderBackend& backend, const absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos,
+        RenderBackend& backend, const std::vector<DescriptorSetInfo>& descriptor_set_infos,
         const std::vector<VkPushConstantRange>& push_constants
     );
 };

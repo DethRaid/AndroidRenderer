@@ -4,7 +4,6 @@
 #include <memory>
 #include <vector>
 
-#include <GLFW/glfw3.h>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <spdlog/logger.h>
@@ -15,6 +14,8 @@
 
 #elif defined(_WIN32)
 #include <Windows.h>
+#include <GLFW/glfw3.h>
+
 #ifdef far
 #undef far
 #endif

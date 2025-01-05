@@ -44,14 +44,12 @@ void BlasBuildQueue::flush_pending_builds(RenderGraph& graph) {
 
     allocator.destroy_buffer(scratch_buffer);
 
-    for(auto i = 0; i < pending_jobs.size(); i += batch_size) {
-        auto barriers = absl::flat_hash_map<BufferHandle, BufferUsageToken>{
+    for(auto i = 0u; i < pending_jobs.size(); i += batch_size) {
+        auto barriers = std::vector<BufferUsageToken>{
             {
-                scratch_buffer,
-                {
-                    .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
-                    .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
-                }
+                .buffer = scratch_buffer,
+                .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
             }
         };
 
@@ -71,9 +69,9 @@ void BlasBuildQueue::flush_pending_builds(RenderGraph& graph) {
 
             const auto& job = pending_jobs[job_idx];
 
-            barriers.emplace(
-                pending_jobs[job_idx].handle->buffer,
+            barriers.emplace_back(
                 BufferUsageToken{
+                    .buffer = pending_jobs[job_idx].handle->buffer,
                     .stage = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
                     .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
                 });

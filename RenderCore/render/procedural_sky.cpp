@@ -113,25 +113,19 @@ void ProceduralSky::update_sky_luts(RenderGraph& graph, const glm::vec3& light_v
         {
             .textures = {
                 {
-                    transmittance_lut,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    .texture = transmittance_lut,
+                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
                 {
-                    multiscattering_lut,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    .texture = multiscattering_lut,
+                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
                 {
-                    sky_view_lut,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    .texture = sky_view_lut,
+                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
             }
         });
@@ -139,8 +133,10 @@ void ProceduralSky::update_sky_luts(RenderGraph& graph, const glm::vec3& light_v
     graph.end_label();
 }
 
-void ProceduralSky::render_sky(CommandBuffer& commands, const BufferHandle view_buffer, const glm::vec3& light_vector,
-                               const DescriptorSet& gbuffer_descriptor_set) const {
+void ProceduralSky::render_sky(
+    CommandBuffer& commands, const BufferHandle view_buffer, const glm::vec3& light_vector,
+    const DescriptorSet& gbuffer_descriptor_set
+) const {
     auto& backend = RenderBackend::get();
 
     const auto set = backend.get_transient_descriptor_allocator().build_set(sky_application_pso, 0)
@@ -156,7 +152,7 @@ void ProceduralSky::render_sky(CommandBuffer& commands, const BufferHandle view_
     commands.set_push_constant(0, light_vector.x);
     commands.set_push_constant(1, light_vector.y);
     commands.set_push_constant(2, light_vector.z);
-    
+
     commands.draw(3);
 
     commands.clear_descriptor_set(0);

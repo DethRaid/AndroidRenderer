@@ -135,7 +135,7 @@ static bool collect_descriptor_sets(
     const std::filesystem::path& shader_path,
     const std::vector<SpvReflectDescriptorSet*>& sets,
     VkShaderStageFlagBits shader_stage,
-    absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_sets
+    std::vector<DescriptorSetInfo>& descriptor_sets
 );
 
 static bool collect_push_constants(
@@ -439,7 +439,7 @@ GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
         if(need_data_buffer) {
             vertex_inputs.push_back(vertex_layout->input_bindings.at(1));
         }
-        if (need_primitive_id_buffer) {
+        if(need_primitive_id_buffer) {
             vertex_inputs.push_back(vertex_layout->input_bindings.at(2));
         }
     }
@@ -451,9 +451,9 @@ bool collect_descriptor_sets(
     const std::filesystem::path& shader_path,
     const std::vector<SpvReflectDescriptorSet*>& sets,
     const VkShaderStageFlagBits shader_stage,
-    absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_sets
+    std::vector<DescriptorSetInfo>& descriptor_sets
 ) {
-    if (logger == nullptr) {
+    if(logger == nullptr) {
         init_logger();
     }
 
@@ -462,83 +462,43 @@ bool collect_descriptor_sets(
     bool has_error = false;
     for(const auto* set : sets) {
         auto num_bindings = 0u;
-        if(auto itr = descriptor_sets.find(set->set); itr != descriptor_sets.end()) {
-            // We saw this set in the previous shader. Validate that it's the same as the previous, and mark it with
-            // the new shader stage
-            auto& set_info = itr->second;
-            num_bindings = static_cast<uint32_t>(set_info.bindings.size());
-            if(set_info.bindings.empty()) {
-                set_info.bindings.resize(8);
-            }
-            for(auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
-                const auto vk_type = to_vk_type(binding->descriptor_type);
-                logger->trace(
-                    "Adding info about descriptor {}.{} with count {} to existing set for shader stage {}",
-                    set->set,
-                    binding->binding,
-                    binding->count,
-                    magic_enum::enum_name(shader_stage)
-                );
-
-                if(set_info.bindings.size() <= binding->binding) {
-                    set_info.bindings.resize(binding->binding * 2);
-                }
-                const auto existing_stage_flags = set_info.bindings[binding->binding].stageFlags;
-                set_info.bindings[binding->binding] =
-                    DescriptorInfo{
-                        {
-                            .binding = binding->binding,
-                            .descriptorType = vk_type,
-                            .descriptorCount = binding->count > 0 ? binding->count : texture_array_size,
-                            .stageFlags = shader_stage | existing_stage_flags,
-                            .pImmutableSamplers = nullptr
-                        },
-                        (binding->decoration_flags & SPV_REFLECT_DECORATION_NON_WRITABLE) != 0
-                    };
-                num_bindings = std::max(num_bindings, binding->binding);
-
-                if(binding->count == 0) {
-                    set_info.has_variable_count_binding = true;
-                }
-            }
-        } else {
-            // The set is new. Construct new bindings for it and add them all
-            auto set_info = DescriptorSetInfo{};
-            logger->trace("Adding new descriptor set {}", set->set);
-            set_info.bindings.resize(set->binding_count);
-            for(auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
-                logger->trace(
-                    "Adding new descriptor {}.{} with count {} for shader stage {}",
-                    set->set,
-                    binding->binding,
-                    binding->count,
-                    magic_enum::enum_name(shader_stage)
-                );
-                if(set_info.bindings.size() <= binding->binding) {
-                    set_info.bindings.resize(binding->binding * 2);
-                }
-                set_info.bindings[binding->binding] =
-                    DescriptorInfo{
-                        {
-                            .binding = binding->binding,
-                            .descriptorType = to_vk_type(binding->descriptor_type),
-                            .descriptorCount = binding->count > 0 ? binding->count : texture_array_size,
-                            .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
-                            .pImmutableSamplers = nullptr
-                        },
-                        (binding->decoration_flags & SPV_REFLECT_DECORATION_NON_WRITABLE) != 0
-                    };
-                num_bindings = std::max(num_bindings, binding->binding + 1);
-
-                if(binding->count == 0) {
-                    set_info.has_variable_count_binding = true;
-                }
-            }
-
-            set_info.bindings.resize(num_bindings);
-
-            descriptor_sets.emplace(set->set, set_info);
+        if(descriptor_sets.size() <= set->set) {
+            descriptor_sets.resize(set->set + 1);
         }
+        auto& set_info = descriptor_sets[set->set];
+
+        set_info.bindings.resize(set->binding_count);
+        for(auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
+            logger->trace(
+                "Adding new descriptor {}.{} with count {} for shader stage {}",
+                set->set,
+                binding->binding,
+                binding->count,
+                magic_enum::enum_name(shader_stage)
+            );
+            if(set_info.bindings.size() <= binding->binding) {
+                set_info.bindings.resize(binding->binding * 2);
+            }
+            set_info.bindings[binding->binding] =
+                DescriptorInfo{
+                    {
+                        .binding = binding->binding,
+                        .descriptorType = to_vk_type(binding->descriptor_type),
+                        .descriptorCount = binding->count > 0 ? binding->count : texture_array_size,
+                        .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
+                        .pImmutableSamplers = nullptr
+                    },
+                    (binding->decoration_flags & SPV_REFLECT_DECORATION_NON_WRITABLE) != 0
+                };
+            num_bindings = std::max(num_bindings, binding->binding + 1);
+
+            if(binding->count == 0) {
+                set_info.has_variable_count_binding = true;
+            }
+        }
+
+        set_info.bindings.resize(num_bindings);
+
     }
 
     return has_error;
@@ -596,7 +556,7 @@ bool collect_push_constants(
 bool collect_bindings(
     const std::vector<uint8_t>& shader_instructions, const std::string& shader_name,
     VkShaderStageFlagBits shader_stage,
-    absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_sets,
+    std::vector<DescriptorSetInfo>& descriptor_sets,
     std::vector<VkPushConstantRange>& push_constants
 ) {
     if(logger == nullptr) {
@@ -679,7 +639,7 @@ void collect_vertex_attributes(
 }
 
 VkDescriptorType to_vk_type(SpvReflectDescriptorType type) {
-    switch (type) {
+    switch(type) {
     case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER:
         return VK_DESCRIPTOR_TYPE_SAMPLER;
 

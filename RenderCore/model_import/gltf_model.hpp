@@ -55,7 +55,7 @@ private:
 
     std::unique_ptr<fastgltf::Asset> model;
      
-    absl::flat_hash_map<size_t, TextureHandle> gltf_texture_to_texture_handle;
+    std::unordered_map<size_t, TextureHandle> gltf_texture_to_texture_handle;
 
     std::vector<PooledObject<BasicPbrMaterialProxy>> gltf_material_to_material_handle;
 

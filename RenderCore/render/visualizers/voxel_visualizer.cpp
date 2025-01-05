@@ -71,8 +71,8 @@ VoxelVisualizer::VoxelVisualizer() {
 }
 
 void VoxelVisualizer::render(
-    RenderGraph& render_graph, const RenderScene& scene, TextureHandle output_image, BufferHandle view_uniform_buffer
-) {
+    RenderGraph& render_graph, const RenderScene& scene, const TextureHandle output_image, const BufferHandle view_uniform_buffer
+) const {
     // Draw one cube for each primitive in the scene. Draw their front faces. The vertex shader scales the box to match
     // the primitive's bounding box and calculates the worldspace view vector. The fragment shader raymarches along the
     // view vector, sampling the voxel texture at each step. If the ray hits a solid voxel, the fragment shader samples
@@ -81,7 +81,7 @@ void VoxelVisualizer::render(
     //
     // This means objects will disappear when you're inside their bounding boxes. This isn't ideal but it makes the
     // visualizer simpler. The other option is to only draw the primitives that were visible this frame, without depth
-    // testing. Draw their back faces, then send a ray towards the front face, then raymarch from the hit position (or
+    // testing. Draw their back faces, then send a ray towards the front face, then ray1march from the hit position (or
     // the near plane) away from the camera. Disable, but more complex
 
     auto& backend = RenderBackend::get();
@@ -96,18 +96,14 @@ void VoxelVisualizer::render(
             .textures = {},
             .buffers = {
                 {
-                    cube_index_buffer,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT,
-                        .access = VK_ACCESS_2_INDEX_READ_BIT
-                    }
+                    .buffer = cube_index_buffer,
+                    .stage = VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT,
+                    .access = VK_ACCESS_2_INDEX_READ_BIT
                 },
                 {
-                    cube_vertex_buffer,
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,
-                        .access = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT
-                    }
+                    .buffer = cube_vertex_buffer,
+                    .stage = VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,
+                    .access = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT
                 },
             },
             .descriptor_sets = {descriptor_set},

@@ -62,8 +62,9 @@ void RaytracingScene::commit_tlas_builds(RenderGraph& graph) {
         {
             .buffers = {
                 {
-                    instances_buffer,
-                    {.stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT, .access = VK_ACCESS_2_MEMORY_WRITE_BIT}
+                    .buffer = instances_buffer,
+                    .stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                    .access = VK_ACCESS_2_MEMORY_WRITE_BIT
                 }
             }
         });
@@ -121,21 +122,17 @@ void RaytracingScene::commit_tlas_builds(RenderGraph& graph) {
             .name = "Build TLAS",
             .buffers = {
                 {
-                    instances_buffer,
-                    {
-                        .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
-                        .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
-                    }
+                    .buffer = instances_buffer,
+                    .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                    .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
                 },
                 {
-                    scratch_buffer,
-                    {
-                        .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
-                        .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
-                    }
+                    .buffer = scratch_buffer,
+                    .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                    .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
                 }
             },
-            .execute = [=](CommandBuffer& commands) {
+            .execute = [=](const CommandBuffer& commands) {
                 // Build Offsets info: n instances
                 VkAccelerationStructureBuildRangeInfoKHR build_offset_info{count_instance, 0, 0, 0};
                 const VkAccelerationStructureBuildRangeInfoKHR* p_build_offset_info = &build_offset_info;

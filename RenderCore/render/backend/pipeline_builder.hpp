@@ -19,12 +19,12 @@ struct SpvReflectBlockVariable;
 struct SpvReflectInterfaceVariable;
 
 bool collect_bindings(const std::vector<uint8_t>& shader_instructions, const std::string& shader_name,
-    VkShaderStageFlagBits shader_stage, absl::flat_hash_map<uint32_t, DescriptorSetInfo>&
+    VkShaderStageFlagBits shader_stage, std::vector<DescriptorSetInfo>&
     descriptor_sets, std::vector<VkPushConstantRange>& push_constants);
 
 struct VertexLayout {
     std::vector<VkVertexInputBindingDescription> input_bindings;
-    absl::flat_hash_map<std::string, VkVertexInputAttributeDescription> attributes;
+    std::unordered_map<std::string, VkVertexInputAttributeDescription> attributes;
 };
 
 /**
@@ -151,7 +151,7 @@ private:
      * However, each set in the vertex and fragment shader must be the same - vertex shader set 0 must be the same as
      * fragment shader set 0
      */
-    absl::flat_hash_map<uint32_t, DescriptorSetInfo> descriptor_sets;
+    std::vector<DescriptorSetInfo> descriptor_sets;
 
     std::vector<VkPushConstantRange> push_constants;
 

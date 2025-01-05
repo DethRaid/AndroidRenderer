@@ -42,7 +42,7 @@ private:
      *
      * R32 is weird. It's the destination format when building a HiZ buffer, so we use a special shader. This is very weird and we do not like it
      */
-    absl::flat_hash_map<VkFormat, ComputePipelineHandle> shaders;
+    std::unordered_map<VkFormat, ComputePipelineHandle> shaders;
 
     VkSampler sampler;
 };

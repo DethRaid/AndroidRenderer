@@ -187,7 +187,7 @@ private:
 
     CVarParameter* InitCVar(const char* name, const char* description);
 
-    absl::flat_hash_map<uint32_t, CVarParameter> savedCVars;
+    std::unordered_map<uint32_t, CVarParameter> savedCVars;
 
     std::vector<CVarParameter*> cachedEditParameters;
 

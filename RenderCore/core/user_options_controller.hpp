@@ -4,8 +4,6 @@
 #include <stdexcept>
 #include <string>
 
-#include <absl/container/flat_hash_map.h>
-
 #include "console/cvars.hpp"
 
 class CvarNotFoundException final : public std::runtime_error {
@@ -35,7 +33,7 @@ public:
 
 private:
     template <typename CvarType>
-    using CvarListenerMap = absl::flat_hash_map<uint32_t, std::vector<std::function<void(CvarType value)>>>;
+    using CvarListenerMap = std::unordered_map<uint32_t, std::vector<std::function<void(CvarType value)>>>;
 
     CvarListenerMap<int32_t> int_cvar_listeners;
     CvarListenerMap<double> float_cvar_listeners;

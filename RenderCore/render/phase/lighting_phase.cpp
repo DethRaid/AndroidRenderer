@@ -32,7 +32,8 @@ LightingPhase::LightingPhase() {
 
 void LightingPhase::render(
     RenderGraph& render_graph, const SceneTransform& view, const TextureHandle lit_scene_texture,
-    const LightPropagationVolume* lpv, const ProceduralSky& sky, const std::optional<TextureHandle> vrsaa_shading_rate_image
+    const LightPropagationVolume* lpv, const ProceduralSky& sky,
+    const std::optional<TextureHandle> vrsaa_shading_rate_image
 ) const {
     ZoneScoped;
 
@@ -54,13 +55,14 @@ void LightingPhase::render(
                                           .bind(4, gbuffer.depth, sampler)
                                           .build();
 
-    auto texture_usages = absl::flat_hash_map<TextureHandle, TextureUsageToken>{};
+    auto texture_usages = std::vector<TextureUsageToken>{};
     const auto sun_shadowmap_handle = sun.get_shadowmap_handle();
     if(sun_shadowmap_handle != nullptr) {
-        texture_usages.emplace(
-            sun.get_shadowmap_handle(),
+        texture_usages.emplace_back(
             TextureUsageToken{
-                .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+                .texture = sun.get_shadowmap_handle(),
+                .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                .access = VK_ACCESS_2_SHADER_READ_BIT,
                 .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             });
     }

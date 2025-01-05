@@ -37,7 +37,7 @@ Bloomer::Bloomer() {
 void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color) {
     ZoneScoped;
 
-    if (bloom_tex == nullptr) {
+    if(bloom_tex == nullptr) {
         create_bloom_tex(scene_color);
     }
 
@@ -64,7 +64,7 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                 commands.bind_pipeline(downsample_shader);
 
                 // We gonna rock down to electric avenue
-                for (auto pass = 0u; pass < cvar_num_bloom_mips.Get() - 1; pass++) {
+                for(auto pass = 0u; pass < cvar_num_bloom_mips.Get() - 1; pass++) {
                     dispatch_size /= glm::uvec2{2};
 
                     logger->trace("Bloom downsample pass {}", pass);
@@ -77,7 +77,9 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                         pass + 1
                     );
                     commands.barrier(
-                        {}, {}, {
+                        {},
+                        {},
+                        {
                             VkImageMemoryBarrier2{
                                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                                 .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -116,21 +118,27 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                     );
 
                     auto set = *vkutil::DescriptorBuilder::begin(
-                                    backend, backend.get_transient_descriptor_allocator()
+                                    backend,
+                                    backend.get_transient_descriptor_allocator()
                                 )
                                 .bind_image(
-                                    0, {
+                                    0,
+                                    {
                                         .sampler = bilinear_sampler, .image = bloom_tex,
                                         .image_layout = VK_IMAGE_LAYOUT_GENERAL,
                                         .mip_level = pass
-                                    }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT
+                                    },
+                                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                    VK_SHADER_STAGE_COMPUTE_BIT
                                 )
                                 .bind_image(
-                                    1, {
+                                    1,
+                                    {
                                         .image = bloom_tex, .image_layout = VK_IMAGE_LAYOUT_GENERAL,
                                         .mip_level = pass + 1
                                     },
-                                    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
+                                    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                                    VK_SHADER_STAGE_COMPUTE_BIT
                                 )
                                 .build();
 
@@ -214,7 +222,9 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
 
                 // Put the top mip in shader read
                 commands.barrier(
-                    {}, {}, {
+                    {},
+                    {},
+                    {
                         VkImageMemoryBarrier2{
                             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                             .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -239,14 +249,18 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
     );
 
     graph.set_resource_usage(
-        bloom_tex, {
-            .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, .access = VK_ACCESS_2_SHADER_READ_BIT,
+        TextureUsageToken{
+            .texture = bloom_tex,
+            .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+            .access = VK_ACCESS_2_SHADER_READ_BIT,
             .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        }, true
+        }
     );
 }
 
-TextureHandle Bloomer::get_bloom_tex() const { return bloom_tex; }
+TextureHandle Bloomer::get_bloom_tex() const {
+    return bloom_tex;
+}
 
 void Bloomer::create_bloom_tex(const TextureHandle scene_color) {
     auto& backend = RenderBackend::get();
@@ -257,6 +271,10 @@ void Bloomer::create_bloom_tex(const TextureHandle scene_color) {
     bloom_tex_resolution = glm::uvec2{create_info.extent.width, create_info.extent.height} / glm::uvec2{2};
 
     bloom_tex = allocator.create_texture(
-        "Bloom texture", create_info.format, bloom_tex_resolution, cvar_num_bloom_mips.Get(), TextureUsage::StorageImage
+        "Bloom texture",
+        create_info.format,
+        bloom_tex_resolution,
+        cvar_num_bloom_mips.Get(),
+        TextureUsage::StorageImage
     );
 }

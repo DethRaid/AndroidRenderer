@@ -5,7 +5,6 @@
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
-#include <absl/container/flat_hash_map.h>
 #include <plf_colony.h>
 
 #include "extern/cityhash/city_hash.hpp"
@@ -196,7 +195,7 @@ private:
     plf::colony<GpuBuffer> buffers;
     plf::colony<AccelerationStructure> acceleration_structures;
 
-    absl::flat_hash_map<std::string, VkRenderPass> cached_render_passes;
+    std::unordered_map<std::string, VkRenderPass> cached_render_passes;
 
     std::array<std::vector<BufferHandle>, num_in_flight_frames> buffer_zombie_lists;
     std::array<std::vector<TextureHandle>, num_in_flight_frames> texture_zombie_lists;
@@ -213,7 +212,7 @@ private:
 
     // Cache from sampler create info hash to sampler
     // I do the hashing myself
-    absl::flat_hash_map<std::size_t, VkSampler> sampler_cache;
+    std::unordered_map<std::size_t, VkSampler> sampler_cache;
 
     void set_object_name(uint64_t object_handle, VkObjectType object_type, const std::string& name);
 };

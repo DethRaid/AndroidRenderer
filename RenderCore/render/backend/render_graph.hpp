@@ -28,17 +28,17 @@ public:
      * Ex: Add a barrier pass for the primitive data buffer after you upload data to it. Multiple future passes use
      * the primitive data buffer, describing access for it on ever pass that uses it would be cumbersome
      */
-    void add_transition_pass(TransitionPass&& pass);
+    void add_transition_pass(const TransitionPass& pass);
 
     /**
      * \brief Adds a pass to copy a buffer into another
      */
-    void add_copy_pass(BufferCopyPass&& pass);
+    void add_copy_pass(const BufferCopyPass& pass);
 
     /**
      * \brief Adds a pass to copy mip 0 of one image to mip 0 of the other
      */
-    void add_copy_pass(ImageCopyPass&& pass);
+    void add_copy_pass(const ImageCopyPass& pass);
 
     /**
      * Adds a compute pass to the render graph. This lets you do arbitrary work in the execute function of your pass,
@@ -46,7 +46,7 @@ public:
      * 
      * @param pass The compute pass to add to the graph
      */
-    void add_pass(ComputePass&& pass);
+    void add_pass(const ComputePass& pass);
 
     template <typename PushConstantsType = uint32_t>
     void add_compute_dispatch(const ComputeDispatch<PushConstantsType>& dispatch_info);
@@ -85,9 +85,7 @@ public:
      */
     void execute_post_submit_tasks();
 
-    void set_resource_usage(
-        TextureHandle texture_handle, const TextureUsageToken& texture_usage_token, bool skip_barrier = true
-    ) const;
+    void set_resource_usage(const TextureUsageToken& texture_usage_token, bool skip_barrier = true) const;
 
     /**
      * \brief Retrieves the most recent usage token for the given texture
@@ -105,11 +103,11 @@ private:
 
     std::optional<RenderPass> current_render_pass;
 
-    void add_render_pass_internal(RenderPass&& pass);
+    void add_render_pass_internal(RenderPass pass);
 
     void update_accesses_and_issues_barriers(
-        const absl::flat_hash_map<TextureHandle, TextureUsageToken>& textures,
-        const absl::flat_hash_map<BufferHandle, BufferUsageToken>& buffers
+        const std::vector<TextureUsageToken>& textures,
+        const std::vector<BufferUsageToken>& buffers
     ) const;
 };
 
@@ -117,17 +115,17 @@ template <typename PushConstantsType>
 void RenderGraph::add_compute_dispatch(const ComputeDispatch<PushConstantsType>& dispatch_info) {
     ZoneScoped;
 
-    if (!dispatch_info.name.empty()) {
+    if(!dispatch_info.name.empty()) {
         cmds.begin_label(dispatch_info.name);
     }
 
-    absl::flat_hash_map<TextureHandle, TextureUsageToken> textures;
+    std::vector<TextureUsageToken> textures;
     textures.reserve(128);
 
-    absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
+    std::vector<BufferUsageToken> buffers;
     buffers.reserve(128);
 
-    for (const auto& descriptor_set : dispatch_info.descriptor_sets) {
+    for(const auto& descriptor_set : dispatch_info.descriptor_sets) {
         descriptor_set.get_resource_usage_information(textures, buffers);
     }
 
@@ -135,34 +133,34 @@ void RenderGraph::add_compute_dispatch(const ComputeDispatch<PushConstantsType>&
 
     cmds.bind_pipeline(dispatch_info.compute_shader);
 
-    for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+    for(auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
         const auto& set = dispatch_info.descriptor_sets.at(i);
         cmds.bind_descriptor_set(i, set);
     }
 
     auto* push_constants_src = reinterpret_cast<const uint32_t*>(&dispatch_info.push_constants);
-    for (auto i = 0u; i < sizeof(PushConstantsType) / sizeof(uint32_t); i++) {
+    for(auto i = 0u; i < sizeof(PushConstantsType) / sizeof(uint32_t); i++) {
         cmds.set_push_constant(i, push_constants_src[i]);
     }
 
     cmds.dispatch(dispatch_info.num_workgroups.x, dispatch_info.num_workgroups.y, dispatch_info.num_workgroups.z);
 
-    if (!dispatch_info.name.empty()) {
+    if(!dispatch_info.name.empty()) {
         cmds.end_label();
     }
 }
 
 template <typename PushConstantsType>
 void RenderGraph::add_compute_dispatch(const IndirectComputeDispatch<PushConstantsType>& dispatch_info) {
-    if (!dispatch_info.name.empty()) {
+    if(!dispatch_info.name.empty()) {
         cmds.begin_label(dispatch_info.name);
     }
 
-    absl::flat_hash_map<TextureHandle, TextureUsageToken> textures;
+    std::vector<TextureUsageToken> textures;
 
-    absl::flat_hash_map<BufferHandle, BufferUsageToken> buffers;
+    std::vector<BufferUsageToken> buffers;
 
-    for (const auto& descriptor_set : dispatch_info.descriptor_sets) {
+    for(const auto& descriptor_set : dispatch_info.descriptor_sets) {
         descriptor_set.get_resource_usage_information(textures, buffers);
     }
 
@@ -170,19 +168,19 @@ void RenderGraph::add_compute_dispatch(const IndirectComputeDispatch<PushConstan
 
     cmds.bind_pipeline(dispatch_info.compute_shader);
 
-    for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+    for(auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
         const auto& set = dispatch_info.descriptor_sets.at(i);
         cmds.bind_descriptor_set(i, set);
     }
 
     auto* push_constants_src = reinterpret_cast<const uint32_t*>(&dispatch_info.push_constants);
-    for (auto i = 0u; i < sizeof(PushConstantsType) / sizeof(uint32_t); i++) {
+    for(auto i = 0u; i < sizeof(PushConstantsType) / sizeof(uint32_t); i++) {
         cmds.set_push_constant(i, push_constants_src[i]);
     }
 
     cmds.dispatch_indirect(dispatch_info.dispatch);
 
-    if (!dispatch_info.name.empty()) {
+    if(!dispatch_info.name.empty()) {
         cmds.end_label();
     }
 }

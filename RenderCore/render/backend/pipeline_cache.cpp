@@ -203,7 +203,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
     }
 
     logger->info("Beginning reflection on compute shader {}", shader_file_path);
-    absl::flat_hash_map<uint32_t, DescriptorSetInfo> descriptor_sets;
+    std::vector<DescriptorSetInfo> descriptor_sets;
     std::vector<VkPushConstantRange> push_constants;
     collect_bindings(instructions, shader_file_path, VK_SHADER_STAGE_COMPUTE_BIT, descriptor_sets, push_constants);
 
@@ -217,7 +217,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
     auto layouts = std::vector<VkDescriptorSetLayout>{};
     layouts.reserve(descriptor_sets.size());
 
-    for(const auto& [set_index, set_info] : descriptor_sets) {
+    for(const auto& set_info : descriptor_sets) {
         auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
         bindings.resize(set_info.bindings.size());
 
@@ -252,8 +252,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         result = vkCreateDescriptorSetLayout(backend.get_device(), &create_info, nullptr, &dsl);
         if(result != VK_SUCCESS) {
             logger->error(
-                "Could not create descriptor set layout {} for shader {}: Vulkan error {}",
-                set_index,
+                "Could not create descriptor set layout for shader {}: Vulkan error {}",
                 shader_file_path,
                 result
             );

@@ -85,8 +85,10 @@ void SceneRenderer::set_render_resolution(const glm::uvec2& screen_resolution) {
 
     scene_render_resolution = screen_resolution * resolution_multiplier;
 
-    logger->info("Setting resolution to {} by {}", scene_render_resolution.x,
-                 scene_render_resolution.y);
+    logger->info(
+        "Setting resolution to {} by {}",
+        scene_render_resolution.x,
+        scene_render_resolution.y);
 
     player_view.set_render_resolution(scene_render_resolution);
 
@@ -159,8 +161,8 @@ void SceneRenderer::render() {
 
     auto render_graph = backend.create_render_graph();
 
-    render_graph.set_resource_usage(depth_buffer_mip_chain, last_frame_depth_usage, true);
-    render_graph.set_resource_usage(normal_target_mip_chain, last_frame_normal_usage, true);
+    render_graph.set_resource_usage(last_frame_depth_usage, true);
+    render_graph.set_resource_usage(last_frame_normal_usage, true);
 
     render_graph.add_pass(
         {
@@ -193,34 +195,27 @@ void SceneRenderer::render() {
         {
             .buffers = {
                 {
-                    scene->get_primitive_buffer(),
-                    {
-                        .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                        .access = VK_ACCESS_SHADER_READ_BIT
-                    }
+                    .buffer = scene->get_primitive_buffer(),
+                    .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                    .access = VK_ACCESS_SHADER_READ_BIT
+
                 },
                 {
-                    meshes.get_index_buffer(),
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT,
-                        .access = VK_ACCESS_2_INDEX_READ_BIT
-                    }
+                    .buffer = meshes.get_index_buffer(),
+                    .stage = VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT,
+                    .access = VK_ACCESS_2_INDEX_READ_BIT
                 },
                 {
-                    meshes.get_vertex_position_buffer(),
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,
-                        .access = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT
-                    }
+                    .buffer = meshes.get_vertex_position_buffer(),
+                    .stage = VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,
+                    .access = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT
                 },
                 {
-                    meshes.get_vertex_data_buffer(),
-                    {
-                        .stage = VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,
-                        .access = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT
-                    }
+                    .buffer = meshes.get_vertex_data_buffer(),
+                    .stage = VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,
+                    .access = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT
                 }
             }
         }
@@ -234,8 +229,11 @@ void SceneRenderer::render() {
 
     // Depth and stuff
 
-    depth_culling_phase.render(render_graph, depth_prepass_drawer, material_storage,
-                               player_view.get_buffer());
+    depth_culling_phase.render(
+        render_graph,
+        depth_prepass_drawer,
+        material_storage,
+        player_view.get_buffer());
 
     // LPV
 
@@ -288,8 +286,8 @@ void SceneRenderer::render() {
      * We'll take more samples in areas of higher contrast and in areas of depth increasing
      *
      * How to handle disocclusions:
-     * If the depth increases, something went in front of the current pixel and we should use the old pixel's contrast.
-     * If the depth decreases, the pixel is recently disoccluded and we should use the maximum sample rate
+     * If the depth increases, something went in front of the current pixel, and we should use the old pixel's contrast.
+     * If the depth decreases, the pixel is recently disoccluded, and we should use the maximum sample rate
      *
      * Once we ask for samples, we need to scale them by the available number of samples. Reduce the number of samples,
      * decreasing larger numbers the most, so that we don't take more samples than the hardware supports
@@ -333,15 +331,18 @@ void SceneRenderer::render() {
             .buffers = {
                 {
                     draw_commands,
-                    {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}
+                    VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
                 },
                 {
                     draw_count,
-                    {VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT, VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT}
+                    VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
                 },
                 {
                     primitive_ids,
-                    {VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, VK_ACCESS_2_SHADER_READ_BIT}
+                    VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
+                    VK_ACCESS_2_SHADER_READ_BIT
                 },
             },
             .color_attachments = {
@@ -392,11 +393,20 @@ void SceneRenderer::render() {
             }
         });
 
-    ao_phase.generate_ao(render_graph, player_view, gbuffer_normals_handle, gbuffer_depth_handle,
-                         ao_handle);
+    ao_phase.generate_ao(
+        render_graph,
+        player_view,
+        gbuffer_normals_handle,
+        gbuffer_depth_handle,
+        ao_handle);
 
-    lighting_pass.render(render_graph, player_view, lit_scene_handle, lpv.get(), sky,
-                         vrsaa_shading_rate_image);
+    lighting_pass.render(
+        render_graph,
+        player_view,
+        lit_scene_handle,
+        lpv.get(),
+        sky,
+        vrsaa_shading_rate_image);
 
     // VRS
 
@@ -434,16 +444,18 @@ void SceneRenderer::render() {
             .name = "UI",
             .textures = {
                 {
-                    lit_scene_handle, {
-                        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    lit_scene_handle,
+                    VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_READ_BIT,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+
                 },
                 {
-                    bloomer.get_bloom_tex(), {
-                        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    }
+                    bloomer.get_bloom_tex(),
+                    VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_READ_BIT,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+
                 }
             },
             .color_attachments = {RenderingAttachmentInfo{.image = swapchain_image}},
@@ -453,8 +465,10 @@ void SceneRenderer::render() {
         });
 
     mip_chain_generator.fill_mip_chain(render_graph, gbuffer_depth_handle, depth_buffer_mip_chain);
-    mip_chain_generator.fill_mip_chain(render_graph, gbuffer_normals_handle,
-                                       normal_target_mip_chain);
+    mip_chain_generator.fill_mip_chain(
+        render_graph,
+        gbuffer_normals_handle,
+        normal_target_mip_chain);
 
     render_graph.add_finish_frame_and_present_pass(
         {
@@ -616,8 +630,9 @@ void SceneRenderer::create_scene_render_targets() {
         swapchain_images.push_back(swapchain_image);
     }
 
-    ui_phase.set_resources(lit_scene_handle,
-                           glm::uvec2{swapchain.extent.width, swapchain.extent.height});
+    ui_phase.set_resources(
+        lit_scene_handle,
+        glm::uvec2{swapchain.extent.width, swapchain.extent.height});
 }
 
 void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
@@ -630,8 +645,11 @@ void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
         if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && *CVarSystem::Get()->GetIntCVar(
                 "r.voxel.Visualize")
             != 0) {
-            voxel_visualizer.render(render_graph, *scene, lit_scene_handle,
-                                    player_view.get_buffer());
+            voxel_visualizer.render(
+                render_graph,
+                *scene,
+                lit_scene_handle,
+                player_view.get_buffer());
         }
         break;
 

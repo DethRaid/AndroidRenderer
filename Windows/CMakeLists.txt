@@ -57,7 +57,7 @@ set(EXTERN_DIR ${SHADER_INCLUDE_DIR}/extern)
 #        COMPILE_OPTIONS --target-env vulkan1.3 -V -g -o -Od -I${SHADER_INCLUDE_DIR} -I${SHADER_DIR} -I${EXTERN_DIR})
 
 add_custom_target(compile_shaders
-        python ${CMAKE_CURRENT_LIST_DIR}/../Tools/compile_shaders.py ${CMAKE_CURRENT_LIST_DIR}/../RenderCore/shaders ${CMAKE_CURRENT_LIST_DIR}/build/shaders
+        python ${CMAKE_CURRENT_LIST_DIR}/../Tools/compile_shaders.py ${CMAKE_CURRENT_LIST_DIR}/../RenderCore/shaders ${CMAKE_BINARY_DIR}/../shaders
 )
 add_dependencies(SahWindows compile_shaders)
 

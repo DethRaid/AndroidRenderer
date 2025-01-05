@@ -1,9 +1,7 @@
 #include "graphics_pipeline.hpp"
 
-#include <magic_enum.hpp>
 #include <spirv_reflect.h>
 #include <spdlog/logger.h>
-#include <tracy/Tracy.hpp>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/android_sink.h>
 
@@ -14,7 +12,7 @@ static std::shared_ptr<spdlog::logger> logger;
 
 void GraphicsPipeline::create_pipeline_layout(
     RenderBackend& backend,
-    const absl::flat_hash_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos, 
+    const std::vector<DescriptorSetInfo>& descriptor_set_infos,
     const std::vector<VkPushConstantRange>& push_constants
 ) {
     // Create descriptor sets
@@ -22,7 +20,8 @@ void GraphicsPipeline::create_pipeline_layout(
 
     auto& cache = backend.get_descriptor_cache();
 
-    for (const auto& [set_index, set_info] : descriptor_set_infos) {
+    auto set_index = 0u;
+    for (const auto& set_info : descriptor_set_infos) {
         if (descriptor_set_layouts.size() <= set_index) {
             descriptor_set_layouts.resize(set_index + 1);
         }
@@ -42,14 +41,14 @@ void GraphicsPipeline::create_pipeline_layout(
 
         // If the last binding is un unsized texture array, tell Vulkan about it
         auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
-        auto flags = std::vector<VkDescriptorBindingFlags>{};
+        auto binding_flags = std::vector<VkDescriptorBindingFlags>{};
         if (set_info.has_variable_count_binding) {
-            flags.resize(bindings.size());
-            flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+            binding_flags.resize(bindings.size());
+            binding_flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
             flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-                .bindingCount = static_cast<uint32_t>(flags.size()),
-                .pBindingFlags = flags.data(),
+                .bindingCount = static_cast<uint32_t>(binding_flags.size()),
+                .pBindingFlags = binding_flags.data(),
             };
             create_info.pNext = &flags_create_info;
             bindings.back().stageFlags = VK_SHADER_STAGE_ALL;
@@ -58,6 +57,8 @@ void GraphicsPipeline::create_pipeline_layout(
         const auto layout = cache.create_descriptor_layout(&create_info);
 
         descriptor_set_layouts[set_index] = layout;
+
+        set_index++;
     }
     
     const auto create_info = VkPipelineLayoutCreateInfo{

@@ -25,23 +25,12 @@ android {
         minSdkVersion    26
         targetSdkVersion 33
         versionCode 272
-        versionName "1.1.0"
+        versionName "1.1.0"+
 
-        // Shader compilation directives, put glsl shaders to app/src/main/shaders
-        // android studio will pick them up and compile them into APK/assets/shaders
-        // KNOWN ISSUE:  if shaders having errors, it takes long time for gradle to timeout
-        //               but it will eventually time out and complain about shader compiling
-        shaders {
-            def shared_shaders_include_dir =  "-I$projectDir/../RenderCore".toString()
-            def extern_files_include_dir = "-I$projectDir/../RenderCore/extern".toString()
-            print "Include dir: '$shared_shaders_include_dir'"
-            glslcArgs.addAll(['-c', '-g', '--target-env=vulkan1.3', shared_shaders_include_dir, extern_files_include_dir])
-        }
         externalNativeBuild {
             cmake {
                 abiFilters 'arm64-v8a'
                 arguments '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=c++_static', "-DPLAYCORE_LOCATION=$playcoreDir"
-
             }
         }
         buildTypes {

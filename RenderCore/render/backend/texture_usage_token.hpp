@@ -1,14 +1,15 @@
 #pragma once
 
-#include <absl/container/flat_hash_map.h>
 #include <volk.h>
 
+#include "render/backend/handles.hpp"
+
 struct TextureUsageToken {
+    TextureHandle texture = nullptr;
+
     VkPipelineStageFlags2 stage;
 
     VkAccessFlags2 access;
 
     VkImageLayout layout;
 };
-
-using TextureUsageMap = absl::flat_hash_map<TextureHandle, TextureUsageToken>;
