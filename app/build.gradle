@@ -30,7 +30,7 @@ android {
         externalNativeBuild {
             cmake {
                 abiFilters 'arm64-v8a'
-                arguments '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=c++_shared', "-DPLAYCORE_LOCATION=$playcoreDir"
+                arguments '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=c++_static', "-DPLAYCORE_LOCATION=$playcoreDir"
                 cppFlags '-fdeclspec', '-fPIC'
             }
         }

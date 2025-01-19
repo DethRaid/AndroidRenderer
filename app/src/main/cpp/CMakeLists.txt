@@ -78,6 +78,6 @@ set(SHADER_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../RenderCore)
 message(STATUS "CMAKE_CURRENT_LIST_DIR=${CMAKE_CURRENT_LIST_DIR}")
 
 add_custom_target(compile_shaders
-        python ${SAH_TOOLS_DIR}/compile_shaders.py ${SHADER_DIR} ${CMAKE_BINARY_DIR}/shaders
+        python ${SAH_TOOLS_DIR}/compile_shaders.py ${SHADER_DIR} ${CMAKE_CURRENT_LIST_DIR}/../assets/shaders
 )
 add_dependencies(${CMAKE_PROJECT_NAME} compile_shaders)
