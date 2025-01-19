@@ -54,7 +54,3 @@ void CompiledRenderPass::add_barrier(const TextureHandle texture_handle, const T
         });
     }
 }
-
-CompiledRenderPass::CompiledRenderPass(ResourceAllocator& allocator_in) : allocator{&allocator_in}
-{
-}

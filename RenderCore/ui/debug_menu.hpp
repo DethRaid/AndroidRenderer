@@ -1,7 +1,10 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+
+#if defined(_WIN32)
 #include <GLFW/glfw3.h>
+#endif
 
 #include "render/backend/handles.hpp"
 #include "render/visualizers/visualizer_type.hpp"
@@ -16,7 +19,9 @@ public:
     void draw();
 
 private:
+#if defined(_WIN32)
     GLFWwindow* window = nullptr;
+#endif
 
     SceneRenderer& renderer;
 

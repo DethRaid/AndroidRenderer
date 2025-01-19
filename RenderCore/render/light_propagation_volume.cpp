@@ -861,7 +861,6 @@ void LightPropagationVolume::build_geometry_volume_from_voxels(
 
         for(const auto& primitive : primitives) {
             primitive_ids.push_back(primitive.index);
-            const auto& mesh = primitive->mesh;
             const auto& voxel = voxel_cache.get_voxel_for_primitive(primitive);
             textures.emplace_back(
                 vkutil::DescriptorBuilder::ImageInfo{

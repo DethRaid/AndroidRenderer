@@ -224,6 +224,9 @@ TextureHandle ResourceAllocator::create_volume_texture(
         vk_usage |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         image_create_flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
         break;
+
+    default:
+        throw std::runtime_error{"Unsupported 3D image usage"};
     }
 
     const auto image_create_info = VkImageCreateInfo{

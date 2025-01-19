@@ -281,7 +281,7 @@ std::pair<std::vector<StandardVertex>, float> MeshStorage::generate_surface_poin
     // We want one sample per 0.1 m^2
     // So the number of samples is the total area divided by 0.1
     auto num_samples = static_cast<size_t>(glm::ceil(area_accumulator / 0.1));
-    num_samples = glm::min(num_samples, 65536ull);
+    num_samples = glm::min(num_samples, static_cast<size_t>(65536));
 
     auto points = std::vector<StandardVertex>{};
     points.reserve(num_samples);

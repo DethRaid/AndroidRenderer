@@ -109,6 +109,7 @@ DebugUI::DebugUI(SceneRenderer& renderer_in) : renderer{renderer_in},
 
     io.ConfigFlags |= ImGuiConfigFlags_IsSRGB;
 
+#if defined(_WIN32)
     io.SetClipboardTextFn = set_clipboard_text;
     io.GetClipboardTextFn = get_clipboard_text;
     io.ClipboardUserData = window;
@@ -135,7 +136,6 @@ DebugUI::DebugUI(SceneRenderer& renderer_in) : renderer{renderer_in},
     io.KeyMap[ImGuiKey_Y] = GLFW_KEY_Y;
     io.KeyMap[ImGuiKey_Z] = GLFW_KEY_Z;
 
-#if defined(_WIN32)
     mouse_cursors[ImGuiMouseCursor_Arrow] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
     mouse_cursors[ImGuiMouseCursor_TextInput] = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
     mouse_cursors[ImGuiMouseCursor_ResizeNS] = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
@@ -178,9 +178,13 @@ void DebugUI::draw() {
     }
 
     // Setup time step
+#if defined(_WIN32)
     const auto current_time = glfwGetTime();
     io.DeltaTime = last_start_time > 0.0 ? static_cast<float>(current_time - last_start_time) : 1.0f / 60.0f;
     last_start_time = current_time;
+#else
+    io.DeltaTime = 1.f / 60.f;
+#endif
 
 #if defined(_WIN32)
     update_mouse_pos_and_buttons();

@@ -48,9 +48,9 @@ public:
 
     RenderBackend& operator=(const RenderBackend& other) = delete;
 
-    RenderBackend(RenderBackend&& old) noexcept = default;
+    RenderBackend(RenderBackend&& old) noexcept = delete;
 
-    RenderBackend& operator=(RenderBackend&& old) noexcept = default;
+    RenderBackend& operator=(RenderBackend&& old) noexcept = delete;
 
     ~RenderBackend();
 

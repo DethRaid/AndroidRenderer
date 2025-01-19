@@ -3,6 +3,8 @@
 #include <functional>
 #include <stdexcept>
 #include <string>
+#include <vector>
+#include <unordered_map>
 
 #include "console/cvars.hpp"
 

@@ -1,6 +1,6 @@
 #include "core/system_interface.hpp"
 
-static SystemInterface* instance;
+static std::unique_ptr<SystemInterface> instance;
 
 #if defined(_WIN32)
 void SystemInterface::initialize(GLFWwindow* window_in) {
@@ -14,4 +14,16 @@ void SystemInterface::initialize(android_app* app) {
 
 SystemInterface& SystemInterface::get() {
     return *instance;
+}
+
+void SystemInterface::set_input_manager(InputManager& input_in) {
+    input = &input_in;
+}
+
+bool SystemInterface::is_renderdoc_loaded() const {
+    return renderdoc != nullptr;
+}
+
+RenderDocWrapper& SystemInterface::get_renderdoc() const {
+    return *renderdoc;
 }

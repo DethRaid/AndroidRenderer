@@ -35,7 +35,7 @@ static auto cvar_anti_aliasing = AutoCVar_Enum{
 };
 // ReSharper restore CppDeclaratorNeverUsed
 
-SceneRenderer::SceneRenderer() : ui_phase{*this} {
+SceneRenderer::SceneRenderer() {
     logger = SystemInterface::get().get_logger("SceneRenderer");
     logger->set_level(spdlog::level::trace);
 

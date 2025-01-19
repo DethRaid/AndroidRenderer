@@ -16,8 +16,20 @@ AndroidSystemInterface::AndroidSystemInterface(android_app* app) :
     begin_stdout_redirection("SAH");
 }
 
+static std::vector<std::shared_ptr<spdlog::logger>> all_loggers{};
+
 std::shared_ptr<spdlog::logger> AndroidSystemInterface::get_logger(const std::string& name) {
-    return spdlog::android_logger_mt(name);
+    auto logger = spdlog::android_logger_mt(name);
+
+    all_loggers.push_back(logger);
+
+    return logger;
+}
+
+void AndroidSystemInterface::flush_all_loggers() {
+    for(auto& log : all_loggers) {
+        log->flush();
+    }
 }
 
 tl::optional<std::vector<uint8_t>> AndroidSystemInterface::load_file(const std::filesystem::path& filepath) {

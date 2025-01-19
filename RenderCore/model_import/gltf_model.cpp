@@ -165,7 +165,6 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
     gltf_material_to_material_handle.clear();
     gltf_material_to_material_handle.reserve(model->materials.size());
 
-    int gltf_idx = 0;
     for (const auto& gltf_material : model->materials) {
         const auto material_name = !gltf_material.name.empty()
                                        ? gltf_material.name
@@ -269,8 +268,6 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
 
         const auto material_handle = material_storage.add_material(std::move(material));
         gltf_material_to_material_handle.emplace_back(material_handle);
-
-        gltf_idx++;
     }
 
     logger->info("Imported all materials");

@@ -33,8 +33,6 @@ struct CompiledRenderPass {
      */
     tl::optional<VkRenderPass> render_pass;
 
-    explicit CompiledRenderPass(ResourceAllocator& allocator_in);
-
     /**
      * Adds a barrier to take the texture_handle from the before state to the after state
      *
@@ -45,9 +43,6 @@ struct CompiledRenderPass {
      * @param after
      */
     void add_barrier(TextureHandle texture_handle, TextureState before, TextureState after);
-
-private:
-    ResourceAllocator* allocator;
 };
 
 

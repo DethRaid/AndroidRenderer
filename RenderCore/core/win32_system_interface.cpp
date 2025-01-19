@@ -90,18 +90,6 @@ static void on_glfw_mouse_button(GLFWwindow* window, const int button, const int
     }
 }
 
-void SystemInterface::set_input_manager(InputManager& input_in) {
-    input = &input_in;
-}
-
-bool SystemInterface::is_renderdoc_loaded() const {
-    return renderdoc != nullptr;
-}
-
-RenderDocWrapper& SystemInterface::get_renderdoc() const {
-    return *renderdoc;
-}
-
 Win32SystemInterface::Win32SystemInterface(GLFWwindow* window_in) : window{window_in} {
     logger = get_logger("Win32SystemInterface");
 

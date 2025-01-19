@@ -157,11 +157,6 @@ void RenderBackend::create_instance_and_device() {
         ;
 
 #if defined(__ANDROID__)
-    // Disable GPU assisted validation on Android because Mali doesn't support vertex stores and atomics
-    cvar_enable_gpu_assisted_validation.Set(0);
-#endif
-
-#if defined(__ANDROID__)
         // Only enable the debug utils extension when we have validation layers. Apparently the validation layer
         // provides that extension on Android
         instance_builder.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
@@ -766,7 +761,7 @@ void RenderBackend::flush_batched_command_buffers() {
             if(result == VK_ERROR_DEVICE_LOST) {
                 logger->error("Device lost detected!");
                 logger->flush();
-                DebugBreak();
+                SAH_BREAKPOINT;
             }
         }
 

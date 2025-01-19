@@ -7,6 +7,7 @@
 #include "core/system_interface.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/utils.hpp"
+#include "core/issue_breakpoint.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
@@ -97,7 +98,7 @@ void ResourceAccessTracker::set_resource_usage(
             if(needs_write_barrier || needs_transition_barrier || needs_fussy_shader_barrier) {
                 if(existing_barrier->layout == VK_IMAGE_LAYOUT_UNDEFINED) {
                     if(texture->name.empty()) {
-                        DebugBreak();
+                        SAH_BREAKPOINT;
                     }
                     logger->trace(
                         "Transitioning image {} from {} to {}",

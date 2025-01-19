@@ -274,6 +274,10 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
         need_primitive_id_buffer
     );
 
+    if(has_error) {
+        logger->warn("Errors encountered when parsing shader {}", vertex_path.string());
+    }
+
     return *this;
 }
 

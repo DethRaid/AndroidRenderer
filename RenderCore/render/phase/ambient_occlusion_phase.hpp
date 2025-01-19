@@ -1,7 +1,9 @@
 #pragma once
 
+#if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
 #include <ffx_api/ffx_api.h>
 #include <FidelityFX/host/ffx_cacao.h>
+#endif
 
 #include "render/backend/handles.hpp"
 
@@ -30,10 +32,12 @@ public:
     );
 
 private:
+#if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
     FfxInterface ffx_interface;
 
     // ffxContext ffx = nullptr;
     FfxDevice ffx_device;
     bool has_context = false;
     FfxCacaoContext context = {};
+#endif
 };

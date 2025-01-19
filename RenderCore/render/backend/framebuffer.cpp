@@ -12,7 +12,6 @@ Framebuffer Framebuffer::create(const RenderBackend& backend, const std::vector<
     ZoneScoped;
 
     auto device = backend.get_device();
-    auto& allocator = backend.get_global_allocator();
 
     auto render_area = VkRect2D{};
 

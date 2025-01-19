@@ -1,7 +1,9 @@
 #include "ambient_occlusion_phase.hpp"
 
+#if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
 #include <ffx_api/vk/ffx_api_vk.h>
 #include <FidelityFX/host/backends/vk/ffx_vk.h>
+#endif
 
 #include "console/cvars.hpp"
 #include "render/scene_view.hpp"
@@ -11,6 +13,7 @@ static AutoCVar_Int cvar_cacao_enabled{
     "r.CACAO.Enabled", "Whether to use CACAO or not", false
 };
 
+#if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
 static AutoCVar_Enum<FfxCacaoQuality> cvar_cacao_quality{
     "r.CACAO.Quality", "Quality of CACAO", FFX_CACAO_QUALITY_HIGHEST
 };
@@ -91,8 +94,10 @@ static std::string to_string(const ffxReturnCode_t code) {
         return "Unknown error";
     }
 }
+#endif
 
 AmbientOcclusionPhase::AmbientOcclusionPhase() {
+#if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
     const auto& backend = RenderBackend::get();
     // auto vk_desc = ffxCreateBackendVKDesc{
     //     .header = {.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_BACKEND_VK},
@@ -138,14 +143,17 @@ AmbientOcclusionPhase::AmbientOcclusionPhase() {
             fmt::format("Could not get the FFX VK interface: {} (Error code {})", error_string, result)
         };
     }
+#endif
 }
 
 AmbientOcclusionPhase::~AmbientOcclusionPhase() {
+#if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
     if(has_context) {
         ffxCacaoContextDestroy(&context);
     }
 
     // ffxDestroyContext(&ffx, nullptr);
+#endif
 }
 
 void AmbientOcclusionPhase::generate_ao(
@@ -156,6 +164,7 @@ void AmbientOcclusionPhase::generate_ao(
         return;
     }
 
+#if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
     ZoneScoped;
 
     if(!has_context) {
@@ -283,5 +292,15 @@ void AmbientOcclusionPhase::generate_ao(
                 ffxCacaoContextDispatch(&context, &desc);
             }
         });
-
+#else
+    graph.add_render_pass({
+        .name = "Clear AO",
+        .color_attachments = {RenderingAttachmentInfo{
+            .image = ao_out,
+            .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .clear_value = {.color = {.float32 = {1, 1, 1, 1}}}}
+            },
+        .execute = [](CommandBuffer&) {}
+    });
+#endif
 }

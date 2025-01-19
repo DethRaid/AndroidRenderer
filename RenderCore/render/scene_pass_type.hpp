@@ -47,6 +47,9 @@ inline bool is_color_pass(const ScenePassType::Type pass_type) {
         [[fallthrough]];
     case ScenePassType::DepthPrepass:
         return false;
+
+    default:
+        return false;
     }
 
     return false;

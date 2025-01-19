@@ -18,7 +18,7 @@ class SceneRenderer;
  */
 class UiPhase {
 public:
-    explicit UiPhase(SceneRenderer& renderer_in);
+    explicit UiPhase();
 
     void set_resources(TextureHandle scene_color_in, glm::uvec2 render_resolution_in);
 
@@ -29,8 +29,6 @@ public:
     void set_imgui_draw_data(ImDrawData* im_draw_data);
 
 private:
-    SceneRenderer& scene_renderer;
-
     TextureHandle scene_color = nullptr;
 
     glm::uvec2 render_resolution;

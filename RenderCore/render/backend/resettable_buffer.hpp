@@ -26,7 +26,7 @@ ResettableBuffer ResettableBuffer::create(
     const std::string_view name, ResourceAllocator& allocator, DataType initial_data
 ) {
     auto result = ResettableBuffer{
-        .buffer = allocator.create_buffer(name, sizeof(DataType), BufferUsage::StorageBuffer),
+        .buffer = allocator.create_buffer(std::string{name}, sizeof(DataType), BufferUsage::StorageBuffer),
         .initial_value_buffer = allocator.create_buffer(
             fmt::format("{} initial value", name),
             sizeof(DataType),

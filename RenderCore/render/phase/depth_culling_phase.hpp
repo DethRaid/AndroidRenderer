@@ -72,8 +72,6 @@ private:
      */
     BufferHandle visible_objects = nullptr;
 
-    BufferHandle last_frame_visible_objects = nullptr;
-
     ComputePipelineHandle init_dual_bump_point_pipeline;
 
     ComputePipelineHandle visibility_list_to_draw_commands;

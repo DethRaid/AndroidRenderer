@@ -6,8 +6,8 @@
 constexpr static uint32_t MAX_IMGUI_INDICES = 65535;
 constexpr static uint32_t MAX_IMGUI_VERTICES = 65535;
 
-UiPhase::UiPhase(SceneRenderer& renderer_in) :
-    scene_renderer{renderer_in}, scene_color{RenderBackend::get().get_white_texture_handle()} {
+UiPhase::UiPhase() :
+    scene_color{RenderBackend::get().get_white_texture_handle()} {
     create_pipelines();
 
     auto& allocator = RenderBackend::get().get_global_allocator();

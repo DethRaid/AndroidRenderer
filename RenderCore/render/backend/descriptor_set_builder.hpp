@@ -1,6 +1,7 @@
 #pragma once
 
 #include <span>
+#include <string>
 #include <string_view>
 
 #include "render/backend/acceleration_structure.hpp"

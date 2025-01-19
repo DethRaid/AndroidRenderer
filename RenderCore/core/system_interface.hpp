@@ -97,6 +97,8 @@ public:
 
     std::shared_ptr<spdlog::logger> get_logger(const std::string& name) override;
 
+    void flush_all_loggers() override;
+
     tl::optional<std::vector<uint8_t>> load_file(const std::filesystem::path& filepath) override;
 
     void write_file(const std::filesystem::path& filepath, const void* data, uint32_t data_size) override;

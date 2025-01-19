@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(sah_renderer)
 
+option(SAH_USE_FFX_CACAO "Whether to use AMD's FidelityFX CACAO" OFF)
+
+set(SAH_TOOLS_DIR "${CMAKE_CURRENT_LIST_DIR}/../Tools")
+
 # External code
 
 set(EXTERN_DIR ${CMAKE_CURRENT_LIST_DIR}/extern)
@@ -45,6 +49,16 @@ target_compile_definitions(SahCore PUBLIC
         TRACY_ENABLE
         )
 
+if(SAH_USE_FFX_CACAO)
+    target_compile_definitions(SahCore PUBLIC
+            SAH_USE_FFX_CACAO=1
+    )
+else()
+    target_compile_definitions(SahCore PUBLIC
+            SAH_USE_FFX_CACAO=0
+    )
+endif()
+
 if(WIN32)
         target_compile_definitions(SahCore PUBLIC
                 VK_USE_PLATFORM_WIN32_KHR
@@ -58,13 +72,12 @@ endif()
 
 target_include_directories(SahCore PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}
+        "$ENV{VK_SDK_PATH}/Include"
         )
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-format-security")
 target_link_libraries(SahCore PUBLIC
         fastgltf::fastgltf
-        ffx_api
-        fidelityfx
         glm::glm-header-only
         GPUOpen::VulkanMemoryAllocator
         imgui
@@ -95,15 +108,22 @@ elseif(WIN32)
     target_compile_options(SahCore PUBLIC 
         "/MP"
     )
-    
-    add_custom_command(TARGET SahCore POST_BUILD     
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different  
-        "${fidelityfx_SOURCE_DIR}/PrebuiltSignedDLL/amd_fidelityfx_vk.dll"
-        $<TARGET_FILE_DIR:SahCore>)
-    add_custom_command(TARGET SahCore POST_BUILD     
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different  
-        "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk/ffx_cacao_x64d.dll"
-        $<TARGET_FILE_DIR:SahCore>)
+
+    if(SAH_USE_FFX_CACAO)
+        target_link_libraries(SahCore PUBLIC
+                ffx_api
+                fidelityfx
+            )
+
+        add_custom_command(TARGET SahCore POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${fidelityfx_SOURCE_DIR}/PrebuiltSignedDLL/amd_fidelityfx_vk.dll"
+            $<TARGET_FILE_DIR:SahCore>)
+        add_custom_command(TARGET SahCore POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk/ffx_cacao_x64d.dll"
+            $<TARGET_FILE_DIR:SahCore>)
+    endif()
 endif()
 
 #######################

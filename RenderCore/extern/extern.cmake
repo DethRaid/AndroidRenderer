@@ -2,6 +2,8 @@
 
 include(FetchContent)
 
+set(VULKAN_DIR "$ENV{VULKAN_SDK}")
+
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
 set(OPTIONAL_BUILD_PACKAGE OFF CACHE BOOL "" FORCE)
@@ -65,7 +67,7 @@ FetchContent_Declare(
 FetchContent_Declare(
         vk-bootstrap
         GIT_REPOSITORY  https://github.com/charles-lunarg/vk-bootstrap.git
-        GIT_TAG         v1.3.299
+        GIT_TAG         v1.3.302
 )
 FetchContent_Declare(
         fetch_vma
