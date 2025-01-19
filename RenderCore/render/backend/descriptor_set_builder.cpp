@@ -94,7 +94,9 @@ void DescriptorSet::get_resource_usage_information(
 DescriptorSetBuilder::DescriptorSetBuilder(
     RenderBackend& backend_in, DescriptorSetAllocator& allocator_in, DescriptorSetInfo set_info_in,
     const std::string_view name_in
-) : backend{&backend_in}, allocator{&allocator_in}, set_info{std::move(set_info_in)}, name{name_in} {}
+) : backend{&backend_in}, allocator{&allocator_in}, set_info{std::move(set_info_in)}, name{name_in} {
+    bindings.resize(set_info.bindings.size());
+}
 
 DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, const BufferHandle buffer) {
 #ifndef _NDEBUG
@@ -112,9 +114,6 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, c
     }
 #endif
 
-    if(bindings.size() <= binding_index) {
-        bindings.resize(binding_index + 1);
-    }
     bindings[binding_index] = detail::BoundResource{.buffer = buffer};
 
     return *this;

@@ -53,7 +53,7 @@ void GraphicsPipeline::create_pipeline_layout(
             create_info.pNext = &flags_create_info;
             bindings.back().stageFlags = VK_SHADER_STAGE_ALL;
         }
-                
+
         const auto layout = cache.create_descriptor_layout(&create_info);
 
         descriptor_set_layouts[set_index] = layout;

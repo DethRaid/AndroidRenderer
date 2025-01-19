@@ -225,6 +225,8 @@ void RenderBackend::create_instance_and_device() {
         .uniformAndStorageBuffer16BitAccess = VK_TRUE,
         .storagePushConstant16 = VK_TRUE,
         .multiview = VK_TRUE,
+        .variablePointersStorageBuffer = VK_TRUE,
+        .variablePointers = VK_TRUE,
         .shaderDrawParameters = VK_TRUE,
     };
 

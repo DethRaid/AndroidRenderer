@@ -53,6 +53,12 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
 void Application::load_scene(const std::filesystem::path& scene_path) {
     ZoneScoped;
     logger->info("Beginning load of scene {}", scene_path.string());
+
+    if(!exists(scene_path)) {
+        logger->error("Scene file {} does not exist!", scene_path.string());
+        return;
+    }
+
     if (scene_path.has_parent_path()) {
         logger->info("Scene path {} has parent path {}", scene_path.string(), scene_path.parent_path().string());
     } else {

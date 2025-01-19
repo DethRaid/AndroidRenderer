@@ -427,7 +427,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
     }
     const auto create_info = VkBufferCreateInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = size,
+        .size = std::max(size, static_cast<size_t>(256)),
         .usage = vk_usage,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };

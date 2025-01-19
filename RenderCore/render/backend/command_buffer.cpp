@@ -604,8 +604,10 @@ void CommandBuffer::commit_bindings() {
         );
     }
 
+    auto has_any_descriptor_sets = false;
     for(uint32_t i = 0; i < descriptor_sets.size(); i++) {
         if(descriptor_sets[i] != VK_NULL_HANDLE) {
+            has_any_descriptor_sets = true;
             vkCmdBindDescriptorSets(
                 commands,
                 current_bind_point,

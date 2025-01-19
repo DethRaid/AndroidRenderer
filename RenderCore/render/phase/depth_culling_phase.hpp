@@ -33,7 +33,7 @@ public:
 
     TextureHandle get_depth_buffer() const;
 
-    BufferHandle get_visible_objects() const;
+    BufferHandle get_visible_objects_buffer() const;
 
     /**
      * \brief Translates a visibility list to a list of indirect draw commands

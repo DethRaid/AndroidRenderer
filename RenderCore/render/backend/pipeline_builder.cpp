@@ -156,7 +156,6 @@ static void collect_vertex_attributes(
 
 static void init_logger() {
     logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
-    logger->set_level(spdlog::level::trace);
 }
 
 GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cache{cache_in} {
@@ -227,39 +226,11 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
 
     logger->debug("Beginning reflection on vertex shader {}", vertex_shader_name);
 
-    // Collect descriptor set info
-    uint32_t set_count;
-    auto result = shader_module.EnumerateDescriptorSets(&set_count, nullptr);
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto sets = std::vector<SpvReflectDescriptorSet*>{set_count};
-    result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
-
-    has_error |= collect_descriptor_sets(
-        vertex_path,
-        sets,
-        VK_SHADER_STAGE_VERTEX_BIT,
-        descriptor_sets
-    );
-
-    // Collect push constant info
-    uint32_t constant_count;
-    result = shader_module.EnumeratePushConstantBlocks(&constant_count, nullptr);
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{constant_count};
-    result = shader_module.EnumeratePushConstantBlocks(&constant_count, spv_push_constants.data());
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
-
-    has_error |= collect_push_constants(
-        vertex_path,
-        spv_push_constants,
-        VK_SHADER_STAGE_VERTEX_BIT,
-        push_constants
-    );
+    collect_bindings(*vertex_shader_maybe, vertex_path.string(), VK_SHADER_STAGE_VERTEX_BIT, descriptor_sets, push_constants);
 
     // Collect inputs
     uint32_t input_count;
-    result = shader_module.EnumerateInputVariables(&input_count, nullptr);
+    auto result = shader_module.EnumerateInputVariables(&input_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
     auto spv_vertex_inputs = std::vector<SpvReflectInterfaceVariable*>{input_count};
     result = shader_module.EnumerateInputVariables(&input_count, spv_vertex_inputs.data());
@@ -302,39 +273,14 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
         throw std::runtime_error{"Could not perform reflection on geometry shader"};
     }
 
-    bool has_error = false;
-
     logger->debug("Beginning reflection on geometry shader {}", geometry_shader_name);
 
-    // Collect descriptor set info
-    uint32_t set_count;
-    auto result = shader_module.EnumerateDescriptorSets(&set_count, nullptr);
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto sets = std::vector<SpvReflectDescriptorSet*>{set_count};
-    result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
-
-    has_error |= collect_descriptor_sets(
-        geometry_path,
-        sets,
+    collect_bindings(
+        *geometry_shader,
+        geometry_path.string(),
         VK_SHADER_STAGE_GEOMETRY_BIT,
-        descriptor_sets
-    );
-
-    // Collect push constant info
-    uint32_t constant_count;
-    result = shader_module.EnumeratePushConstantBlocks(&constant_count, nullptr);
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{constant_count};
-    result = shader_module.EnumeratePushConstantBlocks(&constant_count, spv_push_constants.data());
-    assert(result == SPV_REFLECT_RESULT_SUCCESS);
-
-    has_error |= collect_push_constants(
-        geometry_path,
-        spv_push_constants,
-        VK_SHADER_STAGE_GEOMETRY_BIT,
-        push_constants
-    );
+        descriptor_sets,
+        push_constants);
 
     return *this;
 }
@@ -471,7 +417,6 @@ bool collect_descriptor_sets(
         }
         auto& set_info = descriptor_sets[set->set];
 
-        set_info.bindings.resize(set->binding_count);
         for(auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
             logger->trace(
                 "Adding new descriptor {}.{} with count {} for shader stage {}",
@@ -481,7 +426,7 @@ bool collect_descriptor_sets(
                 magic_enum::enum_name(shader_stage)
             );
             if(set_info.bindings.size() <= binding->binding) {
-                set_info.bindings.resize(binding->binding * 2);
+                set_info.bindings.resize(binding->binding + 1);
             }
             set_info.bindings[binding->binding] =
                 DescriptorInfo{
@@ -500,9 +445,6 @@ bool collect_descriptor_sets(
                 set_info.has_variable_count_binding = true;
             }
         }
-
-        set_info.bindings.resize(num_bindings);
-
     }
 
     return has_error;
@@ -559,13 +501,12 @@ bool collect_push_constants(
 
 bool collect_bindings(
     const std::vector<uint8_t>& shader_instructions, const std::string& shader_name,
-    VkShaderStageFlagBits shader_stage,
+    const VkShaderStageFlagBits shader_stage,
     std::vector<DescriptorSetInfo>& descriptor_sets,
     std::vector<VkPushConstantRange>& push_constants
 ) {
     if(logger == nullptr) {
-        logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
-        logger->set_level(spdlog::level::warn);
+        init_logger();
     }
 
     const auto shader_module = spv_reflect::ShaderModule{

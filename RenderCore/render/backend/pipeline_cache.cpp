@@ -202,7 +202,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         return {};
     }
 
-    logger->info("Beginning reflection on compute shader {}", shader_file_path);
+    logger->debug("Beginning reflection on compute shader {}", shader_file_path);
     std::vector<DescriptorSetInfo> descriptor_sets;
     std::vector<VkPushConstantRange> push_constants;
     collect_bindings(instructions, shader_file_path, VK_SHADER_STAGE_COMPUTE_BIT, descriptor_sets, push_constants);

@@ -161,8 +161,12 @@ void SceneRenderer::render() {
 
     auto render_graph = backend.create_render_graph();
 
-    render_graph.set_resource_usage(last_frame_depth_usage, true);
-    render_graph.set_resource_usage(last_frame_normal_usage, true);
+    if(last_frame_depth_usage.texture != nullptr) {
+        render_graph.set_resource_usage(last_frame_depth_usage, true);
+    }
+    if(last_frame_normal_usage.texture != nullptr) {
+        render_graph.set_resource_usage(last_frame_normal_usage, true);
+    }
 
     render_graph.add_pass(
         {
@@ -315,7 +319,7 @@ void SceneRenderer::render() {
 
     // Gbuffers, lighting, and translucency
 
-    const auto visible_objects_buffer = depth_culling_phase.get_visible_objects();
+    const auto visible_objects_buffer = depth_culling_phase.get_visible_objects_buffer();
     const auto& [draw_commands, draw_count, primitive_ids] = depth_culling_phase.
         translate_visibility_list_to_draw_commands(
             render_graph,

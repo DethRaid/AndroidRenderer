@@ -42,7 +42,7 @@ FetchContent_Declare(
 FetchContent_Declare(
         fetch_spirv_reflect
         GIT_REPOSITORY  https://github.com/KhronosGroup/SPIRV-Reflect.git
-        GIT_TAG         vulkan-sdk-1.3.275.0
+        GIT_TAG         vulkan-sdk-1.4.304.0
 )
 FetchContent_Declare(
         fetch_fastgltf

@@ -122,7 +122,9 @@ std::shared_ptr<spdlog::logger> Win32SystemInterface::get_logger(const std::stri
     auto new_logger = std::make_shared<spdlog::logger>(name, sinks.begin(), sinks.end());
 
 #ifndef NDEBUG
-    new_logger->set_level(spdlog::level::trace);
+    new_logger->set_level(spdlog::level::debug);
+#else
+    new_logger->set_level(spdlog::level::warn);
 #endif
 
     // Register the logger so we can access it later if needed

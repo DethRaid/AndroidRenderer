@@ -53,18 +53,13 @@ set(SHADER_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../RenderCore)
 set(EXTERN_DIR ${SHADER_INCLUDE_DIR}/extern)
 
 add_custom_target(compile_shaders
-        python ${CMAKE_CURRENT_LIST_DIR}/../Tools/compile_shaders.py ${CMAKE_CURRENT_LIST_DIR}/../RenderCore/shaders ${CMAKE_BINARY_DIR}/../shaders
+    python ${SAH_TOOLS_DIR}/compile_shaders.py ${SHADER_DIR} ${CMAKE_BINARY_DIR}/shaders
 )
 add_dependencies(SahWindows compile_shaders)
 
 target_link_libraries(SahWindows PUBLIC
         SahCore
         )
-
-add_custom_target(gltf_compression
-        python ${SAH_TOOLS_DIR}/compile_shaders.py ${SHADER_DIR} ${CMAKE_CURRENT_LIST_DIR}/../Windows/build/Debug
-)
-add_dependencies(SahWindows gltf_compression)
     
 #######################
 # Generate VS filters #

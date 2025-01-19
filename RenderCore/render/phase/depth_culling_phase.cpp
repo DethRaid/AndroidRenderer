@@ -298,7 +298,7 @@ TextureHandle DepthCullingPhase::get_depth_buffer() const {
     return depth_buffer;
 }
 
-BufferHandle DepthCullingPhase::get_visible_objects() const {
+BufferHandle DepthCullingPhase::get_visible_objects_buffer() const {
     return visible_objects;
 }
 
@@ -310,6 +310,7 @@ DepthCullingPhase::translate_visibility_list_to_draw_commands(
     const uint32_t num_primitives,
     const BufferHandle mesh_draw_args_buffer
 ) const {
+
     ZoneScoped;
 
     const auto& backend = RenderBackend::get();
