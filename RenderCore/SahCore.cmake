@@ -51,11 +51,11 @@ target_compile_definitions(SahCore PUBLIC
 
 if(SAH_USE_FFX_CACAO)
     target_compile_definitions(SahCore PUBLIC
-            SAH_USE_FFX_CACAO=1
+            "SAH_USE_FFX_CACAO=1"
     )
 else()
     target_compile_definitions(SahCore PUBLIC
-            SAH_USE_FFX_CACAO=0
+            "SAH_USE_FFX_CACAO=0"
     )
 endif()
 

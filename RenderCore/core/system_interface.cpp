@@ -4,7 +4,7 @@ static std::unique_ptr<SystemInterface> instance;
 
 #if defined(_WIN32)
 void SystemInterface::initialize(GLFWwindow* window_in) {
-    instance = new Win32SystemInterface{ window_in };
+    instance = std::make_unique<Win32SystemInterface>(window_in);
 }
 #elif defined(__ANDROID__)
 void SystemInterface::initialize(android_app* app) {
