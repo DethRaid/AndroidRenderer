@@ -37,7 +37,6 @@ static auto cvar_anti_aliasing = AutoCVar_Enum{
 
 SceneRenderer::SceneRenderer() {
     logger = SystemInterface::get().get_logger("SceneRenderer");
-    logger->set_level(spdlog::level::trace);
 
     // player_view.set_position(glm::vec3{2.f, -1.f, 3.0f});
     player_view.rotate(0, glm::radians(90.f));

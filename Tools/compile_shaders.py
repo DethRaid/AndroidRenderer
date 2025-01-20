@@ -48,17 +48,19 @@ def compile_shaders_in_path(path, root_dir, output_dir):
             output_file = output_dir / relative_file_path
 
             if output_file.exists():
-                print(f"output_file modified at {output_file.stat().st_mtime} input file modifies at {child_path.stat().st_mtime}")
+                print(f"output_file modified at {output_file.stat().st_mtime} input file modified at {child_path.stat().st_mtime}")
 
-            # if output_file.exists() and output_file.stat().st_mtime >= child_path.stat().st_mtime:
-            #     continue
+            if output_file.exists() and output_file.stat().st_mtime >= child_path.stat().st_mtime:
+                continue
             
             output_parent = output_file.parent
             output_parent.mkdir(parents=True, exist_ok=True)
 
             if child_path.suffix == '.slang':
+                # Skip slang until https://discord.com/channels/1303735196696445038/1330558499016671263/1330558537960788019 is resolved
                 full_output_file = output_file.with_suffix('.spv')
                 compile_slang_shader(child_path, full_output_file, [root_dir, root_dir.parent, 'D:\\Source\\SahRenderer\\RenderCore\\extern'])
+                # continue
             
             elif child_path.suffix == '.glsl':
                 # GLSL include file

@@ -349,8 +349,6 @@ DepthCullingPhase::translate_visibility_list_to_draw_commands(
             .compute_shader = init_dual_bump_point_pipeline
         });
 
-    spdlog::info("primitive_id_buffer->address={:x}", primitive_id_buffer->address);
-
     graph.add_pass(
         ComputePass{
             .name = "Translate visibility list",

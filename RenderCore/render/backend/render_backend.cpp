@@ -75,7 +75,6 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
                                      DescriptorSetAllocator{*this}, DescriptorSetAllocator{*this}
                                  } {
     logger = SystemInterface::get().get_logger("RenderBackend");
-    logger->set_level(spdlog::level::trace);
 
     const auto volk_result = volkInitialize();
     if(volk_result != VK_SUCCESS) {
@@ -553,7 +552,7 @@ void RenderBackend::advance_frame() {
         cur_frame_idx %= num_in_flight_frames;
     }
 
-    logger->info("Beginning frame {} (frame idx {})", total_num_frames, cur_frame_idx);
+    logger->trace("Beginning frame {} (frame idx {})", total_num_frames, cur_frame_idx);
 
     if (total_num_frames % 100 == 0) {
         allocator->report_memory_usage();
@@ -755,7 +754,7 @@ void RenderBackend::flush_batched_command_buffers() {
         {
             ZoneScopedN("vkQueueSubmit graphics");
 
-            logger->debug("Submitting graphics commands");
+            logger->trace("Submitting graphics commands");
             logger->flush();
             const auto result = vkQueueSubmit(graphics_queue, 1, &submit, frame_fences[cur_frame_idx]);
             logger->trace("Submitted submission fence for frame {}", cur_frame_idx);
@@ -922,8 +921,6 @@ VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
         };
 
         vkCreateSemaphore(device, &create_info, nullptr, &semaphore);
-
-        logger->debug("Making a new semaphore {} for {}", static_cast<void*>(semaphore), name);
     }
 
     if(!name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {

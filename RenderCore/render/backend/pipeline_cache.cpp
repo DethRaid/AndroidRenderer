@@ -188,6 +188,8 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
 }
 
 ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_file_path) {
+    logger->debug("Creating compute PSO {}", shader_file_path);
+
     const auto instructions = *SystemInterface::get().load_file(shader_file_path);
 
     const auto module_create_info = VkShaderModuleCreateInfo{
@@ -202,7 +204,6 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         return {};
     }
 
-    logger->debug("Beginning reflection on compute shader {}", shader_file_path);
     std::vector<DescriptorSetInfo> descriptor_sets;
     std::vector<VkPushConstantRange> push_constants;
     collect_bindings(instructions, shader_file_path, VK_SHADER_STAGE_COMPUTE_BIT, descriptor_sets, push_constants);
