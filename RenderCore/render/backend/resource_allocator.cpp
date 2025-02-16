@@ -515,16 +515,15 @@ void ResourceAllocator::destroy_acceleration_structure(AccelerationStructureHand
 }
 
 void* ResourceAllocator::map_buffer(const BufferHandle buffer_handle) {
-    auto& buffer_actual = buffers[static_cast<uint32_t>(buffer_handle)];
-    if (buffer_actual.allocation_info.pMappedData == nullptr) {
-        vmaMapMemory(vma, buffer_actual.allocation, &buffer_actual.allocation_info.pMappedData);
+    if (buffer_handle->allocation_info.pMappedData == nullptr) {
+        vmaMapMemory(vma, buffer_handle->allocation, &buffer_handle->allocation_info.pMappedData);
     }
 
-    return buffer_actual.allocation_info.pMappedData;
+    return buffer_handle->allocation_info.pMappedData;
 }
 
 AccelerationStructureHandle ResourceAllocator::create_acceleration_structure() {
-    return AccelerationStructureHandle::None;
+    return {};
 }
 
 void ResourceAllocator::destroy_buffer(BufferHandle handle) {

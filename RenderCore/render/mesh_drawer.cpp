@@ -49,6 +49,8 @@ void SceneDrawer::draw_indirect(
         return;
     }
 
+    const auto& solids = scene->get_solid_primitives();
+
     commands.bind_vertex_buffer(0, mesh_storage->get_vertex_position_buffer());
     commands.bind_vertex_buffer(1, mesh_storage->get_vertex_data_buffer());
     commands.bind_vertex_buffer(2, primitive_ids);
@@ -60,44 +62,8 @@ void SceneDrawer::draw_indirect(
         commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
     }
 
-    const auto& solids = scene->get_solid_primitives();
-    if (!solids.empty()) {
-        // Assume all the pipelines are the same - because they are
-        // TODO: Provide a better way to classify draws by material
-
-        commands.bind_pipeline(solids[0]->material->second.pipelines[static_cast<size_t>(type)]);
-        commands.draw_indexed_indirect(indirect_buffer, draw_count_buffer, static_cast<uint32_t>(solids.size()));
-    }
-    
-    if (is_color_pass(type)) {
-        commands.clear_descriptor_set(1);
-    }
-}
-
-void SceneDrawer::draw_indirect(
-    CommandBuffer& commands, const BufferHandle indirect_buffer, const BufferHandle draw_count_buffer,
-    const BufferHandle primitive_ids
-) const {
-    if (scene == nullptr) {
-        return;
-    }
-
-    const auto& solids = scene->get_solid_primitives();
-
-    commands.bind_vertex_buffer(0, mesh_storage->get_vertex_position_buffer());
-    commands.bind_vertex_buffer(1, mesh_storage->get_vertex_data_buffer());
-    commands.bind_index_buffer(mesh_storage->get_index_buffer());
-
-    commands.bind_buffer_reference(0, scene->get_primitive_buffer());
-
-    if (is_color_pass(type)) {
-        commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
-    }
-
     // Assume all the pipelines are the same - because they are
     // TODO: Provide a better way to classify draws by material
-
-    commands.bind_buffer_reference(2, primitive_ids);
 
     commands.bind_pipeline(solids[0]->material->second.pipelines[type]);
     commands.draw_indexed_indirect(indirect_buffer, draw_count_buffer, static_cast<uint32_t>(solids.size()));

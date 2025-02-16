@@ -234,12 +234,6 @@ void RenderBackend::create_instance_and_device() {
         .shaderDrawParameters = VK_TRUE,
     };
 
-    auto required_1_1_features = VkPhysicalDeviceVulkan11Features{
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-        .multiview = VK_TRUE,
-        .shaderDrawParameters = VK_TRUE,
-    };
-
     auto required_1_2_features = VkPhysicalDeviceVulkan12Features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .drawIndirectCount = VK_TRUE,

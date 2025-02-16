@@ -37,10 +37,11 @@ MipChainGenerator::MipChainGenerator() {
         pipeline_cache.create_pipeline("shaders/util/mip_chain_generator_D32F_min.comp.spv")
     );
 
-    {
-        const auto bytes = *SystemInterface::get().load_file("shaders/util/mip_chain_generator_D32F_min.comp.spv");
-        shaders.emplace(VK_FORMAT_R32_SFLOAT, *backend.create_compute_shader("Mip Chain Generator D32F", bytes));
-    }
+
+    shaders.emplace(
+        VK_FORMAT_R32_SFLOAT,
+        pipeline_cache.create_pipeline("shaders/util/mip_chain_generator_D32F_min.comp.spv"));
+
 
     auto& allocator = backend.get_global_allocator();
     counter_buffer = allocator.create_buffer("SPD Counter Buffer", sizeof(uint32_t) * 6, BufferUsage::StorageBuffer);

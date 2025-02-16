@@ -343,21 +343,6 @@ void CommandBuffer::draw_indexed_indirect(
     );
 }
 
-void CommandBuffer::draw_indexed_indirect(
-    const BufferHandle indirect_buffer, const BufferHandle count_buffer, const uint32_t max_count
-) {
-    commit_bindings();
-
-    const auto& allocator = backend->get_global_allocator();
-    const auto& indirect_buffer_actual = allocator.get_buffer(indirect_buffer);
-    const auto& count_buffer_actual = allocator.get_buffer(count_buffer);
-
-    vkCmdDrawIndexedIndirectCount(
-        commands, indirect_buffer_actual.buffer, 0, count_buffer_actual.buffer, 0, max_count,
-        sizeof(VkDrawIndexedIndirectCommand)
-    );
-}
-
 void CommandBuffer::draw_triangle() {
     commit_bindings();
 

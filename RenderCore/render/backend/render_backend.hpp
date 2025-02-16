@@ -191,8 +191,6 @@ private:
 
     bool supports_raytracing = false;
 
-    bool supports_nv_diagnostics_config = false;
-
     vkb::Instance instance;
 
     VkSurfaceKHR surface = {};

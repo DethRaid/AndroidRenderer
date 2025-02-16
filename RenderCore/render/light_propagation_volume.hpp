@@ -111,8 +111,6 @@ public:
 
     static void build_geometry_volume_from_point_clouds(RenderGraph& render_graph, const RenderScene& scene);
 
-    void build_geometry_volume_from_point_clouds(RenderGraph& render_graph, const RenderScene& scene);
-
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
 
     void dispatch_vpl_injection_pass(

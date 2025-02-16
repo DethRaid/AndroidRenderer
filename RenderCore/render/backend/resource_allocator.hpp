@@ -151,9 +151,6 @@ public:
 
     void* map_buffer(BufferHandle buffer_handle);
 
-    template<typename MappedType>
-    MappedType* map_buffer(BufferHandle buffer);
-
     AccelerationStructureHandle create_acceleration_structure();
 
     void destroy_buffer(BufferHandle handle);
