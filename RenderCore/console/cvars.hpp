@@ -2,7 +2,11 @@
 
 #pragma once
 
+#include <functional>
+
 #include "string_utils.hpp"
+
+class CvarChangeDispatcher;
 
 class CVarParameter;
 
@@ -20,7 +24,8 @@ class CVarSystem
 {
 
 public:
-	static CVarSystem* Get();
+    virtual ~CVarSystem() = default;
+    static CVarSystem* Get();
 
 	//pimpl
 	virtual CVarParameter* GetCVar(StringUtils::StringHash hash) = 0;
@@ -43,7 +48,9 @@ public:
 	virtual CVarParameter* CreateIntCVar(const char* name, const char* description, int32_t defaultValue, int32_t currentValue) = 0;
 	
 	virtual CVarParameter* CreateStringCVar(const char* name, const char* description, const char* defaultValue, const char* currentValue) = 0;
-	
+
+	virtual void register_listener(std::string_view cvar_name, std::function<void(int32_t)> listener) = 0;
+
 	virtual void DrawImguiEditor() = 0;
 };
 

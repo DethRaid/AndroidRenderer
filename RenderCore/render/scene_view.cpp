@@ -6,6 +6,7 @@
 
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/render_backend.hpp"
+#include "shared/view_data.hpp"
 
 glm::mat4 infinitePerspectiveFovReverseZ_ZO(const float fov, const float width, const float height, const float z_near) {
     const auto ep = glm::epsilon<float>();
@@ -20,10 +21,10 @@ glm::mat4 infinitePerspectiveFovReverseZ_ZO(const float fov, const float width, 
     return result;
 }
 
-SceneTransform::SceneTransform(RenderBackend& backend_in) : backend{ &backend_in } {
-    auto& allocator = backend->get_global_allocator();
-    buffer = allocator.create_buffer("Scene View Buffer", sizeof(SceneViewGpu),
-        BufferUsage::UniformBuffer);
+SceneTransform::SceneTransform() {
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
+    buffer = allocator.create_buffer("Scene View Buffer", sizeof(ViewDataGPU), BufferUsage::UniformBuffer);
 }
 
 void SceneTransform::set_render_resolution(const glm::uvec2 render_resolution) {
@@ -52,6 +53,8 @@ void SceneTransform::set_position(const glm::vec3& position_in) {
     refresh_view_matrices();
 }
 
+glm::vec4 normalize_plane(const glm::vec4 p) { return p / length(glm::vec3{ p }); }
+
 void SceneTransform::set_perspective_projection(const float fov_in, const float aspect_in, const float near_value_in) {
     fov = fov_in;
     aspect = aspect_in;
@@ -66,6 +69,24 @@ void SceneTransform::set_perspective_projection(const float fov_in, const float 
 
     gpu_data.inverse_projection = glm::inverse(gpu_data.projection);
 
+    glm::mat4 projection_t = glm::transpose(gpu_data.projection);
+
+    // Why do we do this? See https://www.gamedevs.org/uploads/fast-extraction-viewing-frustum-planes-from-world-view-projection-matrix.pdf
+    glm::vec4 frustum_x = normalize_plane(projection_t[3] + projection_t[0]); // x + w < 0
+    glm::vec4 frustum_y = normalize_plane(projection_t[3] + projection_t[1]); // y + w < 0
+
+    if (fov > 0) {
+        gpu_data.frustum[0] = frustum_x.x;
+        gpu_data.frustum[1] = frustum_x.z;
+        gpu_data.frustum[2] = frustum_y.y;
+        gpu_data.frustum[3] = frustum_y.z;
+    } else {
+        gpu_data.frustum[0] = frustum_x.x;
+        gpu_data.frustum[1] = frustum_x.w;
+        gpu_data.frustum[2] = frustum_y.y;
+        gpu_data.frustum[3] = frustum_y.w;
+    }
+
     is_dirty = true;
 }
 
@@ -73,12 +94,9 @@ BufferHandle SceneTransform::get_buffer() const {
     return buffer;
 }
 
-void SceneTransform::update_transforms(CommandBuffer commands) {
-    if (buffer != BufferHandle::None && is_dirty) {
-        commands.update_buffer(buffer, gpu_data);
-
-        commands.barrier(buffer, VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_HOST_WRITE_BIT,
-            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT);
+void SceneTransform::update_transforms(ResourceUploadQueue& upload_queue) {
+    if (buffer && is_dirty) {
+        upload_queue.upload_to_buffer(buffer, gpu_data);
 
         is_dirty = false;
     }
@@ -100,7 +118,7 @@ float SceneTransform::get_aspect_ratio() const {
     return aspect;
 }
 
-const SceneViewGpu& SceneTransform::get_gpu_data() const {
+const ViewDataGPU& SceneTransform::get_gpu_data() const {
     return gpu_data;
 }
 

@@ -29,18 +29,18 @@ layout(set = 0, binding = 0, input_attachment_index = 0) uniform subpassInput rs
 layout(set = 0, binding = 1, input_attachment_index = 1) uniform subpassInput rsm_normal;
 layout(set = 0, binding = 2, input_attachment_index = 2) uniform subpassInput rsm_depth;
 
-layout(set = 0, binding = 3, std430) uniform LPVCascadesBuffer {
+layout(set = 0, binding = 3, scalar) uniform LPVCascadesBuffer {
     LPVCascadeMatrices cascade_matrices[4];
 } cascade_matrices_buffer;
 
-layout(buffer_reference, std430, buffer_reference_align = 16) buffer CountBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 4) buffer CountBuffer {
      uint    vertex_count;
      uint    instance_count;
      uint    first_vertex;
      uint    first_instance;
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) writeonly buffer VplListBuffer  {
+layout(buffer_reference, scalar, buffer_reference_align = 16) writeonly buffer VplListBuffer  {
      PackedVPL lights[];
 };
 

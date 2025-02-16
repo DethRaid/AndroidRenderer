@@ -1,11 +1,12 @@
 #pragma once
 
-#include "scene_renderer.hpp"
+#include "render/raytracing_scene.hpp"
 #include "core/object_pool.hpp"
 #include "render/backend/handles.hpp"
 #include "render/scene_primitive.hpp"
 #include "render/backend/scatter_upload_buffer.hpp"
-#include "render/sun_light.hpp"
+#include "render/directional_light.hpp"
+#include "sdf/voxel_cache.hpp"
 
 class MaterialStorage;
 class MeshStorage;
@@ -15,56 +16,80 @@ class RenderBackend;
 /**
  * A scene that can be rendered!
  *
- * Contains lots of wonderful things
+ * Contains lots of wonderful things - meshes, materials, ray tracing acceleration structure, emissive point clouds, voxelized meshes, and more!
  */
 class RenderScene {
 public:
-    explicit RenderScene(RenderBackend& backend_in, MeshStorage& meshes_in, MaterialStorage& materials_in);
+    explicit RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in);
 
-    PooledObject<MeshPrimitive> add_primitive(RenderGraph& graph, MeshPrimitive primitive);
+    MeshPrimitiveHandle add_primitive(RenderGraph& graph, MeshPrimitive primitive);
 
-    void flush_primitive_upload(RenderGraph& graph);
+    void begin_frame(RenderGraph& graph);
     
-    const std::vector<PooledObject<MeshPrimitive>>& get_solid_primitives() const;
+    const std::vector<MeshPrimitiveHandle>& get_solid_primitives() const;
+
+    const std::vector<MeshPrimitiveHandle>& get_masked_primitives() const;
+
+    const std::vector<MeshPrimitiveHandle>& get_transparent_primitives() const;
 
     BufferHandle get_primitive_buffer() const;
 
-    SunLight &get_sun_light();
+    uint32_t get_total_num_primitives() const;
+
+    DirectionalLight &get_sun_light();
 
     /**
      * Retrieves a list of all solid primitives that lie within the given bounds
      */
-    std::vector<PooledObject<MeshPrimitive>> get_primitives_in_bounds(const glm::vec3& min_bounds, const glm::vec3& max_bounds) const;
+    std::vector<MeshPrimitiveHandle> get_primitives_in_bounds(const glm::vec3& min_bounds, const glm::vec3& max_bounds) const;
 
     /**
      * \brief Generates emissive point clouds for new emissive meshes
      */
     void generate_emissive_point_clouds(RenderGraph& render_graph);
 
-private:
-    RenderBackend& backend;
+    const MeshStorage& get_meshes() const;
 
+    RaytracingScene& get_raytracing_scene();
+
+    VoxelCache& get_voxel_cache() const;
+
+private:
     MeshStorage& meshes;
 
     MaterialStorage& materials;
 
-    SunLight sun;
+    tl::optional<RaytracingScene> raytracing_scene;
+
+    /**
+     * Cache of voxel representations of static meshes
+     */
+    std::unique_ptr<VoxelCache> voxel_cache = nullptr;
+
+    DirectionalLight sun;
 
     ObjectPool<MeshPrimitive> mesh_primitives;
 
+    uint32_t total_num_primitives = 0u;
     BufferHandle primitive_data_buffer;
 
     ScatterUploadBuffer<PrimitiveDataGPU> primitive_upload_buffer;
 
-    std::vector<PooledObject<MeshPrimitive>> solid_primitives;
+    std::vector<MeshPrimitiveHandle> solid_primitives;
 
-    std::vector<PooledObject<MeshPrimitive>>  cutout_primitives;
+    std::vector<MeshPrimitiveHandle>  cutout_primitives;
 
-    std::vector<PooledObject<MeshPrimitive>>  translucent_primitives;
+    std::vector<MeshPrimitiveHandle>  translucent_primitives;
 
-    std::vector<PooledObject<MeshPrimitive>> new_emissive_objects;
+    std::vector<MeshPrimitiveHandle> new_emissive_objects;
 
-    ComputeShader emissive_point_cloud_shader;
+    ComputePipelineHandle emissive_point_cloud_shader;
 
-    BufferHandle generate_vpls_for_primitive(RenderGraph& graph, const PooledObject<MeshPrimitive>& primitive);
+    VkSampler voxel_sampler;
+
+    std::vector<MeshPrimitiveHandle> new_primitives;
+
+    void create_voxel_cache();
+
+    BufferHandle generate_vpls_for_primitive(RenderGraph& graph, const MeshPrimitiveHandle& primitive);
 };

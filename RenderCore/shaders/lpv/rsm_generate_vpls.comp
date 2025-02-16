@@ -1,0 +1,143 @@
+#version 460
+
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_ballot : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference_uvec2 : enable
+
+#include "shared/vpl.hpp"
+#include "shared/sun_light_constants.hpp"
+#include "shared/lpv.hpp"
+
+/**
+ * Super cool compute shader to extract VPLs from the RSM textures
+ *
+ * This is expected to run on a 1024x1024 render target, on a device with a subgroup size of 16. My
+ * phone has such a subgroup size. Nvidia has a size of 32, AMD has a size of 64. On those devices
+ * we may need to do something else to get the LPV quality we want... but that's a problem for later
+ *
+ * This CS atmonically adds lights to a UAV
+ */
+
+layout(set = 0, binding = 0) uniform sampler2D rsm_flux;
+layout(set = 0, binding = 1) uniform sampler2D rsm_normal;
+layout(set = 0, binding = 2) uniform sampler2D rsm_depth;
+
+layout(set = 0, binding = 3, scalar) uniform LPVCascadesBuffer {
+    LPVCascadeMatrices cascade_matrices[4];
+};
+
+layout(buffer_reference, scalar, buffer_reference_align = 4) buffer CountBuffer {
+    uint count;
+};
+
+layout(buffer_reference, scalar, buffer_reference_align = 16) writeonly buffer VplListBuffer {
+    PackedVPL lights[];
+};
+
+layout(push_constant) uniform Constants {
+    CountBuffer vpl_count;
+    VplListBuffer vpl_list_buffer;
+    int cascade_index;
+    uint rsm_resolution;
+    float grid_cell_size;   // Size of one cell in the LPV, in world units
+};
+
+vec4 get_worldspace_position(ivec2 texel) {
+    float depth = texelFetch(rsm_depth, texel, 0).r;
+    vec2 texcoord = vec2(vec2(texel) / float(rsm_resolution));
+    vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
+    vec4 worldspace_position = cascade_matrices[cascade_index].inverse_rsm_vp * ndc_position;
+    worldspace_position /= worldspace_position.w;
+
+    return worldspace_position;
+}
+
+void store_light(in VPL light) {
+    const uint light_index = atomicAdd(vpl_count.count, 1);
+
+    PackedVPL packed_light;
+    packed_light.data.x = packHalf2x16(light.position.xy);
+    packed_light.data.y = packHalf2x16(vec2(light.position.z, light.color.r));
+    packed_light.data.z = packHalf2x16(light.color.gb);
+    packed_light.data.w = packSnorm4x8(vec4(light.normal, 0));
+
+    vpl_list_buffer.lights[light_index] = packed_light;
+}
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+VPL load_rsm_vpl(ivec2 texel) {
+    VPL light;
+    light.position = get_worldspace_position(texel.xy).xyz;
+    light.color = texelFetch(rsm_flux, texel.xy, 0).rgb;
+    light.normal = texelFetch(rsm_normal, texel.xy, 0).rgb * 2.f - 1.f;
+
+    return light;
+}
+
+vec3 position_to_grid_cell(vec3 position) {
+    vec3 cellpos = vec3(cascade_matrices[cascade_index].world_to_cascade * vec4(position, 1.f));
+    cellpos.x += float(cascade_index);
+
+    const float lpv_side_length = grid_cell_size * 32;
+
+    return round(cellpos * lpv_side_length);
+}
+
+void main() {
+    ivec3 texel = ivec3(gl_GlobalInvocationID) * 2;
+
+    if(texel.x >= rsm_resolution || texel.y >= rsm_resolution) {
+        return;
+    }
+
+    // Find the brightest VPL in a 2x2 grid
+    float brightest_luma = 0;
+    vec3 chosen_cell;
+    for(uint y = 0; y < 2; y++) {
+        for(uint x = 0; x < 2; x++) {
+            const VPL vpl = load_rsm_vpl(texel.xy + ivec2(x, y));
+            float luma = dot(vpl.color.rgb, vec3(0.2126, 0.7152, 0.0722));
+            if(luma > brightest_luma) {
+                brightest_luma = luma;
+                chosen_cell = position_to_grid_cell(vpl.position);
+            }
+        }
+    }
+
+    // Add in the contribution from the other VPLs if they're within sqrt(3) (~1.7) grid cells
+
+    VPL result;
+    result.position = vec3(0);
+    result.color = vec3(0);
+    result.normal = vec3(0);
+    
+    float num_samples = 0;
+    for(uint y = 0; y < 2; y++) {
+        for(uint x = 0; x < 2; x++) {
+            const VPL vpl = load_rsm_vpl(texel.xy + ivec2(x, y));
+            const vec3 cellpos = position_to_grid_cell(vpl.position);
+            const vec3 cell_to_vpl = cellpos - chosen_cell;
+            if(dot(cell_to_vpl, cell_to_vpl) < 3) {
+                result.position += vpl.position;
+                result.color += vpl.color;
+                result.normal += vpl.normal;
+                num_samples += 1;
+            }
+        }
+    }
+
+    if(num_samples > 0) {
+        result.position /= num_samples;
+        result.color /= num_samples;
+        result.normal /= num_samples;
+        result.normal = normalize(result.normal);
+    }
+
+    if(length(result.color) > 0 && length(result.normal) > 0) {
+        store_light(result);
+    }
+}

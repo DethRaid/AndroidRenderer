@@ -96,7 +96,7 @@ VkPipelineStageFlags to_stage_flags(const TextureState state) {
 
     case TextureState::ShaderWrite:
         // Overly coarse. A more fully featured render graph would have hints about which shader stage needs this
-        return VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        return VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
     case TextureState::TransferSource:
         [[fallthrough]];

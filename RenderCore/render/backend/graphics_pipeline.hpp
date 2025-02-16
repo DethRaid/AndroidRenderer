@@ -8,15 +8,10 @@
 #include <volk.h>
 #include <tl/optional.hpp>
 
+#include "render/backend/descriptor_set_info.hpp"
 #include "core/object_pool.hpp"
 
 class RenderBackend;
-
-struct DescriptorSetInfo {
-    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
-
-    bool has_variable_count_binding = false;
-};
 
 /**
  * Simple pipeline abstraction
@@ -33,8 +28,20 @@ class GraphicsPipeline {
 public:
     VkPipelineLayout get_layout() const;
 
+    uint32_t get_num_push_constants() const;
+
+    VkShaderStageFlags get_push_constant_shader_stages() const;
+
+    const DescriptorSetInfo& get_descriptor_set_info(uint32_t set_index) const;
+
+    VkPipeline get_pipeline() const;
+
+    std::string_view get_name() const;
+
 private:
     std::string pipeline_name;
+
+    VkPipelineCreateFlags flags;
 
     std::string vertex_shader_name;
 
@@ -72,8 +79,20 @@ private:
 
     VkPipeline pipeline = VK_NULL_HANDLE;
 
-    void create_pipeline_layout(RenderBackend& backend,
-                                const std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos);
+    uint32_t num_push_constants = 0;
+
+    VkShaderStageFlags push_constant_stages = 0;
+
+    std::vector<DescriptorSetInfo> descriptor_sets;
+
+    std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
+
+    uint32_t group_index;
+
+    void create_pipeline_layout(
+        RenderBackend& backend, const std::vector<DescriptorSetInfo>& descriptor_set_infos,
+        const std::vector<VkPushConstantRange>& push_constants
+    );
 };
 
 using GraphicsPipelineHandle = PooledObject<GraphicsPipeline>;

@@ -34,28 +34,25 @@ void ResourceUploadQueue::flush_pending_uploads() {
 
     // Look through all the upload jobs to see how big of a staging buffer we need, and to collect all the barriers
 
-    for (const auto& job : ktx_uploads) {
+    for(const auto& job : ktx_uploads) {
         const auto job_size = ktxTexture_GetDataSizeUncompressed(job.source.get());
         total_size += job_size;
-
-        const auto& texture = allocator.get_texture(job.destination);
 
         before_image_barriers.emplace_back(
             VkImageMemoryBarrier2{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
                 .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
-                .srcAccessMask = VK_ACCESS_NONE,
+                .srcAccessMask = VK_ACCESS_2_NONE,
                 .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .image = texture.image,
+                .image = job.destination->image,
                 .subresourceRange = {
-                    .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(
-                                                                      texture.create_info.format
-                                                                  )
-                                                                      ? VK_IMAGE_ASPECT_DEPTH_BIT
-                                                                      : VK_IMAGE_ASPECT_COLOR_BIT),
+                    .aspectMask = static_cast<VkImageAspectFlags>(
+                        is_depth_format(job.destination->create_info.format)
+                        ? VK_IMAGE_ASPECT_DEPTH_BIT
+                        : VK_IMAGE_ASPECT_COLOR_BIT),
                     .baseMipLevel = 0,
                     .levelCount = job.source->numLevels,
                     .baseArrayLayer = 0,
@@ -67,18 +64,17 @@ void ResourceUploadQueue::flush_pending_uploads() {
             VkImageMemoryBarrier2{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
                 .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                 .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
+                .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                .image = texture.image,
+                .image = job.destination->image,
                 .subresourceRange = {
-                    .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(
-                                                                      texture.create_info.format
-                                                                  )
-                                                                      ? VK_IMAGE_ASPECT_DEPTH_BIT
-                                                                      : VK_IMAGE_ASPECT_COLOR_BIT),
+                    .aspectMask = static_cast<VkImageAspectFlags>(
+                        is_depth_format(job.destination->create_info.format)
+                        ? VK_IMAGE_ASPECT_DEPTH_BIT
+                        : VK_IMAGE_ASPECT_COLOR_BIT),
                     .baseMipLevel = 0,
                     .levelCount = job.source->numLevels,
                     .baseArrayLayer = 0,
@@ -88,14 +84,12 @@ void ResourceUploadQueue::flush_pending_uploads() {
         );
     }
 
-    for (const auto& job : texture_uploads) {
+    for(const auto& job : texture_uploads) {
         total_size += job.data.size();
 
-        const auto& texture = allocator.get_texture(job.destination);
-
-        const auto aspect = static_cast<VkImageAspectFlags>(is_depth_format(texture.create_info.format)
-                                                                ? VK_IMAGE_ASPECT_DEPTH_BIT
-                                                                : VK_IMAGE_ASPECT_COLOR_BIT);
+        const auto aspect = static_cast<VkImageAspectFlags>(is_depth_format(job.destination->create_info.format)
+            ? VK_IMAGE_ASPECT_DEPTH_BIT
+            : VK_IMAGE_ASPECT_COLOR_BIT);
 
         before_image_barriers.emplace_back(
             VkImageMemoryBarrier2{
@@ -106,7 +100,7 @@ void ResourceUploadQueue::flush_pending_uploads() {
                 .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .image = texture.image,
+                .image = job.destination->image,
                 .subresourceRange = {
                     .aspectMask = aspect,
                     .baseMipLevel = job.mip,
@@ -122,10 +116,10 @@ void ResourceUploadQueue::flush_pending_uploads() {
                 .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                 .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                 .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                .dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT,
+                .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                .image = texture.image,
+                .image = job.destination->image,
                 .subresourceRange = {
                     .aspectMask = aspect,
                     .baseMipLevel = job.mip,
@@ -142,10 +136,8 @@ void ResourceUploadQueue::flush_pending_uploads() {
     before_buffer_barriers.reserve(buffer_uploads.size());
     after_buffer_barriers.reserve(buffer_uploads.size());
 
-    for (const auto& job : buffer_uploads) {
+    for(const auto& job : buffer_uploads) {
         total_size += job.data.size();
-
-        const auto& buffer = allocator.get_buffer(job.buffer);
 
         before_buffer_barriers.emplace_back(
             VkBufferMemoryBarrier2{
@@ -154,8 +146,8 @@ void ResourceUploadQueue::flush_pending_uploads() {
                 .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT,
                 .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                 .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                .buffer = buffer.buffer,
-                .offset = job.offset,
+                .buffer = job.buffer->buffer,
+                .offset = job.dest_offset,
                 .size = job.data.size(),
             }
         );
@@ -164,33 +156,33 @@ void ResourceUploadQueue::flush_pending_uploads() {
                 .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
                 .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                 .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                 .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT,
-                .buffer = buffer.buffer,
-                .offset = job.offset,
+                .buffer = job.buffer->buffer,
+                .offset = job.dest_offset,
                 .size = job.data.size(),
             }
         );
     }
 
-    if (total_size == 0) {
+    if(total_size == 0) {
         // Nothing to upload, we can sleep easy
         return;
     }
 
-    logger->info("Creating a staging buffer of size {}", total_size);
+    // logger->info("Creating a staging buffer of size {}", total_size);
 
     auto staging_buffer = allocator.create_buffer(
-        "Upload staging buffer", total_size,
+        "Upload staging buffer",
+        total_size,
         BufferUsage::StagingBuffer
     );
-    const auto& staging_buffer_actual = allocator.get_buffer(staging_buffer);
 
-    auto* data_write_ptr = static_cast<uint8_t*>(staging_buffer_actual.allocation_info.pMappedData);
+    auto* data_write_ptr = static_cast<uint8_t*>(staging_buffer->allocation_info.pMappedData);
 
     // Copy the texture data to the staging buffer, and record the upload commands
 
-    auto cmds = backend.create_transfer_command_buffer();
+    auto cmds = backend.create_transfer_command_buffer("Transfer command buffer");
 
     constexpr auto begin_info = VkCommandBufferBeginInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -208,53 +200,55 @@ void ResourceUploadQueue::flush_pending_uploads() {
 
     size_t cur_offset = 0;
 
-    for (const auto& job : ktx_uploads) {
-        upload_ktx(cmds, job, staging_buffer_actual, cur_offset);
+    for(const auto& job : ktx_uploads) {
+        upload_ktx(cmds, job, *staging_buffer, cur_offset);
 
         cur_offset += ktxTexture_GetDataSizeUncompressed(job.source.get());
     }
 
-    for (const auto& job : texture_uploads) {
+    for(const auto& job : texture_uploads) {
         // Copy data
         std::memcpy(data_write_ptr + cur_offset, job.data.data(), job.data.size());
 
-        const auto& texture = allocator.get_texture(job.destination);
         const auto region = VkBufferImageCopy{
             .bufferOffset = cur_offset,
             .imageSubresource = {
-                .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(texture.create_info.format)
-                                                                  ? VK_IMAGE_ASPECT_DEPTH_BIT
-                                                                  : VK_IMAGE_ASPECT_COLOR_BIT),
+                .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(job.destination->create_info.format)
+                    ? VK_IMAGE_ASPECT_DEPTH_BIT
+                    : VK_IMAGE_ASPECT_COLOR_BIT),
                 .mipLevel = job.mip,
                 .baseArrayLayer = 0,
                 .layerCount = 1,
             },
             .imageOffset = {},
-            .imageExtent = texture.create_info.extent,
+            .imageExtent = job.destination->create_info.extent,
         };
         vkCmdCopyBufferToImage(
-            cmds, staging_buffer_actual.buffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1, &region
+            cmds,
+            staging_buffer->buffer,
+            job.destination->image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &region
         );
 
         cur_offset += job.data.size();
     }
 
-    for (const auto& job : buffer_uploads) {
+    for(const auto& job : buffer_uploads) {
         // Copy data
         std::memcpy(data_write_ptr + cur_offset, job.data.data(), job.data.size());
 
-        const auto& buffer = allocator.get_buffer(job.buffer);
         const auto region = VkBufferCopy{
             .srcOffset = cur_offset,
-            .dstOffset = job.offset,
+            .dstOffset = job.dest_offset,
             .size = job.data.size(),
         };
-        vkCmdCopyBuffer(cmds, staging_buffer_actual.buffer, buffer.buffer, 1, &region);
+        vkCmdCopyBuffer(cmds, staging_buffer->buffer, job.buffer->buffer, 1, &region);
 
         cur_offset += job.data.size();
     }
-    
+
     const auto after_dependency_info = VkDependencyInfo{
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .bufferMemoryBarrierCount = static_cast<uint32_t>(after_buffer_barriers.size()),
@@ -275,16 +269,18 @@ void ResourceUploadQueue::flush_pending_uploads() {
 }
 
 void ResourceUploadQueue::upload_ktx(
-    VkCommandBuffer cmds, const KtxUploadJob& job, const Buffer& staging_buffer,
+    const VkCommandBuffer cmds,
+    const KtxUploadJob& job,
+    const GpuBuffer& staging_buffer,
     const size_t offset
-) {
+) const {
     const auto num_copy_regions = job.source->numLevels;
     auto copy_regions = std::vector<VkBufferImageCopy>(num_copy_regions);
 
     const auto data_size = ktxTexture_GetDataSizeUncompressed(job.source.get());
     auto* data_dest = static_cast<uint8_t*>(staging_buffer.allocation_info.pMappedData) + offset;
 
-    if (job.source->pData) {
+    if(job.source->pData) {
         // image is loaded, copy it to the buffer
         std::memcpy(data_dest, job.source->pData, job.source->dataSize);
     } else {
@@ -293,7 +289,7 @@ void ResourceUploadQueue::upload_ktx(
     }
 
     // Set up the copy regions
-    struct user_cbdata_optimal {
+    struct UserCbdataOptimal {
         VkBufferImageCopy* region; // Specify destination region in final image.
         VkDeviceSize offset; // Offset of current level in staging buffer
         ktx_uint32_t numFaces;
@@ -304,7 +300,7 @@ void ResourceUploadQueue::upload_ktx(
         ktx_uint32_t numDimensions;
     };
 
-    auto copy_buffer_data = user_cbdata_optimal{
+    auto copy_buffer_data = UserCbdataOptimal{
         .region = copy_regions.data(),
         .offset = 0,
         .numFaces = job.source->numFaces,
@@ -315,12 +311,12 @@ void ResourceUploadQueue::upload_ktx(
     };
 
     auto iterate_func = +[](
-        int miplevel, int face,
-        int width, int height, int depth,
-        ktx_uint64_t faceLodSize,
+        const int miplevel, const int face,
+        const int width, const int height, const int depth,
+        const ktx_uint64_t faceLodSize,
         void* pixels, void* userdata
     ) -> KTX_error_code {
-            auto* ud = (user_cbdata_optimal*)userdata;
+            auto* ud = static_cast<UserCbdataOptimal*>(userdata);
 
             // Set up copy to destination region in final image
             ud->region->bufferOffset = ud->offset;
@@ -346,9 +342,12 @@ void ResourceUploadQueue::upload_ktx(
 
     ktxTexture_IterateLevels(job.source.get(), iterate_func, &copy_buffer_data);
 
-    const auto& dest_actual = backend.get_global_allocator().get_texture(job.destination);
     vkCmdCopyBufferToImage(
-        cmds, staging_buffer.buffer, dest_actual.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        static_cast<uint32_t>(copy_regions.size()), copy_regions.data()
+        cmds,
+        staging_buffer.buffer,
+        job.destination->image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        static_cast<uint32_t>(copy_regions.size()),
+        copy_regions.data()
     );
 }

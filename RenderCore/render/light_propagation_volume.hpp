@@ -10,6 +10,8 @@
 #include "render/backend/compute_shader.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
 
+class ResourceUploadQueue;
+struct DescriptorSet;
 class VoxelCache;
 class RenderGraph;
 class RenderBackend;
@@ -17,7 +19,7 @@ class ResourceAllocator;
 class CommandBuffer;
 class RenderScene;
 class SceneTransform;
-class SunLight;
+class DirectionalLight;
 class MeshStorage;
 
 struct CascadeData {
@@ -37,14 +39,16 @@ struct CascadeData {
     TextureHandle depth_target;
 
     /**
-     * Count of the number of VPLs in this cascade
+     * Buffer that stores the count of the VPLs in this cascade
+     *
+     * The buffer is as big as a non-indexed drawcall
      */
-    BufferHandle count_buffer = BufferHandle::None;
+    BufferHandle vpl_count_buffer = {};
 
     /**
      * VPLs in this cascade
      */
-    BufferHandle vpl_buffer = BufferHandle::None;
+    BufferHandle vpl_buffer = {};
 
     glm::vec3 min_bounds;
     glm::vec3 max_bounds;
@@ -79,16 +83,16 @@ public:
     /**
      * Updates the transform of this LPV to match the scene view
      */
-    void update_cascade_transforms(const SceneTransform& view, const SunLight& light);
+    void update_cascade_transforms(const SceneTransform& view, const DirectionalLight& light);
 
-    void update_buffers(CommandBuffer& commands) const;
+    void update_buffers(ResourceUploadQueue& queue) const;
 
     void clear_volume(RenderGraph& render_graph);
 
-    GvBuildMode get_build_mode() const;
+    static GvBuildMode get_build_mode();
 
     void build_geometry_volume_from_voxels(
-        RenderGraph& render_graph, const RenderScene& scene, const VoxelCache& voxel_cache
+        RenderGraph& render_graph, const RenderScene& scene
     );
 
     /**
@@ -103,9 +107,15 @@ public:
     void build_geometry_volume_from_scene_view(
         RenderGraph& graph, TextureHandle depth_buffer,
         TextureHandle normal_target, BufferHandle view_uniform_buffer, glm::uvec2 resolution
-    );
+    ) const;
+
+    static void build_geometry_volume_from_point_clouds(RenderGraph& render_graph, const RenderScene& scene);
 
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
+
+    void dispatch_vpl_injection_pass(
+        RenderGraph& graph, uint32_t cascade_index, const CascadeData& cascade
+    );
 
     /**
      * \brief Injects emissive mesh VPL clouds into the LPV
@@ -122,8 +132,12 @@ public:
      * @param scene_view_buffer Buffer with the matrices of the scene view
      */
     void add_lighting_to_scene(
-        CommandBuffer& commands, VkDescriptorSet gbuffers_descriptor, BufferHandle scene_view_buffer
+        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor, BufferHandle scene_view_buffer
     ) const;
+
+    void visualize_vpls(
+        RenderGraph& graph, BufferHandle scene_view_buffer, TextureHandle lit_scene, TextureHandle depth_buffer
+    );
 
 private:
     RenderBackend& backend;
@@ -134,37 +148,47 @@ private:
     // We store coefficients for the first two SH bands. Future work might add another band, at the cost of 2x the
     // memory
 
-    TextureHandle lpv_a_red = TextureHandle::None;
-    TextureHandle lpv_a_green = TextureHandle::None;
-    TextureHandle lpv_a_blue = TextureHandle::None;
+    TextureHandle lpv_a_red = nullptr;
+    TextureHandle lpv_a_green = nullptr;
+    TextureHandle lpv_a_blue = nullptr;
 
-    TextureHandle lpv_b_red = TextureHandle::None;
-    TextureHandle lpv_b_green = TextureHandle::None;
-    TextureHandle lpv_b_blue = TextureHandle::None;
+    TextureHandle lpv_b_red = nullptr;
+    TextureHandle lpv_b_green = nullptr;
+    TextureHandle lpv_b_blue = nullptr;
 
-    TextureHandle geometry_volume_handle = TextureHandle::None;
+    TextureHandle geometry_volume_handle = nullptr;
 
     VkSampler linear_sampler = VK_NULL_HANDLE;
 
-    GraphicsPipelineHandle vpl_pipeline;
+    ComputePipelineHandle rsm_generate_vpls_pipeline;
 
-    ComputeShader clear_lpv_shader;
+    ComputePipelineHandle clear_lpv_shader;
 
-    ComputeShader inject_voxels_into_gv_shader;
+    ComputePipelineHandle inject_voxels_into_gv_shader;
 
     GraphicsPipelineHandle vpl_injection_pipeline;
 
-    ComputeShader propagation_shader;
+    ComputePipelineHandle vpl_injection_compute_pipeline;
+
+    ComputePipelineHandle propagation_shader;
 
     std::vector<CascadeData> cascades;
-    BufferHandle cascade_data_buffer = BufferHandle::None;
+    BufferHandle cascade_data_buffer = {};
 
     /**
      * Renders the LPV into the lighting buffer
      */
     GraphicsPipelineHandle lpv_render_shader;
 
-    SceneDrawer rsm_drawer;
+    /**
+     * Renders a visualization of each VPL
+     *
+     * Takes in a list of VPLs. A geometry shader generates a quad for each, then the fragment shader draws a sphere
+     * with the VPL's light on the surface
+     */
+    GraphicsPipelineHandle vpl_visualization_pipeline;
+
+    SceneDrawer rsm_drawer = {};
 
     GraphicsPipelineHandle inject_rsm_depth_into_gv_pipeline;
     GraphicsPipelineHandle inject_scene_depth_into_gv_pipeline;
@@ -180,7 +204,7 @@ private:
      * \param cascade Cascade to inject data into
      * \param cascade_index Index of the cascade that we're injecting into
      */
-    void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index);
+    void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index) const;
 
     void perform_propagation_step(
         RenderGraph& render_graph,

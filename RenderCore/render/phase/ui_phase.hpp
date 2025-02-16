@@ -1,7 +1,13 @@
 #pragma once
 
+#include <array>
+
+#include <imgui.h>
+
 #include "render/backend/handles.hpp"
 #include "render/backend/graphics_pipeline.hpp"
+#include "render/backend/render_graph.hpp"
+#include "render/backend/resource_upload_queue.hpp"
 
 class CommandBuffer;
 class SceneTransform;
@@ -12,21 +18,35 @@ class SceneRenderer;
  */
 class UiPhase {
 public:
-    explicit UiPhase(SceneRenderer& renderer_in);
+    explicit UiPhase();
 
-    void set_resources(TextureHandle scene_color_in);
+    void set_resources(TextureHandle scene_color_in, glm::uvec2 render_resolution_in);
 
-    void render(CommandBuffer& commands, const SceneTransform& view, TextureHandle bloom_texture);
+    void add_data_upload_passes(ResourceUploadQueue& queue) const;
+
+    void render(CommandBuffer& commands, const SceneTransform& view, TextureHandle bloom_texture) const;
+
+    void set_imgui_draw_data(ImDrawData* im_draw_data);
+
 private:
-    SceneRenderer& scene_renderer;
+    TextureHandle scene_color = nullptr;
 
-    TextureHandle scene_color = TextureHandle::None;
+    glm::uvec2 render_resolution;
 
     VkSampler bilinear_sampler;
 
-    void create_upscale_pipeline();
+    ImDrawData* imgui_draw_data = nullptr;
 
-    void upscale_scene_color(CommandBuffer& commands, TextureHandle bloom_texture);
+    BufferHandle index_buffer;
+    BufferHandle vertex_buffer;
+
+    void create_pipelines();
+
+    void upscale_scene_color(CommandBuffer& commands, TextureHandle bloom_texture) const;
+
+    void render_imgui_items(CommandBuffer& commands) const;
 
     GraphicsPipelineHandle upsample_pipeline;
+
+    GraphicsPipelineHandle imgui_pipeline;
 };

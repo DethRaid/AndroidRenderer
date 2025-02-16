@@ -21,21 +21,21 @@ layout(set = 0, binding = 0, scalar) readonly buffer VertexOutputPositionBuffer 
 /**
  * Bitmask of if a triangle is in a bin
  */
-layout(set = 0, binding = 1, std430) readonly buffer TriangleBinsBitmaskBuffer {
+layout(set = 0, binding = 1, scalar) readonly buffer TriangleBinsBitmaskBuffer {
     uint bins_bitmask[];
 };
 
 /**
  * Bitmask of if a uint in the cell bitmask has any data
  */
-layout(set = 0, binding = 2, std430) writeonly buffer TriangleCellCoarseBitmaskBuffer {
+layout(set = 0, binding = 2, scalar) writeonly buffer TriangleCellCoarseBitmaskBuffer {
     uint cell_bitmask_coarse[];
 };
 
 /**
  * Bitmask of if a triangle is in the cell
  */
-layout(set = 0, binding = 3, std430) writeonly buffer TriangleCellBitmaskBuffer {
+layout(set = 0, binding = 3, scalar) writeonly buffer TriangleCellBitmaskBuffer {
     uint cell_bitmask[];
 };
 

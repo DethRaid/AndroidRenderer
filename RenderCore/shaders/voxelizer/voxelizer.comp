@@ -1,0 +1,77 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "shared/vertex_data.hpp"
+#include "shared/primitive_data.hpp"
+#include "shared/voxelizer_compute_pass_parameters.hpp"
+
+/**
+ * Pretty simple voxelization shader, based off of the blog series https://bronsonzgeb.com/index.php/2021/05/22/gpu-mesh-voxelizer-part-1/
+ */
+ 
+struct DrawCommand {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int  vertexOffset;
+    uint firstInstance;
+};
+
+layout(set = 0, binding = 0) readonly buffer VertexPositionBuffer {
+    vec3 vertex_positions[];
+};
+layout(set = 0, binding = 1) readonly buffer VertexDataBuffer {
+    StandardVertexData vertex_data[];
+};
+layout(set = 0, binding = 2) readonly buffer IndexBuffer {
+    uint indices[];
+};
+layout(set = 0, binding = 3) readonly buffer PrimitiveDataBuffer {
+    PrimitiveDataGPU primitive_datas[];
+};
+layout(set = 0, binding = 4) readonly buffer MeshBuffer {
+    DrawCommand meshes[];
+};
+
+layout(set = 0, binding = 5, rgba8) uniform image3D voxels_color;
+layout(set = 0, binding = 6, rgba8) uniform image3D voxels_normal;
+
+layout(push_constant) uniform Constants {
+    VoxelizerComputePassParameters parameters;
+};
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+void main() {
+    // Initial version: loop over all the triangels in the mesh, check if they're in this voxel, add them if so
+
+    // Next version: We can dispatch one workgroup per voxel, but each workgroup can be 64 or 96 wide. Each thread 
+    // tests a subsection of all the triangles and adds them to a local accumulator. At the end, we use groupshared
+    // memory to merge all the local triangles together
+
+    // May or may not have a v3 based on subgroups - each subgroup sums up part of the buffer and adds their results 
+    // together using subgroup ops, then the first thread in each subgroup writes their data to groupshared memory and
+    // the first thread in the group summy it up and stores it
+
+    const uvec3 voxel_index = gl_WorkGroupID;
+    const uvec3 voxel_resolution = gl_NumWorkGroups;
+
+    const float cell_size = parameters.half_cell_size * 2.f;
+
+    PrimitiveDataGPU primitive_data = primitive_datas[parameters.primitive_index];
+    DrawCommand command = meshes[primitive_data.mesh_id];
+
+    vec4 color = vec4(0.f);
+    vec3 normal = vec3(0.f);
+    float num_triangles = 0;
+
+    for(uint provoking_index = 0; provoking_index < command.indexCount; provoking_index += 3) {
+        uint i0 = indices[command.firstIndex] + provoking_index;
+
+        vec3 v0_position = vertex_positions[i0 + command.vertexOffset];
+    }
+
+    imageStore(voxels_color, ivec3(voxel_index), color);
+    imageStore(voxels_normal, ivec3(voxel_index), vec4(normal, 1.f));
+}

@@ -4,7 +4,6 @@
 #include <memory>
 #include <vector>
 
-#include <glm/fwd.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <spdlog/logger.h>
@@ -15,6 +14,8 @@
 
 #elif defined(_WIN32)
 #include <Windows.h>
+#include <GLFW/glfw3.h>
+
 #ifdef far
 #undef far
 #endif
@@ -22,6 +23,8 @@
 #undef near
 #endif
 #endif
+
+#include "render/render_doc_wrapper.hpp"
 
 struct GLFWwindow;
 class InputManager;
@@ -49,6 +52,8 @@ public:
      */
     virtual std::shared_ptr<spdlog::logger> get_logger(const std::string& name) = 0;
 
+    virtual void flush_all_loggers() = 0;
+
     /**
      * Reads a file in its entirety
      *
@@ -68,6 +73,17 @@ public:
     virtual void poll_input(InputManager& input) = 0;
 
     virtual glm::uvec2 get_resolution() = 0;
+
+    void set_input_manager(InputManager& input_in);
+
+    InputManager* input = nullptr;
+
+    bool is_renderdoc_loaded() const;
+
+    RenderDocWrapper& get_renderdoc() const;
+
+protected:
+    std::unique_ptr<RenderDocWrapper> renderdoc;
 };
 
 #if defined(__ANDROID__)
@@ -80,6 +96,8 @@ public:
     AndroidSystemInterface(android_app* app);
 
     std::shared_ptr<spdlog::logger> get_logger(const std::string& name) override;
+
+    void flush_all_loggers() override;
 
     tl::optional<std::vector<uint8_t>> load_file(const std::filesystem::path& filepath) override;
 
@@ -107,6 +125,8 @@ public:
 
     std::shared_ptr<spdlog::logger> get_logger(const std::string& name) override;
 
+    void flush_all_loggers() override;
+
     tl::optional<std::vector<uint8_t>> load_file(const std::filesystem::path& filepath) override;
 
     void write_file(const std::filesystem::path& filepath, const void* data, uint32_t data_size) override;
@@ -129,7 +149,11 @@ public:
 
     void set_focus(bool focused_in);
 
+    GLFWwindow* get_glfw_window() const;
+
 private:
+    std::shared_ptr<spdlog::logger> logger;
+
     GLFWwindow* window = nullptr;
 
     HWND hwnd = nullptr;
@@ -140,6 +164,10 @@ private:
 
     glm::vec2 raw_cursor_input = {};
 
+    glm::vec2 last_cursor_position = {};
+
     bool focused = true;
+
+    void init_renderdoc_api();
 };
 #endif

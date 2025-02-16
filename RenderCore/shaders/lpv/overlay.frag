@@ -5,15 +5,15 @@
 #include "common/spherical_harmonics.glsl"
 #include "common/brdf.glsl"
 #include "shared/lpv.hpp"
-#include "shared/view_info.hpp"
+#include "shared/view_data.hpp"
 
 // Gbuffer textures
 
-layout(set = 0, binding = 0, input_attachment_index = 0) uniform subpassInput gbuffer_base_color;
-layout(set = 0, binding = 1, input_attachment_index = 1) uniform subpassInput gbuffer_normal;
-layout(set = 0, binding = 2, input_attachment_index = 2) uniform subpassInput gbuffer_data;
-layout(set = 0, binding = 3, input_attachment_index = 3) uniform subpassInput gbuffer_emission;
-layout(set = 0, binding = 4, input_attachment_index = 4) uniform subpassInput gbuffer_depth;
+layout(set = 0, binding = 0) uniform sampler2D gbuffer_base_color;
+layout(set = 0, binding = 1) uniform sampler2D gbuffer_normal;
+layout(set = 0, binding = 2) uniform sampler2D gbuffer_data;
+layout(set = 0, binding = 3) uniform sampler2D gbuffer_emission;
+layout(set = 0, binding = 4) uniform sampler2D gbuffer_depth;
 
 // LPV textures
 layout(set = 1, binding = 0) uniform sampler3D lpv_red;
@@ -24,7 +24,7 @@ layout(set = 1, binding = 3) uniform LpvCascadeBuffer {
 };
 
 layout(set = 1, binding = 4) uniform ViewUniformBuffer {
-    ViewInfo view_info;
+    ViewDataGPU view_info;
 };
 
 layout(push_constant) uniform Constants {
@@ -38,7 +38,7 @@ layout(location = 0) in vec2 texcoord;
 layout(location = 0) out mediump vec4 lighting;
 
 vec3 get_viewspace_position() {
-    float depth = subpassLoad(gbuffer_depth).r;
+    float depth = texelFetch(gbuffer_depth, ivec2(gl_FragCoord.xy), 0).r;
     vec2 texcoord = gl_FragCoord.xy / view_info.render_resolution.xy;
     vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
     vec4 viewspace_position = view_info.inverse_projection * ndc_position;
@@ -65,10 +65,11 @@ mediump vec3 sample_light_from_cascade(mediump vec4 normal_coefficients, vec4 po
 }
 
 void main() {
-    mediump vec3 base_color_sample = subpassLoad(gbuffer_base_color).rgb;
-    mediump vec3 normal_sample = normalize(subpassLoad(gbuffer_normal).xyz);
-    mediump vec4 data_sample = subpassLoad(gbuffer_data);
-    mediump vec4 emission_sample = subpassLoad(gbuffer_emission);
+    ivec2 pixel = ivec2(gl_FragCoord.xy);
+    mediump vec3 base_color_sample = texelFetch(gbuffer_base_color, pixel, 0).rgb;
+    mediump vec3 normal_sample = normalize(texelFetch(gbuffer_normal, pixel, 0).xyz);
+    mediump vec4 data_sample = texelFetch(gbuffer_data, pixel, 0);
+    mediump vec4 emission_sample = texelFetch(gbuffer_emission, pixel, 0);
 
     vec3 viewspace_position = get_viewspace_position();
     vec4 worldspace_position = view_info.inverse_view * vec4(viewspace_position, 1.0);
@@ -84,32 +85,26 @@ void main() {
     surface.emission = emission_sample.rgb;
     surface.location = worldspace_position.xyz;
 
-    mediump vec4 normal_coefficients = dir_to_sh(-surface.normal);
+    vec3 lpv_normal = -surface.normal;
+    lpv_normal.x *= -1;
 
-    mediump float weights_total = 0;
-    mediump float cascade_weights[4] = float[](0, 0, 0, 0);
+    mediump vec4 normal_coefficients = dir_to_sh(lpv_normal);
+
+    uint selected_cascade = 0;
     for(uint i = 0; i < num_cascades; i++) {
         mediump vec4 cascade_position = cascade_matrices[i].world_to_cascade * worldspace_position;
         if(all(greaterThan(cascade_position.xyz, vec3(0))) && all(lessThan(cascade_position.xyz, vec3(1)))) {
-            cascade_weights[i] = pow(2.0, float(num_cascades - i));
-            weights_total += cascade_weights[i];
+            selected_cascade = i;
+            break;
         }
     }
      
-    mediump vec3 indirect_light = vec3(0);
-    for(uint i = 0; i < num_cascades; i++) {
-        mediump vec4 offset = vec4(0);
-        offset.xyz = surface.normal + float(i) * 0.01f;
-        indirect_light += sample_light_from_cascade(normal_coefficients, worldspace_position + offset, i) * cascade_weights[i];
-    }
-
-    if(weights_total > 0) {
-        indirect_light /= weights_total;
-    }
+    mediump vec4 offset = vec4(surface.normal + float(selected_cascade) * 0.01f, 0);
+    const mediump vec3 indirect_light = sample_light_from_cascade(normal_coefficients, worldspace_position + offset, selected_cascade);
 
     vec3 reflection_vector = reflect(-worldspace_view_vector, surface.normal);
     mediump vec3 specular_light = vec3(0);
-    {
+    if(selected_cascade == 0) {
         vec4 cascade_position = cascade_matrices[0].world_to_cascade * worldspace_position;
     
         mediump vec4 red_coefficients = texture(lpv_red, cascade_position.xyz);
@@ -145,12 +140,12 @@ void main() {
 
     const mediump vec3 diffuse_factor = Fd(surface, surface.normal, surface.normal);
 
-    const mediump vec3 specular_factor = Fr(surface, surface.normal, reflection_vector);
+    const mediump vec3 specular_factor = Fr(surface, surface.normal, reflection_vector) * vec3(0.f);
 
     mediump vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
-    const mediump float exposure_factor = 2.0;
+    const mediump float exposure_factor = 0.5 * 3.1415927;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 

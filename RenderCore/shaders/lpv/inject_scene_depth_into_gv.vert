@@ -21,6 +21,7 @@ layout(set = 0, binding = 3) uniform ViewUniformBuffer {
 layout(push_constant) uniform Constants {
     uint resolution_x;
     uint resolution_y;
+    uint num_cascades;
 };
 
 layout(location = 0) out mediump vec4 sh;

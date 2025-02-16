@@ -13,29 +13,36 @@ struct LoadedTexture {
     std::vector<uint8_t> data = {};
 };
 
-TextureLoader::TextureLoader(RenderBackend& backend_in) : backend{backend_in} {
+TextureLoader::TextureLoader() {
     logger = SystemInterface::get().get_logger("TextureLoader");
 
-    {
-        const auto physical_device = backend.get_physical_device();
-        const auto device = backend.get_device();
-        const auto queue = backend.get_transfer_queue();
+    auto& backend = RenderBackend::get();
+    const auto physical_device = backend.get_physical_device();
+    const auto device = backend.get_device();
+    const auto queue = backend.get_transfer_queue();
 
-        const auto command_pool_create_info = VkCommandPoolCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-            .queueFamilyIndex = backend.get_transfer_queue_family_index()
-        };
+    const auto command_pool_create_info = VkCommandPoolCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = backend.get_transfer_queue_family_index()
+    };
 
-        vkCreateCommandPool(device.device, &command_pool_create_info, nullptr, &ktx_command_pool);
+    vkCreateCommandPool(device.device, &command_pool_create_info, nullptr, &ktx_command_pool);
 
-        const auto result = ktxVulkanDeviceInfo_ConstructEx(
-            &ktx, backend.get_instance(), physical_device, device.device, queue, ktx_command_pool, nullptr, nullptr
-        );
-        if (result != KTX_SUCCESS) {
-            logger->error("Could not initialize KTX loader: {}", magic_enum::enum_name(result));
-        }
+    const auto result = ktxVulkanDeviceInfo_ConstructEx(
+        &ktx,
+        backend.get_instance(),
+        physical_device,
+        device.device,
+        queue,
+        ktx_command_pool,
+        nullptr,
+        nullptr
+    );
+    if(result != KTX_SUCCESS) {
+        logger->error("Could not initialize KTX loader: {}", magic_enum::enum_name(result));
     }
+
 }
 
 TextureLoader::~TextureLoader() {
@@ -44,12 +51,12 @@ TextureLoader::~TextureLoader() {
 
 tl::optional<TextureHandle> TextureLoader::load_texture(const std::filesystem::path& filepath, const TextureType type) {
     // Check if we already have the texture
-    if (const auto itr = loaded_textures.find(filepath.string()); itr != loaded_textures.end()) {
+    if(const auto itr = loaded_textures.find(filepath.string()); itr != loaded_textures.end()) {
         return itr->second;
     }
 
     // Load it form disk and upload it to the GPU if needed
-    if (filepath.extension() == ".ktx" || filepath.extension() == ".ktx2") {
+    if(filepath.extension() == ".ktx" || filepath.extension() == ".ktx2") {
         return load_texture_ktx(filepath, type);
     } else {
         return load_texture_stbi(filepath, type);
@@ -64,7 +71,10 @@ tl::optional<TextureHandle> TextureLoader::load_texture_ktx(
 
     return SystemInterface::get()
            .load_file(filepath)
-           .and_then([&](const std::vector<uint8_t>& data) { return upload_texture_ktx(filepath, data); });
+           .and_then(
+               [&](const std::vector<uint8_t>& data) {
+                   return upload_texture_ktx(filepath, data);
+               });
 }
 
 tl::optional<TextureHandle> TextureLoader::load_texture_stbi(
@@ -75,7 +85,9 @@ tl::optional<TextureHandle> TextureLoader::load_texture_stbi(
     return SystemInterface::get()
            .load_file(filepath)
            .and_then(
-               [&](const std::vector<uint8_t>& data) { return upload_texture_stbi(filepath, data, type); }
+               [&](const std::vector<uint8_t>& data) {
+                   return upload_texture_stbi(filepath, data, type);
+               }
            );
 }
 
@@ -84,37 +96,41 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_ktx(
 ) {
     ZoneScoped;
 
+    auto& backend = RenderBackend::get();
+
     ktxTexture2* ktx_texture = nullptr;
     auto result = ktxTexture2_CreateFromMemory(
-        data.data(), data.size(),
+        data.data(),
+        data.size(),
         KTX_TEXTURE_CREATE_NO_FLAGS,
         &ktx_texture
     );
-    if (result != KTX_SUCCESS) {
+    if(result != KTX_SUCCESS) {
         logger->error("Could not load file {}: {}", filepath.string(), magic_enum::enum_name(result));
         return tl::nullopt;
     }
 
-    if (ktxTexture2_NeedsTranscoding(ktx_texture)) {
+    if(ktxTexture2_NeedsTranscoding(ktx_texture)) {
         auto format = KTX_TTF_RGBA4444;
-        if (backend.supports_astc()) {
+        if(backend.supports_astc()) {
             format = KTX_TTF_ASTC_4x4_RGBA;
-        } else if (backend.supports_etc2()) {
+        } else if(backend.supports_etc2()) {
             format = KTX_TTF_ETC2_RGBA;
-        } else if (backend.supports_bc()) {
+        } else if(backend.supports_bc()) {
             format = KTX_TTF_BC7_RGBA;
         }
         ktxTexture2_TranscodeBasis(ktx_texture, format, 0);
     }
 
-    auto texture = Texture{
+    auto texture = GpuTexture{
         .name = filepath.string(),
         .type = TextureAllocationType::Ktx,
     };
     result = ktxTexture2_VkUpload(ktx_texture, &ktx, &texture.ktx.ktx_vk_tex);
-    if (result != KTX_SUCCESS) {
+    if(result != KTX_SUCCESS) {
         logger->error(
-            "Could not create Vulkan texture for KTX file {}: {}", filepath.string(),
+            "Could not create Vulkan texture for KTX file {}: {}",
+            filepath.string(),
             magic_enum::enum_name(result)
         );
         return tl::nullopt;
@@ -135,8 +151,8 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_ktx(
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
     };
-    
-    if (backend.has_separate_transfer_queue()) {
+
+    if(backend.has_separate_transfer_queue()) {
         backend.add_transfer_barrier(
             VkImageMemoryBarrier2{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -159,13 +175,16 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_ktx(
             }
         );
 
-        logger->info("Added queue transfer barrier for KTX image {} (Vulkan handle {})", filepath.string(), static_cast<void*>(texture.image));
+        logger->info(
+            "Added queue transfer barrier for KTX image {} (Vulkan handle {})",
+            filepath.string(),
+            static_cast<void*>(texture.image));
     }
 
     ktxTexture_Destroy(ktxTexture(ktx_texture));
-    
+
     auto& allocator = backend.get_global_allocator();
-    const auto handle = allocator.emplace_texture(filepath.string(), std::move(texture));
+    const auto handle = allocator.emplace_texture(std::move(texture));
     loaded_textures.emplace(filepath.string(), handle);
 
     return handle;
@@ -176,13 +195,19 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
 ) {
     ZoneScoped;
 
+    auto& backend = RenderBackend::get();
+
     LoadedTexture loaded_texture;
     int num_components;
     const auto decoded_data = stbi_load_from_memory(
-        data.data(), static_cast<int>(data.size()),
-        &loaded_texture.width, &loaded_texture.height, &num_components, 4
+        data.data(),
+        static_cast<int>(data.size()),
+        &loaded_texture.width,
+        &loaded_texture.height,
+        &num_components,
+        4
     );
-    if (decoded_data == nullptr) {
+    if(decoded_data == nullptr) {
         return tl::nullopt;
     }
 
@@ -195,7 +220,7 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
     stbi_image_free(decoded_data);
 
     const auto format = [&]() {
-        switch (type) {
+        switch(type) {
         case TextureType::Color:
             return VK_FORMAT_R8G8B8A8_SRGB;
 
@@ -207,8 +232,10 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
     }();
     auto& allocator = backend.get_global_allocator();
     const auto handle = allocator.create_texture(
-        filepath.string(), format,
-        glm::uvec2{loaded_texture.width, loaded_texture.height}, 1,
+        filepath.string(),
+        format,
+        glm::uvec2{loaded_texture.width, loaded_texture.height},
+        1,
         TextureUsage::StaticImage
     );
     loaded_textures.emplace(filepath.string(), handle);
@@ -221,10 +248,8 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
             .data = loaded_texture.data,
         }
     );
-        
-    if (backend.has_separate_transfer_queue()) {
-        const auto& texture = allocator.get_texture(handle);
 
+    if(backend.has_separate_transfer_queue()) {
         backend.add_transfer_barrier(
             VkImageMemoryBarrier2{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -236,7 +261,7 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
                 .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 .srcQueueFamilyIndex = backend.get_transfer_queue_family_index(),
                 .dstQueueFamilyIndex = backend.get_graphics_queue_family_index(),
-                .image = texture.image,
+                .image = handle->image,
                 .subresourceRange = {
                     .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                     .baseMipLevel = 0,
@@ -247,7 +272,10 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
             }
         );
 
-        logger->info("Added queue transfer barrier for image {} (Vulkan handle {})", filepath.string(), static_cast<void*>(texture.image));
+        logger->info(
+            "Added queue transfer barrier for image {} (Vulkan handle {})",
+            filepath.string(),
+            static_cast<void*>(handle->image));
     }
 
     return handle;

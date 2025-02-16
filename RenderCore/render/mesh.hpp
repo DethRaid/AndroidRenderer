@@ -3,8 +3,9 @@
 #include <cstdint>
 
 #include <vk_mem_alloc.h>
-#include <glm/vec3.hpp>
 
+#include "backend/acceleration_structure.hpp"
+#include "core/box.hpp"
 #include "render/backend/handles.hpp"
 
 struct Mesh {
@@ -23,20 +24,22 @@ struct Mesh {
     /**
      * Worldspace bounds of the mesh
      */
-    glm::vec3 bounds = {};
+    Box bounds = {};
 
     float average_triangle_area = {};
 
     /**
      * \brief Buffer that stores the MeshPoints that make up the point cloud of this mesh's surface
      */
-    BufferHandle point_cloud_buffer = BufferHandle::None;
+    BufferHandle point_cloud_buffer = {};
 
     /**
      * \brief Buffer that stores a point cloud of this mesh, with a position + spherical harmonic of its normal. We
      * inject this into the LPV GV
      */
-    BufferHandle sh_points_buffer = BufferHandle::None;
+    BufferHandle sh_points_buffer = {};
 
     uint32_t num_points = 0;
+
+    AccelerationStructureHandle blas = {};
 };

@@ -31,7 +31,7 @@ struct KtxUploadJob {
 struct BufferUploadJob {
     BufferHandle buffer;
     std::vector<uint8_t> data;
-    uint32_t offset;
+    uint32_t dest_offset;
 };
 
 /**
@@ -44,10 +44,13 @@ public:
     explicit ResourceUploadQueue(RenderBackend& backend_in);
 
     template<typename DataType>
-    void upload_to_buffer(BufferHandle buffer, std::span<const DataType> data, uint32_t offset);
+    void upload_to_buffer(BufferHandle buffer, const DataType& data, uint32_t dest_offset = 0);
 
     template<typename DataType>
-    void upload_to_buffer(BufferHandle buffer, std::span<DataType> data, uint32_t offset);
+    void upload_to_buffer(BufferHandle buffer, std::span<const DataType> data, uint32_t dest_offset = 0);
+
+    template<typename DataType>
+    void upload_to_buffer(BufferHandle buffer, std::span<DataType> data, uint32_t dest_offset = 0);
 
     void enqueue(KtxUploadJob&& job);
 
@@ -79,30 +82,33 @@ private:
 
     std::vector<BufferUploadJob> buffer_uploads;
 
-    void upload_ktx(VkCommandBuffer cmds, const KtxUploadJob& job, const Buffer& staging_buffer, size_t offset);
+    void upload_ktx(VkCommandBuffer cmds, const KtxUploadJob& job, const GpuBuffer& staging_buffer, size_t offset) const;
 };
 
 template <typename DataType>
-void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<const DataType> data, const uint32_t offset) {
+void ResourceUploadQueue::upload_to_buffer(BufferHandle buffer, const DataType& data, uint32_t dest_offset) {
+    upload_to_buffer(buffer, std::span{ &data, 1 }, dest_offset);
+}
+
+template <typename DataType>
+void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<const DataType> data, const uint32_t dest_offset) {
     auto job = BufferUploadJob{
             .buffer = buffer,
-            .data = {},
-            .offset = offset,
+            .data = std::vector<uint8_t>(data.size() * sizeof(DataType)),
+            .dest_offset = dest_offset,
     };
-    job.data.resize(data.size() * sizeof(DataType));
     std::memcpy(job.data.data(), data.data(), data.size() * sizeof(DataType));
 
     enqueue(std::move(job));
 }
 
 template <typename DataType>
-void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<DataType> data, const uint32_t offset) {
+void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<DataType> data, const uint32_t dest_offset) {
     auto job = BufferUploadJob{
             .buffer = buffer,
-            .data = {},
-            .offset = offset,
+            .data = std::vector<uint8_t>(data.size() * sizeof(DataType)),
+            .dest_offset = dest_offset,
     };
-    job.data.resize(data.size() * sizeof(DataType));
     std::memcpy(job.data.data(), data.data(), data.size() * sizeof(DataType));
 
     enqueue(std::move(job));

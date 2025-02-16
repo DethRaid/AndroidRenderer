@@ -5,20 +5,14 @@ for transparent
 
 All mesh data is stored in one large buffer
 
-The renderer stores a couple lists of renderable objects, grouped by transparency mode. Each 
-renderable has a handle to the mesh, material, and render primitive data. At the beginning of the 
-frame lists of material parameters and primitive data are uploaded to buffers, when rendering we set 
-push constants to select the appropriate primitive data
+The renderer stores a list of renderable . Each renderable has a handle to the mesh, material, and render primitive data. At the beginning of the frame, the renderer updates these buffers with any new objects
 
-We use CSM for shadows and LPVs for GI
+We use CSM for shadows and LPVs for GI. Surfel GI is under development
 
-The renderer is very CPU-driven, that's not likely to change
+The renderer is very GPU-driven, that's not likely to change. It uses HiZ occlusion culling on the GPU, then writes out a list of indirect draw commands, then renders those commands into a gbuffer. The visibility list can be re-used later, for example in a visualization pass
 
 We use descriptors to bind material buffers and textures. This (hopefully) lets the GPU perform some
 optimizations. Eventually I'll test it
-
-We pass the object's model matrix in the push constants. Material data is a descriptor set with a
-UBO descriptor + four texture descriptors. Per-view data is a descriptor set with one UBO descriptor
 
 ## Shadow pass
 
@@ -28,15 +22,19 @@ The shadow pass renders various objects into a four-cascade shadowmap with RSM t
 
 Inject the RSM targets into the LPV as virtual point lights
 
-We probably want to use a subpass somehow to keep the RSM target in tiled memory. Will solve later
+We use subpasses to keep the RSM target in tiled memory. First subpass rasterizes the RSM targets, second subpass reads from them and pushes their VPLs to the appropriate LPV cells. We have to use a fragment shader in the second subpass because Vulkan doesn't support compute shaders in subpasses
 
-We may want to inject some real lights into the LPV as well. Might be helpful to have a switch for
-high-quality lights that get computed analytically, vs low-quality that get injected into the LPV
+We inject some real lights into the LPV as well. The renderer samples mesh lights when they're loaded and finds some emissive areas. It then generates a virtual point light for each of those samples. Then, every frame, we can inject a mesh light's VPLs into the LPV
 
-## Light/Cluster classification
+## Surfel update
 
-Classify lights into clusters. Not entirely sure how - probably just a compute thread per cluster, 
-then that one thread can add overlapping lights to a list
+Each surfel will decide how many rays it needs. This is something of an abstract measure, so as long as every surfel calculates its ray request the same we won't have issues. Then, we scale the requested rays by (current ray budget / total requested rays). We send those rays off to sample the world
+
+Each sample tests direct lighting, and reads from the surfels closest to the sample point. It can read from other information as needed - perhaps we want to use SDF tracing for the sky light? (Use mip levels to store the sky at different cone angles, use the SDF tracing to determine the cone angle through which the sky is visible). We'll update the surfel with the sample, updating its variance and whatnot
+
+## HiZ culling pass
+
+Render last frame's visible objects into a depth buffer. Cull every object against that depth buffer, keeping track of which ones are newly visible this frame. Draw the newly-visible ones into the depth buffer
 
 ## gbuffer
 
@@ -46,6 +44,8 @@ Base color (RGB)
 Normals (RGB)
 Data (Roughness = R, Metalness = G)
 
+Depth test set to equals, depth writes off
+
 ## Lighting
 
 The lighting pass computes contribution from the sun, including PCSS shadows. It also adds in 
@@ -54,6 +54,12 @@ architecture
 
 The gbuffer pass and ligthing pass must be subpasses in the same renderpass, to avoid flushing the 
 gbuffers to main memory
+
+We also apply the 
+
+## Surfel spawning
+
+We examine the depth buffer and the current surfel placement to decide where to place new surfels (if anywhere). We should bias towards surfels that have a higher overall variance
 
 ## Post-processing
 

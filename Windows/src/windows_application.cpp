@@ -31,6 +31,7 @@ int main(const int argc, const char** argv) {
         // application.load_scene("deccerballs/scene.compressed.glb");
         // application.load_scene("deccerballs/balls_with_background.compressed.glb");
         // application.load_scene("SanMiguel/SanMiguel.compressed.glb");
+        // application.load_scene("Small_City_LVL/Small_City_LVL.compressed.glb");
         application.update_resolution();
     }
         
@@ -38,8 +39,6 @@ int main(const int argc, const char** argv) {
         ZoneScopedN("Frame");
 
         application.tick();
-
-        glfwPollEvents();
     }
     
     glfwTerminate();

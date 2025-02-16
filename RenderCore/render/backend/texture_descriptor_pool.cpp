@@ -2,14 +2,21 @@
 
 #include <numeric>
 
+#include "console/cvars.hpp"
 #include "render/backend/render_backend.hpp"
 
-TextureDescriptorPool::TextureDescriptorPool(const RenderBackend& backend_in) : backend{backend_in} {
+static AutoCVar_Int cvar_sampled_image_count{
+    "r.RHI.SampledImageCount", "Maximum number of sampled images that the GPU can access", 65536
+};
+
+TextureDescriptorPool::TextureDescriptorPool(RenderBackend& backend_in) : backend{ backend_in } {
+    auto sampled_image_count = backend.get_physical_device().properties.limits.maxDescriptorSetSampledImages;
+    cvar_sampled_image_count.Set(sampled_image_count > INT_MAX ? INT_MAX : static_cast<int32_t>(sampled_image_count));
+    sampled_image_count = cvar_sampled_image_count.Get();
+
     const auto device = backend_in.get_device().device;
 
-    constexpr auto sampled_image_count = 65536u;
-
-    constexpr auto pool_sizes = VkDescriptorPoolSize{
+    const auto pool_sizes = VkDescriptorPoolSize{
         .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .descriptorCount = sampled_image_count,
     };
@@ -22,29 +29,20 @@ TextureDescriptorPool::TextureDescriptorPool(const RenderBackend& backend_in) : 
     };
     vkCreateDescriptorPool(device, &pool_create_info, nullptr, &descriptor_pool);
 
-    constexpr auto flags = static_cast<VkDescriptorBindingFlags>(
-        VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
-        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
-    );
-    const auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-        .bindingCount = 1,
-        .pBindingFlags = &flags,
-    };
-    constexpr auto binding = VkDescriptorSetLayoutBinding{
+    const auto binding = VkDescriptorSetLayoutBinding{
         .binding = 0,
         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         .descriptorCount = sampled_image_count,
         .stageFlags = VK_SHADER_STAGE_ALL
     };
-    const auto create_info = VkDescriptorSetLayoutCreateInfo{
+    auto create_info = VkDescriptorSetLayoutCreateInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .pNext = &flags_create_info,
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
         .bindingCount = 1,
         .pBindings = &binding
     };
-    vkCreateDescriptorSetLayout(device, &create_info, nullptr, &descriptor_set_layout);
+    auto& cache = backend.get_descriptor_cache();
+    descriptor_set.layout = cache.create_descriptor_layout(&create_info);
 
     const auto set_counts = VkDescriptorSetVariableDescriptorCountAllocateInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
@@ -56,9 +54,9 @@ TextureDescriptorPool::TextureDescriptorPool(const RenderBackend& backend_in) : 
         .pNext = &set_counts,
         .descriptorPool = descriptor_pool,
         .descriptorSetCount = 1,
-        .pSetLayouts = &descriptor_set_layout,
+        .pSetLayouts = &descriptor_set.layout,
     };
-    vkAllocateDescriptorSets(device, &allocate_info, &descriptor_set);
+    vkAllocateDescriptorSets(device, &allocate_info, &descriptor_set.descriptor_set);
 
     available_handles.resize(sampled_image_count);
     std::iota(available_handles.begin(), available_handles.end(), 0);
@@ -67,7 +65,7 @@ TextureDescriptorPool::TextureDescriptorPool(const RenderBackend& backend_in) : 
 TextureDescriptorPool::~TextureDescriptorPool() {
     const auto device = backend.get_device().device;
     
-    vkDestroyDescriptorSetLayout(device, descriptor_set_layout, nullptr);
+    vkDestroyDescriptorSetLayout(device, descriptor_set.layout, nullptr);
     vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
 }
 
@@ -75,20 +73,17 @@ uint32_t TextureDescriptorPool::create_texture_srv(const TextureHandle texture, 
     const auto handle = available_handles.back();
     available_handles.pop_back();
 
-    const auto& allocator = backend.get_global_allocator();
-    const auto& texture_actual = allocator.get_texture(texture);
-
     auto image_info = std::make_unique<VkDescriptorImageInfo>(
         VkDescriptorImageInfo{
             .sampler = sampler,
-            .imageView = texture_actual.image_view,
+            .imageView = texture->image_view,
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }
     );
 
     const auto write = VkWriteDescriptorSet{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = descriptor_set,
+        .dstSet = descriptor_set.descriptor_set,
         .dstBinding = 0,
         .dstArrayElement = handle,
         .descriptorCount = 1,
@@ -120,6 +115,4 @@ void TextureDescriptorPool::commit_descriptors() {
     image_infos.clear();
 }
 
-VkDescriptorSetLayout TextureDescriptorPool::get_descriptor_layout() const { return descriptor_set_layout; }
-
-VkDescriptorSet TextureDescriptorPool::get_descriptor_set() const { return descriptor_set; }
+const DescriptorSet& TextureDescriptorPool::get_descriptor_set() const { return descriptor_set; }

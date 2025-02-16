@@ -4,6 +4,7 @@
  * Transform triangles
  */
  
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_scalar_block_layout : enable
 
@@ -21,7 +22,7 @@ layout(set = 0, binding = 1, scalar) readonly buffer VertexDataBuffer {
     StandardVertexData vertex_data[];
 };
 
-layout(set = 0, binding = 2, std430) readonly buffer IndexBuffer {
+layout(set = 0, binding = 2, scalar) readonly buffer IndexBuffer {
     uint indices[];
 };
 
@@ -33,7 +34,7 @@ layout(set = 0, binding = 4, scalar) writeonly buffer VertexOutputPositionBuffer
     Triangle triangles[];
 };
 
-layout(set = 0, binding = 5, std430) writeonly buffer VertexOutputSHBuffer {
+layout(set = 0, binding = 5, scalar) writeonly buffer VertexOutputSHBuffer {
     vec4 triangle_sh[];
 };
 

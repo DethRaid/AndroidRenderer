@@ -1,10 +1,14 @@
 #pragma once
 
 #include <functional>
+#include <queue>
 #include <vector>
 #include <glm/vec2.hpp>
 
 #include <glm/vec3.hpp>
+
+#include "input/input_event.hpp"
+#include "core/system_interface.hpp"
 
 /**
  * Manages input
@@ -23,6 +27,8 @@ public:
 
     void set_player_rotation(glm::vec2 rotation_in);
 
+    void add_input_event(const InputEvent& event);
+
     /**
      * The engine calls this to register input callbacks
      */
@@ -30,11 +36,13 @@ public:
 
     void add_player_rotation_callback(const std::function<void(const glm::vec2&)>& new_callback);
 
+    void add_input_event_callback(const std::function<void(const InputEvent&)>& new_callback);
+
     /**
      * Dispatches the various registered callbacks
      */
     void dispatch_callbacks();
-    
+
 private:
     glm::vec3 player_movement_input = glm::vec3{ 0 };
 
@@ -43,5 +51,9 @@ private:
     std::vector<std::function<void(const glm::vec3&)>> movement_callbacks;
 
     std::vector<std::function<void(const glm::vec2&)>> rotation_callbacks;
+
+    std::vector<std::function<void(const InputEvent&)>> event_callbacks;
+
+    std::queue<InputEvent> events;
 };
 

@@ -15,7 +15,9 @@ struct MeshPrimitive {
 
     PooledObject<BasicPbrMaterialProxy> material;
 
-    BufferHandle emissive_points_buffer = BufferHandle::None;
+    BufferHandle emissive_points_buffer = {};
 };
+
+using MeshPrimitiveHandle = PooledObject<MeshPrimitive>;
 
 #endif //SAHRENDERER_SCENE_PRIMITIVE_HPP

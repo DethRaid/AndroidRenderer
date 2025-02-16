@@ -14,6 +14,10 @@ void InputManager::set_player_rotation(const glm::vec2 rotation_in) {
     player_rotation_input = rotation_in;
 }
 
+void InputManager::add_input_event(const InputEvent& event) {
+    events.push(event);
+}
+
 void InputManager::add_player_movement_callback(const std::function<void(const glm::vec3&)>& new_callback) {
     movement_callbacks.push_back(new_callback);
 }
@@ -22,7 +26,20 @@ void InputManager::add_player_rotation_callback(const std::function<void(const g
     rotation_callbacks.emplace_back(new_callback);
 }
 
+void InputManager::add_input_event_callback(const std::function<void(const InputEvent&)>& new_callback) {
+    event_callbacks.emplace_back(new_callback);
+}
+
 void InputManager::dispatch_callbacks() {
+    while(!events.empty()) {
+        const auto& event = events.front();
+        for(const auto& callback : event_callbacks) {
+            callback(event);
+        }
+
+        events.pop();
+    }
+
     for (const auto& callback : movement_callbacks) {
         callback(player_movement_input);
     }

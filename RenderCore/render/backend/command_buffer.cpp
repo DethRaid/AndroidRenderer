@@ -4,23 +4,32 @@
 
 #include "pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
+#include "render/backend/gpu_texture.hpp"
 #include "utils.hpp"
+#include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
-CommandBuffer::CommandBuffer(VkCommandBuffer vk_cmds, RenderBackend& backend_in) :
+[[maybe_unused]] static AutoCVar_Int cvar_validate_bindings{
+    "r.Debug.ValidateBindings",
+    "Whether or not to validate bindings, such as vertex or index buffers",
+    1
+};
+
+CommandBuffer::CommandBuffer(const VkCommandBuffer vk_cmds, RenderBackend& backend_in) :
     commands{vk_cmds}, backend{&backend_in} {
-    if (logger == nullptr) {
+    if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("CommandBuffer");
+        logger->set_level(spdlog::level::debug);
     }
-    for (auto& set : descriptor_sets) {
+    for(auto& set : descriptor_sets) {
         set = VK_NULL_HANDLE;
     }
 }
 
-void CommandBuffer::begin() {
-    const auto begin_info = VkCommandBufferBeginInfo{
+void CommandBuffer::begin() const {
+    constexpr auto begin_info = VkCommandBufferBeginInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     };
@@ -28,30 +37,26 @@ void CommandBuffer::begin() {
 }
 
 void CommandBuffer::set_marker(const std::string& marker_name) const {
-    if (vkCmdSetCheckpointNV != nullptr) {
+    if(vkCmdSetCheckpointNV != nullptr) {
         vkCmdSetCheckpointNV(commands, marker_name.c_str());
     }
 }
 
 void
-CommandBuffer::update_buffer(
+CommandBuffer::update_buffer_immediate(
     const BufferHandle buffer, const void* data, const uint32_t data_size, const uint32_t offset
-) {
-    auto& resource_allocator = backend->get_global_allocator();
-    const auto& buffer_actual = resource_allocator.get_buffer(buffer);
-
-    auto* write_ptr = static_cast<uint8_t*>(buffer_actual.allocation_info.pMappedData) + offset;
+) const {
+    auto* write_ptr = static_cast<uint8_t*>(buffer->allocation_info.pMappedData) + offset;
 
     std::memcpy(write_ptr, data, data_size);
 
     flush_buffer(buffer);
 }
 
-void CommandBuffer::flush_buffer(const BufferHandle buffer) {
+void CommandBuffer::flush_buffer(const BufferHandle buffer) const {
     auto& resources = backend->get_global_allocator();
-    const auto& buffer_actual = resources.get_buffer(buffer);
 
-    vmaFlushAllocation(resources.get_vma(), buffer_actual.allocation, 0, VK_WHOLE_SIZE);
+    vmaFlushAllocation(resources.get_vma(), buffer->allocation, 0, VK_WHOLE_SIZE);
 }
 
 void CommandBuffer::barrier(
@@ -59,69 +64,31 @@ void CommandBuffer::barrier(
     const VkAccessFlags source_access,
     const VkPipelineStageFlags destination_pipeline_stage,
     const VkAccessFlags destination_access
-) {
-    auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(buffer);
+) const {
     const auto barrier = VkBufferMemoryBarrier{
         .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
         .srcAccessMask = source_access,
         .dstAccessMask = destination_access,
-        .buffer = buffer_actual.buffer,
+        .buffer = buffer->buffer,
         .offset = 0,
-        .size = buffer_actual.create_info.size
+        .size = buffer->create_info.size
     };
 
     // V0: Issue the barrier immediately
     vkCmdPipelineBarrier(
-        commands, source_pipeline_stage, destination_pipeline_stage, 0,
-        0, nullptr,
-        1, &barrier,
-        0, nullptr
+        commands,
+        source_pipeline_stage,
+        destination_pipeline_stage,
+        0,
+        0,
+        nullptr,
+        1,
+        &barrier,
+        0,
+        nullptr
     );
 
-    // V1: Batch the barriers. We'll need lists grouped by source stage and dest stage, because Vulkan is strange
-}
-
-void CommandBuffer::barrier(
-    const TextureHandle texture, const VkPipelineStageFlags source_pipeline_stage,
-    const VkAccessFlags source_access, const VkImageLayout old_layout,
-    const VkPipelineStageFlags destination_pipeline_stage,
-    const VkAccessFlags destination_access,
-    const VkImageLayout new_layout
-) {
-    auto& allocator = backend->get_global_allocator();
-    const auto& texture_actual = allocator.get_texture(texture);
-
-    auto aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-    if (is_depth_format(texture_actual.create_info.format)) {
-        aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-    }
-
-    const auto barrier = VkImageMemoryBarrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = source_access,
-        .dstAccessMask = destination_access,
-        .oldLayout = old_layout,
-        .newLayout = new_layout,
-        .image = texture_actual.image,
-        .subresourceRange = {
-            .aspectMask = static_cast<VkImageAspectFlags>(aspect),
-            .baseMipLevel = 0,
-            .levelCount = texture_actual.create_info.mipLevels,
-            .baseArrayLayer = 0,
-            .layerCount = texture_actual.create_info.arrayLayers,
-        }
-    };
-
-    // V0: Issue the barrier immediately
-    vkCmdPipelineBarrier(
-        commands, source_pipeline_stage, destination_pipeline_stage, 0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier
-    );
-
-    // V1: Batch the barriers. We'll need lists grouped by source stage and dest stage, because Vulkan is strange
+    // V1: Batch the barriers
 }
 
 void CommandBuffer::barrier(
@@ -140,11 +107,27 @@ void CommandBuffer::barrier(
     vkCmdPipelineBarrier2(commands, &dependency_info);
 }
 
-void CommandBuffer::fill_buffer(const BufferHandle buffer, const uint32_t fill_value) const {
-    auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(buffer);
+void CommandBuffer::fill_buffer(
+    const BufferHandle buffer, const uint32_t fill_value, const uint32_t dest_offset
+) const {
+    fill_buffer(buffer, fill_value, dest_offset, buffer->create_info.size - dest_offset);
+}
 
-    vkCmdFillBuffer(commands, buffer_actual.buffer, 0, buffer_actual.create_info.size, fill_value);
+void CommandBuffer::fill_buffer(
+    const BufferHandle buffer, const uint32_t fill_value, const uint32_t dest_offset, const uint32_t amount_to_write
+) const {
+    vkCmdFillBuffer(commands, buffer->buffer, dest_offset, amount_to_write, fill_value);
+}
+
+void CommandBuffer::build_acceleration_structures(
+    const std::span<const VkAccelerationStructureBuildGeometryInfoKHR> build_geometry_infos,
+    const std::span<VkAccelerationStructureBuildRangeInfoKHR* const> build_range_info_ptrs
+) const {
+    vkCmdBuildAccelerationStructuresKHR(
+        commands,
+        static_cast<uint32_t>(build_geometry_infos.size()),
+        build_geometry_infos.data(),
+        build_range_info_ptrs.data());
 }
 
 void CommandBuffer::begin_render_pass(
@@ -194,20 +177,116 @@ void CommandBuffer::end_render_pass() {
     vkCmdEndRenderPass(commands);
 }
 
-void CommandBuffer::bind_vertex_buffer(const uint32_t binding_index, const BufferHandle buffer) const {
-    const auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(buffer);
+void CommandBuffer::begin_rendering(const RenderingInfo& info) {
+    auto attachment_infos = std::vector<VkRenderingAttachmentInfo>{};
+    attachment_infos.reserve(
+        info.color_attachments.size() +
+        (info.depth_attachment.has_value() ? 1 : 0)
+    );
 
-    const auto offset = VkDeviceSize{0};
+    bound_color_attachment_formats.reserve(info.color_attachments.size());
 
-    vkCmdBindVertexBuffers(commands, binding_index, 1, &buffer_actual.buffer, &offset);
+    for(const auto& color_attachment : info.color_attachments) {
+        attachment_infos.emplace_back(
+            VkRenderingAttachmentInfo{
+                .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+                .imageView = color_attachment.image->attachment_view,
+                .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                .loadOp = color_attachment.load_op,
+                .storeOp = color_attachment.store_op,
+                .clearValue = color_attachment.clear_value,
+            }
+        );
+
+        bound_color_attachment_formats.emplace_back(color_attachment.image->create_info.format);
+    }
+
+    VkRenderingAttachmentInfo* depth_attachment_ptr = nullptr;
+    if(info.depth_attachment) {
+        attachment_infos.emplace_back(
+            VkRenderingAttachmentInfo{
+                .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+                .imageView = info.depth_attachment->image->attachment_view,
+                .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                .loadOp = info.depth_attachment->load_op,
+                .storeOp = info.depth_attachment->store_op,
+                .clearValue = info.depth_attachment->clear_value,
+            }
+        );
+        depth_attachment_ptr = &attachment_infos.back();
+        bound_depth_attachment_format = info.depth_attachment->image->create_info.format;
+    }
+
+    auto rendering_info = VkRenderingInfo{
+        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+        .renderArea = {
+            .offset = {.x = info.render_area_begin.x, .y = info.render_area_begin.y},
+            .extent = {.width = info.render_area_size.x, .height = info.render_area_size.y}
+        },
+        .layerCount = info.layer_count,
+        .viewMask = info.view_mask,
+        .colorAttachmentCount = static_cast<uint32_t>(info.color_attachments.size()),
+        .pColorAttachments = attachment_infos.data(),
+        .pDepthAttachment = depth_attachment_ptr,
+    };
+
+    auto shading_rate_info = VkRenderingFragmentShadingRateAttachmentInfoKHR{
+        .sType = VK_STRUCTURE_TYPE_RENDERING_FRAGMENT_SHADING_RATE_ATTACHMENT_INFO_KHR,
+    };
+    if(info.shading_rate_image) {
+        shading_rate_info.imageView = info.shading_rate_image.value()->image_view;
+        shading_rate_info.imageLayout = VK_IMAGE_LAYOUT_FRAGMENT_SHADING_RATE_ATTACHMENT_OPTIMAL_KHR;
+
+        const auto texel_size = glm::uvec2{ RenderBackend::get().get_max_shading_rate_texel_size() };
+        shading_rate_info.shadingRateAttachmentTexelSize.width = texel_size.x;
+        shading_rate_info.shadingRateAttachmentTexelSize.height = texel_size.y;
+
+        rendering_info.pNext = &shading_rate_info;
+
+        using_fragment_shading_rate_attachment = true;
+    }
+
+    bound_view_mask = info.view_mask;
+
+    vkCmdBeginRendering(commands, &rendering_info);
+
+    const auto viewport = VkViewport{
+        .x = static_cast<float>(info.render_area_begin.x),
+        .y = static_cast<float>(info.render_area_begin.y),
+        .width = static_cast<float>(info.render_area_size.x),
+        .height = static_cast<float>(info.render_area_size.y),
+        .minDepth = 0,
+        .maxDepth = 1
+    };
+    vkCmdSetViewport(commands, 0, 1, &viewport);
+
+    vkCmdSetScissor(commands, 0, 1, &rendering_info.renderArea);
 }
 
-void CommandBuffer::bind_index_buffer(const BufferHandle buffer) const {
-    const auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(buffer);
+void CommandBuffer::end_rendering() {
+    vkCmdEndRendering(commands);
 
-    vkCmdBindIndexBuffer(commands, buffer_actual.buffer, 0, VK_INDEX_TYPE_UINT32);
+    bound_color_attachment_formats.clear();
+    bound_depth_attachment_format = std::nullopt;
+    bound_view_mask = 0;
+    using_fragment_shading_rate_attachment = false;
+}
+
+void CommandBuffer::set_scissor_rect(const glm::ivec2& upper_left, const glm::ivec2& lower_right) const {
+    const auto scissor_rect = VkRect2D{
+        .offset = {.x = upper_left.x, .y = upper_left.y},
+        .extent = {
+            .width = static_cast<uint32_t>(lower_right.x - upper_left.x),
+            .height = static_cast<uint32_t>(lower_right.y - upper_left.y)
+        }
+    };
+    vkCmdSetScissor(commands, 0, 1, &scissor_rect);
+}
+
+void CommandBuffer::bind_vertex_buffer(const uint32_t binding_index, const BufferHandle buffer) const {
+    constexpr auto offset = VkDeviceSize{0};
+
+    vkCmdBindVertexBuffers(commands, binding_index, 1, &buffer->buffer, &offset);
 }
 
 void CommandBuffer::draw(
@@ -227,7 +306,10 @@ void CommandBuffer::draw_indexed(
     commit_bindings();
 
     vkCmdDrawIndexed(
-        commands, num_indices, num_instances, first_index,
+        commands,
+        num_indices,
+        num_instances,
+        first_index,
         static_cast<int32_t>(first_vertex),
         first_instance
     );
@@ -236,19 +318,29 @@ void CommandBuffer::draw_indexed(
 void CommandBuffer::draw_indirect(const BufferHandle indirect_buffer) {
     commit_bindings();
 
-    const auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(indirect_buffer);
-
-    vkCmdDrawIndirect(commands, buffer_actual.buffer, 0, 1, 0);
+    vkCmdDrawIndirect(commands, indirect_buffer->buffer, 0, 1, 0);
 }
 
 void CommandBuffer::draw_indexed_indirect(const BufferHandle indirect_buffer) {
     commit_bindings();
 
-    const auto& allocator = backend->get_global_allocator();
-    const auto& buffer_actual = allocator.get_buffer(indirect_buffer);
+    vkCmdDrawIndexedIndirect(commands, indirect_buffer->buffer, 0, 1, 0);
+}
 
-    vkCmdDrawIndexedIndirect(commands, buffer_actual.buffer, 0, 1, 0);
+void CommandBuffer::draw_indexed_indirect(
+    const BufferHandle indirect_buffer, const BufferHandle count_buffer, const uint32_t max_count
+) {
+    commit_bindings();
+
+    vkCmdDrawIndexedIndirectCount(
+        commands,
+        indirect_buffer->buffer,
+        0,
+        count_buffer->buffer,
+        0,
+        max_count,
+        sizeof(VkDrawIndexedIndirectCommand)
+    );
 }
 
 void CommandBuffer::draw_triangle() {
@@ -257,10 +349,35 @@ void CommandBuffer::draw_triangle() {
     vkCmdDraw(commands, 3, 1, 0, 0);
 }
 
-void CommandBuffer::bind_shader(const ComputeShader& shader) {
+void CommandBuffer::execute_commands() {
+    // const auto info = VkGeneratedCommandsInfoNV{
+    //     .sType = VK_STRUCTURE_TYPE_GENERATED_COMMANDS_INFO_NV,
+    //     .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+    //     .pipeline = {},
+    //     .indirectCommandsLayout = {},
+    //     .streamCount = ,
+    //     .pStreams = ,
+    //     .sequencesCount = ,
+    //     .preprocessBuffer = ,
+    //     .preprocessOffset = ,
+    //     .preprocessSize = ,
+    //     .sequencesCountBuffer = ,
+    //     .sequencesCountOffset = ,
+    //     .sequencesIndexBuffer = ,
+    //     .sequencesIndexOffset = 
+    // };
+    // vkCmdExecuteGeneratedCommandsNV(commands, VK_FALSE, &info);
+}
+
+void CommandBuffer::bind_pipeline(const ComputePipelineHandle& pipeline) {
     current_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
-    current_pipeline_layout = shader.layout;
-    vkCmdBindPipeline(commands, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline);
+
+    current_pipeline_layout = pipeline->layout;
+
+    num_push_constants_in_current_pipeline = pipeline->num_push_constants;
+    push_constant_shader_stages = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    vkCmdBindPipeline(commands, current_bind_point, pipeline->pipeline);
 
     are_bindings_dirty = true;
 }
@@ -270,7 +387,22 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
 
     current_pipeline_layout = pipeline->get_layout();
 
-    auto vk_pipeline = backend->get_pipeline_cache().get_pipeline(pipeline, current_render_pass, current_subpass);
+    num_push_constants_in_current_pipeline = pipeline->get_num_push_constants();
+    push_constant_shader_stages = pipeline->get_push_constant_shader_stages();
+
+    auto& cache = backend->get_pipeline_cache();
+
+    VkPipeline vk_pipeline;
+    if(current_render_pass == VK_NULL_HANDLE) {
+        vk_pipeline = cache.get_pipeline_for_dynamic_rendering(
+            pipeline,
+            bound_color_attachment_formats,
+            bound_depth_attachment_format,
+            bound_view_mask,
+            using_fragment_shading_rate_attachment);
+    } else {
+        vk_pipeline = cache.get_pipeline(pipeline, current_render_pass, current_subpass);
+    }
 
     vkCmdBindPipeline(commands, current_bind_point, vk_pipeline);
 
@@ -288,14 +420,16 @@ void CommandBuffer::set_push_constant(const uint32_t index, const float data) {
 }
 
 void CommandBuffer::bind_buffer_reference(const uint32_t index, const BufferHandle buffer_handle) {
-    const auto& buffer_actual = backend->get_global_allocator().get_buffer(buffer_handle);
-
-    if (buffer_actual.address == glm::uvec2{0}) {
+    if(buffer_handle->address == 0) {
         throw std::runtime_error{"Buffer was not created with a device address! Is it a uniform buffer?"};
     }
 
-    set_push_constant(index, buffer_actual.address.x);
-    set_push_constant(index + 1, buffer_actual.address.y);
+    set_push_constant(index, buffer_handle->address.low_bits());
+    set_push_constant(index + 1, buffer_handle->address.high_bits());
+}
+
+void CommandBuffer::bind_descriptor_set(const uint32_t set_index, const DescriptorSet& set) {
+    return bind_descriptor_set(set_index, set.descriptor_set);
 }
 
 void CommandBuffer::bind_descriptor_set(const uint32_t set_index, const VkDescriptorSet set) {
@@ -316,39 +450,62 @@ void CommandBuffer::dispatch(const uint32_t width, const uint32_t height, const 
     vkCmdDispatch(commands, width, height, depth);
 }
 
+void CommandBuffer::dispatch_indirect(const BufferHandle indirect_buffer) {
+    commit_bindings();
+
+    vkCmdDispatchIndirect(commands, indirect_buffer->buffer, 0);
+}
+
+void CommandBuffer::copy_buffer_to_buffer(
+    const BufferHandle dst, const uint32_t dst_offset, const BufferHandle src, const uint32_t src_offset
+) const {
+    const auto region = VkBufferCopy2{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+        .srcOffset = src_offset,
+        .dstOffset = dst_offset,
+        .size = src->create_info.size - src_offset
+    };
+
+    const auto copy_info = VkCopyBufferInfo2{
+        .sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+        .srcBuffer = src->buffer,
+        .dstBuffer = dst->buffer,
+        .regionCount = 1,
+        .pRegions = &region
+    };
+
+    vkCmdCopyBuffer2(commands, &copy_info);
+}
+
 void CommandBuffer::copy_image_to_image(const TextureHandle src, const TextureHandle dst) const {
-    auto& allocator = backend->get_global_allocator();
-    const auto& src_actual = allocator.get_texture(src);
-    const auto& dst_actual = allocator.get_texture(dst);
-        
     const auto region = VkImageCopy2{
         .sType = VK_STRUCTURE_TYPE_IMAGE_COPY_2,
         .srcSubresource = {
-            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(src_actual.create_info.format)
-                                                              ? VK_IMAGE_ASPECT_DEPTH_BIT
-                                                              : VK_IMAGE_ASPECT_COLOR_BIT),
+            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(src->create_info.format)
+                ? VK_IMAGE_ASPECT_DEPTH_BIT
+                : VK_IMAGE_ASPECT_COLOR_BIT),
             .mipLevel = 0,
             .baseArrayLayer = 0,
             .layerCount = 1,
         },
         .srcOffset = {},
         .dstSubresource = {
-            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(dst_actual.create_info.format)
-                                                              ? VK_IMAGE_ASPECT_DEPTH_BIT
-                                                              : VK_IMAGE_ASPECT_COLOR_BIT),
+            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(dst->create_info.format)
+                ? VK_IMAGE_ASPECT_DEPTH_BIT
+                : VK_IMAGE_ASPECT_COLOR_BIT),
             .mipLevel = 0,
             .baseArrayLayer = 0,
             .layerCount = 1,
         },
         .dstOffset = {},
-        .extent = src_actual.create_info.extent,
+        .extent = src->create_info.extent,
     };
 
     const auto copy_info = VkCopyImageInfo2{
         .sType = VK_STRUCTURE_TYPE_COPY_IMAGE_INFO_2,
-        .srcImage = src_actual.image,
+        .srcImage = src->image,
         .srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        .dstImage = dst_actual.image,
+        .dstImage = dst->image,
         .dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         .regionCount = 1,
         .pRegions = &region
@@ -361,19 +518,16 @@ void CommandBuffer::reset_event(const VkEvent event, const VkPipelineStageFlags 
 }
 
 void CommandBuffer::set_event(const VkEvent event, const std::vector<BufferBarrier>& buffers) {
-    auto& allocator = backend->get_global_allocator();
-
     auto buffer_barriers = std::vector<VkBufferMemoryBarrier2>{};
     buffer_barriers.reserve(buffers.size());
-    for (const auto& buffer_barrier : buffers) {
-        const auto& buffer_actual = allocator.get_buffer(buffer_barrier.buffer);
+    for(const auto& buffer_barrier : buffers) {
         const auto barrier = VkBufferMemoryBarrier2{
             .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
             .srcStageMask = buffer_barrier.src.stage,
             .srcAccessMask = buffer_barrier.src.access,
             .dstStageMask = buffer_barrier.dst.stage,
             .dstAccessMask = buffer_barrier.dst.access,
-            .buffer = buffer_actual.buffer,
+            .buffer = buffer_barrier.buffer->buffer,
             .offset = buffer_barrier.offset,
             .size = buffer_barrier.size
         };
@@ -404,7 +558,8 @@ void CommandBuffer::wait_event(const VkEvent event) {
 }
 
 void CommandBuffer::begin_label(const std::string& event_name) const {
-    if (vkCmdBeginDebugUtilsLabelEXT == nullptr) {
+    logger->trace("[{}]: begin_label", event_name);
+    if(vkCmdBeginDebugUtilsLabelEXT == nullptr) {
         return;
     }
 
@@ -417,7 +572,8 @@ void CommandBuffer::begin_label(const std::string& event_name) const {
 }
 
 void CommandBuffer::end_label() const {
-    if (vkCmdEndDebugUtilsLabelEXT == nullptr) {
+    logger->trace("end_label");
+    if(vkCmdEndDebugUtilsLabelEXT == nullptr) {
         return;
     }
 
@@ -428,29 +584,44 @@ void CommandBuffer::end() const {
     vkEndCommandBuffer(commands);
 }
 
+void CommandBuffer::bind_index_buffer(const BufferHandle buffer, const VkIndexType index_type) const {
+    vkCmdBindIndexBuffer(commands, buffer->buffer, 0, index_type);
+}
+
 void CommandBuffer::commit_bindings() {
-    if (!are_bindings_dirty) {
+    if(!are_bindings_dirty) {
         return;
     }
 
-    vkCmdPushConstants(
-        commands, current_pipeline_layout,
-        current_bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS
-            ? VK_SHADER_STAGE_ALL
-            : VK_SHADER_STAGE_COMPUTE_BIT, 0,
-        static_cast<uint32_t>(push_constants.size() * sizeof(uint32_t)), push_constants.data()
-    );
+    if(num_push_constants_in_current_pipeline > 0) {
+        vkCmdPushConstants(
+            commands,
+            current_pipeline_layout,
+            push_constant_shader_stages,
+            0,
+            static_cast<uint32_t>(num_push_constants_in_current_pipeline * sizeof(uint32_t)),
+            push_constants.data()
+        );
+    }
 
-    for (uint32_t i = 0; i < descriptor_sets.size(); i++) {
-        if (descriptor_sets[i] != VK_NULL_HANDLE) {
+    auto has_any_descriptor_sets = false;
+    for(uint32_t i = 0; i < descriptor_sets.size(); i++) {
+        if(descriptor_sets[i] != VK_NULL_HANDLE) {
+            has_any_descriptor_sets = true;
             vkCmdBindDescriptorSets(
-                commands, current_bind_point, current_pipeline_layout, i,
-                1, &descriptor_sets[i], 0, nullptr
+                commands,
+                current_bind_point,
+                current_pipeline_layout,
+                i,
+                1,
+                &descriptor_sets[i],
+                0,
+                nullptr
             );
         }
     }
 
-    for (auto& set : descriptor_sets) {
+    for(auto& set : descriptor_sets) {
         set = VK_NULL_HANDLE;
     }
 
@@ -473,8 +644,8 @@ RenderBackend& CommandBuffer::get_backend() const {
     return *backend;
 }
 
-#if TRACY_ENABLE
-tracy::VkCtx* const CommandBuffer::get_tracy_context() const {
+#if defined(TRACY_ENABLE)
+tracy::VkCtx* CommandBuffer::get_tracy_context() const {
     return backend->get_tracy_context();
 }
 #endif

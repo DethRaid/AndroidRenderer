@@ -1,9 +1,11 @@
 #pragma once
 #include <unordered_map>
 
+#include "model_import/mesh_voxelizer.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
 #include "render/mesh_handle.hpp"
 #include "render/sdf/voxel_object.hpp"
+#include "shared/voxel_object_gpu.hpp"
 
 class RenderBackend;
 
@@ -19,17 +21,21 @@ public:
     /**
      * Creates a voxel volume for the given mesh
      */
-    void build_voxels_for_mesh(MeshHandle mesh, const MeshStorage& meshes);
+    VoxelObject build_voxels_for_mesh(MeshPrimitiveHandle primitive, const MeshStorage& meshes, BufferHandle primitive_data_buffer, RenderGraph& graph);
 
-    const VoxelObject& get_voxel_for_mesh(MeshHandle mesh) const;
+    const VoxelObject& get_voxel_for_primitive(MeshPrimitiveHandle primitive) const;
 
 private:
     RenderBackend& backend;
 
-    ThreeDeeRasterizer voxelizer;
+    // ThreeDeeRasterizer voxelizer;
+
+    MeshVoxelizer voxelizer;
 
     /**
-     * Map from mesh index to voxel
+     * Map from mesh index and material index to voxel
      */
-    std::unordered_map<uint32_t, VoxelObject> voxels;
+    std::unordered_map<uint64_t, VoxelObject> voxels;
+
+    static uint64_t make_key(MeshPrimitiveHandle primitive);
 };

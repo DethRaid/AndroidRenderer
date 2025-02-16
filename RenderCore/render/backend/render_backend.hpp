@@ -6,42 +6,61 @@
 #include <VkBootstrap.h>
 #include <tracy/TracyVulkan.hpp>
 
-#include "render_graph.hpp"
-#include "texture_descriptor_pool.hpp"
+#include "render/backend/descriptor_set_allocator.hpp"
+#include "render/backend/render_graph.hpp"
+#include "render/backend/resource_access_synchronizer.hpp"
+#include "render/backend/texture_descriptor_pool.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/command_allocator.hpp"
 #include "render/backend/pipeline_builder.hpp"
 #include "render/backend/resource_upload_queue.hpp"
-#include "render/backend/command_buffer.hpp"
 #include "render/backend/constants.hpp"
-#include "render/backend/compute_shader.hpp"
 
+class BlasBuildQueue;
 class PipelineCache;
 /**
  * Wraps a lot of low level Vulkan concerns
  *
- * The render backend is very stateful. It knows the current frame index, it has a command buffer for your use, etc
+ * The render backend is very stateful. It knows the current frame index, it has a command buffer for your use, etc.
  *
  * The command buffer is submitted and replaced with a new command buffer when you flush commands. We automatically
  * flush commands at the end of the frame, but you can flush more often to reduce latency
  *
- * When the frame begins, the backend does a couple things:
+ * When the frame begins, the backend does a couple of things:
  * - Wait for the GPU to finish processing the last commands for the current frame index
  * - Destroys the command buffers for this frame and resets the command pool
  */
 class RenderBackend {
 public:
+    static RenderBackend& get();
+
+    bool supports_nv_diagnostics_config = false;
+
+    bool supports_nv_shader_reorder = false;
+
+    bool supports_shading_rate_image = false;
+
+    std::vector<glm::uvec2> supported_shading_rates;
+
     explicit RenderBackend();
 
     RenderBackend(const RenderBackend& other) = delete;
 
     RenderBackend& operator=(const RenderBackend& other) = delete;
 
-    RenderBackend(RenderBackend&& old) noexcept = default;
+    RenderBackend(RenderBackend&& old) noexcept = delete;
 
-    RenderBackend& operator=(RenderBackend&& old) noexcept = default;
+    RenderBackend& operator=(RenderBackend&& old) noexcept = delete;
 
     ~RenderBackend();
+
+    bool supports_ray_tracing() const;
+
+    bool supports_device_generated_commands() const;
+
+    const std::vector<glm::uvec2>& get_shading_rates() const;
+
+    glm::vec2 get_max_shading_rate_texel_size() const;
 
     RenderGraph create_render_graph();
 
@@ -57,7 +76,7 @@ public:
 
     bool supports_bc() const;
 
-    vkb::Device get_device() const;
+    const vkb::Device& get_device() const;
 
     bool has_separate_transfer_queue() const;
 
@@ -70,9 +89,6 @@ public:
     void add_transfer_barrier(const VkImageMemoryBarrier2& barrier);
 
     GraphicsPipelineBuilder begin_building_pipeline(std::string_view name) const;
-
-    tl::optional<ComputeShader>
-    create_compute_shader(const std::string& name, const std::vector<uint8_t>& instructions) const;
 
     uint32_t get_current_gpu_frame() const;
 
@@ -87,7 +103,7 @@ public:
      * Flushes all batched command buffers to their respective queues
      */
     void flush_batched_command_buffers();
-    
+
     void collect_tracy_data(const CommandBuffer& commands) const;
 
     TracyVkCtx get_tracy_context() const;
@@ -95,6 +111,10 @@ public:
     ResourceAllocator& get_global_allocator() const;
 
     ResourceUploadQueue& get_upload_queue() const;
+
+    BlasBuildQueue& get_blas_build_queue() const;
+
+    ResourceAccessTracker& get_resource_access_tracker();
 
     PipelineCache& get_pipeline_cache() const;
 
@@ -105,16 +125,16 @@ public:
      *
      * Callers should save and re-used these descriptors
      */
-    vkutil::DescriptorBuilder create_persistent_descriptor_builder();
+    DescriptorSetAllocator& get_persistent_descriptor_allocator();
 
     /**
      * Creates a descriptor builder for descriptors that can be blown away after this frame
      *
      * Callers should make no effort to save these descriptors
      */
-    vkutil::DescriptorBuilder create_frame_descriptor_builder();
+    DescriptorSetAllocator& get_transient_descriptor_allocator();
 
-    CommandBuffer create_graphics_command_buffer();
+    CommandBuffer create_graphics_command_buffer(const std::string& name);
 
     /**
      * Creates a command buffer that can transfer data around. Intended to be used internally by backend subsystems,
@@ -126,8 +146,8 @@ public:
      *
      * @return A command buffer that can transfer data
      */
-    VkCommandBuffer create_transfer_command_buffer();
-    
+    VkCommandBuffer create_transfer_command_buffer(const std::string& name);
+
     /**
      * Submits a command buffer to the backend
      *
@@ -149,7 +169,7 @@ public:
     vkb::Swapchain& get_swapchain();
 
     uint32_t get_current_swapchain_index() const;
-    
+
     vkutil::DescriptorLayoutCache& get_descriptor_cache();
 
     TextureHandle get_white_texture_handle() const;
@@ -158,10 +178,14 @@ public:
 
     VkSampler get_default_sampler() const;
 
-    template<typename VulkanType>
+    template <typename VulkanType>
     void set_object_name(VulkanType object, const std::string& name) const;
 
 private:
+    static inline std::unique_ptr<RenderBackend> g_render_backend = nullptr;
+
+    bool is_first_frame = true;
+
     uint32_t cur_frame_idx = 0;
     uint64_t total_num_frames = 0;
 
@@ -171,6 +195,10 @@ private:
 
     vkb::PhysicalDevice physical_device;
     vkb::Device device;
+
+    bool supports_rt = false;
+
+    bool supports_dgc = false;
 
     VkQueue graphics_queue;
     uint32_t graphics_queue_family_index;
@@ -182,6 +210,10 @@ private:
 
     std::unique_ptr<ResourceUploadQueue> upload_queue = {};
 
+    std::unique_ptr<BlasBuildQueue> blas_build_queue = {};
+
+    ResourceAccessTracker resource_access_synchronizer;
+
     std::unique_ptr<PipelineCache> pipeline_cache = {};
 
     std::unique_ptr<TextureDescriptorPool> texture_descriptor_pool = {};
@@ -190,16 +222,16 @@ private:
     VkCommandBuffer tracy_command_buffer = VK_NULL_HANDLE;
     TracyVkCtx tracy_context = nullptr;
 
-    vkutil::DescriptorAllocator global_descriptor_allocator;
+    DescriptorSetAllocator global_descriptor_allocator;
 
-    std::array<vkutil::DescriptorAllocator, num_in_flight_frames> frame_descriptor_allocators;
+    std::array<DescriptorSetAllocator, num_in_flight_frames> frame_descriptor_allocators;
 
     vkutil::DescriptorLayoutCache descriptor_layout_cache;
 
     VkPipelineCache vk_pipeline_cache = VK_NULL_HANDLE;
 
-    TextureHandle white_texture_handle = TextureHandle::None;
-    TextureHandle default_normalmap_handle = TextureHandle::None;
+    TextureHandle white_texture_handle = nullptr;
+    TextureHandle default_normalmap_handle = nullptr;
     VkSampler default_sampler = VK_NULL_HANDLE;
 
     vkb::Swapchain swapchain = {};
@@ -232,8 +264,25 @@ private:
     std::vector<VkImageMemoryBarrier2> transfer_barriers = {};
 
     std::vector<CommandBuffer> queued_command_buffers = {};
-    
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR ray_pipeline_features = {};
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
+    VkPhysicalDeviceRayQueryFeaturesKHR ray_query_features = {};
+    VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV device_generated_commands_features = {};
+    VkPhysicalDeviceFragmentShadingRateFeaturesKHR shading_rate_image_features = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR,
+        .attachmentFragmentShadingRate = VK_TRUE,
+    };
+    VkPhysicalDeviceFeatures2 device_features = {};
+
+    VkPhysicalDeviceFragmentShadingRatePropertiesKHR shading_rate_properties = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_PROPERTIES_KHR
+    };
+
     void create_instance_and_device();
+
+    void query_physical_device_features();
+
+    void query_physical_device_properties();
 
     void create_swapchain();
 
@@ -246,40 +295,47 @@ private:
      *
      * @return A semaphore that's only valid until the start of the next frame with the current frame's index
      */
-    VkSemaphore create_transient_semaphore(const std::string& name );
+    VkSemaphore create_transient_semaphore(const std::string& name);
 
     void destroy_semaphore(VkSemaphore semaphore);
 
     std::array<std::vector<VkSemaphore>, num_in_flight_frames> zombie_semaphores;
     std::vector<VkSemaphore> available_semaphores;
-    
+
     void create_default_resources();
 
-    void set_object_name(uint64_t object_handle, VkObjectType object_type, const std::string& name) const;
+    void set_object_name(uint64_t object_handle, VkObjectType object_type,
+                         const std::string& name) const;
 };
 
 
 template <typename VulkanType>
 void RenderBackend::set_object_name(VulkanType object, const std::string& name) const {
     auto object_type = VK_OBJECT_TYPE_UNKNOWN;
-    if constexpr (std::is_same_v<VulkanType, VkImage>) {
+    if constexpr(std::is_same_v<VulkanType, VkImage>) {
         object_type = VK_OBJECT_TYPE_IMAGE;
-    } else if constexpr (std::is_same_v<VulkanType, VkImageView>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkImageView>) {
         object_type = VK_OBJECT_TYPE_IMAGE_VIEW;
-    } else if constexpr (std::is_same_v<VulkanType, VkBuffer>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkBuffer>) {
         object_type = VK_OBJECT_TYPE_BUFFER;
-    } else if constexpr (std::is_same_v<VulkanType, VkRenderPass>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkRenderPass>) {
         object_type = VK_OBJECT_TYPE_RENDER_PASS;
-    } else if constexpr (std::is_same_v<VulkanType, VkPipeline>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkPipeline>) {
         object_type = VK_OBJECT_TYPE_PIPELINE;
-    } else if constexpr (std::is_same_v<VulkanType, VkPipelineLayout>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkPipelineLayout>) {
         object_type = VK_OBJECT_TYPE_PIPELINE_LAYOUT;
-    } else if constexpr (std::is_same_v<VulkanType, VkShaderModule>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkShaderModule>) {
         object_type = VK_OBJECT_TYPE_SHADER_MODULE;
-    } else if constexpr (std::is_same_v<VulkanType, VkQueue>) {
+    } else if constexpr(std::is_same_v<VulkanType, VkQueue>) {
         object_type = VK_OBJECT_TYPE_QUEUE;
+    } else if constexpr(std::is_same_v<VulkanType, VkCommandPool>) {
+        object_type = VK_OBJECT_TYPE_COMMAND_POOL;
+    } else if constexpr(std::is_same_v<VulkanType, VkCommandBuffer>) {
+        object_type = VK_OBJECT_TYPE_COMMAND_BUFFER;
+    } else if constexpr(std::is_same_v<VulkanType, VkDescriptorSet>) {
+        object_type = VK_OBJECT_TYPE_DESCRIPTOR_SET;
     } else {
-        throw std::runtime_error{ "Invalid object type" };
+        throw std::runtime_error{"Invalid object type"};
     }
 
     set_object_name(reinterpret_cast<uint64_t>(object), object_type, name);
