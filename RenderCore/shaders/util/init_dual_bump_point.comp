@@ -4,15 +4,18 @@
 #extension GL_EXT_buffer_reference_uvec2 : enable
 #extension GL_EXT_buffer_reference2 : enable
 
-layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer DualBumpPointBuffer {
+struct DualBumpPoint {
     uint front_count;
     uint front_offset;
     uint back_count;
     uint back_offset;
 };
 
+layout(set = 0, binding = 0, scalar) buffer DualBumpPointBuffer {
+    DualBumpPoint dual_bump_point;
+};
+
 layout(push_constant) uniform Constants {
-    DualBumpPointBuffer dual_bump_point;
     uint back;
 };
 
@@ -20,7 +23,7 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
 void main() {
     dual_bump_point.front_count = 0;
-    dual_bump_point.front_offset = 0;
+    dual_bump_point.front_offset = 0xFFFFFFFF;
     dual_bump_point.back_count = 0;
     dual_bump_point.back_offset = back;
 }

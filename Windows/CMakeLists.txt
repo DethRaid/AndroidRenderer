@@ -19,6 +19,10 @@ else()
         set(FETCHCONTENT_FULLY_DISCONNECTED OFF)
 endif()
 
+# Address sanitizer please save me
+# set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /fsanitize=address")
+# set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} /fsanitize=address")
+
 # Include the shared renderer
 
 include(${CMAKE_CURRENT_LIST_DIR}/../RenderCore/SahCore.cmake)

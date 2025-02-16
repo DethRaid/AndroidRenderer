@@ -9,6 +9,7 @@ static std::shared_ptr<spdlog::logger> logger;
 PipelineCache::PipelineCache(RenderBackend& backend_in) : backend{backend_in} {
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("PipelineCache");
+        logger->set_level(spdlog::level::trace);
     }
 
     const auto& physical_device = backend.get_physical_device();
@@ -263,6 +264,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         layouts.push_back(dsl);
     }
 
+    logger->trace("About to create pipeline layout");
     const auto pipeline_layout_create_info = VkPipelineLayoutCreateInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = static_cast<uint32_t>(layouts.size()),
@@ -282,6 +284,8 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         return {};
     }
 
+    logger->trace("Created pipeline layout");
+
     const auto create_info = VkComputePipelineCreateInfo{
         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
         .stage = VkPipelineShaderStageCreateInfo{
@@ -293,8 +297,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         .layout = pipeline_layout
     };
     auto pipeline = VkPipeline{};
-    vkCreateComputePipelines(backend.get_device(), VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline);
-    result = vkCreatePipelineLayout(backend.get_device(), &pipeline_layout_create_info, nullptr, &pipeline_layout);
+    result = vkCreateComputePipelines(backend.get_device(), VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline);
     if(result != VK_SUCCESS) {
         vkDestroyShaderModule(backend.get_device(), module, nullptr);
         for(const auto layout : layouts) {
@@ -307,15 +310,21 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         return {};
     }
 
+    logger->trace("Created pipeline");
+
     vkDestroyShaderModule(backend.get_device(), module, nullptr);
     for(const auto layout : layouts) {
         vkDestroyDescriptorSetLayout(backend.get_device(), layout, nullptr);
     }
 
+    logger->trace("Cleaned up DSLs");
+
     const auto layout_name = fmt::format("{} Layout", shader_file_path);
 
     backend.set_object_name(pipeline, shader_file_path);
     backend.set_object_name(pipeline_layout, layout_name);
+
+    logger->trace("Named pipeline and pipeline layout");
 
     return compute_pipelines.add_object(
         ComputeShader{

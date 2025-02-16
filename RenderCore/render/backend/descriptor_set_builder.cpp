@@ -98,7 +98,7 @@ DescriptorSetBuilder::DescriptorSetBuilder(
     bindings.resize(set_info.bindings.size());
 }
 
-DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, const BufferHandle buffer) {
+DescriptorSetBuilder& DescriptorSetBuilder::bind(const BufferHandle buffer) {
 #ifndef _NDEBUG
     if(binding_index >= set_info.bindings.size()) {
         throw std::runtime_error{
@@ -116,10 +116,12 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, c
 
     bindings[binding_index] = detail::BoundResource{.buffer = buffer};
 
+    binding_index++;
+
     return *this;
 }
 
-DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, const TextureHandle texture) {
+DescriptorSetBuilder& DescriptorSetBuilder::bind(const TextureHandle texture) {
 #ifndef _NDEBUG
     if(binding_index >= set_info.bindings.size()) {
         throw std::runtime_error{
@@ -137,10 +139,12 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const uint32_t binding_index, c
 
     bindings[binding_index].texture = texture;
 
+    binding_index++;
+
     return *this;
 }
 
-DescriptorSetBuilder& DescriptorSetBuilder::bind(uint32_t binding_index, const TextureHandle texture, const VkSampler vk_sampler) {
+DescriptorSetBuilder& DescriptorSetBuilder::bind(const TextureHandle texture, const VkSampler vk_sampler) {
 #ifndef _NDEBUG
     if(binding_index >= set_info.bindings.size()) {
         throw std::runtime_error{
@@ -158,13 +162,12 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(uint32_t binding_index, const T
 
     bindings[binding_index].combined_image_sampler = {texture, vk_sampler};
 
-    return *this;
+    binding_index++;
 
+    return *this;
 }
 
-DescriptorSetBuilder& DescriptorSetBuilder::bind(
-    const uint32_t binding_index, const AccelerationStructureHandle acceleration_structure
-) {
+DescriptorSetBuilder& DescriptorSetBuilder::bind(const AccelerationStructureHandle acceleration_structure) {
 #ifndef _NDEBUG
     if(binding_index >= set_info.bindings.size()) {
         throw std::runtime_error{
@@ -181,6 +184,8 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(
 #endif
 
     bindings[binding_index].address = acceleration_structure;
+
+    binding_index++;
 
     return *this;
 }

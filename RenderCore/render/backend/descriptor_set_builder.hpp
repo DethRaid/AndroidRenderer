@@ -53,16 +53,13 @@ public:
         DescriptorSetInfo set_info_in, std::string_view name_in
     );
 
-    DescriptorSetBuilder& bind(uint32_t binding_index, BufferHandle buffer);
+    DescriptorSetBuilder& bind(BufferHandle buffer);
 
-    DescriptorSetBuilder& bind(uint32_t binding_index, TextureHandle texture);
+    DescriptorSetBuilder& bind(TextureHandle texture);
 
-    DescriptorSetBuilder& bind(uint32_t binding_index, TextureHandle texture, VkSampler vk_sampler);
+    DescriptorSetBuilder& bind(TextureHandle texture, VkSampler vk_sampler);
 
-    DescriptorSetBuilder& bind(
-        uint32_t binding_index,
-        AccelerationStructureHandle acceleration_structure
-    );
+    DescriptorSetBuilder& bind(AccelerationStructureHandle acceleration_structure);
 
     /**
      * \brief Creates the Vulkan descriptor set 
@@ -76,6 +73,8 @@ private:
     DescriptorSetAllocator* allocator;
 
     DescriptorSetInfo set_info;
+
+    uint32_t binding_index = 0;
 
     std::vector<detail::BoundResource> bindings;
 

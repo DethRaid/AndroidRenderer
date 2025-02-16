@@ -461,8 +461,8 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                     set_info,
                                     "RSM Cascade Data and Light set"
                                 )
-                                .bind(0, cascade_data_buffer)
-                                .bind(1, scene.get_sun_light().get_constant_buffer())
+                                .bind(cascade_data_buffer)
+                                .bind(scene.get_sun_light().get_constant_buffer())
                                 .build();
 
         graph.add_render_pass(
@@ -518,10 +518,10 @@ void LightPropagationVolume::inject_indirect_sun_light(
         {
             auto descriptor_set = backend.get_transient_descriptor_allocator()
                                          .build_set(rsm_generate_vpls_pipeline, 0)
-                                         .bind(0, cascade.flux_target, backend.get_default_sampler())
-                                         .bind(1, cascade.normals_target, backend.get_default_sampler())
-                                         .bind(2, cascade.depth_target, backend.get_default_sampler())
-                                         .bind(3, cascade_data_buffer)
+                                         .bind(cascade.flux_target, backend.get_default_sampler())
+                                         .bind(cascade.normals_target, backend.get_default_sampler())
+                                         .bind(cascade.depth_target, backend.get_default_sampler())
+                                         .bind(cascade_data_buffer)
                                          .build();
 
             struct VplPipelineConstants {
@@ -585,7 +585,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
 
     auto descriptor_set = backend.get_transient_descriptor_allocator()
                                  .build_set(vpl_injection_pipeline, 0)
-                                 .bind(0, cascade_data_buffer)
+                                 .bind(cascade_data_buffer)
                                  .build();
 
     const auto num_vpls = cvar_lpv_rsm_resolution.Get() * cvar_lpv_rsm_resolution.Get() / 2;
@@ -966,10 +966,10 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
 
     const auto sampler = backend.get_default_sampler();
     const auto set = backend.get_transient_descriptor_allocator().build_set(inject_scene_depth_into_gv_pipeline, 0)
-                            .bind(0, normal_target, sampler)
-                            .bind(1, depth_buffer, sampler)
-                            .bind(2, cascade_data_buffer)
-                            .bind(3, view_uniform_buffer)
+                            .bind(normal_target, sampler)
+                            .bind(depth_buffer, sampler)
+                            .bind(cascade_data_buffer)
+                            .bind(view_uniform_buffer)
                             .build();
 
     graph.add_render_pass(
@@ -1183,11 +1183,11 @@ void LightPropagationVolume::add_lighting_to_scene(
     commands.bind_descriptor_set(0, gbuffers_descriptor);
 
     const auto lpv_descriptor = backend.get_transient_descriptor_allocator().build_set(lpv_render_shader, 1)
-                                       .bind(0, lpv_a_red, linear_sampler)
-                                       .bind(1, lpv_a_green, linear_sampler)
-                                       .bind(2, lpv_a_blue, linear_sampler)
-                                       .bind(3, cascade_data_buffer)
-                                       .bind(4, scene_view_buffer)
+                                       .bind(lpv_a_red, linear_sampler)
+                                       .bind(lpv_a_green, linear_sampler)
+                                       .bind(lpv_a_blue, linear_sampler)
+                                       .bind(cascade_data_buffer)
+                                       .bind(scene_view_buffer)
                                        .build();
 
     commands.bind_descriptor_set(1, lpv_descriptor);
@@ -1229,7 +1229,7 @@ void LightPropagationVolume::visualize_vpls(
 
     const auto view_descriptor_set = backend.get_transient_descriptor_allocator()
                                             .build_set(vpl_visualization_pipeline, 0)
-                                            .bind(0, scene_view_buffer)
+                                            .bind(scene_view_buffer)
                                             .build();
 
     graph.add_render_pass(
@@ -1286,10 +1286,10 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
 
     const auto sampler = backend.get_default_sampler();
     const auto set = backend.get_transient_descriptor_allocator().build_set(inject_rsm_depth_into_gv_pipeline, 0)
-                            .bind(0, cascade.normals_target, sampler)
-                            .bind(1, cascade.depth_target, sampler)
-                            .bind(2, cascade_data_buffer)
-                            .bind(3, view_matrices)
+                            .bind(cascade.normals_target, sampler)
+                            .bind(cascade.depth_target, sampler)
+                            .bind(cascade_data_buffer)
+                            .bind(view_matrices)
                             .build();
 
     graph.add_render_pass(
@@ -1325,13 +1325,13 @@ void LightPropagationVolume::perform_propagation_step(
     ZoneScoped;
 
     const auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(propagation_shader, 0)
-                                         .bind(0, read_red)
-                                         .bind(1, read_green)
-                                         .bind(2, read_blue)
-                                         .bind(3, write_red)
-                                         .bind(4, write_green)
-                                         .bind(5, write_blue)
-                                         .bind(6, geometry_volume_handle, linear_sampler)
+                                         .bind(read_red)
+                                         .bind(read_green)
+                                         .bind(read_blue)
+                                         .bind(write_red)
+                                         .bind(write_green)
+                                         .bind(write_blue)
+                                         .bind(geometry_volume_handle, linear_sampler)
                                          .build();
 
     struct PropagateLightingConstants {

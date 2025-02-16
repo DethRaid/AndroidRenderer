@@ -1,12 +1,11 @@
 #include "resource_allocator.hpp"
 
-#include <magic_enum.hpp>
-
 #include "render/backend/utils.hpp"
 #include "render/backend/render_backend.hpp"
 
 #include <spdlog/fmt/bundled/format.h>
 #include <tracy/Tracy.hpp>
+#include <vulkan/vk_enum_string_helper.h>
 
 #include "core/system_interface.hpp"
 #include "render/backend/acceleration_structure.hpp"
@@ -366,7 +365,7 @@ void ResourceAllocator::destroy_texture(TextureHandle handle) {
 }
 
 BufferHandle ResourceAllocator::create_buffer(const std::string& name, const size_t size, const BufferUsage usage) {
-    logger->trace("Creating buffer {} with size {} and usage {}", name, size, magic_enum::enum_name(usage));
+    logger->trace("Creating buffer {} with size {} and usage {}", name, size, to_string(usage));
 
     const auto device = backend.get_device().device;
 
@@ -506,7 +505,7 @@ AccelerationStructureHandle ResourceAllocator::create_acceleration_structure(
         backend.get_device(),
         &acceleration_device_address_info);
 
-    auto handle = &(*acceleration_structures.emplace(std::move(as)));
+    auto handle = &(*acceleration_structures.emplace(as));
     return handle;
 }
 
@@ -556,50 +555,51 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
     auto attachments = std::vector<VkAttachmentDescription2>{};
     attachments.reserve(total_num_attachments);
 
-    auto attachment_index = 0u;
+    {
+        auto attachment_index = 0u;
 
-    for(const auto& render_target : pass.attachments) {
-
-        auto load_action = VK_ATTACHMENT_LOAD_OP_LOAD;
-        auto store_action = VK_ATTACHMENT_STORE_OP_STORE;
-        if(render_target->is_transient) {
-            load_action = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            store_action = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        }
-        if(pass.clear_values.size() > attachment_index) {
-            load_action = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        }
-
-        auto layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        if(is_depth_format(render_target->create_info.format)) {
-            layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        }
-
-        logger->debug("RenderPass attachment {} is {}", attachments.size(), render_target->name);
-        logger->debug(
-            "\tloadOp={} initialLayout={}",
-            magic_enum::enum_name(load_action),
-            magic_enum::enum_name(layout)
-        );
-        logger->debug(
-            "\tstoreOp={} finalLayout={}",
-            magic_enum::enum_name(store_action),
-            magic_enum::enum_name(layout)
-        );
-
-        attachments.emplace_back(
-            VkAttachmentDescription2{
-                .sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
-                .format = render_target->create_info.format,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = load_action,
-                .storeOp = store_action,
-                .initialLayout = layout,
-                .finalLayout = layout,
+        for (const auto& render_target : pass.attachments) {
+            auto load_action = VK_ATTACHMENT_LOAD_OP_LOAD;
+            auto store_action = VK_ATTACHMENT_STORE_OP_STORE;
+            if (render_target->is_transient) {
+                load_action = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+                store_action = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             }
-        );
+            if (pass.clear_values.size() > attachment_index) {
+                load_action = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            }
 
-        attachment_index++;
+            auto layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            if (is_depth_format(render_target->create_info.format)) {
+                layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            }
+
+            logger->debug("RenderPass attachment {} is {}", attachments.size(), render_target->name);
+            logger->debug(
+                "\tloadOp={} initialLayout={}",
+                string_VkAttachmentLoadOp(load_action),
+                string_VkImageLayout(layout)
+            );
+            logger->debug(
+                "\tstoreOp={} finalLayout={}",
+                string_VkAttachmentStoreOp(store_action),
+                string_VkImageLayout(layout)
+            );
+
+            attachments.emplace_back(
+                VkAttachmentDescription2{
+                    .sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
+                    .format = render_target->create_info.format,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .loadOp = load_action,
+                    .storeOp = store_action,
+                    .initialLayout = layout,
+                    .finalLayout = layout,
+                }
+                );
+
+            attachment_index++;
+        }
     }
 
     auto attachment_references = std::vector<std::vector<VkAttachmentReference2>>{};
@@ -761,7 +761,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             logger->debug(
                 "\tattachment={} layout={}",
                 attachment_ref.attachment,
-                magic_enum::enum_name(attachment_ref.layout)
+                string_VkImageLayout(attachment_ref.layout)
             );
         }
         logger->debug(
@@ -773,7 +773,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             logger->debug(
                 "\tattachment={} layout={}",
                 subpass.pDepthStencilAttachment->attachment,
-                magic_enum::enum_name(subpass.pDepthStencilAttachment->layout)
+                string_VkImageLayout(subpass.pDepthStencilAttachment->layout)
             );
         }
         logger->debug("Subpass {} has {} input attachments", subpass_index, subpass.inputAttachmentCount);
@@ -782,7 +782,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             logger->debug(
                 "\tattachment={} layout={}",
                 attachment_ref.attachment,
-                magic_enum::enum_name(attachment_ref.layout)
+                string_VkImageLayout(attachment_ref.layout)
             );
         }
     }

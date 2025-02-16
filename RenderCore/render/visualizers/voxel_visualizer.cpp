@@ -86,8 +86,8 @@ void VoxelVisualizer::render(
 
     auto& backend = RenderBackend::get();
     const auto descriptor_set = backend.get_transient_descriptor_allocator().build_set(visualization_pipeline, 0)
-                                       .bind(0, view_uniform_buffer)
-                                       .bind(1, scene.get_primitive_buffer())
+                                       .bind(view_uniform_buffer)
+                                       .bind(scene.get_primitive_buffer())
                                        .build();
 
     render_graph.add_render_pass(

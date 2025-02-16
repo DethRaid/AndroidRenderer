@@ -224,7 +224,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
 
     bool has_error = false;
 
-    logger->debug("Beginning reflection on vertex shader {}", vertex_shader_name);
+    logger->trace("Beginning reflection on vertex shader {}", vertex_shader_name);
 
     collect_bindings(*vertex_shader_maybe, vertex_path.string(), VK_SHADER_STAGE_VERTEX_BIT, descriptor_sets, push_constants);
 
@@ -273,7 +273,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
         throw std::runtime_error{"Could not perform reflection on geometry shader"};
     }
 
-    logger->debug("Beginning reflection on geometry shader {}", geometry_shader_name);
+    logger->trace("Beginning reflection on geometry shader {}", geometry_shader_name);
 
     collect_bindings(
         *geometry_shader,
@@ -299,7 +299,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_fragment_shader(const std:
     fragment_shader = *fragment_shader_maybe;
     fragment_shader_name = fragment_path.string();
 
-    logger->debug("Beginning reflection on fragment shader {}", fragment_shader_name);
+    logger->trace("Beginning reflection on fragment shader {}", fragment_shader_name);
 
     collect_bindings(
         *fragment_shader,

@@ -36,9 +36,9 @@ void VRSAA::generate_shading_rate_image(RenderGraph& graph) const {
     };
     const auto set = RenderBackend::get().get_transient_descriptor_allocator()
                                          .build_set(generate_shading_rate_image_shader, 0)
-                                         .bind(0, contrast_image)
-                                         .bind(1, shading_rate_image)
-                                         .bind(2, params_buffer)
+                                         .bind(contrast_image)
+                                         .bind(shading_rate_image)
+                                         .bind(params_buffer)
                                          .build();
 
     graph.add_compute_dispatch(
@@ -55,9 +55,9 @@ void VRSAA::measure_aliasing(RenderGraph& graph, const TextureHandle scene_color
     ZoneScoped;
 
     const auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(contrast_shader, 0)
-                                         .bind(0, scene_color, sampler)
-                                         .bind(1, gbuffer_depth, sampler)
-                                         .bind(2, contrast_image)
+                                         .bind(scene_color, sampler)
+                                         .bind(gbuffer_depth, sampler)
+                                         .bind(contrast_image)
                                          .build();
 
     const auto resolution = glm::vec2{scene_color->create_info.extent.width, scene_color->create_info.extent.height};

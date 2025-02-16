@@ -76,9 +76,9 @@ VoxelTextures MeshVoxelizer::voxelize_with_raster(
                    voxelization_pipeline->get_descriptor_set_info(0),
                    "Mesh voxelizer descriptor set"
                }
-               .bind(0, voxels)
-               .bind(1, primitive_buffer)
-               .bind(2, frustums_buffer)
+               .bind(voxels)
+               .bind(primitive_buffer)
+               .bind(frustums_buffer)
                .build();
     graph.add_render_pass(
         DynamicRenderingPass{
@@ -150,13 +150,13 @@ VoxelTextures MeshVoxelizer::voxelize_with_compute(
 
     auto descriptor_set = backend->get_transient_descriptor_allocator()
                                  .build_set(compute_voxelization_pipeline, 0)
-                                 .bind(0, mesh_storage.get_vertex_position_buffer())
-                                 .bind(1, mesh_storage.get_vertex_data_buffer())
-                                 .bind(2, mesh_storage.get_index_buffer())
-                                 .bind(3, primitive_buffer)
-                                 .bind(4, mesh_storage.get_draw_args_buffer())
-                                 .bind(5, voxels_color)
-                                 .bind(6, voxels_normal)
+                                 .bind(mesh_storage.get_vertex_position_buffer())
+                                 .bind(mesh_storage.get_vertex_data_buffer())
+                                 .bind(mesh_storage.get_index_buffer())
+                                 .bind(primitive_buffer)
+                                 .bind(mesh_storage.get_draw_args_buffer())
+                                 .bind(voxels_color)
+                                 .bind(voxels_normal)
                                  .build();
 
     graph.add_compute_dispatch<VoxelizerComputePassParameters>(

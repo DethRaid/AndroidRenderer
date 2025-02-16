@@ -48,11 +48,11 @@ void LightingPhase::render(
 
     const auto sampler = backend.get_default_sampler();
     auto gbuffers_descriptor_set = backend.get_transient_descriptor_allocator().build_set(sun_pipeline, 0)
-                                          .bind(0, gbuffer.color, sampler)
-                                          .bind(1, gbuffer.normal, sampler)
-                                          .bind(2, gbuffer.data, sampler)
-                                          .bind(3, gbuffer.emission, sampler)
-                                          .bind(4, gbuffer.depth, sampler)
+                                          .bind(gbuffer.color, sampler)
+                                          .bind(gbuffer.normal, sampler)
+                                          .bind(gbuffer.data, sampler)
+                                          .bind(gbuffer.emission, sampler)
+                                          .bind(gbuffer.depth, sampler)
                                           .build();
 
     auto texture_usages = std::vector<TextureUsageToken>{};

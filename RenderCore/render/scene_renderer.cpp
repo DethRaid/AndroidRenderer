@@ -55,15 +55,20 @@ SceneRenderer::SceneRenderer() {
 
     auto& backend = RenderBackend::get();
 
+    logger->debug("Initialized render backend");
+
     if(cvar_use_lpv.Get()) {
         lpv = std::make_unique<LightPropagationVolume>(backend);
+        logger->debug("Created LPV");
     }
 
     if(lpv) {
         lpv->init_resources(backend.get_global_allocator());
+        logger->debug("Initialized LPV");
     }
 
     if(!backend.supports_shading_rate_image) {
+        logger->info("Backend does not support VRSAA, turning AA off");
         cvar_anti_aliasing.Set(AntiAliasingType::None);
     }
 

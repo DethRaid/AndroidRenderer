@@ -117,7 +117,7 @@ void Application::tick() {
 
     update_delta_time();
 
-    logger->debug("Tick {} ms", delta_time);
+    logger->debug("Tick {:.3f} ms ({:.3f} fps)", delta_time * 1000, 1 / delta_time);
 
     // Input
 

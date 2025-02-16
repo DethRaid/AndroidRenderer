@@ -461,7 +461,7 @@ namespace vkutil {
         backend{backend_in}, cache{backend.get_descriptor_cache()}, alloc{allocator_in} {
         writes.reserve(32);
         bindings.reserve(32);
-        as_writes.reserve(1024); // If we need more than this, things will break. Be careful
+        as_writes.reserve(32); // If we need more than this, things will break. Be careful
     }
 
 

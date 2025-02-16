@@ -17,8 +17,6 @@ constexpr inline auto scatter_buffer_size = 1024u;
 template <typename DataType>
 class ScatterUploadBuffer {
 public:
-    explicit ScatterUploadBuffer();
-
     void add_data(uint32_t destination_index, DataType data);
 
     void flush_to_buffer(RenderGraph& graph, BufferHandle destination_buffer);
@@ -33,20 +31,9 @@ private:
     BufferHandle scatter_indices = {};
     BufferHandle scatter_data = {};
 
-    static ComputePipelineHandle scatter_shader;
 };
 
-template <typename DataType>
-ComputePipelineHandle ScatterUploadBuffer<DataType>::scatter_shader;
-
-template <typename DataType>
-ScatterUploadBuffer<DataType>::ScatterUploadBuffer() {
-    auto& backend = RenderBackend::get();
-    if (!scatter_shader.is_valid()) {
-        auto& pipeline_cache = backend.get_pipeline_cache();
-        scatter_shader = pipeline_cache.create_pipeline("shaders/scatter_upload.comp.spv");
-    }
-}
+ComputePipelineHandle get_scatter_upload_shader();
 
 template <typename DataType>
 void ScatterUploadBuffer<DataType>::add_data(const uint32_t destination_index, DataType data) {
@@ -113,7 +100,7 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHa
                 const auto data_size = static_cast<uint32_t>(sizeof(DataType));
                 commands.set_push_constant(7, data_size);
 
-                commands.bind_pipeline(scatter_shader);
+                commands.bind_pipeline(get_scatter_upload_shader());
 
                 // Add 1 because integer division is fun
                 commands.dispatch(scatter_buffer_count / 32 + 1, 1, 1);

@@ -43,8 +43,8 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
 
     auto& backend = RenderBackend::get();
     const auto bloom_0_set = backend.get_transient_descriptor_allocator().build_set(downsample_shader, 0)
-                                    .bind(0, scene_color, bilinear_sampler)
-                                    .bind(1, bloom_tex)
+                                    .bind(scene_color, bilinear_sampler)
+                                    .bind(bloom_tex)
                                     .build();
     graph.add_compute_dispatch(
         {

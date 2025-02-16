@@ -65,6 +65,7 @@ VkBool32 VKAPI_ATTR debug_callback(
 RenderBackend& RenderBackend::get() {
     if(g_render_backend == nullptr) {
         g_render_backend = std::make_unique<RenderBackend>();
+        logger->debug("Assigned render backend to global pointer");
     }
 
     return *g_render_backend;
@@ -203,6 +204,8 @@ void RenderBackend::create_instance_and_device() {
     constexpr auto required_features = VkPhysicalDeviceFeatures{
         .geometryShader = VK_TRUE,
         .sampleRateShading = VK_TRUE,
+        .multiDrawIndirect = VK_TRUE,
+        .drawIndirectFirstInstance = VK_TRUE,
         .depthClamp = VK_TRUE,
         .samplerAnisotropy = VK_TRUE,
 #if defined(__ANDROID__)

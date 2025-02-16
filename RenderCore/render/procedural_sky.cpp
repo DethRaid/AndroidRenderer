@@ -65,7 +65,7 @@ void ProceduralSky::update_sky_luts(RenderGraph& graph, const glm::vec3& light_v
 
     {
         const auto set = descriptors.build_set(transmittance_lut_pso, 0)
-                                    .bind(0, transmittance_lut)
+                                    .bind(transmittance_lut)
                                     .build();
 
         graph.add_compute_dispatch(
@@ -79,8 +79,8 @@ void ProceduralSky::update_sky_luts(RenderGraph& graph, const glm::vec3& light_v
 
     {
         const auto set = descriptors.build_set(multiscattering_lut_pso, 0)
-                                    .bind(0, transmittance_lut, linear_sampler)
-                                    .bind(1, multiscattering_lut)
+                                    .bind(transmittance_lut, linear_sampler)
+                                    .bind(multiscattering_lut)
                                     .build();
 
         graph.add_compute_dispatch(
@@ -94,9 +94,9 @@ void ProceduralSky::update_sky_luts(RenderGraph& graph, const glm::vec3& light_v
 
     {
         const auto set = descriptors.build_set(sky_view_lut_pso, 0)
-                                    .bind(0, transmittance_lut, linear_sampler)
-                                    .bind(1, multiscattering_lut, linear_sampler)
-                                    .bind(2, sky_view_lut)
+                                    .bind(transmittance_lut, linear_sampler)
+                                    .bind(multiscattering_lut, linear_sampler)
+                                    .bind(sky_view_lut)
                                     .build();
 
         graph.add_compute_dispatch(
@@ -140,9 +140,9 @@ void ProceduralSky::render_sky(
     auto& backend = RenderBackend::get();
 
     const auto set = backend.get_transient_descriptor_allocator().build_set(sky_application_pso, 0)
-                            .bind(0, transmittance_lut, linear_sampler)
-                            .bind(1, sky_view_lut, linear_sampler)
-                            .bind(2, view_buffer)
+                            .bind(transmittance_lut, linear_sampler)
+                            .bind(sky_view_lut, linear_sampler)
+                            .bind(view_buffer)
                             .build();
 
     commands.bind_pipeline(sky_application_pso);

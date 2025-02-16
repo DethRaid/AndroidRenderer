@@ -10,13 +10,16 @@ import sys
 from pathlib import Path
 
 
+glsl_extensions = ['.vert', '.geom', '.frag', '.comp']
+
+
 def compile_slang_shader(input_file, output_file, include_directories):
-    command = [slang_exe, input_file, '-profile', 'glsl_460', '-target', 'spirv', '-entry', 'main', '-g', '-o', output_file]
+    command = [slang_exe, input_file, '-profile', 'glsl_460', '-target', 'spirv', '-entry', 'main', '-fvk-use-scalar-layout', '-g', '-O0', '-o', output_file]
     for dir in include_directories:
         command.append('-I')
         command.append(dir)
 
-    # use  -output-includes to get a list of included files, de-duplicate that to get a dependency list, recompile the shader if any of its dependencies have changed
+    # use -output-includes to get a list of included files, de-duplicate that to get a dependency list, recompile the shader if any of its dependencies have changed
 
     print(f"Compiling {input_file} as Slang")
     print(f"output_file={output_file}")
@@ -46,9 +49,10 @@ def compile_shaders_in_path(path, root_dir, output_dir):
             relative_file_path = child_path.relative_to(root_dir)
 
             output_file = output_dir / relative_file_path
-
-            if output_file.exists():
-                print(f"output_file modified at {output_file.stat().st_mtime} input file modified at {child_path.stat().st_mtime}")
+            if child_path.suffix == '.slang':
+                output_file = output_file.with_suffix('.spv')
+            else:
+                output_file = output_file.with_suffix(output_file.suffix + '.spv')
 
             if output_file.exists() and output_file.stat().st_mtime >= child_path.stat().st_mtime:
                 continue
@@ -57,18 +61,15 @@ def compile_shaders_in_path(path, root_dir, output_dir):
             output_parent.mkdir(parents=True, exist_ok=True)
 
             if child_path.suffix == '.slang':
-                # Skip slang until https://discord.com/channels/1303735196696445038/1330558499016671263/1330558537960788019 is resolved
-                full_output_file = output_file.with_suffix('.spv')
-                compile_slang_shader(child_path, full_output_file, [root_dir, root_dir.parent, 'D:\\Source\\SahRenderer\\RenderCore\\extern'])
+                compile_slang_shader(child_path, output_file, [root_dir, root_dir.parent, 'D:\\Source\\SahRenderer\\RenderCore\\extern'])
                 # continue
             
             elif child_path.suffix == '.glsl':
                 # GLSL include file
                 continue
 
-            else:
-                full_output_file = output_file.with_suffix(output_file.suffix + '.spv')
-                compile_glsl_shader(child_path, full_output_file, [root_dir, root_dir.parent, 'D:\\Source\\SahRenderer\\RenderCore\\extern'])
+            elif child_path.suffix in glsl_extensions:
+                compile_glsl_shader(child_path, output_file, [root_dir, root_dir.parent, 'D:\\Source\\SahRenderer\\RenderCore\\extern'])
 
 
 if __name__ == '__main__':

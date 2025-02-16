@@ -134,7 +134,7 @@ void DepthCullingPhase::render(
                                                 }
                                             },
                                             "Main view descriptor set")
-                                        .bind(0, view_data_buffer)
+                                        .bind(view_data_buffer)
                                         .build();
 
     auto& scene = drawer.get_scene();
@@ -313,7 +313,7 @@ DepthCullingPhase::translate_visibility_list_to_draw_commands(
 
     ZoneScoped;
 
-    const auto& backend = RenderBackend::get();
+    auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
     const auto draw_commands_buffer = allocator.create_buffer(
         "Draw commands",
@@ -330,77 +330,36 @@ DepthCullingPhase::translate_visibility_list_to_draw_commands(
         BufferUsage::VertexBuffer
     );
 
-    struct DualBumpPointParams {
-        DeviceAddress dual_bump_point;
-        uint back;
-    };
+    auto& descriptor_allocator = backend.get_transient_descriptor_allocator();
 
-    graph.add_compute_dispatch<DualBumpPointParams>(
+    const auto dbp_set = descriptor_allocator.build_set(init_dual_bump_point_pipeline, 0)
+                                             .bind(draw_count_buffer)
+                                             .build();
+    graph.add_compute_dispatch<uint>(
         {
             .name = "Init dual bump point",
-            .buffers = {
-                {draw_count_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT}
-            },
-            .push_constants = DualBumpPointParams{
-                .dual_bump_point = draw_count_buffer->address,
-                .back = num_primitives
-            },
+            .descriptor_sets = {dbp_set},
+            .push_constants = num_primitives,
             .num_workgroups = {1, 1, 1},
             .compute_shader = init_dual_bump_point_pipeline
         });
 
-    graph.add_pass(
-        ComputePass{
+    const auto tvl_set = descriptor_allocator.build_set(visibility_list_to_draw_commands, 0)
+                                             .bind(primitive_buffer)
+                                             .bind(visibility_list)
+                                             .bind(mesh_draw_args_buffer)
+                                             .bind(draw_commands_buffer)
+                                             .bind(draw_count_buffer)
+                                             .bind(primitive_id_buffer)
+                                             .build();
+    graph.add_compute_dispatch<uint>(
+        {
             .name = "Translate visibility list",
-            .buffers = {
-                {
-                    primitive_buffer,
-                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    VK_ACCESS_2_SHADER_READ_BIT
-                },
-                {
-                    visibility_list,
-                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    VK_ACCESS_2_SHADER_READ_BIT
-                },
-                {
-                    mesh_draw_args_buffer,
-                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    VK_ACCESS_2_SHADER_READ_BIT
-                },
-                {
-                    draw_commands_buffer,
-                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    VK_ACCESS_2_SHADER_WRITE_BIT
-                },
-                {
-                    draw_count_buffer,
+            .descriptor_sets = {tvl_set},
+            .push_constants = num_primitives,
+            .num_workgroups = {(num_primitives + 95) / 96, 1, 1},
+            .compute_shader = visibility_list_to_draw_commands
 
-                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
-
-                },
-                {
-                    primitive_id_buffer,
-                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    VK_ACCESS_2_SHADER_WRITE_BIT
-                },
-
-            },
-            .execute = [&](CommandBuffer& commands) {
-                commands.bind_buffer_reference(0, primitive_buffer);
-                commands.bind_buffer_reference(2, visibility_list);
-                commands.bind_buffer_reference(4, mesh_draw_args_buffer);
-                commands.bind_buffer_reference(6, draw_commands_buffer);
-                commands.bind_buffer_reference(8, draw_count_buffer);
-                commands.bind_buffer_reference(10, primitive_id_buffer);
-
-                commands.set_push_constant(12, num_primitives);
-
-                commands.bind_pipeline(visibility_list_to_draw_commands);
-
-                commands.dispatch((num_primitives + 95) / 96, 1, 1);
-            }
         }
     );
 

@@ -272,7 +272,7 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const SceneDrawer& sun
                                         }
                                     },
                                     "Directional shadow descriptor set")
-                                .bind(0, sun_buffer)
+                                .bind(sun_buffer)
                                 .build();
 
         graph.add_render_pass(
@@ -330,10 +330,10 @@ void DirectionalLight::render(
 
     const auto sun_descriptor_set = backend.get_transient_descriptor_allocator()
                                            .build_set(pipeline, 1)
-                                           .bind(0, shadowmap_handle, sampler)
-                                           .bind(1, sun_buffer)
-                                           .bind(2, view.get_buffer())
-                                           //.bind(3, rtas)
+                                           .bind(shadowmap_handle, sampler)
+                                           .bind(sun_buffer)
+                                           .bind(view.get_buffer())
+                                           //.bind(rtas)
                                            .build();
 
     commands.bind_descriptor_set(1, sun_descriptor_set);

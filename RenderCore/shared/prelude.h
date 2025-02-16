@@ -28,5 +28,18 @@ using mat4 = glm::mat4;
 
 #endif
 
+
+#if !defined(__cplusplus) && !defined(GL_core_profile)
+#define u16vec2 uint16_t2
+
+#define uvec2 uint2
+#define uvec4 uint4
+
+#define vec2 float2
+#define vec3 float3
+#define vec4 float4
+#define mat4 float4x4
+#endif
+
 #endif
 

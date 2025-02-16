@@ -144,7 +144,6 @@ void main() {
 
     bool visible = is_in_frustum(center, radius);
     if(!visible) {
-        debugPrintfEXT("primitive_id=%d is frustum-culled", primitive_id);
         newly_visible_objects.visible[primitive_id] = 0;
         this_frame_visible_objects.visible[primitive_id] = 0;
         return;
@@ -152,7 +151,6 @@ void main() {
     
     visible = is_not_occluded(center, radius);
     if(!visible) {
-        debugPrintfEXT("primitive_id=%d is occlusion-culled", primitive_id);
         newly_visible_objects.visible[primitive_id] = 0;
         this_frame_visible_objects.visible[primitive_id] = 0;
         return;
@@ -162,6 +160,4 @@ void main() {
     uint newly_visible = visible_last_frame == 0 ? 1 : 0;
     newly_visible_objects.visible[primitive_id] = newly_visible;
     this_frame_visible_objects.visible[primitive_id] = 1;
-
-    debugPrintfEXT("primitive_id=%d is visible (newly_visible=%d)", primitive_id, newly_visible);
 }
