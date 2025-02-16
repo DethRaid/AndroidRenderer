@@ -2,8 +2,10 @@
 
 #include <cstdint>
 
-enum class BufferHandle : uint32_t { None = 0xFFFFFFFF };
+using BufferHandle = struct GpuBuffer*;
 
-enum class TextureHandle : uint32_t { None = 0xFFFFFFFF };
+using TextureHandle = struct GpuTexture*;
 
-enum class AccelerationStructureHandle : uint32_t { None = 0xFFFFFFFF };
+using AccelerationStructureHandle = struct AccelerationStructure*;
+
+enum class VoxelObjectHandle : uint32_t { None = 0xFFFFFFFF };

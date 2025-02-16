@@ -15,6 +15,7 @@
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_debug_printf : enable
 
 #include "shared/primitive_data.hpp"
 #include "shared/view_data.hpp"
@@ -23,15 +24,15 @@ layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer Pr
     PrimitiveDataGPU primitive_datas[];
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveVisibilityBuffer_readonly {
+layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer PrimitiveVisibilityBuffer_readonly {
     uint visible[];
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) buffer PrimitiveVisibilityBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 4) buffer PrimitiveVisibilityBuffer {
     uint visible[];
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer ViewDataBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer ViewDataBuffer {
     ViewDataGPU view_data;
 };
 
@@ -137,9 +138,9 @@ void main() {
 
     PrimitiveDataGPU instance_to_cull = primitive_data_buffer.primitive_datas[primitive_id];
 
-    vec3 center = instance_to_cull.bounding_sphere.xyz;
+    vec3 center = vec3(0, 0, 0);
     center = (view_data_buffer.view_data.view * instance_to_cull.model * vec4(center, 1.f)).xyz;
-    float radius = instance_to_cull.bounding_sphere.w + 2.f;
+    float radius = instance_to_cull.bounds_min_and_radius.w + 2.f;
 
     bool visible = is_in_frustum(center, radius);
     if(!visible) {
@@ -154,8 +155,9 @@ void main() {
         this_frame_visible_objects.visible[primitive_id] = 0;
         return;
     }
-
+ 
     uint visible_last_frame = last_frame_visible_objects.visible[primitive_id];
-    newly_visible_objects.visible[primitive_id] = visible_last_frame == 0 ? 1 : 0;
+    uint newly_visible = visible_last_frame == 0 ? 1 : 0;
+    newly_visible_objects.visible[primitive_id] = newly_visible;
     this_frame_visible_objects.visible[primitive_id] = 1;
 }

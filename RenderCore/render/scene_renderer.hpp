@@ -1,5 +1,7 @@
 #pragma once
 
+#include <imgui.h>
+
 #include "render/bloomer.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/scene_view.hpp"
@@ -7,11 +9,17 @@
 #include "render/texture_loader.hpp"
 #include "mesh_storage.hpp"
 #include "mip_chain_generator.hpp"
+#include "procedural_sky.hpp"
+#include "phase/ambient_occlusion_phase.hpp"
 #include "phase/depth_culling_phase.hpp"
+#include "phase/sampling_rate_calculator.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
 #include "render/sdf/lpv_gv_voxelizer.hpp"
 #include "sdf/voxel_cache.hpp"
+#include "ui/debug_menu.hpp"
+#include "visualizers/visualizer_type.hpp"
+#include "visualizers/voxel_visualizer.hpp"
 
 class GltfModel;
 
@@ -25,9 +33,9 @@ public:
     /**
      * Sets the internal render resolution of the scene, recreating the internal render targets (and framebuffers)
      *
-     * @param resolution Resolution to render at
+     * @param screen_resolution Resolution to render at
      */
-    void set_render_resolution(const glm::uvec2& resolution);
+    void set_render_resolution(const glm::uvec2& screen_resolution);
 
     void set_scene(RenderScene& scene_in);
 
@@ -35,8 +43,6 @@ public:
      * Do the thing!
      */
     void render();
-    
-    RenderBackend& get_backend();
 
     SceneTransform& get_local_player();
 
@@ -46,18 +52,18 @@ public:
 
     MeshStorage& get_mesh_storage();
 
-    tl::optional<VoxelCache&> get_voxel_cache() const;
-
     /**
      * Translates the player's location
      */
     void translate_player(const glm::vec3& movement);
 
     void rotate_player(float delta_pitch, float delta_yaw);
-    
-private:
-    RenderBackend backend;
 
+    void set_imgui_commands(ImDrawData* im_draw_data);
+
+    void set_active_visualizer(RenderVisualization visualizer);
+
+private:
     SceneTransform player_view;
 
     TextureLoader texture_loader;
@@ -70,51 +76,56 @@ private:
 
     Bloomer bloomer;
 
-    /**
-     * Cache of voxel representations of static meshes
-     */
-    std::unique_ptr<VoxelCache> voxel_cache = nullptr;
-
     RenderScene* scene = nullptr;
 
     glm::uvec2 scene_render_resolution = glm::uvec2{};
 
     std::unique_ptr<LightPropagationVolume> lpv;
-        
-    TextureHandle shadowmap_handle = TextureHandle::None;
 
-    TextureHandle gbuffer_color_handle = TextureHandle::None;
+    TextureHandle gbuffer_color_handle = nullptr;
 
-    TextureHandle gbuffer_normals_handle = TextureHandle::None;
+    TextureHandle gbuffer_normals_handle = nullptr;
 
-    TextureHandle gbuffer_data_handle = TextureHandle::None;
+    TextureHandle gbuffer_data_handle = nullptr;
 
-    TextureHandle gbuffer_emission_handle = TextureHandle::None;
+    TextureHandle gbuffer_emission_handle = nullptr;
+
+    TextureHandle ao_handle = nullptr;
 
     // This should be something like an extracted texture?
-    TextureHandle depth_buffer_mip_chain = TextureHandle::None;
+    TextureHandle depth_buffer_mip_chain = nullptr;
     TextureUsageToken last_frame_depth_usage = {};
     
-    TextureHandle normal_target_mip_chain = TextureHandle::None;
+    TextureHandle normal_target_mip_chain = nullptr;
     TextureUsageToken last_frame_normal_usage = {};
 
-    TextureHandle lit_scene_handle = TextureHandle::None;
+    TextureHandle lit_scene_handle = nullptr;
 
     std::vector<TextureHandle> swapchain_images;
 
     SceneDrawer sun_shadow_drawer;
+
+    ProceduralSky sky;
 
     DepthCullingPhase depth_culling_phase;
 
     SceneDrawer depth_prepass_drawer;
 
     SceneDrawer gbuffer_drawer;
+
+    AmbientOcclusionPhase ao_phase;
     
     LightingPhase lighting_pass;
 
+    std::unique_ptr<VRSAA> vrsaa;
+
     UiPhase ui_phase;
 
-    void create_shadow_render_targets();
+    RenderVisualization active_visualization = RenderVisualization::None;
+
+    VoxelVisualizer voxel_visualizer;
     
     void create_scene_render_targets();
+
+    void draw_debug_visualizers(RenderGraph& render_graph);
 };

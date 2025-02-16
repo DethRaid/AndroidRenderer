@@ -7,6 +7,10 @@
 #include "backend/graphics_pipeline.hpp"
 #include "shared/sun_light_constants.hpp"
 
+class ResourceUploadQueue;
+class SceneDrawer;
+class RenderGraph;
+struct DescriptorSet;
 class ResourceAllocator;
 
 class CommandBuffer;
@@ -14,11 +18,11 @@ class SceneTransform;
 class RenderBackend;
 
 /**
- * Represents a sun light
+ * Represents a directional light
  */
-class SunLight {
+class DirectionalLight {
 public:
-    explicit SunLight(const RenderBackend& backend);
+    explicit DirectionalLight();
 
     void update_shadow_cascades(const SceneTransform& view);
 
@@ -26,7 +30,7 @@ public:
 
     void set_color(glm::vec4 color);
 
-    void update_buffer(CommandBuffer& commands);
+    void update_buffer(ResourceUploadQueue& queue);
 
     BufferHandle get_constant_buffer() const;
 
@@ -34,15 +38,24 @@ public:
 
     glm::vec3 get_direction() const;
 
-private:
-    ResourceAllocator& allocator;
+    void render_shadows(RenderGraph& graph, const SceneDrawer& sun_shadow_drawer) const;
 
+    void render(
+        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneTransform& view,
+        AccelerationStructureHandle rtas
+    ) const;
+
+    TextureHandle get_shadowmap_handle() const;
+
+private:
     bool sun_buffer_dirty = true;
 
     // Massive TODO: Replace this with the ViewDataGPU struct
     SunLightConstants constants = {};
 
-    BufferHandle sun_buffer = BufferHandle::None;
+    BufferHandle sun_buffer = {};
 
     GraphicsPipelineHandle pipeline = {};
+
+    TextureHandle shadowmap_handle = nullptr;
 };

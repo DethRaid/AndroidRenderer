@@ -1,5 +1,6 @@
 #version 460
 
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_EXT_multiview : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
@@ -7,7 +8,7 @@
 #include "shared/sun_light_constants.hpp"
 #include "shared/primitive_data.hpp"
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
     PrimitiveDataGPU primitive_datas[];
 };
 
@@ -15,7 +16,7 @@ layout(set = 0, binding = 0, std140) uniform ShadowCascadesBuffer {
     SunLightConstants sun_light;
 };
 
-layout(push_constant, std430) uniform Constants {
+layout(push_constant, scalar) uniform Constants {
     PrimitiveDataBuffer primitive_data_buffer;
     uint primitive_id;
 };

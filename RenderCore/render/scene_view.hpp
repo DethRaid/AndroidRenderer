@@ -5,6 +5,7 @@
 #include "render/backend/handles.hpp"
 #include "render/backend/command_buffer.hpp"
 #include "light_propagation_volume.hpp"
+#include "backend/resource_upload_queue.hpp"
 #include "shared/view_data.hpp"
 
 class ResourceAllocator;
@@ -15,7 +16,7 @@ class RenderBackend;
  */
 class SceneTransform {
 public:
-    explicit SceneTransform(RenderBackend& backend_in);
+    explicit SceneTransform();
 
     void set_render_resolution(glm::uvec2 render_resolution);
     
@@ -39,7 +40,7 @@ public:
 
     BufferHandle get_buffer() const;
 
-    void update_transforms(CommandBuffer commands);
+    void update_transforms(ResourceUploadQueue& upload_queue);
 
     void set_aspect_ratio(float aspect_in);
 
@@ -56,8 +57,6 @@ public:
     glm::vec3 get_forward() const;
 
 private:
-    RenderBackend* backend = nullptr;
-
     float fov = {75.f};
 
     float aspect = 16.f / 9.f;
@@ -83,7 +82,7 @@ private:
 
     ViewDataGPU gpu_data = {};
 
-    BufferHandle buffer = BufferHandle::None;
+    BufferHandle buffer = {};
 
     bool is_dirty = true;
 

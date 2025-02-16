@@ -1,17 +1,16 @@
 #pragma once
 
 #include <array>
-#include <stdexcept>
 #include <vector>
-#include <unordered_map>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
-#include <volk.h>
+#include <plf_colony.h>
 
 #include "extern/cityhash/city_hash.hpp"
 #include "core/object_pool.hpp"
-#include "render/backend/texture.hpp"
+#include "render/backend/acceleration_structure.hpp"
+#include "render/backend/gpu_texture.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/buffer.hpp"
 #include "render/backend/constants.hpp"
@@ -38,7 +37,22 @@ enum class TextureUsage {
      * The texture will be used as a storage image. It may be sampled
      */
     StorageImage,
+
+    /**
+     * The texture will be used as a shading rate image 
+     */
+    ShadingRateImage,
 };
+
+inline const char* to_string(const TextureUsage e) {
+    switch(e) {
+    case TextureUsage::RenderTarget: return "RenderTarget";
+    case TextureUsage::StaticImage: return "StaticImage";
+    case TextureUsage::StorageImage: return "StorageImage";
+    case TextureUsage::ShadingRateImage: return "ShadingRateImage";
+    default: return "unknown";
+    }
+}
 
 /**
  * How a buffer might be used
@@ -73,7 +87,25 @@ enum class BufferUsage {
      * Storage buffer. Can be copied to, written to by a shader, or read from by a shader
      */
     StorageBuffer,
+
+    /**
+     * Ray tracing acceleration structure
+     */
+    AccelerationStructure,
 };
+
+inline const char* to_string(const BufferUsage e) {
+    switch(e) {
+    case BufferUsage::StagingBuffer: return "StagingBuffer";
+    case BufferUsage::VertexBuffer: return "VertexBuffer";
+    case BufferUsage::IndexBuffer: return "IndexBuffer";
+    case BufferUsage::IndirectBuffer: return "IndirectBuffer";
+    case BufferUsage::UniformBuffer: return "UniformBuffer";
+    case BufferUsage::StorageBuffer: return "StorageBuffer";
+    case BufferUsage::AccelerationStructure: return "AccelerationStructure";
+    default: return "unknown";
+    }
+}
 
 /**
  * Allocates all kinds of resources
@@ -106,15 +138,16 @@ public:
         const std::string& name, VkFormat format, glm::uvec3 resolution, uint32_t num_mips, TextureUsage usage
     );
 
-    TextureHandle emplace_texture(const std::string& name, Texture&& new_texture);
-
-    const Texture& get_texture(TextureHandle handle) const;
+    TextureHandle emplace_texture(GpuTexture&& new_texture);
 
     void destroy_texture(TextureHandle handle);
 
     BufferHandle create_buffer(const std::string& name, size_t size, BufferUsage usage);
 
-    const Buffer& get_buffer(BufferHandle handle) const;
+    void* map_buffer(BufferHandle buffer_handle) const;
+
+    template <typename MappedType>
+    MappedType* map_buffer(BufferHandle buffer);
 
     void* map_buffer(BufferHandle buffer_handle);
 
@@ -124,6 +157,10 @@ public:
     AccelerationStructureHandle create_acceleration_structure();
 
     void destroy_buffer(BufferHandle handle);
+
+    AccelerationStructureHandle create_acceleration_structure(uint64_t acceleration_structure_size, VkAccelerationStructureTypeKHR type);
+
+    void destroy_acceleration_structure(AccelerationStructureHandle handle);
 
     void destroy_framebuffer(Framebuffer&& framebuffer);
 
@@ -161,13 +198,15 @@ private:
 
     VmaAllocator vma = VK_NULL_HANDLE;
 
-    ObjectPool<Texture> textures;
-    ObjectPool<Buffer> buffers;
+    plf::colony<GpuTexture> textures;
+    plf::colony<GpuBuffer> buffers;
+    plf::colony<AccelerationStructure> acceleration_structures;
 
     std::unordered_map<std::string, VkRenderPass> cached_render_passes;
 
     std::array<std::vector<BufferHandle>, num_in_flight_frames> buffer_zombie_lists;
     std::array<std::vector<TextureHandle>, num_in_flight_frames> texture_zombie_lists;
+    std::array<std::vector<AccelerationStructureHandle>, num_in_flight_frames> as_zombie_lists;
     std::array<std::vector<Framebuffer>, num_in_flight_frames> framebuffer_zombie_lists;
 
     struct SamplerCreateInfoHasher {

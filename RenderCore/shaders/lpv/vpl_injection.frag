@@ -12,6 +12,10 @@ layout(location = 1) out mediump vec4 green;
 layout(location = 2) out mediump vec4 blue;
 
 void main() {
+    if(length(normal_in) < 1 || length(color_in) == 0) {
+        discard;
+    }
+
     mediump vec3 scaled_color = color_in * (32 * 32) / (512 * 512);
 
     mediump vec3 normal = normal_in;

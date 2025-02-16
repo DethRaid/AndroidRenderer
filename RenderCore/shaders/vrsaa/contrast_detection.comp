@@ -1,0 +1,68 @@
+#version 460
+
+layout(set = 0, binding = 0) uniform sampler2D lit_scene;
+layout(set = 0, binding = 1) uniform sampler2D gbuffer_depth;
+layout(set = 0, binding = 2, r16f) writeonly uniform image2D contrast_output;
+
+layout(push_constant) uniform Constants {
+    vec2 resolution;
+};
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+mediump float to_luminance(const mediump vec3 color) { return color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722; }
+
+void main() {
+    const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+
+    if(pixel.x >= resolution.x || pixel.y >= resolution.y) {
+        return;
+    }
+
+    // A simple Sobel edge detection filter to identify areas of high contrast
+    const mediump mat3 sobel_x = mat3(
+        1, 0, -1,
+        2, 0, -2,
+        1, 0, -1
+    );
+
+    const mediump mat3 sobel_y = mat3(
+         1,  2,  1,
+         0,  0,  0,
+        -1, -2, -1
+    );
+
+    mediump vec2 luma_gradient = vec2(0);
+
+    for(int y = 0; y <= 2; y++) {
+        for(int x = 0; x <= 2; x++) {
+            const ivec2 pixel_to_sample = pixel + ivec2(x, y) - ivec2(1, 1);
+            const vec2 texcoord = vec2(pixel_to_sample) / resolution;
+            const mediump vec3 color = textureLod(lit_scene, texcoord, 0).xyz;
+            const mediump float luma = to_luminance(color);
+            
+            luma_gradient.x += luma * sobel_x[x][y];
+            luma_gradient.y += luma * sobel_y[x][y];
+        }
+    }
+
+    vec2 depth_gradient = vec2(0);
+
+    for(int y = 0; y <= 2; y++) {
+        for(int x = 0; x <= 2; x++) {
+            const ivec2 pixel_to_sample = pixel + ivec2(x, y) - ivec2(1, 1);
+            const vec2 texcoord = vec2(pixel_to_sample) / resolution;
+            const float depth = textureLod(gbuffer_depth, texcoord, 0).x;
+            
+            depth_gradient.x += depth * sobel_x[x][y];
+            depth_gradient.y += depth * sobel_y[x][y];
+        }
+    }
+
+    mediump vec2 adjusted_luma_gradient = luma_gradient * 0.5f;
+
+    vec2 adjusted_depth_gradient = depth_gradient;
+
+    imageStore(contrast_output, pixel, 
+        vec4(max(adjusted_luma_gradient, adjusted_depth_gradient), 0, 0));
+}

@@ -1,0 +1,63 @@
+#version 460
+
+#extension GL_EXT_scalar_block_layout : enable
+
+layout(set = 0, binding = 0, rg16f) uniform readonly image2D gradients_image;
+layout(set = 0, binding = 1, r8ui) uniform writeonly uimage2D shading_rate_image;
+
+layout(set = 0, binding = 2, scalar) readonly uniform FrequencyInformation
+{
+    uvec2 contrast_image_resolution;
+    uvec2 shading_rate_image_resolution;
+    uvec2 max_rate;
+    uint num_shading_rates;
+	uvec2 rates[8];
+} params;
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+void main() {
+    const uvec2 pixel = gl_GlobalInvocationID.xy;
+
+    if(any(greaterThan(pixel, params.shading_rate_image_resolution - uvec2(1)))) {
+        return;
+    }
+
+    const uvec2 delta = max(uvec2(1, 1), uint(round(float(params.contrast_image_resolution) / float(params.shading_rate_image_resolution))));
+
+	vec2 max_gradient = vec2(0, 0);
+	for (uint i = 0; i < delta.x; ++i)
+	{
+		for (uint j = 0; j < delta.y; ++j)
+		{
+			ivec2 coord = ivec2(delta.x * pixel.x + i, delta.y * pixel.y + j);
+			vec2 gradient = imageLoad(gradients_image, coord).xy;
+			max_gradient = max(max_gradient, abs(gradient * gradient));
+		}
+	}
+	
+	const vec2 adjusted_gradient = min(1.25 * sqrt(max_gradient), vec2(1, 1));
+
+    const float min_rate = 1;
+    const float max_rate = max(params.max_rate.x, params.max_rate.y);
+
+    const vec2 optimal_rate = adjusted_gradient * vec2(min_rate, min_rate) + (1 - adjusted_gradient) *  vec2(max_rate, max_rate);
+
+	uint optimal_rate_index = 0;
+	float current_cost = 1 + 2 * max_rate * max_rate;
+	for (uint i = 0; i < params.num_shading_rates; i++)
+	{
+		const uvec2 rate = params.rates[i];
+		const float cost = (rate.x - optimal_rate.x) * (rate.x - optimal_rate.x) + (rate.y - optimal_rate.y) * (rate.y - optimal_rate.y);
+		if (cost < current_cost)
+		{
+			current_cost = cost;
+			optimal_rate_index = i;
+		}
+	}
+
+	const uint optimal_rate_x = params.rates[optimal_rate_index].x;
+    const uint optimal_rate_y = params.rates[optimal_rate_index].y;
+	const uint rate_code = uint(optimal_rate_y >> 1) | ((optimal_rate_x << 1) & 12);
+	imageStore(shading_rate_image, ivec2(pixel), uvec4(rate_code));
+}

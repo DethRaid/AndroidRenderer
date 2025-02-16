@@ -28,7 +28,7 @@ class SceneDrawer {
 public:
     SceneDrawer() = default;
 
-    SceneDrawer(ScenePassType type_in, const RenderScene& scene_in, const MeshStorage& mesh_storage_in, const MaterialStorage& material_storage_in, ResourceAllocator& resource_allocator_in);
+    SceneDrawer(ScenePassType::Type type_in, const RenderScene& scene_in, const MeshStorage& mesh_storage_in, const MaterialStorage& material_storage_in, ResourceAllocator& resource_allocator_in);
 
     SceneDrawer(const SceneDrawer& other) = default;
     SceneDrawer& operator=(const SceneDrawer& other) = default;
@@ -63,6 +63,6 @@ private:
 
     ResourceAllocator* allocator = nullptr;
 
-    ScenePassType type;
+    ScenePassType::Type type;
 };
 

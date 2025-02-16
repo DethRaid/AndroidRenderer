@@ -1,5 +1,6 @@
 #version 460
 
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_ARB_shader_viewport_layer_array : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
@@ -8,7 +9,7 @@
 #include "shared/lpv.hpp"
 #include "shared/vpl.hpp"
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer VplListBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer VplListBuffer {
      PackedVPL vpls[];
 };
 
@@ -51,10 +52,14 @@ void main() {
     normal = vpl.normal;
 
     // Adjust position to be in the correct part of the cascade
-    position.x += cascade_index;
+    position.x += float(cascade_index);
     position.x /= float(num_cascades);
 
     gl_Position = vec4(position.xy * 2.f - 1.f, 0.f, 1.f);
     gl_Layer = int(position.z * 32.f);
     gl_PointSize = 1.f;
+
+    if(length(normal) < 1|| length(color) == 0) {
+        gl_Position = vec4(intBitsToFloat(int(0xFFC00000u)));
+    }
 }

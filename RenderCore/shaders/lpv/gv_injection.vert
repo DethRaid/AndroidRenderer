@@ -4,6 +4,7 @@
  * Generates a SH point cloud from a depth and normal image
  */
 
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_ARB_shader_viewport_layer_array : enable
@@ -15,7 +16,7 @@
 layout(set = 0, binding = 0) uniform sampler2D normal_target;
 layout(set = 0, binding = 1) uniform sampler2D depth_target;
 
-layout(set = 0, binding = 2, std430) uniform LpvCascadeBuffer {
+layout(set = 0, binding = 2, scalar) uniform LpvCascadeBuffer {
     LPVCascadeMatrices cascade_matrices[4];
 };
 

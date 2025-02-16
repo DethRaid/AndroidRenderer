@@ -1,5 +1,6 @@
 #version 460 core
 
+#extension GL_EXT_scalar_block_layout : enable
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_buffer_reference_uvec2 : enable
 
@@ -7,13 +8,13 @@
 
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer ScatterIndicesBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer ScatterIndicesBuffer {
     uint scatter_indices[];
 };
-layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer ScatterDataBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer ScatterDataBuffer {
     uint scatter_data[];
 };
-layout(buffer_reference, std430, buffer_reference_align = 16) buffer DestDataBuffer {
+layout(buffer_reference, scalar, buffer_reference_align = 4) buffer DestDataBuffer {
     uint destination_data[];
 };
 

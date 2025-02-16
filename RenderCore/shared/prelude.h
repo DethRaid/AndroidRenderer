@@ -7,6 +7,8 @@
 
 #include <glm/glm.hpp>
 
+using u16vec2 = glm::u16vec2;
+
 using uint = uint32_t;
 using uvec2 = glm::uvec2;
 using uvec4 = glm::uvec4;
@@ -20,8 +22,23 @@ using mat4 = glm::mat4;
 
 // A couple useful things for GLSL
 
+#ifndef PI
 #define PI 3.1415927
+#endif
 
+#endif
+
+
+#if !defined(__cplusplus) && !defined(GL_core_profile)
+#define u16vec2 uint16_t2
+
+#define uvec2 uint2
+#define uvec4 uint4
+
+#define vec2 float2
+#define vec3 float3
+#define vec4 float4
+#define mat4 float4x4
 #endif
 
 #endif

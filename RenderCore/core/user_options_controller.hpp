@@ -1,10 +1,10 @@
 #pragma once
+
 #include <functional>
 #include <stdexcept>
 #include <string>
-#include <utility>
-
-#include <spdlog/fmt/fmt.h>
+#include <vector>
+#include <unordered_map>
 
 #include "console/cvars.hpp"
 

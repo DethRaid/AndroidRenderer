@@ -5,22 +5,18 @@
 
 #include <spdlog/spdlog.h>
 
+#include "pipeline_cache.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/render_graph.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 
-static AutoCVar_Int cvar_scatter_buffer_size = {
-    "r.PrimitiveUpload.BatchSize",
-    "Number of primitives to upload in one batch", 1024
-};
+constexpr inline auto scatter_buffer_size = 1024u;
 
 template <typename DataType>
 class ScatterUploadBuffer {
 public:
-    explicit ScatterUploadBuffer(RenderBackend& backend_in);
-
     void add_data(uint32_t destination_index, DataType data);
 
     void flush_to_buffer(RenderGraph& graph, BufferHandle destination_buffer);
@@ -30,58 +26,38 @@ public:
     bool is_full() const;
 
 private:
-    RenderBackend* backend;
-
     uint32_t scatter_buffer_count = 0;
 
-    BufferHandle scatter_indices = BufferHandle::None;
-    BufferHandle scatter_data = BufferHandle::None;
+    BufferHandle scatter_indices = {};
+    BufferHandle scatter_data = {};
 
-    static ComputeShader scatter_shader;
 };
 
-template <typename DataType>
-ComputeShader ScatterUploadBuffer<DataType>::scatter_shader;
+ComputePipelineHandle get_scatter_upload_shader();
 
 template <typename DataType>
-ScatterUploadBuffer<DataType>::ScatterUploadBuffer(RenderBackend& backend_in) : backend{&backend_in} {
-    if (scatter_shader.pipeline == VK_NULL_HANDLE) {
-        const auto shader_maybe = SystemInterface::get().load_file("shaders/scatter_upload.comp.spv");
+void ScatterUploadBuffer<DataType>::add_data(const uint32_t destination_index, DataType data) {
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
 
-        if (!shader_maybe || shader_maybe->empty()) {
-            spdlog::error("Could not load compute shader shaders/scatter_upload.comp.spv");
-            throw std::runtime_error{"Could not load compute shader shaders/scatter_upload.comp.spv"};
-        }
-
-        scatter_shader = *backend->create_compute_shader("shaders/scatter_upload.comp.spv", *shader_maybe);
-    }
-}
-
-template <typename DataType>
-void ScatterUploadBuffer<DataType>::add_data(uint32_t destination_index, DataType data) {
-    auto& allocator = backend->get_global_allocator();
-
-    if (scatter_indices == BufferHandle::None) {
+    if (!scatter_indices) {
         scatter_indices = allocator.create_buffer(
-            "Primitive scatter indices", cvar_scatter_buffer_size.Get(),
+            "Primitive scatter indices", scatter_buffer_size,
             BufferUsage::StagingBuffer
         );
     }
 
-    auto& scatter_indices_actual = allocator.get_buffer(scatter_indices);
-    static_cast<uint32_t*>(scatter_indices_actual.allocation_info
-                                                 .pMappedData)[scatter_buffer_count] = destination_index;
+    static_cast<uint32_t*>(scatter_indices->allocation_info.pMappedData)[scatter_buffer_count] = destination_index;
 
-    if (scatter_data == BufferHandle::None) {
+    if (!scatter_data) {
         scatter_data = allocator.create_buffer(
             "Primitive scatter data",
-            cvar_scatter_buffer_size.Get() * sizeof(DataType),
+            scatter_buffer_size * sizeof(DataType),
             BufferUsage::StagingBuffer
         );
     }
 
-    auto& scatter_data_actual = allocator.get_buffer(scatter_data);
-    static_cast<DataType*>(scatter_data_actual.allocation_info.pMappedData)[scatter_buffer_count] = data;
+    static_cast<DataType*>(scatter_data->allocation_info.pMappedData)[scatter_buffer_count] = data;
 
     scatter_buffer_count++;
 }
@@ -93,39 +69,38 @@ uint32_t ScatterUploadBuffer<DataType>::get_size() const {
 
 template <typename DataType>
 bool ScatterUploadBuffer<DataType>::is_full() const {
-    return scatter_buffer_count >= cvar_scatter_buffer_size.Get();
+    return scatter_buffer_count >= scatter_buffer_size;
 }
 
 template <typename DataType>
 void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHandle destination_buffer) {
-    if (scatter_indices == BufferHandle::None ||
-        scatter_data == BufferHandle::None) {
+    if (!scatter_indices || !scatter_data) {
         return;
     }
 
-    auto& resources = backend->get_global_allocator();
+    auto& backend = RenderBackend::get();
+    auto& resources = backend.get_global_allocator();
 
-    graph.add_compute_pass(
+    graph.add_pass(
         ComputePass{
             .name = "Flush scatter buffer",
             .buffers = {
-                {scatter_indices, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                {scatter_data, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT}},
-                {destination_buffer, {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT}},
+                {scatter_indices, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT},
+                {scatter_data, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT},
+                {destination_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT},
             },
             .execute = [&](CommandBuffer& commands) {
-                GpuZoneScopedN(commands, "Flush scatter buffer");
-
                 commands.flush_buffer(scatter_indices);
                 commands.flush_buffer(scatter_data);
-                
+                                
                 commands.bind_buffer_reference(0, scatter_indices);
                 commands.bind_buffer_reference(2, scatter_data);
                 commands.bind_buffer_reference(4, destination_buffer);
                 commands.set_push_constant(6, scatter_buffer_count);
-                commands.set_push_constant(7, static_cast<uint32_t>(sizeof(DataType)));
+                const auto data_size = static_cast<uint32_t>(sizeof(DataType));
+                commands.set_push_constant(7, data_size);
 
-                commands.bind_shader(scatter_shader);
+                commands.bind_pipeline(get_scatter_upload_shader());
 
                 // Add 1 because integer division is fun
                 commands.dispatch(scatter_buffer_count / 32 + 1, 1, 1);
@@ -135,8 +110,8 @@ void ScatterUploadBuffer<DataType>::flush_to_buffer(RenderGraph& graph, BufferHa
                 resources.destroy_buffer(scatter_indices);
                 resources.destroy_buffer(scatter_data);
 
-                scatter_indices = BufferHandle::None;
-                scatter_data = BufferHandle::None;
+                scatter_indices = {};
+                scatter_data = {};
             }
         }
     );

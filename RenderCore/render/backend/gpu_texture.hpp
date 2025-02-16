@@ -21,7 +21,7 @@ struct KtxTextureAllocation {
     ktxVulkanTexture ktx_vk_tex;
 };
 
-struct Texture {
+struct GpuTexture {
     std::string name;
 
     VkImageCreateInfo create_info;
@@ -52,4 +52,10 @@ struct Texture {
         VmaTextureAllocation vma;
         KtxTextureAllocation ktx;
     };
+
+    bool operator==(const GpuTexture& other) const;
 };
+
+inline bool GpuTexture::operator==(const GpuTexture& other) const {
+    return memcmp(this, &other, sizeof(GpuTexture)) == 0;
+}

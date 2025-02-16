@@ -2,13 +2,12 @@
 
 #include "render/scene_primitive.hpp"
 
+class RenderGraph;
 class RenderScene;
 
 class RaytracingScene {
 public:
-    explicit RaytracingScene(RenderBackend& backend_in, RenderScene& scene_in);
-
-    void create_blas_for_mesh(MeshHandle mesh);
+    explicit RaytracingScene(RenderScene& scene_in);
 
     void add_primitive(MeshPrimitiveHandle primitive);
 
@@ -19,25 +18,19 @@ public:
      * This is basically a barrier from raytracing acceleration structure build commands submit -> raytracing
      * acceleration structures available for raytracing
      */
-    void finalize();
+    void finalize(RenderGraph& graph);
+
+    AccelerationStructureHandle get_acceleration_structure() const;
 
 private:
-    RenderBackend& backend;
-
     RenderScene& scene;
 
-    VkAccelerationStructureKHR opaque_scene;
-
-    std::vector<VkAccelerationStructureGeometryKHR> pending_blas_geometries;
-    std::vector<VkAccelerationStructureBuildRangeInfoKHR> pending_blas_ranges;
-
-    /**
-     * \brief Makes all the added meshes available to the TLAS build function. Must be called before the TLAS build function
-     */
-    void commit_blas_builds();
+    std::vector<VkAccelerationStructureInstanceKHR> placed_blases;
+    bool is_dirty = false;
+    AccelerationStructureHandle acceleration_structure = {};
 
     /**
      * \brief Finishes the raytracing scene by committing pending TLAS builds. Called by finalize()
      */
-    void commit_tlas_builds();
+    void commit_tlas_builds(RenderGraph& graph);
 };

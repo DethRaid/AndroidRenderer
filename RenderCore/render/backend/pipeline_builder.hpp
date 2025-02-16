@@ -19,8 +19,13 @@ struct SpvReflectBlockVariable;
 struct SpvReflectInterfaceVariable;
 
 bool collect_bindings(const std::vector<uint8_t>& shader_instructions, const std::string& shader_name,
-    VkShaderStageFlagBits shader_stage, std::unordered_map<uint32_t, DescriptorSetInfo>&
+    VkShaderStageFlagBits shader_stage, std::vector<DescriptorSetInfo>&
     descriptor_sets, std::vector<VkPushConstantRange>& push_constants);
+
+struct VertexLayout {
+    std::vector<VkVertexInputBindingDescription> input_bindings;
+    std::unordered_map<std::string, VkVertexInputAttributeDescription> attributes;
+};
 
 /**
  * Depth/stencil state struct with sane defaults
@@ -71,6 +76,12 @@ public:
 
     GraphicsPipelineBuilder& set_name(std::string_view name_in);
 
+    GraphicsPipelineBuilder& set_vertex_layout(VertexLayout& layout);
+
+    GraphicsPipelineBuilder& use_standard_vertex_layout();
+
+    GraphicsPipelineBuilder& use_imgui_vertex_layout();
+
     GraphicsPipelineBuilder& set_topology(VkPrimitiveTopology topology_in);
 
     /**
@@ -105,7 +116,12 @@ public:
 
     GraphicsPipelineBuilder& set_blend_state(uint32_t color_target_index, const VkPipelineColorBlendAttachmentState& blend);
 
-    GraphicsPipelineHandle build() const;
+    /**
+     * Enables using the pipeline in a pipeline group
+     */
+    GraphicsPipelineBuilder& enable_dgc();
+
+    GraphicsPipelineHandle build();
 
 private:
     PipelineCache& cache;
@@ -135,7 +151,7 @@ private:
      * However, each set in the vertex and fragment shader must be the same - vertex shader set 0 must be the same as
      * fragment shader set 0
      */
-    std::unordered_map<uint32_t, DescriptorSetInfo> descriptor_sets;
+    std::vector<DescriptorSetInfo> descriptor_sets;
 
     std::vector<VkPushConstantRange> push_constants;
 
@@ -146,9 +162,16 @@ private:
     VkPipelineColorBlendStateCreateFlags blend_flags = {};
     std::vector<VkPipelineColorBlendAttachmentState> blends = {};
 
+    bool need_position_buffer = false;
+    bool need_data_buffer = false;
+    bool need_primitive_id_buffer = false;
     std::vector<VkVertexInputBindingDescription> vertex_inputs;
     std::vector<VkVertexInputAttributeDescription> vertex_attributes;
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VertexLayout* vertex_layout;
+
+    bool should_enable_dgc;
 };
 

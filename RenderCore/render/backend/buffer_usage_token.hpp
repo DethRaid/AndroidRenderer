@@ -1,19 +1,19 @@
 #pragma once
 
-#include <unordered_map>
-
 #include <volk.h>
 
 #include "render/backend/handles.hpp"
 
 struct BufferUsageToken {
+    BufferHandle buffer = nullptr;
+
     VkPipelineStageFlags2 stage;
 
     VkAccessFlags2 access;
 };
 
 struct BufferBarrier {
-    BufferHandle buffer = BufferHandle::None;
+    BufferHandle buffer = {};
 
     BufferUsageToken src = {};
 
@@ -23,5 +23,3 @@ struct BufferBarrier {
 
     uint32_t size = 0;
 };
-
-using BufferUsageMap = std::unordered_map<BufferHandle, BufferUsageToken>;

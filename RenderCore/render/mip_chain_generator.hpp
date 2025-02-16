@@ -12,7 +12,7 @@ class RenderBackend;
  */
 class MipChainGenerator {
 public:
-    explicit MipChainGenerator(RenderBackend& backend_in);
+    explicit MipChainGenerator();
 
     /**
      * \brief Builds a mip chain in the dest texture
@@ -29,8 +29,6 @@ public:
     void fill_mip_chain(RenderGraph& graph, TextureHandle src_texture, TextureHandle dest_texture);
 
 private:
-    RenderBackend& backend;
-
     BufferHandle counter_buffer;
 
     /**
@@ -44,7 +42,7 @@ private:
      *
      * R32 is weird. It's the destination format when building a HiZ buffer, so we use a special shader. This is very weird and we do not like it
      */
-    std::unordered_map<VkFormat, ComputeShader> shaders;
+    std::unordered_map<VkFormat, ComputePipelineHandle> shaders;
 
     VkSampler sampler;
 };

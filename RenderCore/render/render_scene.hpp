@@ -5,7 +5,8 @@
 #include "render/backend/handles.hpp"
 #include "render/scene_primitive.hpp"
 #include "render/backend/scatter_upload_buffer.hpp"
-#include "render/sun_light.hpp"
+#include "render/directional_light.hpp"
+#include "sdf/voxel_cache.hpp"
 
 class MaterialStorage;
 class MeshStorage;
@@ -15,23 +16,27 @@ class RenderBackend;
 /**
  * A scene that can be rendered!
  *
- * Contains lots of wonderful things
+ * Contains lots of wonderful things - meshes, materials, ray tracing acceleration structure, emissive point clouds, voxelized meshes, and more!
  */
 class RenderScene {
 public:
-    explicit RenderScene(RenderBackend& backend_in, MeshStorage& meshes_in, MaterialStorage& materials_in);
+    explicit RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in);
 
     MeshPrimitiveHandle add_primitive(RenderGraph& graph, MeshPrimitive primitive);
 
-    void flush_primitive_upload(RenderGraph& graph);
+    void begin_frame(RenderGraph& graph);
     
     const std::vector<MeshPrimitiveHandle>& get_solid_primitives() const;
+
+    const std::vector<MeshPrimitiveHandle>& get_masked_primitives() const;
+
+    const std::vector<MeshPrimitiveHandle>& get_transparent_primitives() const;
 
     BufferHandle get_primitive_buffer() const;
 
     uint32_t get_total_num_primitives() const;
 
-    SunLight &get_sun_light();
+    DirectionalLight &get_sun_light();
 
     /**
      * Retrieves a list of all solid primitives that lie within the given bounds
@@ -47,16 +52,21 @@ public:
 
     RaytracingScene& get_raytracing_scene();
 
-private:
-    RenderBackend& backend;
+    VoxelCache& get_voxel_cache() const;
 
+private:
     MeshStorage& meshes;
 
     MaterialStorage& materials;
 
     tl::optional<RaytracingScene> raytracing_scene;
 
-    SunLight sun;
+    /**
+     * Cache of voxel representations of static meshes
+     */
+    std::unique_ptr<VoxelCache> voxel_cache = nullptr;
+
+    DirectionalLight sun;
 
     ObjectPool<MeshPrimitive> mesh_primitives;
 
@@ -73,7 +83,13 @@ private:
 
     std::vector<MeshPrimitiveHandle> new_emissive_objects;
 
-    ComputeShader emissive_point_cloud_shader;
+    ComputePipelineHandle emissive_point_cloud_shader;
+
+    VkSampler voxel_sampler;
+
+    std::vector<MeshPrimitiveHandle> new_primitives;
+
+    void create_voxel_cache();
 
     BufferHandle generate_vpls_for_primitive(RenderGraph& graph, const MeshPrimitiveHandle& primitive);
 };

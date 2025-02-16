@@ -8,6 +8,7 @@
 #include "input/input_manager.hpp"
 #include "render/scene_renderer.hpp"
 #include "render/render_scene.hpp"
+#include "ui/debug_menu.hpp"
 
 class SystemInterface;
 
@@ -26,7 +27,7 @@ public:
 
     void update_player_location(const glm::vec3& movement_axis) const;
 
-    void update_player_rotation(const glm::vec2& rotation_input);
+    void update_player_rotation(const glm::vec2& rotation_input) const;
 
     SceneRenderer& get_renderer() const;
 
@@ -46,6 +47,10 @@ private:
     InputManager input;
 
     fastgltf::Parser parser;
+
+    std::unique_ptr<DebugUI> debug_menu;
+
+    bool flycam_enabled = false;
 
     void update_delta_time();
 };

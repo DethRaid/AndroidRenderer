@@ -2,33 +2,33 @@
 
 #include <spirv_reflect.h>
 #include <spdlog/logger.h>
-#include <tracy/Tracy.hpp>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/android_sink.h>
 
 #include "render/backend/render_backend.hpp"
-#include "magic_enum.hpp"
 #include "core/system_interface.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
 void GraphicsPipeline::create_pipeline_layout(
-    const RenderBackend& backend,
-    const std::unordered_map<uint32_t, DescriptorSetInfo>& descriptor_set_infos, 
+    RenderBackend& backend,
+    const std::vector<DescriptorSetInfo>& descriptor_set_infos,
     const std::vector<VkPushConstantRange>& push_constants
 ) {
     // Create descriptor sets
-    auto descriptor_set_layouts = std::vector<VkDescriptorSetLayout>{};
     descriptor_set_layouts.reserve(descriptor_set_infos.size());
 
-    for (const auto& [set_index, set_info] : descriptor_set_infos) {
+    auto& cache = backend.get_descriptor_cache();
+
+    auto set_index = 0u;
+    for (const auto& set_info : descriptor_set_infos) {
         if (descriptor_set_layouts.size() <= set_index) {
             descriptor_set_layouts.resize(set_index + 1);
         }
 
         auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
 
-        for (const auto& [index, binding] : set_info.bindings) {
+        for (const auto& binding : set_info.bindings) {
             bindings.emplace_back(binding);
         }
 
@@ -41,22 +41,24 @@ void GraphicsPipeline::create_pipeline_layout(
 
         // If the last binding is un unsized texture array, tell Vulkan about it
         auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
-        auto flags = std::vector<VkDescriptorBindingFlags>{};
+        auto binding_flags = std::vector<VkDescriptorBindingFlags>{};
         if (set_info.has_variable_count_binding) {
-            flags.resize(bindings.size());
-            flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+            binding_flags.resize(bindings.size());
+            binding_flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
             flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-                .bindingCount = static_cast<uint32_t>(flags.size()),
-                .pBindingFlags = flags.data(),
+                .bindingCount = static_cast<uint32_t>(binding_flags.size()),
+                .pBindingFlags = binding_flags.data(),
             };
             create_info.pNext = &flags_create_info;
             bindings.back().stageFlags = VK_SHADER_STAGE_ALL;
         }
 
-        auto layout = VkDescriptorSetLayout{};
-        vkCreateDescriptorSetLayout(backend.get_device(), &create_info, nullptr, &layout);
+        const auto layout = cache.create_descriptor_layout(&create_info);
+
         descriptor_set_layouts[set_index] = layout;
+
+        set_index++;
     }
     
     const auto create_info = VkPipelineLayoutCreateInfo{
@@ -81,46 +83,12 @@ VkPipelineLayout GraphicsPipeline::get_layout() const {
 uint32_t GraphicsPipeline::get_num_push_constants() const { return num_push_constants; }
 VkShaderStageFlags GraphicsPipeline::get_push_constant_shader_stages() const { return push_constant_stages; }
 
-VkDescriptorType to_vk_type(SpvReflectDescriptorType type) {
-    switch (type) {
-    case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER:
-        return VK_DESCRIPTOR_TYPE_SAMPLER;
+const DescriptorSetInfo& GraphicsPipeline::get_descriptor_set_info(const uint32_t set_index) const {
+    return descriptor_sets.at(set_index);
+}
 
-    case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
-        return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+VkPipeline GraphicsPipeline::get_pipeline() const { return pipeline; }
 
-    case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
-        return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE:
-        return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
-        return VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-        return VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-        return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:
-        return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
-        return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
-        return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
-        return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-
-    case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
-        return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-
-    default:
-        spdlog::error("Unknown descriptor type {}", type);
-        return VK_DESCRIPTOR_TYPE_MAX_ENUM;
-    }
+std::string_view GraphicsPipeline::get_name() const {
+    return pipeline_name;
 }

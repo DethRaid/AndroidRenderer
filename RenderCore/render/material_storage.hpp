@@ -10,7 +10,7 @@ class RenderBackend;
 
 class MaterialStorage {
 public:
-    explicit MaterialStorage(RenderBackend& backend_in);
+    explicit MaterialStorage();
 
     PooledObject<BasicPbrMaterialProxy> add_material(BasicPbrMaterial&& new_material);
 
@@ -20,8 +20,11 @@ public:
 
     BufferHandle get_material_buffer() const;
 
+    GraphicsPipelineHandle get_pipeline_group();
+
 private:
-    RenderBackend& backend;
+    bool is_pipeline_group_dirty = true;
+    GraphicsPipelineHandle pipeline_group{};
 
     ObjectPool<BasicPbrMaterialProxy> material_pool;
 

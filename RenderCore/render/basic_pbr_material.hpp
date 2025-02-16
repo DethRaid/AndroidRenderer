@@ -3,6 +3,8 @@
 
 #include <filesystem>
 
+#include <volk.h>
+
 #include "render/backend/handles.hpp"
 #include "shared/basic_pbr_material.hpp"
 
@@ -55,8 +57,6 @@ struct BasicPbrMaterial {
     VkDescriptorSet descriptor_set;
 
     BasicPbrMaterialGpu gpu_data;
-
-    VkPipelineColorBlendAttachmentState blend_state;
 };
 
 #endif //SAHRENDERER_BASIC_PBR_MATERIAL_HPP

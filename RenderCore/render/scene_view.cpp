@@ -21,8 +21,9 @@ glm::mat4 infinitePerspectiveFovReverseZ_ZO(const float fov, const float width, 
     return result;
 }
 
-SceneTransform::SceneTransform(RenderBackend& backend_in) : backend{ &backend_in } {
-    auto& allocator = backend->get_global_allocator();
+SceneTransform::SceneTransform() {
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
     buffer = allocator.create_buffer("Scene View Buffer", sizeof(ViewDataGPU), BufferUsage::UniformBuffer);
 }
 
@@ -93,12 +94,9 @@ BufferHandle SceneTransform::get_buffer() const {
     return buffer;
 }
 
-void SceneTransform::update_transforms(CommandBuffer commands) {
-    if (buffer != BufferHandle::None && is_dirty) {
-        commands.update_buffer(buffer, gpu_data);
-
-        commands.barrier(buffer, VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_HOST_WRITE_BIT,
-            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT);
+void SceneTransform::update_transforms(ResourceUploadQueue& upload_queue) {
+    if (buffer && is_dirty) {
+        upload_queue.upload_to_buffer(buffer, gpu_data);
 
         is_dirty = false;
     }

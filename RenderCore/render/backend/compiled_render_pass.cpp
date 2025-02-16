@@ -5,8 +5,6 @@
 void CompiledRenderPass::add_barrier(const TextureHandle texture_handle, const TextureState before,
                                      const TextureState after)
 {
-    const auto& texture = allocator->get_texture(texture_handle);
-
     // TODO: Provide a way to barrier specific mip levels, for things like texture streaming or making a bloom chain
 
     auto image_barrier = VkImageMemoryBarrier{
@@ -15,15 +13,15 @@ void CompiledRenderPass::add_barrier(const TextureHandle texture_handle, const T
         .dstAccessMask = to_access_mask(after),
         .oldLayout = to_layout(before),
         .newLayout = to_layout(after),
-        .image = texture.image,
+        .image = texture_handle->image,
         .subresourceRange = {
-            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(texture.create_info.format)
+            .aspectMask = static_cast<VkImageAspectFlags>(is_depth_format(texture_handle->create_info.format)
                                                               ? VK_IMAGE_ASPECT_DEPTH_BIT
                                                               : VK_IMAGE_ASPECT_COLOR_BIT),
             .baseMipLevel = 0,
-            .levelCount = texture.create_info.mipLevels,
+            .levelCount = texture_handle->create_info.mipLevels,
             .baseArrayLayer = 0,
-            .layerCount = texture.create_info.arrayLayers
+            .layerCount = texture_handle->create_info.arrayLayers
         }
     };
 
@@ -55,8 +53,4 @@ void CompiledRenderPass::add_barrier(const TextureHandle texture_handle, const T
             .image_barriers = {image_barrier}
         });
     }
-}
-
-CompiledRenderPass::CompiledRenderPass(ResourceAllocator& allocator_in) : allocator{&allocator_in}
-{
 }

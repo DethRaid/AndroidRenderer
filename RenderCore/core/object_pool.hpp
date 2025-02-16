@@ -1,13 +1,10 @@
-//
-// Created by gold1 on 9/4/2022.
-//
+#pragma once
 
-#ifndef SAHRENDERER_OBJECT_POOL_HPP
-#define SAHRENDERER_OBJECT_POOL_HPP
-
+#include <compare>
+#include <typeindex>
 #include <vector>
 
-#include <tl/optional.hpp>
+#include <spdlog/spdlog.h>
 
 template <typename ObjectType>
 class ObjectPool;
@@ -22,9 +19,15 @@ struct PooledObject {
 
     ObjectType& operator*() const;
 
-    operator bool() const;
+    explicit operator bool() const;
 
     bool operator!() const;
+
+    bool operator==(const PooledObject& other) const;
+
+    auto operator<=>(const PooledObject<ObjectType>& other) const;
+
+    bool is_valid() const;
 };
 
 template <typename ObjectType>
@@ -47,6 +50,8 @@ public:
 
     ObjectType free_object(uint32_t index);
 
+    PooledObject<ObjectType> make_handle(uint32_t index_in);
+
     std::vector<ObjectType>& get_data();
 
     const std::vector<ObjectType>& get_data() const;
@@ -66,6 +71,14 @@ private:
 };
 
 template <typename ObjectType>
+struct std::hash<PooledObject<ObjectType>> {
+    size_t operator()(const PooledObject<ObjectType>& value) const noexcept {
+        // This completely fails for some reason
+        return std::hash<uint32_t>{}(value.index);
+    }
+};
+
+template <typename ObjectType>
 ObjectType* PooledObject<ObjectType>::operator->() const {
     auto& objects = pool->get_data();
     return &objects[index];
@@ -79,12 +92,27 @@ ObjectType& PooledObject<ObjectType>::operator*() const {
 
 template <typename ObjectType>
 PooledObject<ObjectType>::operator bool() const {
-    return index != 0xFFFFFFFF && pool != nullptr;
+    return is_valid();
 }
 
 template <typename ObjectType>
 bool PooledObject<ObjectType>::operator!() const {
     return !operator bool();
+}
+
+template <typename ObjectType>
+bool PooledObject<ObjectType>::operator==(const PooledObject& other) const {
+    return other.index == index;
+}
+
+template <typename ObjectType>
+auto PooledObject<ObjectType>::operator<=>(const PooledObject<ObjectType>& other) const {
+    return static_cast<int32_t>(static_cast<int64_t>(other.index) - static_cast<int64_t>(index));
+}
+
+template <typename ObjectType>
+bool PooledObject<ObjectType>::is_valid() const {
+    return index != 0xFFFFFFFF && pool != nullptr;
 }
 
 template <typename ObjectType>
@@ -149,6 +177,11 @@ ObjectType ObjectPool<ObjectType>::free_object(uint32_t index) {
 }
 
 template <typename ObjectType>
+PooledObject<ObjectType> ObjectPool<ObjectType>::make_handle(uint32_t index_in) {
+    return { index_in, this };
+}
+
+template <typename ObjectType>
 template <typename CreateFunc, typename DestroyFunc>
 ObjectPool<ObjectType>::ObjectPool(CreateFunc&& creator_in, DestroyFunc&& deleter_in) :
         creator{creator_in}, deleter{deleter_in} {}
@@ -175,5 +208,3 @@ template <typename ObjectType>
 ObjectPool<ObjectType>::ObjectPool() : ObjectPool([]() { return ObjectType{}; }, [](ObjectType&& obj) {}) {
 
 }
-
-#endif //SAHRENDERER_OBJECT_POOL_HPP

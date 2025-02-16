@@ -19,6 +19,10 @@ else()
         set(FETCHCONTENT_FULLY_DISCONNECTED OFF)
 endif()
 
+# Address sanitizer please save me
+# set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /fsanitize=address")
+# set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} /fsanitize=address")
+
 # Include the shared renderer
 
 include(${CMAKE_CURRENT_LIST_DIR}/../RenderCore/SahCore.cmake)
@@ -30,7 +34,6 @@ include(${CMAKE_CURRENT_LIST_DIR}/extern/extern.cmake)
 # This thing
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake;")
-include(glsl-shaders)
 
 set(SHADER_DIR ${CMAKE_CURRENT_LIST_DIR}/../RenderCore/shaders)
 
@@ -52,17 +55,14 @@ set(SHADER_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../RenderCore)
 
 set(EXTERN_DIR ${SHADER_INCLUDE_DIR}/extern)
 
-target_glsl_shaders(SahWindows
-        PRIVATE ${SHADERS}
-        COMPILE_OPTIONS --target-env vulkan1.3 -V -g -o -Od -I${SHADER_INCLUDE_DIR} -I${SHADER_DIR} -I${EXTERN_DIR})
+add_custom_target(compile_shaders
+    python ${SAH_TOOLS_DIR}/compile_shaders.py ${SHADER_DIR} ${CMAKE_BINARY_DIR}/shaders
+)
+add_dependencies(SahWindows compile_shaders)
 
 target_link_libraries(SahWindows PUBLIC
-        SahCore)
-
-add_custom_target(gltf_compression
-        python ${CMAKE_CURRENT_LIST_DIR}/../Tools/optimize_gltf.py ${CMAKE_CURRENT_LIST_DIR}/../Windows/build/Debug
-)
-add_dependencies(SahWindows gltf_compression)
+        SahCore
+        )
     
 #######################
 # Generate VS filters #

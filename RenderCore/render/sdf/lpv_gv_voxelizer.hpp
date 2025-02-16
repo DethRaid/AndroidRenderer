@@ -40,7 +40,7 @@ public:
     void voxelize_mesh(RenderGraph& graph, MeshHandle mesh, const MeshStorage& meshes);
 
     /**
-     * Extracts the rastered texture from the rasterizer, setting the internal texture to TextureHandle::None
+     * Extracts the rastered texture from the rasterizer, setting the internal texture to nullptr
      */
     TextureHandle extract_texture();
 
@@ -55,31 +55,31 @@ private:
      */
     uint32_t max_num_triangles = 0;
 
-    TextureHandle voxel_texture = TextureHandle::None;
+    TextureHandle voxel_texture = nullptr;
 
-    BufferHandle volume_uniform_buffer = BufferHandle::None;
+    BufferHandle volume_uniform_buffer = {};
 
-    BufferHandle transformed_triangle_cache = BufferHandle::None;
+    BufferHandle transformed_triangle_cache = {};
 
-    BufferHandle triangle_sh_cache = BufferHandle::None;
+    BufferHandle triangle_sh_cache = {};
 
-    BufferHandle bins = BufferHandle::None;
+    BufferHandle bins = {};
 
-    BufferHandle cell_bitmask_coarse = BufferHandle::None;
+    BufferHandle cell_bitmask_coarse = {};
 
-    BufferHandle cell_bitmask = BufferHandle::None;
+    BufferHandle cell_bitmask = {};
 
-    ComputeShader texture_clear_shader;
+    ComputePipelineHandle texture_clear_shader;
 
-    ComputeShader transform_verts_shader;
+    ComputePipelineHandle transform_verts_shader;
 
-    ComputeShader coarse_binning_shader;
+    ComputePipelineHandle coarse_binning_shader;
 
-    ComputeShader fine_binning_shader;
+    ComputePipelineHandle fine_binning_shader;
 
-    ComputeShader rasterize_primitives_shader;
+    ComputePipelineHandle rasterize_primitives_shader;
 
-    ComputeShader normalize_gv_shader;
+    ComputePipelineHandle normalize_gv_shader;
 
     RenderBackend* backend;
 };

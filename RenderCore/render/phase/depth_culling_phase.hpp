@@ -3,8 +3,11 @@
 
 #include "render/mip_chain_generator.hpp"
 #include "render/backend/compute_shader.hpp"
+#include "render/backend/descriptor_set_builder.hpp"
+#include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
+class MaterialStorage;
 class TextureDescriptorPool;
 class RenderGraph;
 class ResourceAllocator;
@@ -20,17 +23,17 @@ class SceneDrawer;
  */
 class DepthCullingPhase {
 public:
-    explicit DepthCullingPhase(RenderBackend& backend);
+    explicit DepthCullingPhase();
 
     ~DepthCullingPhase();
 
     void set_render_resolution(const glm::uvec2& resolution);
 
-    void render(RenderGraph& graph, const SceneDrawer& drawer, BufferHandle view_data_buffer);
+    void render(RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials, BufferHandle view_data_buffer);
 
     TextureHandle get_depth_buffer() const;
 
-    BufferHandle get_visible_objects() const;
+    BufferHandle get_visible_objects_buffer() const;
 
     /**
      * \brief Translates a visibility list to a list of indirect draw commands
@@ -52,13 +55,9 @@ public:
     ) const;
 
 private:
-    RenderBackend& backend;
+    TextureHandle depth_buffer = nullptr;
 
-    ResourceAllocator& allocator;
-
-    TextureHandle depth_buffer = TextureHandle::None;
-
-    TextureHandle hi_z_buffer = TextureHandle::None;
+    TextureHandle hi_z_buffer = nullptr;
     VkSampler max_reduction_sampler;
 
     // Index of the hi-z descriptor in the texture descriptor array
@@ -71,13 +70,33 @@ private:
      *
      * The idea is that each view will have its own DepthCullingPhase and thus this list will be per-view
      */
-    BufferHandle visible_objects = BufferHandle::None;
+    BufferHandle visible_objects = nullptr;
 
-    ComputeShader visibility_list_to_draw_commands;
+    ComputePipelineHandle init_dual_bump_point_pipeline;
+
+    ComputePipelineHandle visibility_list_to_draw_commands;
 
     MipChainGenerator downsampler;
 
-    TextureDescriptorPool& texture_descriptor_pool;
+    ComputePipelineHandle hi_z_culling_shader;
 
-    ComputeShader hi_z_culling_shader;
+    VkIndirectCommandsLayoutNV command_signature = VK_NULL_HANDLE;
+
+    /**
+     * Draws visible objects using device-generated commands
+     */
+    void draw_visible_objects_dgc(RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials, const DescriptorSet& descriptors, BufferHandle primitive_buffer, uint32_t num_primitives);
+
+    void create_command_signature();
+
+    std::optional<BufferHandle> create_preprocess_buffer(GraphicsPipelineHandle pipeline, uint32_t num_primitives);
+
+    /**
+     * Draws visible objects, using a different draw command for each material type
+     */
+    void draw_visible_objects(
+        RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& view_descriptor, BufferHandle primitive_buffer,
+        uint32_t num_primitives
+    ) const;
+
 };

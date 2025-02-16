@@ -2,7 +2,7 @@
 
 #include <span>
 
-#include <Volk/volk.h>
+#include <volk.h>
 #include <vk_mem_alloc.h>
 #include <tl/optional.hpp>
 
@@ -22,12 +22,12 @@ class ResourceUploadQueue;
  */
 class MeshStorage {
 public:
-    explicit MeshStorage(RenderBackend& backend_in, ResourceUploadQueue& queue_in);
+    explicit MeshStorage();
 
     ~MeshStorage();
 
     tl::optional<MeshHandle> add_mesh(
-        std::span<const StandardVertex> vertices, std::span<const uint32_t> indices, const glm::vec3& bounds
+        std::span<const StandardVertex> vertices, std::span<const uint32_t> indices, const Box& bounds
     );
 
     void free_mesh(MeshHandle mesh);
@@ -43,22 +43,19 @@ public:
     BufferHandle get_draw_args_buffer() const;
 
 private:
-    RenderBackend* backend;
-    ResourceUploadQueue* upload_queue;
-
     ObjectPool<Mesh> meshes;
 
     ScatterUploadBuffer<VkDrawIndexedIndirectCommand> mesh_draw_args_upload_buffer;
-    BufferHandle mesh_draw_args_buffer = BufferHandle::None;
+    BufferHandle mesh_draw_args_buffer = {};
 
     // vertex_block and index_block measure vertices and indices, respectively
 
     VmaVirtualBlock vertex_block = {};
-    BufferHandle vertex_position_buffer = BufferHandle::None;
-    BufferHandle vertex_data_buffer = BufferHandle::None;
+    BufferHandle vertex_position_buffer = {};
+    BufferHandle vertex_data_buffer = {};
 
     VmaVirtualBlock index_block = {};
-    BufferHandle index_buffer = BufferHandle::None;
+    BufferHandle index_buffer = {};
 
     std::pair<std::vector<StandardVertex>, float> generate_surface_point_cloud(
         std::span<const StandardVertex> vertices, std::span<const uint32_t> indices
@@ -67,4 +64,8 @@ private:
     static StandardVertex interpolate_vertex(std::span<const StandardVertex> vertices, std::span<const uint32_t> indices, size_t triangle_id, glm::vec3 barycentric);
 
     BufferHandle generate_sh_point_cloud(const std::vector<StandardVertex>& point_cloud) const;
+
+    AccelerationStructureHandle create_blas_for_mesh(
+        uint32_t first_vertex, uint32_t num_vertices, uint32_t first_index, uint num_triangles
+    ) const;
 };

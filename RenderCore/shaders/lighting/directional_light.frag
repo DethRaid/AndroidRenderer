@@ -1,6 +1,8 @@
 #version 460 core
 
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_ray_query : enable
 
 #include "shared/sun_light_constants.hpp"
 #include "shared/view_data.hpp"
@@ -17,11 +19,11 @@
 
 // Gbuffer textures
 
-layout(set = 0, binding = 0, input_attachment_index = 0) uniform subpassInput gbuffer_base_color;
-layout(set = 0, binding = 1, input_attachment_index = 1) uniform subpassInput gbuffer_normal;
-layout(set = 0, binding = 2, input_attachment_index = 2) uniform subpassInput gbuffer_data;
-layout(set = 0, binding = 3, input_attachment_index = 3) uniform subpassInput gbuffer_emission;
-layout(set = 0, binding = 4, input_attachment_index = 4) uniform subpassInput gbuffer_depth;
+layout(set = 0, binding = 0) uniform sampler2D gbuffer_base_color;
+layout(set = 0, binding = 1) uniform sampler2D gbuffer_normal;
+layout(set = 0, binding = 2) uniform sampler2D gbuffer_data;
+layout(set = 0, binding = 3) uniform sampler2D gbuffer_emission;
+layout(set = 0, binding = 4) uniform sampler2D gbuffer_depth;
 
 // Sun shadowmaps
 layout(set = 1, binding = 0) uniform sampler2DArrayShadow sun_shadowmap;
@@ -32,6 +34,7 @@ layout(set = 1, binding = 1) uniform DirectionalLightUbo {
 layout(set = 1, binding = 2) uniform ViewUniformBuffer {
     ViewDataGPU view_info;
 };
+// layout(set = 1, binding = 3) uniform accelerationStructureEXT rtas;
 
 // Texcoord from the vertex shader
 layout(location = 0) in vec2 texcoord;
@@ -40,7 +43,7 @@ layout(location = 0) in vec2 texcoord;
 layout(location = 0) out medvec4 lighting;
 
 vec3 get_viewspace_position() {
-    float depth = subpassLoad(gbuffer_depth).r;
+    const float depth = texelFetch(gbuffer_depth, ivec2(gl_FragCoord.xy), 0).r;
     vec2 texcoord = gl_FragCoord.xy / view_info.render_resolution.xy;
     vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
     vec4 viewspace_position = view_info.inverse_projection * ndc_position;
@@ -63,7 +66,7 @@ medfloat get_shadow_factor(vec3 worldspace_position, uint cascade_index, float b
     shadowspace_position /= shadowspace_position.w;
 
     if(any(lessThan(shadowspace_position.xyz, vec3(0))) || any(greaterThan(shadowspace_position.xyz, vec3(1)))) {
-        return 0;
+        return 1;
     }
 
     // Use this cascade
@@ -74,11 +77,54 @@ medfloat get_shadow_factor(vec3 worldspace_position, uint cascade_index, float b
     return texture(sun_shadowmap, shadow_lookup);
 }
 
+medfloat sample_csm(vec3 worldspace_position, float viewspace_depth, float ndotl) {
+    uint cascade_index = 0;
+    for(uint i = 0; i < 4; i++) {
+        if(viewspace_depth < sun_light.data[i].x) {
+            cascade_index = i + 1;
+        }
+    }
+
+    medfloat shadow = get_shadow_factor(worldspace_position, cascade_index, 0.025 * (1.f - ndotl));
+    if(cascade_index > 3) {
+        shadow = 0.f;
+    }
+
+    return shadow;
+}
+
+// medfloat query_ray_visibility(const vec3 worldspace_position) {
+//     // V1: Send a ray directly at the sun
+//     // V2: Send rays in a cone, accumulate over a few frames
+// 
+//     rayQueryEXT rq;
+// 
+//     rayQueryInitializeEXT(
+//         rq, 
+//         rtas, 
+//         gl_RayFlagsTerminateOnFirstHitEXT, 
+//         0xFF,
+//         worldspace_position, 
+//         0, 
+//         normalize(sun_light.direction_and_size.xyz), 
+//         100000);
+// 
+//     // Traverse the acceleration structure and store information about the first intersection (if any)
+//     rayQueryProceedEXT(rq);
+// 
+//     if (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) {
+//         return 0;
+//     } else {
+//         return 1;
+//     }
+// }
+
 void main() {
-    medvec3 base_color_sample = subpassLoad(gbuffer_base_color).rgb;
-    medvec3 normal_sample = normalize(subpassLoad(gbuffer_normal).xyz);
-    medvec4 data_sample = subpassLoad(gbuffer_data);
-    medvec4 emission_sample = subpassLoad(gbuffer_emission);
+    ivec2 pixel = ivec2(gl_FragCoord.xy);
+    medvec3 base_color_sample = texelFetch(gbuffer_base_color, pixel, 0).rgb;
+    medvec3 normal_sample = normalize(texelFetch(gbuffer_normal, pixel, 0).xyz);
+    medvec4 data_sample = texelFetch(gbuffer_data, pixel, 0);
+    medvec4 emission_sample = texelFetch(gbuffer_emission, pixel, 0);
 
     vec3 viewspace_position = get_viewspace_position();
     vec4 worldspace_position = view_info.inverse_view * vec4(viewspace_position, 1.0);
@@ -97,18 +143,16 @@ void main() {
     surface.emission = emission_sample.rgb;
     surface.location = worldspace_position.xyz;
 
-    uint cascade_index = 0;
-    for(uint i = 0; i < 4; i++) {
-        if(viewspace_position.z < sun_light.data[i].x) {
-            cascade_index = i + 1;
-        }
-    }
-
     medfloat ndotl = clamp(dot(normal_sample, light_vector), 0.f, 1.f);
 
-    medfloat shadow = get_shadow_factor(worldspace_position.xyz, cascade_index, 0.025 * (1.f - ndotl));
-    if(cascade_index > 3) {
-        shadow = 1.f;
+    medfloat shadow = 1;
+
+    if(ndotl > 0) {
+        if(sun_light.shadow_mode == SHADOW_MODE_CSM) {
+            shadow = sample_csm(worldspace_position.xyz, viewspace_position.z, ndotl);    
+        } else if(sun_light.shadow_mode == SHADOW_MODE_RT) {
+            // shadow = query_ray_visibility(worldspace_position.xyz);
+        }
     }
 
     medvec3 brdf_result = brdf(surface, light_vector, worldspace_view_vector);
@@ -116,7 +160,7 @@ void main() {
     medvec3 direct_light = ndotl * brdf_result * sun_light.color.rgb * shadow;
 
     // Number chosen based on what happened to look fine
-    const medfloat exposure_factor = 0.0001f;
+    const medfloat exposure_factor = 0.00031415927f;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
     
@@ -125,7 +169,6 @@ void main() {
     }
 
     lighting = vec4(direct_light * exposure_factor, 1.f);
-    // lighting = vec4(0, 0, 0, 1);
 
     // Shadow cascade visualization
     // TODO: A uniform buffer with debug info?
