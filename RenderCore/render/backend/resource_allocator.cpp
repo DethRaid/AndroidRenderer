@@ -44,20 +44,16 @@ ResourceAllocator::~ResourceAllocator() {
     }
 }
 
-TextureHandle ResourceAllocator::create_texture(
-    const std::string& name, VkFormat format, glm::uvec2 resolution,
-    const uint32_t num_mips, const TextureUsage usage,
-    const uint32_t num_layers, const VkFormat view_format
-) {
+TextureHandle ResourceAllocator::create_texture(const std::string& name, const TextureCreateInfo& create_info) {
     const auto device = backend.get_device().device;
 
     VkImageUsageFlags vk_usage = VK_IMAGE_USAGE_SAMPLED_BIT;
     VmaAllocationCreateFlags vma_flags = {};
     VkImageAspectFlags view_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
 
-    switch(usage) {
+    switch(create_info.usage) {
     case TextureUsage::RenderTarget:
-        if(is_depth_format(format)) {
+        if(is_depth_format(create_info.format)) {
             vk_usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
             view_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
         } else {
@@ -81,11 +77,12 @@ TextureHandle ResourceAllocator::create_texture(
 
     const auto image_create_info = VkImageCreateInfo{
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .flags = create_info.flags,
         .imageType = VK_IMAGE_TYPE_2D,
-        .format = format,
-        .extent = VkExtent3D{.width = resolution.x, .height = resolution.y, .depth = 1},
-        .mipLevels = num_mips,
-        .arrayLayers = num_layers,
+        .format = create_info.format,
+        .extent = VkExtent3D{.width = create_info.resolution.x, .height = create_info.resolution.y, .depth = 1},
+        .mipLevels = create_info.num_mips,
+        .arrayLayers = create_info.num_layers,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = vk_usage,
@@ -123,14 +120,14 @@ TextureHandle ResourceAllocator::create_texture(
         const auto view_create_info = VkImageViewCreateInfo{
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = texture.image,
-            .viewType = num_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
-            .format = view_format == VK_FORMAT_UNDEFINED ? format : view_format,
+            .viewType = create_info.num_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
+            .format = create_info.view_format == VK_FORMAT_UNDEFINED ? create_info.format : create_info.view_format,
             .subresourceRange = {
                 .aspectMask = view_aspect,
                 .baseMipLevel = 0,
-                .levelCount = num_mips,
+                .levelCount = create_info.num_mips,
                 .baseArrayLayer = 0,
-                .layerCount = num_layers,
+                .layerCount = create_info.num_layers,
             },
         };
         result = vkCreateImageView(device, &view_create_info, nullptr, &texture.image_view);
@@ -139,20 +136,20 @@ TextureHandle ResourceAllocator::create_texture(
         }
     }
 
-    if(num_mips == 1) {
+    if(create_info.num_mips == 1) {
         texture.attachment_view = texture.image_view;
     } else {
         const auto rtv_create_info = VkImageViewCreateInfo{
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = texture.image,
-            .viewType = num_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
-            .format = view_format == VK_FORMAT_UNDEFINED ? format : view_format,
+            .viewType = create_info.num_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
+            .format = create_info.view_format == VK_FORMAT_UNDEFINED ? create_info.format : create_info.view_format,
             .subresourceRange = {
                 .aspectMask = view_aspect,
                 .baseMipLevel = 0,
                 .levelCount = 1,
                 .baseArrayLayer = 0,
-                .layerCount = num_layers,
+                .layerCount = create_info.num_layers,
             },
         };
         result = vkCreateImageView(device, &rtv_create_info, nullptr, &texture.attachment_view);
@@ -162,19 +159,19 @@ TextureHandle ResourceAllocator::create_texture(
     backend.set_object_name(texture.image_view, image_view_name);
     backend.set_object_name(texture.attachment_view, fmt::format("{} RTV", name));
 
-    texture.mip_views.reserve(num_mips);
-    for(auto i = 0u; i < num_mips; i++) {
+    texture.mip_views.reserve(create_info.num_mips);
+    for(auto i = 0u; i < create_info.num_mips; i++) {
         const auto view_create_info = VkImageViewCreateInfo{
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = texture.image,
-            .viewType = num_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
-            .format = view_format == VK_FORMAT_UNDEFINED ? format : view_format,
+            .viewType = create_info.num_layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D,
+            .format = create_info.view_format == VK_FORMAT_UNDEFINED ? create_info.format : create_info.view_format,
             .subresourceRange = {
                 .aspectMask = view_aspect,
                 .baseMipLevel = i,
                 .levelCount = 1,
                 .baseArrayLayer = 0,
-                .layerCount = num_layers,
+                .layerCount = create_info.num_layers,
             },
         };
         auto view = VkImageView{};

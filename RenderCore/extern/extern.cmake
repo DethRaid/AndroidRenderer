@@ -24,6 +24,8 @@ set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 set(FASTGLTF_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(FASTGLTF_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
 
+set(CAULDRON_VK ON CACHE BOOL "" FORCE)
+
 FetchContent_Declare(
         glm
         GIT_REPOSITORY  https://github.com/g-truc/glm.git

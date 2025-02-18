@@ -267,7 +267,7 @@ VkAccessFlags2 to_vk_access(const VkDescriptorType& descriptor_type, const bool 
         if(is_read_only) {
             return VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
         } else {
-            return VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+            return VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
         }
 
     case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:

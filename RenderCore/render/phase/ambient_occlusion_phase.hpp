@@ -39,5 +39,7 @@ private:
     FfxDevice ffx_device;
     bool has_context = false;
     FfxCacaoContext context = {};
+
+    TextureHandle stinky_depth = nullptr;
 #endif
 };

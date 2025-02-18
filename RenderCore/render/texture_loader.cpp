@@ -233,10 +233,12 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
     auto& allocator = backend.get_global_allocator();
     const auto handle = allocator.create_texture(
         filepath.string(),
-        format,
-        glm::uvec2{loaded_texture.width, loaded_texture.height},
-        1,
-        TextureUsage::StaticImage
+        {
+            format,
+            glm::uvec2{loaded_texture.width, loaded_texture.height},
+            1,
+            TextureUsage::StaticImage
+        }
     );
     loaded_textures.emplace(filepath.string(), handle);
 

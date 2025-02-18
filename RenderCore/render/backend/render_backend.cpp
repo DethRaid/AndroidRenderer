@@ -217,10 +217,11 @@ void RenderBackend::create_instance_and_device() {
         .vertexPipelineStoresAndAtomics = VK_TRUE,
 #endif
         .fragmentStoresAndAtomics = VK_TRUE,
+        .shaderImageGatherExtended = VK_TRUE,
         .shaderSampledImageArrayDynamicIndexing = VK_TRUE,
         .shaderStorageBufferArrayDynamicIndexing = VK_TRUE,
         .shaderInt64 = VK_TRUE,
-        .shaderInt16 = VK_TRUE
+        .shaderInt16 = VK_TRUE,
     };
 
     auto required_1_1_features = VkPhysicalDeviceVulkan11Features{
@@ -266,6 +267,8 @@ void RenderBackend::create_instance_and_device() {
     auto phys_device_builder = vkb::PhysicalDeviceSelector{instance}
                                .set_surface(surface)
                                .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
+                               .add_required_extension(
+                                   VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME) // FFX needs this
                                .set_required_features(required_features)
                                .set_required_features_11(required_1_1_features)
                                .set_required_features_12(required_1_2_features)
@@ -288,7 +291,7 @@ void RenderBackend::create_instance_and_device() {
         }
     }
 
-    supports_rt  = physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+    supports_rt = physical_device.enable_extension_if_present(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
     supports_rt &= physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
     supports_rt &= physical_device.enable_extension_if_present(VK_KHR_RAY_TRACING_MAINTENANCE_1_EXTENSION_NAME);
     supports_rt &= physical_device.enable_extension_if_present(VK_KHR_RAY_QUERY_EXTENSION_NAME);
@@ -435,7 +438,7 @@ void RenderBackend::query_physical_device_properties() {
     auto physical_device_properties = ExtensibleStruct<VkPhysicalDeviceProperties2>{};
     physical_device_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 
-    if (supports_shading_rate_image) {
+    if(supports_shading_rate_image) {
         physical_device_properties.add_extension(&shading_rate_properties);
     }
 
@@ -492,7 +495,7 @@ glm::vec2 RenderBackend::get_max_shading_rate_texel_size() const {
         shading_rate_properties.maxFragmentShadingRateAttachmentTexelSize.height
     };
 
-    const auto supported_max = glm::vec2{ 4 };
+    const auto supported_max = glm::vec2{4};
 
     return properties_max;
 }
@@ -550,7 +553,7 @@ uint32_t RenderBackend::get_transfer_queue_family_index() const {
 void RenderBackend::advance_frame() {
     ZoneScoped;
 
-    if (!is_first_frame) {
+    if(!is_first_frame) {
         total_num_frames++;
 
         cur_frame_idx++;
@@ -559,7 +562,7 @@ void RenderBackend::advance_frame() {
 
     logger->trace("Beginning frame {} (frame idx {})", total_num_frames, cur_frame_idx);
 
-    if (total_num_frames % 100 == 0) {
+    if(total_num_frames % 100 == 0) {
         allocator->report_memory_usage();
     }
 
@@ -972,18 +975,22 @@ VkSampler RenderBackend::get_default_sampler() const {
 void RenderBackend::create_default_resources() {
     white_texture_handle = allocator->create_texture(
         "White texture",
-        VK_FORMAT_R8G8B8A8_UNORM,
-        glm::uvec2{8, 8},
-        1,
-        TextureUsage::StaticImage
+        {
+            VK_FORMAT_R8G8B8A8_UNORM,
+            glm::uvec2{8, 8},
+            1,
+            TextureUsage::StaticImage
+        }
     );
 
     default_normalmap_handle = allocator->create_texture(
         "Default normalmap",
-        VK_FORMAT_R8G8B8A8_UNORM,
-        glm::uvec2{8, 8},
-        1,
-        TextureUsage::StaticImage
+        {
+            VK_FORMAT_R8G8B8A8_UNORM,
+            glm::uvec2{8, 8},
+            1,
+            TextureUsage::StaticImage
+        }
     );
 
     default_sampler = allocator->get_sampler(

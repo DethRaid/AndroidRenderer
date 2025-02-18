@@ -12,26 +12,32 @@ ProceduralSky::ProceduralSky() {
 
     transmittance_lut = allocator.create_texture(
         "Transmittance LUT",
-        VK_FORMAT_R16G16B16A16_SFLOAT,
-        glm::uvec2{256, 64},
-        1,
-        TextureUsage::StorageImage
+        {
+            VK_FORMAT_R16G16B16A16_SFLOAT,
+            glm::uvec2{256, 64},
+            1,
+            TextureUsage::StorageImage
+        }
     );
 
     multiscattering_lut = allocator.create_texture(
         "Multiscattering LUT",
-        VK_FORMAT_R16G16B16A16_SFLOAT,
-        glm::uvec2{32, 32},
-        1,
-        TextureUsage::StorageImage
+        {
+            VK_FORMAT_R16G16B16A16_SFLOAT,
+            glm::uvec2{32, 32},
+            1,
+            TextureUsage::StorageImage
+        }
     );
 
     sky_view_lut = allocator.create_texture(
         "Sky view LUT",
-        VK_FORMAT_R16G16B16A16_SFLOAT,
-        glm::uvec2{200, 200},
-        1,
-        TextureUsage::StorageImage
+        {
+            VK_FORMAT_R16G16B16A16_SFLOAT,
+            glm::uvec2{200, 200},
+            1,
+            TextureUsage::StorageImage
+        }
     );
 
     auto& pipelines = backend.get_pipeline_cache();

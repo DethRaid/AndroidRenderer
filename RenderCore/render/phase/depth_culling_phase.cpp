@@ -88,10 +88,13 @@ void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
 
     depth_buffer = allocator.create_texture(
         "Depth buffer",
-        VK_FORMAT_D32_SFLOAT,
-        resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            .format = VK_FORMAT_D32_SFLOAT,
+            .resolution = resolution,
+            .num_mips = 1,
+            .usage = TextureUsage::RenderTarget,
+            .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT
+        }
     );
 
     const auto hi_z_resolution = resolution / 2u;
@@ -99,10 +102,12 @@ void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
     const auto num_mips = glm::round(glm::log2(static_cast<float>(major_dimension)));
     hi_z_buffer = allocator.create_texture(
         "Hi Z Buffer",
-        VK_FORMAT_R32_SFLOAT,
-        hi_z_resolution,
-        static_cast<uint32_t>(num_mips),
-        TextureUsage::StorageImage
+        {
+            VK_FORMAT_R32_SFLOAT,
+            hi_z_resolution,
+            static_cast<uint32_t>(num_mips),
+            TextureUsage::StorageImage
+        }
     );
 
     hi_z_index = texture_descriptor_pool.create_texture_srv(hi_z_buffer, max_reduction_sampler);
@@ -359,7 +364,6 @@ DepthCullingPhase::translate_visibility_list_to_draw_commands(
             .push_constants = num_primitives,
             .num_workgroups = {(num_primitives + 95) / 96, 1, 1},
             .compute_shader = visibility_list_to_draw_commands
-
         }
     );
 

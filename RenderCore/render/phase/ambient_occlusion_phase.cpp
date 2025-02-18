@@ -6,11 +6,12 @@
 #endif
 
 #include "console/cvars.hpp"
+#include "core/string_conversion.hpp"
 #include "render/scene_view.hpp"
 #include "render/backend/render_backend.hpp"
 
 static AutoCVar_Int cvar_cacao_enabled{
-    "r.CACAO.Enabled", "Whether to use CACAO or not", false
+    "r.CACAO.Enabled", "Whether to use CACAO or not", true
 };
 
 #if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
@@ -126,15 +127,17 @@ AmbientOcclusionPhase::AmbientOcclusionPhase() {
 
     ffx_interface.scratchBuffer = nullptr;
 
+    // SDKWrapper::ffxGetScratchMemorySize(FFX_CACAO_CONTEXT_COUNT * 2);
+
     const auto scratch_memory_size = ffxGetScratchMemorySizeVK(
         backend.get_physical_device(),
         FFX_CACAO_CONTEXT_COUNT * 2);
-    auto scratch_memory = std::vector<uint8_t>(scratch_memory_size);
+    auto scratch_memory = calloc(scratch_memory_size, 1u);
     auto result = ffxGetInterfaceVK(
         &ffx_interface,
         ffx_device,
-        scratch_memory.data(),
-        scratch_memory.size(),
+        scratch_memory,
+        scratch_memory_size,
         FFX_CACAO_CONTEXT_COUNT * 2);
 
     if(result != FFX_API_RETURN_OK) {
@@ -185,19 +188,40 @@ void AmbientOcclusionPhase::generate_ao(
         has_context = true;
     }
 
+    if(stinky_depth == nullptr) {
+        auto& allocator = RenderBackend::get().get_global_allocator();
+        stinky_depth = allocator.create_texture(
+            "R32F Depth Meme",
+            {
+                .format = VK_FORMAT_R32_SFLOAT,
+                .resolution = {gbuffer_depth->create_info.extent.width, gbuffer_depth->create_info.extent.height},
+                .num_mips = gbuffer_depth->create_info.mipLevels,
+                .usage = TextureUsage::StorageImage
+            });
+    }
+
+    graph.add_copy_pass(
+        ImageCopyPass{
+            .name = "Copy D32 to R32 lmao",
+            .dst = stinky_depth,
+            .src = gbuffer_depth
+        });
+
+    const auto stinky_depth_name = to_wstring(stinky_depth->name);
     auto ffx_depth = ffxGetResourceVK(
-        gbuffer_depth->image,
+        stinky_depth->image,
         {
             .type = FFX_RESOURCE_TYPE_TEXTURE2D,
             .format = FFX_SURFACE_FORMAT_R32_FLOAT,
-            .width = gbuffer_depth->create_info.extent.depth,
-            .height = gbuffer_depth->create_info.extent.height,
+            .width = stinky_depth->create_info.extent.depth,
+            .height = stinky_depth->create_info.extent.height,
             .depth = 1,
             .mipCount = 1,
             .flags = FFX_RESOURCE_FLAGS_NONE,
             .usage = FFX_RESOURCE_USAGE_READ_ONLY
         },
-        nullptr);
+        stinky_depth_name.c_str());
+    const auto stinky_normals_name = to_wstring(gbuffer_normals->name);
     auto ffx_normals = ffxGetResourceVK(
         gbuffer_normals->image,
         {
@@ -210,7 +234,8 @@ void AmbientOcclusionPhase::generate_ao(
             .flags = FFX_RESOURCE_FLAGS_NONE,
             .usage = FFX_RESOURCE_USAGE_READ_ONLY
         },
-        nullptr);
+        stinky_normals_name.c_str());
+    const auto stinky_ao_name = to_wstring(ao_out->name);
     auto ffx_ao = ffxGetResourceVK(
         ao_out->image,
         {
@@ -221,9 +246,9 @@ void AmbientOcclusionPhase::generate_ao(
             .depth = 1,
             .mipCount = 1,
             .flags = FFX_RESOURCE_FLAGS_NONE,
-            .usage = FFX_RESOURCE_USAGE_READ_ONLY
+            .usage = FFX_RESOURCE_USAGE_UAV
         },
-        nullptr);
+        stinky_ao_name.c_str());
 
     graph.add_pass(
         {
@@ -236,7 +261,7 @@ void AmbientOcclusionPhase::generate_ao(
                     .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
                 {
-                    .texture = gbuffer_depth,
+                    .texture = stinky_depth,
                     .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                     .access = VK_ACCESS_2_SHADER_READ_BIT,
                     .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -244,8 +269,8 @@ void AmbientOcclusionPhase::generate_ao(
                 {
                     .texture = ao_out,
                     .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    .access = VK_ACCESS_2_SHADER_READ_BIT,
-                    .layout = VK_IMAGE_LAYOUT_GENERAL
+                    .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
             },
             .execute = [=, this](CommandBuffer& commands) {

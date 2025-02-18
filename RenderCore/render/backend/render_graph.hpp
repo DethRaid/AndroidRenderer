@@ -109,6 +109,8 @@ private:
         const std::vector<TextureUsageToken>& textures,
         const std::vector<BufferUsageToken>& buffers
     ) const;
+
+    void do_compute_shader_copy(const ImageCopyPass& pass);
 };
 
 template <typename PushConstantsType>

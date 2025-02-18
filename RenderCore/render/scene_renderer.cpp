@@ -547,34 +547,42 @@ void SceneRenderer::create_scene_render_targets() {
     // gbuffer and lighting render targets
     gbuffer_color_handle = allocator.create_texture(
         "gbuffer_color",
-        VK_FORMAT_R8G8B8A8_SRGB,
-        scene_render_resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R8G8B8A8_SRGB,
+            scene_render_resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
 
     gbuffer_normals_handle = allocator.create_texture(
         "gbuffer_normals",
-        VK_FORMAT_R16G16B16A16_SFLOAT,
-        scene_render_resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R16G16B16A16_SFLOAT,
+            scene_render_resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
 
     gbuffer_data_handle = allocator.create_texture(
         "gbuffer_data",
-        VK_FORMAT_R8G8B8A8_UNORM,
-        scene_render_resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R8G8B8A8_UNORM,
+            scene_render_resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
 
     gbuffer_emission_handle = allocator.create_texture(
         "gbuffer_emission",
-        VK_FORMAT_R8G8B8A8_SRGB,
-        scene_render_resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R8G8B8A8_SRGB,
+            scene_render_resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
 
     const auto mip_chain_resolution = scene_render_resolution / glm::uvec2{2};
@@ -582,34 +590,42 @@ void SceneRenderer::create_scene_render_targets() {
     const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
     depth_buffer_mip_chain = allocator.create_texture(
         "Depth buffer mip chain",
-        VK_FORMAT_R16_SFLOAT,
-        mip_chain_resolution,
-        num_mips,
-        TextureUsage::StorageImage
+        {
+            VK_FORMAT_R16_SFLOAT,
+            mip_chain_resolution,
+            num_mips,
+            TextureUsage::StorageImage
+        }
     );
 
     normal_target_mip_chain = allocator.create_texture(
         "gbuffer_normals B",
-        VK_FORMAT_R16G16B16A16_SFLOAT,
-        mip_chain_resolution,
-        num_mips,
-        TextureUsage::StorageImage
+        {
+            VK_FORMAT_R16G16B16A16_SFLOAT,
+            mip_chain_resolution,
+            num_mips,
+            TextureUsage::StorageImage
+        }
     );
 
     ao_handle = allocator.create_texture(
         "AO",
-        VK_FORMAT_R32_SFLOAT,
-        scene_render_resolution,
-        1,
-        TextureUsage::StorageImage
+        TextureCreateInfo{
+            .format = VK_FORMAT_R32_SFLOAT,
+            .resolution = scene_render_resolution,
+            .num_mips = 1,
+            .usage = TextureUsage::StorageImage,
+        }
     );
-
+    TODO: Use the AO image when applying the LPV
     lit_scene_handle = allocator.create_texture(
         "lit_scene",
-        VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        scene_render_resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            scene_render_resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
 
     auto& swapchain = backend.get_swapchain();

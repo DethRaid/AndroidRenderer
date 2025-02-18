@@ -1359,24 +1359,30 @@ void CascadeData::create_render_targets(ResourceAllocator& allocator) {
     const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
     flux_target = allocator.create_texture(
         "RSM Flux",
-        VK_FORMAT_R8G8B8A8_SRGB,
-        resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R8G8B8A8_SRGB,
+            resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
     normals_target = allocator.create_texture(
         "RSM Normals",
-        VK_FORMAT_R8G8B8A8_UNORM,
-        resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R8G8B8A8_UNORM,
+            resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
     depth_target = allocator.create_texture(
         "RSM Depth",
-        VK_FORMAT_D16_UNORM,
-        resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_D16_UNORM,
+            resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
 
 }

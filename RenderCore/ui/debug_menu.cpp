@@ -209,7 +209,7 @@ void DebugUI::create_font_texture() {
     io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
 
     font_atlas_handle = allocator.create_texture(
-        "Dear ImGUI Font Atlas", VK_FORMAT_R8_UNORM, {width, height}, 1, TextureUsage::StaticImage
+        "Dear ImGUI Font Atlas", { VK_FORMAT_R8_UNORM, {width, height}, 1, TextureUsage::StaticImage }
     );
 
     auto& backend = RenderBackend::get();

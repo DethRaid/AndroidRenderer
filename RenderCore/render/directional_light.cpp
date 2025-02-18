@@ -88,14 +88,16 @@ void DirectionalLight::update_shadow_cascades(const SceneTransform& view) {
     if(shadowmap_handle == nullptr) {
         shadowmap_handle = allocator.create_texture(
             "Sun shadowmap",
-            VK_FORMAT_D16_UNORM,
-            glm::uvec2{
-                cvar_shadow_cascade_resolution.Get(),
-                cvar_shadow_cascade_resolution.Get()
-            },
-            1,
-            TextureUsage::RenderTarget,
-            cvar_num_shadow_cascades.Get()
+            {
+                VK_FORMAT_D16_UNORM,
+                glm::uvec2{
+                    cvar_shadow_cascade_resolution.Get(),
+                    cvar_shadow_cascade_resolution.Get()
+                },
+                1,
+                TextureUsage::RenderTarget,
+                static_cast<uint32_t>(cvar_num_shadow_cascades.Get())
+            }
         );
     }
 
