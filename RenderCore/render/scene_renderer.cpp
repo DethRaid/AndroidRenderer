@@ -414,6 +414,7 @@ void SceneRenderer::render() {
         render_graph,
         player_view,
         lit_scene_handle,
+        ao_handle,
         lpv.get(),
         sky,
         vrsaa_shading_rate_image);
@@ -617,7 +618,7 @@ void SceneRenderer::create_scene_render_targets() {
             .usage = TextureUsage::StorageImage,
         }
     );
-    TODO: Use the AO image when applying the LPV
+
     lit_scene_handle = allocator.create_texture(
         "lit_scene",
         {

@@ -1172,7 +1172,8 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
 void LightPropagationVolume::add_lighting_to_scene(
     CommandBuffer& commands,
     const DescriptorSet& gbuffers_descriptor,
-    const BufferHandle scene_view_buffer
+    const BufferHandle scene_view_buffer,
+    const TextureHandle ao_texture
 ) const {
     GpuZoneScoped(commands)
 
@@ -1186,6 +1187,7 @@ void LightPropagationVolume::add_lighting_to_scene(
                                        .bind(lpv_a_blue, linear_sampler)
                                        .bind(cascade_data_buffer)
                                        .bind(scene_view_buffer)
+                                       .bind(ao_texture, linear_sampler)
                                        .build();
 
     commands.bind_descriptor_set(1, lpv_descriptor);

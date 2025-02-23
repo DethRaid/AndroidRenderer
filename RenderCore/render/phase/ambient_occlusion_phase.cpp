@@ -293,7 +293,7 @@ void AmbientOcclusionPhase::generate_ao(
                     .bilateralSigmaSquared = 0.f,
                     .bilateralSimilarityDistanceSigma = 0.f
                 };
-                FfxErrorCode errorCode = ffxCacaoUpdateSettings(&context, &cacao_settings, false);
+                FfxErrorCode errorCode = ffxCacaoUpdateSettings(&context, &FFX_CACAO_DEFAULT_SETTINGS, false);
 
                 auto ffx_cmds = ffxGetCommandListVK(commands.get_vk_commands());
 
@@ -316,6 +316,14 @@ void AmbientOcclusionPhase::generate_ao(
 
                 ffxCacaoContextDispatch(&context, &desc);
             }
+        });
+
+    graph.set_resource_usage(
+        {
+            .texture = ao_out,
+            .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+            .access = VK_ACCESS_2_SHADER_WRITE_BIT,
+            .layout = VK_IMAGE_LAYOUT_GENERAL
         });
 #else
     graph.add_render_pass({

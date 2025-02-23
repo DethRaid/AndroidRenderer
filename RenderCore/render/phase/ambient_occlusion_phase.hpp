@@ -35,7 +35,6 @@ private:
 #if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
     FfxInterface ffx_interface;
 
-    // ffxContext ffx = nullptr;
     FfxDevice ffx_device;
     bool has_context = false;
     FfxCacaoContext context = {};

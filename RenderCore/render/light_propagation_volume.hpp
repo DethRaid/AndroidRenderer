@@ -130,9 +130,10 @@ public:
      * @param commands The command buffer to render with. Should already have a framebuffer bound
      * @param gbuffers_descriptor The descriptor set that contains the gbuffer attachments as input attachments
      * @param scene_view_buffer Buffer with the matrices of the scene view
+     * @param ao_texture Ambient occlusion texture
      */
     void add_lighting_to_scene(
-        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor, BufferHandle scene_view_buffer
+        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor, BufferHandle scene_view_buffer, TextureHandle ao_texture
     ) const;
 
     void visualize_vpls(

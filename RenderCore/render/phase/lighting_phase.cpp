@@ -31,8 +31,12 @@ LightingPhase::LightingPhase() {
 }
 
 void LightingPhase::render(
-    RenderGraph& render_graph, const SceneTransform& view, const TextureHandle lit_scene_texture,
-    const LightPropagationVolume* lpv, const ProceduralSky& sky,
+    RenderGraph& render_graph, 
+    const SceneTransform& view, 
+    const TextureHandle lit_scene_texture,
+    TextureHandle ao_texture,
+    const LightPropagationVolume* lpv,
+    const ProceduralSky& sky,
     const std::optional<TextureHandle> vrsaa_shading_rate_image
 ) const {
     ZoneScoped;
@@ -66,6 +70,7 @@ void LightingPhase::render(
                 .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             });
     }
+    texture_usages.emplace_back(ao_texture, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     render_graph.add_render_pass(
         {
@@ -84,7 +89,7 @@ void LightingPhase::render(
                 sun.render(commands, gbuffers_descriptor_set, view, rtas);
 
                 if(lpv) {
-                    lpv->add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer());
+                    lpv->add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer(), ao_texture);
                 }
 
                 if(*CVarSystem::Get()->GetIntCVar("r.MeshLight.Raytrace")) {

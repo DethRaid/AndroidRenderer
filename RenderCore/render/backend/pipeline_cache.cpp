@@ -9,7 +9,7 @@ static std::shared_ptr<spdlog::logger> logger;
 PipelineCache::PipelineCache(RenderBackend& backend_in) : backend{backend_in} {
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("PipelineCache");
-        logger->set_level(spdlog::level::trace);
+        // logger->set_level(spdlog::level::trace);
     }
 
     const auto& physical_device = backend.get_physical_device();

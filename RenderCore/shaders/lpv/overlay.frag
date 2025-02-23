@@ -27,6 +27,8 @@ layout(set = 1, binding = 4) uniform ViewUniformBuffer {
     ViewDataGPU view_info;
 };
 
+layout(set = 1, binding = 5) uniform sampler2D ao_texture;
+
 layout(push_constant) uniform Constants {
     uint num_cascades;
 };
@@ -90,17 +92,28 @@ void main() {
 
     mediump vec4 normal_coefficients = dir_to_sh(lpv_normal);
 
+    float cascade_weights[4] = float[](0, 0, 0, 0);
+    mediump vec3[4] cascade_samples;
+
     uint selected_cascade = 0;
-    for(uint i = 0; i < num_cascades; i++) {
+    for(int i = int(num_cascades) - 1; i >= 0; i--) {
         mediump vec4 cascade_position = cascade_matrices[i].world_to_cascade * worldspace_position;
         if(all(greaterThan(cascade_position.xyz, vec3(0))) && all(lessThan(cascade_position.xyz, vec3(1)))) {
             selected_cascade = i;
-            break;
+            cascade_weights[i] = 1;
+            mediump vec4 offset = vec4(surface.normal + float(i) * 0.01f, 0);
+            cascade_samples[i] = sample_light_from_cascade(normal_coefficients, worldspace_position + offset, i);
         }
     }
      
-    mediump vec4 offset = vec4(surface.normal + float(selected_cascade) * 0.01f, 0);
-    const mediump vec3 indirect_light = sample_light_from_cascade(normal_coefficients, worldspace_position + offset, selected_cascade);
+    float total_weight = 0;
+    mediump vec3 indirect_light = vec3(0);
+    for(uint i = 0; i < num_cascades; i++) {
+        total_weight += cascade_weights[i];
+        indirect_light += cascade_samples[i] * cascade_weights[i] ;
+    }
+
+    indirect_light /= total_weight;   
 
     vec3 reflection_vector = reflect(-worldspace_view_vector, surface.normal);
     mediump vec3 specular_light = vec3(0);
@@ -142,7 +155,9 @@ void main() {
 
     const mediump vec3 specular_factor = Fr(surface, surface.normal, reflection_vector) * vec3(0.f);
 
-    mediump vec3 total_lighting = indirect_light * diffuse_factor + specular_light * specular_factor;
+    const mediump float ao = texelFetch(ao_texture, pixel, 0).r;
+
+    mediump vec3 total_lighting = indirect_light * diffuse_factor * ao + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
     const mediump float exposure_factor = 0.5 * 3.1415927;
