@@ -100,7 +100,7 @@ void main() {
         mediump vec4 cascade_position = cascade_matrices[i].world_to_cascade * worldspace_position;
         if(all(greaterThan(cascade_position.xyz, vec3(0))) && all(lessThan(cascade_position.xyz, vec3(1)))) {
             selected_cascade = i;
-            cascade_weights[i] = 1;
+            cascade_weights[i] = 1.f / (i + 1);
             mediump vec4 offset = vec4(surface.normal + float(i) * 0.01f, 0);
             cascade_samples[i] = sample_light_from_cascade(normal_coefficients, worldspace_position + offset, i);
         }

@@ -298,9 +298,11 @@ void AmbientOcclusionPhase::generate_ao(
                 auto ffx_cmds = ffxGetCommandListVK(commands.get_vk_commands());
 
                 FfxFloat32x4x4 projection_matrix = {};
+                const auto transposed_projection = glm::transpose(view.get_gpu_data().projection);
                 std::memcpy(&projection_matrix, &view.get_gpu_data().projection, sizeof(glm::mat4));
 
                 FfxFloat32x4x4 normals_to_view = {};
+                const auto transposed_view = glm::transpose(view.get_gpu_data().view);
                 std::memcpy(&normals_to_view, &view.get_gpu_data().view, sizeof(glm::mat4));
 
                 const auto desc = FfxCacaoDispatchDescription{
