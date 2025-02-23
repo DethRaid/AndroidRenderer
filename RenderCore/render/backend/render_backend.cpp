@@ -17,6 +17,7 @@
 #include "render/backend/pipeline_cache.hpp"
 #include "render/backend/resource_upload_queue.hpp"
 #include "core/issue_breakpoint.hpp"
+#include "render/streamline_adapter/streamline_adapter.hpp"
 
 [[maybe_unused]] static auto cvar_use_dgc = AutoCVar_Int{
     "r.RHI.DGC.Enable",
@@ -77,9 +78,20 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
                                  } {
     logger = SystemInterface::get().get_logger("RenderBackend");
 
-    const auto volk_result = volkInitialize();
-    if(volk_result != VK_SUCCESS) {
-        throw std::runtime_error{"Could not initialize Volk, Vulkan is not available"};
+    try {
+        streamline = std::make_unique<StreamlineAdapter>();
+    } catch (const std::exception& e) {
+        logger->error("Could not initialize Streamline: {}!", e.what());
+    }
+
+    const PFN_vkGetInstanceProcAddr vk_get_instance_proc = StreamlineAdapter::try_load_streamline();
+    if(vk_get_instance_proc != nullptr) {
+        volkInitializeCustom(vk_get_instance_proc);
+    } else {
+        const auto volk_result = volkInitialize();
+        if (volk_result != VK_SUCCESS) {
+            throw std::runtime_error{ "Could not initialize Volk, Vulkan is not available" };
+        }
     }
 
     supports_raytracing = *CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable") != 0;
@@ -830,6 +842,12 @@ GraphicsPipelineBuilder RenderBackend::begin_building_pipeline(const std::string
 
 uint32_t RenderBackend::get_current_gpu_frame() const {
     return cur_frame_idx;
+}
+
+void RenderBackend::mark_simulation_begin() const {
+    if(streamline) {
+        streamline->update_frame_token(total_num_frames + 1);
+    }
 }
 
 ResourceUploadQueue& RenderBackend::get_upload_queue() const {

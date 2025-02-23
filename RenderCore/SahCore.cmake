@@ -9,12 +9,6 @@ option(SAH_USE_FFX_CACAO "Whether to use AMD's FidelityFX CACAO" OFF)
 
 set(SAH_TOOLS_DIR "${CMAKE_CURRENT_LIST_DIR}/../Tools")
 
-# External code
-
-set(EXTERN_DIR ${CMAKE_CURRENT_LIST_DIR}/extern)
-
-include(${EXTERN_DIR}/extern.cmake)
-
 if(ANDROID)
     # Integrate GameActivity, refer to
     #     https://d.android.com/games/agdk/integrate-game-activity
@@ -40,6 +34,12 @@ file(GLOB_RECURSE SHADERS CONFIGURE_DEPENDS
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/*.cpp ${CMAKE_CURRENT_LIST_DIR}/*.hpp)
 
 add_library(SahCore STATIC ${SOURCES})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "$<TARGET_FILE_DIR:SahCore>")
+
+# External code
+# Must be after we set CMAKE_RUNTIME_OUTPUT_DIRECTORY, because Streamline needs that variable
+set(EXTERN_DIR ${CMAKE_CURRENT_LIST_DIR}/extern)
+include(${EXTERN_DIR}/extern.cmake)
 
 target_compile_definitions(SahCore PUBLIC
         VK_NO_PROTOTYPES
@@ -47,6 +47,7 @@ target_compile_definitions(SahCore PUBLIC
         GLM_ENABLE_EXPERIMENTAL
         _SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING
         TRACY_ENABLE
+        SAH_BINARY_DIR="${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
         )
 
 if(SAH_USE_FFX_CACAO)
@@ -89,6 +90,7 @@ target_link_libraries(SahCore PUBLIC
         spdlog::spdlog
         spirv-reflect-static
         stb
+        streamline
         tl::optional
         Tracy::TracyClient
         vk-bootstrap

@@ -16,6 +16,7 @@
 #include "render/backend/resource_upload_queue.hpp"
 #include "render/backend/constants.hpp"
 
+class StreamlineAdapter;
 class BlasBuildQueue;
 class PipelineCache;
 /**
@@ -91,6 +92,11 @@ public:
     GraphicsPipelineBuilder begin_building_pipeline(std::string_view name) const;
 
     uint32_t get_current_gpu_frame() const;
+
+    /**
+     * Updates internal state with the beginning of the simulation. Useful for things like Nvidia Reflex
+     */
+    void mark_simulation_begin() const;
 
     /**
      * Begins the frame
@@ -183,6 +189,8 @@ public:
 
 private:
     static inline std::unique_ptr<RenderBackend> g_render_backend = nullptr;
+
+    std::unique_ptr<StreamlineAdapter> streamline;
 
     bool is_first_frame = true;
 

@@ -24,7 +24,11 @@ set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 set(FASTGLTF_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(FASTGLTF_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
 
+set(STREAMLINE_FEATURE_DLSS_SR ON CACHE BOOL "" FORCE)
+
 set(CAULDRON_VK ON CACHE BOOL "" FORCE)
+
+message(STATUS "CMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
 FetchContent_Declare(
         glm
@@ -52,6 +56,11 @@ FetchContent_Declare(
         GIT_TAG         aa43588c42b78bc188fdd36124f1d1491e04a680
 )
 FetchContent_Declare(
+    streamline
+    GIT_REPOSITORY  https://github.com/NVIDIAGameWorks/Streamline.git
+    GIT_TAG         v2.7.2
+)
+FetchContent_Declare(
         tl_optional
         GIT_REPOSITORY  https://github.com/TartanLlama/optional.git
         GIT_TAG         c28fcf74d207fc667c4ed3dbae4c251ea551c8c1
@@ -77,7 +86,7 @@ FetchContent_Declare(
         GIT_TAG         38627f4e37d7a9b13214fd267ec60e0e877e3997
 )
 
-FetchContent_MakeAvailable(glm spdlog fetch_fastgltf tl_optional fetch_magic_enum fetch_spirv_reflect
+FetchContent_MakeAvailable(glm spdlog fetch_fastgltf tl_optional fetch_magic_enum fetch_spirv_reflect streamline
         fetch_tracy fetch_vma vk-bootstrap fetch_volk)
 
 FetchContent_Declare(
