@@ -357,6 +357,9 @@ TextureHandle ResourceAllocator::emplace_texture(GpuTexture&& new_texture) {
 }
 
 void ResourceAllocator::destroy_texture(TextureHandle handle) {
+    if(handle == nullptr) {
+        return;
+    }
     auto& cur_frame_zombies = texture_zombie_lists[backend.get_current_gpu_frame()];
     cur_frame_zombies.emplace_back(handle);
 }

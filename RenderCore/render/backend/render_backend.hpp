@@ -140,6 +140,8 @@ public:
      */
     DescriptorSetAllocator& get_transient_descriptor_allocator();
 
+    StreamlineAdapter* get_streamline() const;
+
     CommandBuffer create_graphics_command_buffer(const std::string& name);
 
     /**

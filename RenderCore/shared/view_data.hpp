@@ -10,6 +10,9 @@ struct ViewDataGPU {
     mat4 inverse_view;
     mat4 inverse_projection;
 
+    glm::mat4 last_frame_view;
+    glm::mat4 last_frame_projection;
+
     /**
      * For perspective cameras, this is the frustum clip planes - xy stores the x and z of the right plane's equation,
      * zw stores the y and z of the top plane's equation

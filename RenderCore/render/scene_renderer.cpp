@@ -10,6 +10,7 @@
 #include "core/system_interface.hpp"
 #include "core/user_options.hpp"
 #include "render/render_scene.hpp"
+#include "streamline_adapter/streamline_adapter.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
@@ -31,7 +32,11 @@ static auto cvar_use_lpv = AutoCVar_Int{
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
-    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::None
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::DLSS
+};
+
+static auto cvar_dlss_quality = AutoCVar_Enum{
+    "r.DLSS.Quality", "DLSS Quality", sl::DLSSMode::eDLAA
 };
 // ReSharper restore CppDeclaratorNeverUsed
 
@@ -51,7 +56,7 @@ SceneRenderer::SceneRenderer() {
         0.05f
     );
 
-    set_render_resolution(screen_resolution);
+    set_output_resolution(screen_resolution);
 
     auto& backend = RenderBackend::get();
 
@@ -75,33 +80,8 @@ SceneRenderer::SceneRenderer() {
     logger->info("Initialized SceneRenderer");
 }
 
-void SceneRenderer::set_render_resolution(const glm::uvec2& screen_resolution) {
-    ZoneScoped;
-
-    if(screen_resolution == scene_render_resolution) {
-        return;
-    }
-
-    auto resolution_multiplier = 1u;
-    if(cvar_anti_aliasing.Get() == AntiAliasingType::VRSAA) {
-        resolution_multiplier = 2u;
-    }
-
-    scene_render_resolution = screen_resolution * resolution_multiplier;
-
-    logger->info(
-        "Setting resolution to {} by {}",
-        scene_render_resolution.x,
-        scene_render_resolution.y);
-
-    player_view.set_render_resolution(scene_render_resolution);
-
-    player_view.set_aspect_ratio(
-        static_cast<float>(scene_render_resolution.x) / static_cast<float>(scene_render_resolution.
-            y)
-    );
-
-    create_scene_render_targets();
+void SceneRenderer::set_output_resolution(const glm::uvec2& new_output_resolution) {
+    output_resolution = new_output_resolution;
 }
 
 void SceneRenderer::set_scene(RenderScene& scene_in) {
@@ -130,6 +110,28 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
     }
 }
 
+void SceneRenderer::set_render_resolution(const glm::uvec2 new_render_resolution) {
+    if(new_render_resolution == scene_render_resolution) {
+        return;
+    }
+
+    scene_render_resolution = new_render_resolution;
+
+    logger->info(
+        "Setting resolution to {} by {}",
+        scene_render_resolution.x,
+        scene_render_resolution.y);
+
+    player_view.set_render_resolution(scene_render_resolution);
+
+    player_view.set_aspect_ratio(
+        static_cast<float>(scene_render_resolution.x) / static_cast<float>(scene_render_resolution.
+            y)
+    );
+
+    create_scene_render_targets();
+}
+
 void SceneRenderer::render() {
     ZoneScoped;
 
@@ -139,11 +141,34 @@ void SceneRenderer::render() {
 
     logger->trace("Beginning frame");
 
+    auto* streamline = backend.get_streamline();
+
+    if(cvar_anti_aliasing.Get() == AntiAliasingType::None) {
+        set_render_resolution(output_resolution);
+    }
+
     if(cvar_anti_aliasing.Get() != AntiAliasingType::VRSAA) {
         vrsaa = nullptr;
     } else if(vrsaa == nullptr) {
         vrsaa = std::make_unique<VRSAA>();
+
+        set_render_resolution(output_resolution * 2u);
+
         vrsaa->init(scene_render_resolution);
+    }
+
+    if(streamline) {
+        if(cvar_anti_aliasing.Get() == AntiAliasingType::DLSS) {
+            streamline->set_dlss_mode(cvar_dlss_quality.Get());
+
+            const auto optimal_render_resolution = streamline->get_dlss_render_resolution(
+                cvar_dlss_quality.Get(),
+                output_resolution);
+
+            set_render_resolution(optimal_render_resolution);
+        } else {
+            streamline->set_dlss_mode(sl::DLSSMode::eOff);
+        }
     }
 
     ui_phase.add_data_upload_passes(backend.get_upload_queue());
@@ -162,6 +187,10 @@ void SceneRenderer::render() {
     backend.get_texture_descriptor_pool().commit_descriptors();
 
     player_view.update_transforms(backend.get_upload_queue());
+
+    if(streamline) {
+        streamline->set_constants(player_view);
+    }
 
     auto render_graph = backend.create_render_graph();
 
@@ -252,8 +281,7 @@ void SceneRenderer::render() {
 
         const auto build_mode = LightPropagationVolume::get_build_mode();
 
-        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && build_mode ==
-            GvBuildMode::Voxels) {
+        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && build_mode == GvBuildMode::Voxels) {
             lpv->build_geometry_volume_from_voxels(render_graph, *scene);
         } else if(build_mode == GvBuildMode::DepthBuffers) {
             lpv->build_geometry_volume_from_scene_view(
@@ -419,15 +447,63 @@ void SceneRenderer::render() {
         sky,
         vrsaa_shading_rate_image);
 
-    // VRS
+    // Anti-aliasing/upscaling
 
-    if(vrsaa) {
-        vrsaa->measure_aliasing(render_graph, gbuffer_color_handle, gbuffer_depth_handle);
+    switch(cvar_anti_aliasing.Get()) {
+    case AntiAliasingType::None:
+        // TODO: Copy lit scene to "antialiased" render target with a bilinear filter
+        break;
+
+    case AntiAliasingType::VRSAA:
+        if(vrsaa) {
+            vrsaa->measure_aliasing(render_graph, gbuffer_color_handle, gbuffer_depth_handle);
+            // TODO: Perform a proper VSR resolve, and also do VRS in lighting
+        }
+        break;
+
+    case AntiAliasingType::XeSS:
+        // TODO: Make a XeSS Streamline plugin
+        break;
+
+    case AntiAliasingType::DLSS:
+        if(streamline) {
+            render_graph.add_pass(
+                {
+                    .name = "DLSS",
+                    .textures = {
+                        {
+                            .texture = lit_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        },
+                        {
+                            .texture = antialiased_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_WRITE_BIT, .layout = VK_IMAGE_LAYOUT_GENERAL
+                        },
+                        {
+                            .texture = gbuffer_depth_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        },
+                        {
+                            .texture = motion_vectors_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        },
+                    },
+                    .execute = [&](CommandBuffer& commands) {
+                        streamline->evaluate_dlss(
+                            commands,
+                            lit_scene_handle,
+                            antialiased_scene_handle,
+                            gbuffer_depth_handle,
+                            motion_vectors_handle);
+                    }
+                });
+        }
+        break;
     }
 
     // Bloom
 
-    bloomer.fill_bloom_tex(render_graph, lit_scene_handle);
+    bloomer.fill_bloom_tex(render_graph, antialiased_scene_handle);
 
     // Other postprocessing
 
@@ -439,12 +515,6 @@ void SceneRenderer::render() {
         draw_debug_visualizers(render_graph);
     }
 
-    // Optical Flow
-
-    /*
-     * Use https://developer.nvidia.com/optical-flow-sdk to generation motion vectors if available
-     */
-
     // UI
 
     const auto swapchain_index = backend.get_current_swapchain_index();
@@ -455,7 +525,7 @@ void SceneRenderer::render() {
             .name = "UI",
             .textures = {
                 {
-                    lit_scene_handle,
+                    antialiased_scene_handle,
                     VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                     VK_ACCESS_2_SHADER_READ_BIT,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -527,6 +597,10 @@ void SceneRenderer::create_scene_render_targets() {
         allocator.destroy_texture(gbuffer_emission_handle);
     }
 
+    if(motion_vectors_handle != nullptr) {
+        allocator.destroy_texture(motion_vectors_handle);
+    }
+
     if(depth_buffer_mip_chain != nullptr) {
         allocator.destroy_texture(depth_buffer_mip_chain);
     }
@@ -541,6 +615,10 @@ void SceneRenderer::create_scene_render_targets() {
 
     if(lit_scene_handle != nullptr) {
         allocator.destroy_texture(lit_scene_handle);
+    }
+
+    if(antialiased_scene_handle != nullptr) {
+        allocator.destroy_texture(antialiased_scene_handle);
     }
 
     depth_culling_phase.set_render_resolution(scene_render_resolution);
@@ -586,6 +664,14 @@ void SceneRenderer::create_scene_render_targets() {
         }
     );
 
+    motion_vectors_handle = allocator.create_texture(
+        "Motion Vectors",
+        {
+            .format = VK_FORMAT_R16G16_SFLOAT,
+            .resolution = scene_render_resolution,
+            .usage = TextureUsage::RenderTarget
+        });
+
     const auto mip_chain_resolution = scene_render_resolution / glm::uvec2{2};
     const auto minor_dimension = glm::min(mip_chain_resolution.x, mip_chain_resolution.y);
     const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
@@ -629,6 +715,14 @@ void SceneRenderer::create_scene_render_targets() {
         }
     );
 
+    antialiased_scene_handle = allocator.create_texture(
+        "antialiased_scene",
+        {
+            .format = VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            .resolution = output_resolution,
+            .usage = TextureUsage::StorageImage
+        });
+
     auto& swapchain = backend.get_swapchain();
     const auto& images = swapchain.get_images();
     const auto& image_views = swapchain.get_image_views();
@@ -658,7 +752,7 @@ void SceneRenderer::create_scene_render_targets() {
     }
 
     ui_phase.set_resources(
-        lit_scene_handle,
+        antialiased_scene_handle,
         glm::uvec2{swapchain.extent.width, swapchain.extent.height});
 }
 

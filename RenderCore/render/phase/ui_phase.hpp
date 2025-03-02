@@ -42,7 +42,7 @@ private:
 
     void create_pipelines();
 
-    void upscale_scene_color(CommandBuffer& commands, TextureHandle bloom_texture) const;
+    void draw_scene_image(CommandBuffer& commands, TextureHandle bloom_texture) const;
 
     void render_imgui_items(CommandBuffer& commands) const;
 

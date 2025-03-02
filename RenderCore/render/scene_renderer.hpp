@@ -33,12 +33,11 @@ public:
     /**
      * Sets the internal render resolution of the scene, recreating the internal render targets (and framebuffers)
      *
-     * @param screen_resolution Resolution to render at
+     * @param new_output_resolution Resolution to render at
      */
-    void set_render_resolution(const glm::uvec2& screen_resolution);
+    void set_output_resolution(const glm::uvec2& new_output_resolution);
 
     void set_scene(RenderScene& scene_in);
-
     /**
      * Do the thing!
      */
@@ -78,6 +77,8 @@ private:
 
     RenderScene* scene = nullptr;
 
+    glm::uvec2 output_resolution = {};
+
     glm::uvec2 scene_render_resolution = glm::uvec2{};
 
     std::unique_ptr<LightPropagationVolume> lpv;
@@ -90,6 +91,8 @@ private:
 
     TextureHandle gbuffer_emission_handle = nullptr;
 
+    TextureHandle motion_vectors_handle = nullptr;
+
     TextureHandle ao_handle = nullptr;
 
     // This should be something like an extracted texture?
@@ -100,6 +103,8 @@ private:
     TextureUsageToken last_frame_normal_usage = {};
 
     TextureHandle lit_scene_handle = nullptr;
+
+    TextureHandle antialiased_scene_handle = nullptr;
 
     std::vector<TextureHandle> swapchain_images;
 
@@ -124,7 +129,9 @@ private:
     RenderVisualization active_visualization = RenderVisualization::None;
 
     VoxelVisualizer voxel_visualizer;
-    
+
+    void set_render_resolution(glm::uvec2 new_render_resolution);
+
     void create_scene_render_targets();
 
     void draw_debug_visualizers(RenderGraph& render_graph);

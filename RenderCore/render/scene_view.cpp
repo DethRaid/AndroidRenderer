@@ -60,6 +60,8 @@ void SceneTransform::set_perspective_projection(const float fov_in, const float 
     aspect = aspect_in;
     near_value = near_value_in;
 
+    gpu_data.last_frame_projection = gpu_data.projection;
+
     gpu_data.projection = glm::tweakedInfinitePerspective(glm::radians(fov), aspect, near_value);
     // gpu_data.projection = infinitePerspectiveFovReverseZ_ZO(glm::radians(fov), aspect, 1.f, near_value);
 
@@ -135,6 +137,7 @@ void SceneTransform::refresh_view_matrices() {
     const auto right = glm::vec3{ sin(yaw - 3.1415927 / 2.0), 0, cos(yaw - 3.14159 / 2.0) };
     const auto up = cross(right, forward);
 
+    gpu_data.last_frame_view = gpu_data.view;
     gpu_data.view = glm::lookAt(position, position + forward, up);
     gpu_data.inverse_view = glm::inverse(gpu_data.view);
     is_dirty = true;

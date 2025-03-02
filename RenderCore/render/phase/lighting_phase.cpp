@@ -59,7 +59,13 @@ void LightingPhase::render(
                                           .bind(gbuffer.depth, sampler)
                                           .build();
 
-    auto texture_usages = std::vector<TextureUsageToken>{};
+    auto texture_usages = std::vector<TextureUsageToken>{
+        {
+            .texture = ao_texture,
+            .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+            .access = VK_ACCESS_2_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        }};
     const auto sun_shadowmap_handle = sun.get_shadowmap_handle();
     if(sun_shadowmap_handle != nullptr) {
         texture_usages.emplace_back(
@@ -70,7 +76,6 @@ void LightingPhase::render(
                 .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             });
     }
-    texture_usages.emplace_back(ao_texture, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     render_graph.add_render_pass(
         {

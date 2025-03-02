@@ -1,18 +1,25 @@
 #pragma once
 
-#include <sl_core_types.h>
-#include <sl_result.h>
 #include <string>
+
+#include <glm/vec2.hpp>
+#include <sl.h>
+#include <sl_dlss.h>
 #include <vulkan/vulkan_core.h>
 
-class StreamlineAdapter
-{
+#include "render/scene_renderer.hpp"
+
+class StreamlineAdapter {
 public:
     static PFN_vkGetInstanceProcAddr try_load_streamline();
 
     static bool is_available();
 
     StreamlineAdapter();
+
+    ~StreamlineAdapter();
+
+    void set_devices_from_backend(const RenderBackend& backend);
 
     bool is_dlss_supported() const;
 
@@ -25,14 +32,26 @@ public:
      */
     void update_frame_token(uint32_t frame_index);
 
-    ~StreamlineAdapter();
+    void set_constants(const SceneTransform& scene_transform);
+
+    void set_dlss_mode(sl::DLSSMode mode);
+
+    glm::uvec2 get_dlss_render_resolution(sl::DLSSMode dlss_mode, const glm::uvec2& output_resolution);
+
+    void evaluate_dlss(CommandBuffer& commands,
+        TextureHandle color_in, TextureHandle color_out,
+        TextureHandle depth_in, TextureHandle motion_vectors_in);
 
 private:
     static inline bool available = false;
 
+    // I guess what do to?
+    sl::ViewportHandle viewport = { 0 };
+
     sl::Result dlss_support;
+
+    sl::DLSSMode dlss_mode = sl::DLSSMode::eDLAA;
+    sl::DLSSOptimalSettings dlss_settings = {};
 
     sl::FrameToken* frame_token = nullptr;
 };
-
-std::string to_string(sl::Result result);

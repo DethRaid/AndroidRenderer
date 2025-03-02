@@ -82,7 +82,7 @@ void UiPhase::add_data_upload_passes(ResourceUploadQueue& queue) const {
 void UiPhase::render(CommandBuffer& commands, const SceneTransform& view, const TextureHandle bloom_texture) const {
     commands.begin_label(__func__);
 
-    upscale_scene_color(commands, bloom_texture);
+    draw_scene_image(commands, bloom_texture);
 
     // TODO: render in-game UI
 
@@ -95,32 +95,13 @@ void UiPhase::set_imgui_draw_data(ImDrawData* im_draw_data) {
     imgui_draw_data = im_draw_data;
 }
 
-void UiPhase::upscale_scene_color(CommandBuffer& commands, const TextureHandle bloom_texture) const {
+void UiPhase::draw_scene_image(CommandBuffer& commands, const TextureHandle bloom_texture) const {
     auto& backend = RenderBackend::get();
 
-    const auto set = *vkutil::DescriptorBuilder::begin(
-                          backend,
-                          backend.get_transient_descriptor_allocator()
-                      )
-                      .bind_image(
-                          0,
-                          {
-                              .sampler = bilinear_sampler, .image = scene_color,
-                              .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                          },
-                          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                          VK_SHADER_STAGE_FRAGMENT_BIT
-                      )
-                      .bind_image(
-                          1,
-                          {
-                              .sampler = bilinear_sampler, .image = bloom_texture,
-                              .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                          },
-                          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                          VK_SHADER_STAGE_FRAGMENT_BIT
-                      )
-                      .build();
+    const auto set = backend.get_transient_descriptor_allocator().build_set(upsample_pipeline, 0)
+        .bind(scene_color, bilinear_sampler)
+        .bind(bloom_texture, bilinear_sampler)
+        .build();
 
     commands.bind_descriptor_set(0, set);
 

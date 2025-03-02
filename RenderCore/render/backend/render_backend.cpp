@@ -366,6 +366,10 @@ void RenderBackend::create_instance_and_device() {
     }
     device = *device_ret;
     volkLoadDevice(device.device);
+
+    if(streamline) {
+        streamline->set_devices_from_backend(*this);
+    }
 }
 
 void RenderBackend::query_physical_device_features() {
@@ -930,6 +934,10 @@ DescriptorSetAllocator& RenderBackend::get_persistent_descriptor_allocator() {
 
 DescriptorSetAllocator& RenderBackend::get_transient_descriptor_allocator() {
     return frame_descriptor_allocators[cur_frame_idx];
+}
+
+StreamlineAdapter* RenderBackend::get_streamline() const {
+    return streamline.get();
 }
 
 VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {

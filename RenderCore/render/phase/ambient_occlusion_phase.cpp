@@ -188,8 +188,9 @@ void AmbientOcclusionPhase::generate_ao(
         has_context = true;
     }
 
-    if(stinky_depth == nullptr) {
+    if(stinky_depth == nullptr || stinky_depth->create_info.extent.width != gbuffer_depth->create_info.extent.width) {
         auto& allocator = RenderBackend::get().get_global_allocator();
+        allocator.destroy_texture(stinky_depth);
         stinky_depth = allocator.create_texture(
             "R32F Depth Meme",
             {
