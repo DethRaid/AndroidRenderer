@@ -6,6 +6,7 @@
 #include <span>
 #include <spirv_reflect.h>
 #include <tracy/Tracy.hpp>
+#include <vulkan/vk_enum_string_helper.h>
 
 #include "pipeline_cache.hpp"
 #include "console/cvars.hpp"
@@ -156,6 +157,7 @@ static void collect_vertex_attributes(
 
 static void init_logger() {
     logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
+    logger->set_level(spdlog::level::trace);
 }
 
 GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cache{cache_in} {
@@ -419,22 +421,24 @@ bool collect_descriptor_sets(
 
         for(auto* binding : std::span{set->bindings, set->bindings + set->binding_count}) {
             logger->trace(
-                "Adding new descriptor {}.{} with count {} for shader stage {}",
+                "Adding new descriptor {}.{} of type {} with count {} for shader stage {}",
                 set->set,
                 binding->binding,
+                string_VkDescriptorType(to_vk_type(binding->descriptor_type)),
                 binding->count,
                 magic_enum::enum_name(shader_stage)
             );
             if(set_info.bindings.size() <= binding->binding) {
                 set_info.bindings.resize(binding->binding + 1);
             }
+            const auto old_stage_flags = set_info.bindings[binding->binding].stageFlags;
             set_info.bindings[binding->binding] =
                 DescriptorInfo{
                     {
                         .binding = binding->binding,
                         .descriptorType = to_vk_type(binding->descriptor_type),
                         .descriptorCount = binding->count > 0 ? binding->count : texture_array_size,
-                        .stageFlags = static_cast<VkShaderStageFlags>(shader_stage),
+                        .stageFlags = static_cast<VkShaderStageFlags>(shader_stage) | old_stage_flags,
                         .pImmutableSamplers = nullptr
                     },
                     (binding->decoration_flags & SPV_REFLECT_DECORATION_NON_WRITABLE) != 0

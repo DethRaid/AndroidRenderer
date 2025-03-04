@@ -166,7 +166,10 @@ void SceneRenderer::render() {
             const auto optimal_render_resolution = streamline->get_dlss_render_resolution(output_resolution);
 
             set_render_resolution(optimal_render_resolution);
-            player_view.set_mip_bias(log2(static_cast<double>(optimal_render_resolution.x) / static_cast<double>(output_resolution.x)) - 1.0f + FLT_EPSILON);
+            player_view.set_mip_bias(
+                log2(
+                    static_cast<double>(optimal_render_resolution.x) / static_cast<double>(output_resolution.x)) - 1.0f
+                + FLT_EPSILON);
             needs_motion_vectors = true;
 
         } else {
@@ -278,8 +281,8 @@ void SceneRenderer::render() {
         material_storage,
         player_view.get_buffer());
 
-    if (needs_motion_vectors) {
-        motion_vectors_phase.render(render_graph);
+    if(needs_motion_vectors) {
+        //motion_vectors_phase.render(render_graph);
     }
 
     // LPV
@@ -371,6 +374,22 @@ void SceneRenderer::render() {
             meshes.get_draw_args_buffer()
         );
 
+    auto gbuffer_set = backend.get_transient_descriptor_allocator().build_set(
+                                  DescriptorSetInfo{
+                                      .bindings = {
+                                          DescriptorInfo{
+                                              {
+                                                  .binding = 0,
+                                                  .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                                  .descriptorCount = 1,
+                                                  .stageFlags = VK_SHADER_STAGE_ALL
+                                              }
+                                          }
+                                      }
+                                  },
+                                  "gbuffers_global_descriptor")
+                              .bind(player_view.get_buffer())
+                              .build();
     render_graph.add_render_pass(
         DynamicRenderingPass{
             .name = "Gbuffer",
@@ -391,6 +410,7 @@ void SceneRenderer::render() {
                     VK_ACCESS_2_SHADER_READ_BIT
                 },
             },
+            .descriptor_sets = {gbuffer_set},
             .color_attachments = {
                 RenderingAttachmentInfo{
                     .image = gbuffer_color_handle,
@@ -417,21 +437,7 @@ void SceneRenderer::render() {
             .depth_attachment = RenderingAttachmentInfo{.image = gbuffer_depth_handle},
             .shading_rate_image = vrsaa_shading_rate_image,
             .execute = [&](CommandBuffer& commands) {
-                auto global_set = *vkutil::DescriptorBuilder::begin(
-                                       backend,
-                                       backend.get_transient_descriptor_allocator()
-                                   )
-                                   .bind_buffer(
-                                       0,
-                                       {
-                                           .buffer = player_view.get_buffer()
-                                       },
-                                       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                       VK_SHADER_STAGE_VERTEX_BIT
-                                   )
-                                   .build();
-
-                commands.bind_descriptor_set(0, global_set);
+                commands.bind_descriptor_set(0, gbuffer_set);
 
                 gbuffer_drawer.draw_indirect(commands, draw_commands, draw_count, primitive_ids);
 

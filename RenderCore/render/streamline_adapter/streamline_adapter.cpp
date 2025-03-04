@@ -103,6 +103,8 @@ void StreamlineAdapter::set_constants(const SceneView& scene_transform) {
 
     constants.mvecScale = {1, 1};
 
+    constants.cameraPinholeOffset = { 0, 0 };
+
     const auto camera_pos = scene_transform.get_position();
     std::memcpy(&constants.cameraPos, &camera_pos, sizeof(glm::vec3));
 

@@ -2,15 +2,17 @@
 #include "shared/primitive_data.hpp"
 #include "shared/view_data.hpp"
 
+[[vk::binding(0, 0)]] 
 ConstantBuffer<ViewDataGPU> camera_data;
+
+[[vk::binding(1, 0)]] 
+StructuredBuffer<Sampler2D.Handle>.Handle textures;
 
 [[vk::push_constant]]
 cbuffer Constants {
     PrimitiveDataGPU *primitive_datas;
     uint *primitive_ids;
 };
-
-[[vk::binding(1, 0)]] StructuredBuffer<Sampler2D.Handle>.Handle textures;
 
 struct GbufferOutput {
     half4 base_color;
@@ -61,4 +63,6 @@ GbufferOutput main(
     half4 tinted_emission = emission_sample * (half4)material.emission_factor;
 
     gbuffer.emission = tinted_emission;
+
+    return gbuffer;
 }
