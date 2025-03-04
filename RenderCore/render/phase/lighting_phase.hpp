@@ -9,7 +9,7 @@ class RenderGraph;
 class CommandBuffer;
 class RenderScene;
 class RenderBackend;
-class SceneTransform;
+class SceneView;
 class LightPropagationVolume;
 
 struct GBuffer {
@@ -36,7 +36,7 @@ public:
 
     void render(
         RenderGraph& render_graph, 
-        const SceneTransform& view, 
+        const SceneView& view, 
         TextureHandle lit_scene_texture, 
         TextureHandle ao_texture,
         const LightPropagationVolume* lpv, 

@@ -143,6 +143,8 @@ void SceneRenderer::render() {
 
     auto* streamline = backend.get_streamline();
 
+    auto needs_motion_vectors = false;
+
     if(cvar_anti_aliasing.Get() == AntiAliasingType::None) {
         set_render_resolution(output_resolution);
     }
@@ -161,13 +163,15 @@ void SceneRenderer::render() {
         if(cvar_anti_aliasing.Get() == AntiAliasingType::DLSS) {
             streamline->set_dlss_mode(cvar_dlss_quality.Get());
 
-            const auto optimal_render_resolution = streamline->get_dlss_render_resolution(
-                cvar_dlss_quality.Get(),
-                output_resolution);
+            const auto optimal_render_resolution = streamline->get_dlss_render_resolution(output_resolution);
 
             set_render_resolution(optimal_render_resolution);
+            player_view.set_mip_bias(log2(static_cast<double>(optimal_render_resolution.x) / static_cast<double>(output_resolution.x)) - 1.0f + FLT_EPSILON);
+            needs_motion_vectors = true;
+
         } else {
             streamline->set_dlss_mode(sl::DLSSMode::eOff);
+            player_view.set_mip_bias(0);
         }
     }
 
@@ -273,6 +277,10 @@ void SceneRenderer::render() {
         depth_prepass_drawer,
         material_storage,
         player_view.get_buffer());
+
+    if (needs_motion_vectors) {
+        motion_vectors_phase.render(render_graph);
+    }
 
     // LPV
 
@@ -565,7 +573,7 @@ void SceneRenderer::render() {
     backend.execute_graph(std::move(render_graph));
 }
 
-SceneTransform& SceneRenderer::get_local_player() {
+SceneView& SceneRenderer::get_local_player() {
     return player_view;
 }
 

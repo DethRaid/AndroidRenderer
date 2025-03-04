@@ -463,8 +463,7 @@ bool collect_push_constants(
             push_constants.begin(),
             push_constants.end(),
             [&](const VkPushConstantRange& existing_range) {
-                return existing_range.offset ==
-                    constant_range->offset;
+                return existing_range.offset == constant_range->offset;
             }
         );
         if(existing_constant != push_constants.end()) {

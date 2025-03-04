@@ -12,11 +12,11 @@ class ResourceAllocator;
 class RenderBackend;
 
 /**
- * A transform that can represent a camera viewing the scene
+ * A class that can view a scene. Contains various camera and rendering parameters
  */
-class SceneTransform {
+class SceneView {
 public:
-    explicit SceneTransform();
+    explicit SceneView();
 
     void set_render_resolution(glm::uvec2 render_resolution);
     
@@ -43,6 +43,8 @@ public:
     void update_transforms(ResourceUploadQueue& upload_queue);
 
     void set_aspect_ratio(float aspect_in);
+
+    void set_mip_bias(float mip_bias);
 
     float get_near() const;
 

@@ -12,6 +12,7 @@
 #include "procedural_sky.hpp"
 #include "phase/ambient_occlusion_phase.hpp"
 #include "phase/depth_culling_phase.hpp"
+#include "phase/motion_vectors_phase.hpp"
 #include "phase/sampling_rate_calculator.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
@@ -43,7 +44,7 @@ public:
      */
     void render();
 
-    SceneTransform& get_local_player();
+    SceneView& get_local_player();
 
     TextureLoader& get_texture_loader();
 
@@ -63,7 +64,7 @@ public:
     void set_active_visualizer(RenderVisualization visualizer);
 
 private:
-    SceneTransform player_view;
+    SceneView player_view;
 
     TextureLoader texture_loader;
 
@@ -115,6 +116,8 @@ private:
     DepthCullingPhase depth_culling_phase;
 
     SceneDrawer depth_prepass_drawer;
+
+    MotionVectorsPhase motion_vectors_phase;
 
     SceneDrawer gbuffer_drawer;
 

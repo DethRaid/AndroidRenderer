@@ -14,7 +14,7 @@ glsl_extensions = ['.vert', '.geom', '.frag', '.comp']
 
 
 def compile_slang_shader(input_file, output_file, include_directories):
-    command = [slang_exe, input_file, '-profile', 'glsl_460', '-target', 'spirv', '-entry', 'main', '-fvk-use-scalar-layout', '-g', '-O0', '-o', output_file]
+    command = [slang_exe, input_file, '-profile', 'glsl_460', '-target', 'spirv', '-entry', 'main', '-fvk-use-scalar-layout', '-g', '-O0', '-o', output_file, '-output-includes']
     for dir in include_directories:
         command.append('-I')
         command.append(dir)
@@ -23,7 +23,20 @@ def compile_slang_shader(input_file, output_file, include_directories):
 
     print(f"Compiling {input_file} as Slang")
     print(f"output_file={output_file}")
-    subprocess.run(command)
+    output = subprocess.run(command, capture_output=True)
+
+    # Collect dependencies, write to a file
+    output_lines = output.stderr.splitlines()
+    dependencies = []
+    for line in output_lines:
+        stringline = line.decode()
+        if stringline.startswith('(0): note: include'):
+            dependencies.append(stringline[19:].strip()[1:-1])
+    
+    dependencies_filename = output_file.with_suffix('.deps')
+    with open(dependencies_filename, 'w') as f:
+        for dependency in dependencies:
+            f.write(f"{dependency}\n")
 
 
 def compile_glsl_shader(input_file, output_file, include_directories):
@@ -40,6 +53,22 @@ def compile_glsl_shader(input_file, output_file, include_directories):
     subprocess.run(command)
 
 
+def are_dependencies_modified(depfile_path, last_compile_time):
+    if not depfile_path.exists():
+        return True
+    
+    with open(depfile_path, 'r') as depfile:
+        for dependency in depfile:
+            dependency_path = Path(dependency)
+            if not dependency_path.exists():
+                return True
+            
+            if dependency_path.stat().st_mtime >= last_compile_time:
+                return True
+
+    return False
+
+
 def compile_shaders_in_path(path, root_dir, output_dir):
     for child_path in path.iterdir():
         if child_path.is_dir():
@@ -54,7 +83,8 @@ def compile_shaders_in_path(path, root_dir, output_dir):
             else:
                 output_file = output_file.with_suffix(output_file.suffix + '.spv')
 
-            if output_file.exists() and output_file.stat().st_mtime >= child_path.stat().st_mtime:
+            depfile_path = output_file.with_suffix('.deps')
+            if output_file.exists() and not are_dependencies_modified(depfile_path, output_file.stat().st_mtime):
                 continue
             
             output_parent = output_file.parent
@@ -62,7 +92,6 @@ def compile_shaders_in_path(path, root_dir, output_dir):
 
             if child_path.suffix == '.slang':
                 compile_slang_shader(child_path, output_file, [root_dir, root_dir.parent, 'D:\\Source\\SahRenderer\\RenderCore\\extern'])
-                # continue
             
             elif child_path.suffix == '.glsl':
                 # GLSL include file

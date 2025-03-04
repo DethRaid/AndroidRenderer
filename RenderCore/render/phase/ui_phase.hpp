@@ -10,7 +10,7 @@
 #include "render/backend/resource_upload_queue.hpp"
 
 class CommandBuffer;
-class SceneTransform;
+class SceneView;
 class SceneRenderer;
 
 /**
@@ -24,7 +24,7 @@ public:
 
     void add_data_upload_passes(ResourceUploadQueue& queue) const;
 
-    void render(CommandBuffer& commands, const SceneTransform& view, TextureHandle bloom_texture) const;
+    void render(CommandBuffer& commands, const SceneView& view, TextureHandle bloom_texture) const;
 
     void set_imgui_draw_data(ImDrawData* im_draw_data);
 

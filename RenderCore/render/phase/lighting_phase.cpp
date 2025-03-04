@@ -32,7 +32,7 @@ LightingPhase::LightingPhase() {
 
 void LightingPhase::render(
     RenderGraph& render_graph, 
-    const SceneTransform& view, 
+    const SceneView& view, 
     const TextureHandle lit_scene_texture,
     TextureHandle ao_texture,
     const LightPropagationVolume* lpv,

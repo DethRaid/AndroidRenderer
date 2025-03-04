@@ -18,7 +18,7 @@ class RenderBackend;
 class ResourceAllocator;
 class CommandBuffer;
 class RenderScene;
-class SceneTransform;
+class SceneView;
 class DirectionalLight;
 class MeshStorage;
 
@@ -83,7 +83,7 @@ public:
     /**
      * Updates the transform of this LPV to match the scene view
      */
-    void update_cascade_transforms(const SceneTransform& view, const DirectionalLight& light);
+    void update_cascade_transforms(const SceneView& view, const DirectionalLight& light);
 
     void update_buffers(ResourceUploadQueue& queue) const;
 

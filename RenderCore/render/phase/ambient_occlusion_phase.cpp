@@ -160,7 +160,7 @@ AmbientOcclusionPhase::~AmbientOcclusionPhase() {
 }
 
 void AmbientOcclusionPhase::generate_ao(
-    RenderGraph& graph, const SceneTransform& view, TextureHandle gbuffer_normals, TextureHandle gbuffer_depth,
+    RenderGraph& graph, const SceneView& view, TextureHandle gbuffer_normals, TextureHandle gbuffer_depth,
     TextureHandle ao_out
 ) {
     if(cvar_cacao_enabled.Get() == 0) {

@@ -10,8 +10,8 @@ struct ViewDataGPU {
     mat4 inverse_view;
     mat4 inverse_projection;
 
-    glm::mat4 last_frame_view;
-    glm::mat4 last_frame_projection;
+    mat4 last_frame_view;
+    mat4 last_frame_projection;
 
     /**
      * For perspective cameras, this is the frustum clip planes - xy stores the x and z of the right plane's equation,
@@ -27,7 +27,10 @@ struct ViewDataGPU {
      */
     float z_near;
 
-    float padding0;
+    /**
+     * Bias to apply to material textures, useful for TAA
+     */
+    float material_texture_mip_bias;
     
     vec2 render_resolution;
 };

@@ -32,11 +32,25 @@ public:
      */
     void update_frame_token(uint32_t frame_index);
 
-    void set_constants(const SceneTransform& scene_transform);
+    void set_constants(const SceneView& scene_transform);
 
+    /**
+     * Sets the DLSS mode to use
+     *
+     * Should be called before any other DLSS-related methods
+     *
+     * @param mode DLSS mode. Pass
+     */
     void set_dlss_mode(sl::DLSSMode mode);
 
-    glm::uvec2 get_dlss_render_resolution(sl::DLSSMode dlss_mode, const glm::uvec2& output_resolution);
+    /**
+     * Gets the optimal render resolution for the current DLSS mode
+     *
+     * @param output_resolution Resolution of the output (swapchain, usually)
+     * @return Optimal resolution to render at
+     * @see set_dlss_mode
+     */
+    glm::uvec2 get_dlss_render_resolution(const glm::uvec2& output_resolution);
 
     void evaluate_dlss(CommandBuffer& commands,
         TextureHandle color_in, TextureHandle color_out,

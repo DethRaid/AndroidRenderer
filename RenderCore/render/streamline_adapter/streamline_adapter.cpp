@@ -12,6 +12,8 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
+static sl::Resource wrap_resource(TextureHandle texture);
+
 PFN_vkGetInstanceProcAddr StreamlineAdapter::try_load_streamline() {
     const auto streamline_dir = to_wstring(SAH_BINARY_DIR) + std::wstring{L"/sl.interposer.dll"};
     if(!sl::security::verifyEmbeddedSignature(streamline_dir.c_str())) {
@@ -41,7 +43,7 @@ StreamlineAdapter::StreamlineAdapter() {
 
     auto prefs = sl::Preferences{};
     prefs.showConsole = true;
-    prefs.logLevel = sl::LogLevel::eVerbose;
+    prefs.logLevel = sl::LogLevel::eDefault;
     prefs.featuresToLoad = features_to_load.data();
     prefs.numFeaturesToLoad = static_cast<uint32_t>(features_to_load.size());
     prefs.renderAPI = sl::RenderAPI::eVulkan;
@@ -83,7 +85,7 @@ void StreamlineAdapter::update_frame_token(const uint32_t frame_index) {
     slGetNewFrameToken(frame_token, &frame_index);
 }
 
-void StreamlineAdapter::set_constants(const SceneTransform& scene_transform) {
+void StreamlineAdapter::set_constants(const SceneView& scene_transform) {
     const auto& view_data = scene_transform.get_gpu_data();
 
     auto constants = sl::Constants{};
@@ -131,20 +133,19 @@ void StreamlineAdapter::set_constants(const SceneTransform& scene_transform) {
 
 void StreamlineAdapter::set_dlss_mode(const sl::DLSSMode mode) {
     dlss_mode = mode;
-    bool dlss_loaded = false;
-    slIsFeatureLoaded(sl::kFeatureDLSS, dlss_loaded);
-    if(!dlss_loaded) {
-        auto result = slSetFeatureLoaded(sl::kFeatureDLSS, true);
-        if(result != sl::Result::eOk) {
-            logger->error("Error loading DLSS: {}", sl::getResultAsStr(result));
+    if (dlss_mode != sl::DLSSMode::eOff) {
+        bool dlss_loaded = false;
+        slIsFeatureLoaded(sl::kFeatureDLSS, dlss_loaded);
+        if (!dlss_loaded) {
+            auto result = slSetFeatureLoaded(sl::kFeatureDLSS, true);
+            if (result != sl::Result::eOk) {
+                logger->error("Error loading DLSS: {}", sl::getResultAsStr(result));
+            }
         }
     }
-
 }
 
-glm::uvec2 StreamlineAdapter::get_dlss_render_resolution(
-    const sl::DLSSMode dlss_mode, const glm::uvec2& output_resolution
-) {
+glm::uvec2 StreamlineAdapter::get_dlss_render_resolution(const glm::uvec2& output_resolution) {
     sl::DLSSOptions dlss_options;
     dlss_options.mode = dlss_mode;
     dlss_options.outputWidth = output_resolution.x;
@@ -164,49 +165,10 @@ void StreamlineAdapter::evaluate_dlss(
     const TextureHandle color_in, const TextureHandle color_out,
     const TextureHandle depth_in, const TextureHandle motion_vectors_in
 ) {
-    auto color_in_res = sl::Resource{
-        sl::ResourceType::eTex2d,
-        color_in->image,
-        color_in->vma.allocation_info.deviceMemory,
-        color_in->image_view,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    };
-    const auto color_in_extent = color_in->create_info.extent;
-    color_in_res.width = color_in_extent.width;
-    color_in_res.height = color_in_extent.height;
-
-    auto color_out_res = sl::Resource{
-        sl::ResourceType::eTex2d,
-        color_out->image,
-        color_out->vma.allocation_info.deviceMemory,
-        color_out->image_view,
-        VK_IMAGE_LAYOUT_GENERAL
-    };
-    const auto color_out_extent = color_out->create_info.extent;
-    color_out_res.width = color_out_extent.width;
-    color_out_res.height = color_out_extent.height;
-
-    auto depth_in_res = sl::Resource{
-        sl::ResourceType::eTex2d,
-        depth_in->image,
-        depth_in->vma.allocation_info.deviceMemory,
-        depth_in->image_view,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    };
-    const auto depth_in_extent = depth_in->create_info.extent;
-    depth_in_res.width = depth_in_extent.width;
-    depth_in_res.height = depth_in_extent.height;
-
-    auto motion_vectors_in_res = sl::Resource{
-        sl::ResourceType::eTex2d,
-        motion_vectors_in->image,
-        motion_vectors_in->vma.allocation_info.deviceMemory,
-        motion_vectors_in->image_view,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    };
-    const auto motion_vectors_in_extent = motion_vectors_in->create_info.extent;
-    motion_vectors_in_res.width = motion_vectors_in_extent.width;
-    motion_vectors_in_res.height = motion_vectors_in_extent.height;
+    auto color_in_res = wrap_resource(color_in);
+    auto color_out_res = wrap_resource(color_out);
+    auto depth_in_res = wrap_resource(depth_in);
+    auto motion_vectors_in_res = wrap_resource(motion_vectors_in);
 
     auto color_in_tag = sl::ResourceTag{
         &color_in_res, sl::kBufferTypeScalingInputColor, sl::ResourceLifecycle::eValidUntilPresent
@@ -214,7 +176,7 @@ void StreamlineAdapter::evaluate_dlss(
     auto color_out_tag = sl::ResourceTag{
         &color_out_res, sl::kBufferTypeScalingOutputColor, sl::ResourceLifecycle::eValidUntilPresent
     };
-    auto depth_tag = sl::ResourceTag{&depth_in_res, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent};
+    auto depth_tag = sl::ResourceTag{&depth_in_res, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent };
     auto motion_vectors_tag = sl::ResourceTag{
         &motion_vectors_in_res, sl::kBufferTypeMotionVectors, sl::ResourceLifecycle::eValidUntilPresent
     };
@@ -228,7 +190,7 @@ void StreamlineAdapter::evaluate_dlss(
     options.outputWidth = output_resolution.width;
     options.outputHeight = output_resolution.height;
     options.sharpness = dlss_settings.optimalSharpness;
-    options.useAutoExposure = sl::Boolean::eTrue;
+    options.useAutoExposure = sl::Boolean::eFalse;
     slDLSSSetOptions(viewport, options);
 
     auto options_arr = std::array<const sl::BaseStructure*, 1>{&viewport};
@@ -241,5 +203,24 @@ void StreamlineAdapter::evaluate_dlss(
     if(result != sl::Result::eOk) {
         logger->error("Error evaluating DLSS: {}", sl::getResultAsStr(result));
     }
+}
 
+sl::Resource wrap_resource(const TextureHandle texture) {
+    auto sl_resource = sl::Resource{
+       sl::ResourceType::eTex2d,
+       texture->image,
+       texture->vma.allocation_info.deviceMemory,
+       texture->image_view,
+       VK_IMAGE_LAYOUT_GENERAL
+    };
+    const auto extent = texture->create_info.extent;
+    sl_resource.width = extent.width;
+    sl_resource.height = extent.height;
+    sl_resource.nativeFormat = texture->create_info.format;
+    sl_resource.mipLevels = texture->create_info.mipLevels;
+    sl_resource.arrayLayers = texture->create_info.arrayLayers;
+    sl_resource.flags = texture->create_info.flags;
+    sl_resource.usage = texture->create_info.usage;
+
+    return sl_resource;
 }

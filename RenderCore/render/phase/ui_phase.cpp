@@ -79,7 +79,7 @@ void UiPhase::add_data_upload_passes(ResourceUploadQueue& queue) const {
     }
 }
 
-void UiPhase::render(CommandBuffer& commands, const SceneTransform& view, const TextureHandle bloom_texture) const {
+void UiPhase::render(CommandBuffer& commands, const SceneView& view, const TextureHandle bloom_texture) const {
     commands.begin_label(__func__);
 
     draw_scene_image(commands, bloom_texture);

@@ -21,33 +21,33 @@ glm::mat4 infinitePerspectiveFovReverseZ_ZO(const float fov, const float width, 
     return result;
 }
 
-SceneTransform::SceneTransform() {
+SceneView::SceneView() {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
     buffer = allocator.create_buffer("Scene View Buffer", sizeof(ViewDataGPU), BufferUsage::UniformBuffer);
 }
 
-void SceneTransform::set_render_resolution(const glm::uvec2 render_resolution) {
+void SceneView::set_render_resolution(const glm::uvec2 render_resolution) {
     gpu_data.render_resolution.x = static_cast<float>(render_resolution.x);
     gpu_data.render_resolution.y = static_cast<float>(render_resolution.y);
     is_dirty = true;
 }
 
-void SceneTransform::translate(const glm::vec3 localspace_movement) {
+void SceneView::translate(const glm::vec3 localspace_movement) {
     const auto worldspace_movement = gpu_data.inverse_view * glm::vec4{ localspace_movement, 0.f };
     position += glm::vec3{ worldspace_movement };
 
     refresh_view_matrices();
 }
 
-void SceneTransform::rotate(const float delta_pitch, const float delta_yaw) {
+void SceneView::rotate(const float delta_pitch, const float delta_yaw) {
     pitch += delta_pitch;
     yaw += delta_yaw;
 
     refresh_view_matrices();
 }
 
-void SceneTransform::set_position(const glm::vec3& position_in) {
+void SceneView::set_position(const glm::vec3& position_in) {
     position = position_in;
 
     refresh_view_matrices();
@@ -55,7 +55,7 @@ void SceneTransform::set_position(const glm::vec3& position_in) {
 
 glm::vec4 normalize_plane(const glm::vec4 p) { return p / length(glm::vec3{ p }); }
 
-void SceneTransform::set_perspective_projection(const float fov_in, const float aspect_in, const float near_value_in) {
+void SceneView::set_perspective_projection(const float fov_in, const float aspect_in, const float near_value_in) {
     fov = fov_in;
     aspect = aspect_in;
     near_value = near_value_in;
@@ -92,11 +92,11 @@ void SceneTransform::set_perspective_projection(const float fov_in, const float 
     is_dirty = true;
 }
 
-BufferHandle SceneTransform::get_buffer() const {
+BufferHandle SceneView::get_buffer() const {
     return buffer;
 }
 
-void SceneTransform::update_transforms(ResourceUploadQueue& upload_queue) {
+void SceneView::update_transforms(ResourceUploadQueue& upload_queue) {
     if (buffer && is_dirty) {
         upload_queue.upload_to_buffer(buffer, gpu_data);
 
@@ -104,35 +104,40 @@ void SceneTransform::update_transforms(ResourceUploadQueue& upload_queue) {
     }
 }
 
-void SceneTransform::set_aspect_ratio(const float aspect_in) {
+void SceneView::set_aspect_ratio(const float aspect_in) {
     set_perspective_projection(fov, aspect_in, near_value);
 }
 
-float SceneTransform::get_near() const {
+void SceneView::set_mip_bias(float mip_bias) {
+    gpu_data.material_texture_mip_bias = mip_bias;
+    is_dirty = true;
+}
+
+float SceneView::get_near() const {
     return near_value;
 }
 
-float SceneTransform::get_fov() const {
+float SceneView::get_fov() const {
     return fov;
 }
 
-float SceneTransform::get_aspect_ratio() const {
+float SceneView::get_aspect_ratio() const {
     return aspect;
 }
 
-const ViewDataGPU& SceneTransform::get_gpu_data() const {
+const ViewDataGPU& SceneView::get_gpu_data() const {
     return gpu_data;
 }
 
-glm::vec3 SceneTransform::get_position() const {
+glm::vec3 SceneView::get_position() const {
     return position;
 }
 
-glm::vec3 SceneTransform::get_forward() const {
+glm::vec3 SceneView::get_forward() const {
     return forward;
 }
 
-void SceneTransform::refresh_view_matrices() {
+void SceneView::refresh_view_matrices() {
     forward = glm::vec3{cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw)};
     const auto right = glm::vec3{ sin(yaw - 3.1415927 / 2.0), 0, cos(yaw - 3.14159 / 2.0) };
     const auto up = cross(right, forward);

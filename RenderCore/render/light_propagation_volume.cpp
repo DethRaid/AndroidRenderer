@@ -334,7 +334,7 @@ void LightPropagationVolume::set_scene_drawer(SceneDrawer&& drawer) {
     rsm_drawer = drawer;
 }
 
-void LightPropagationVolume::update_cascade_transforms(const SceneTransform& view, const DirectionalLight& light) {
+void LightPropagationVolume::update_cascade_transforms(const SceneView& view, const DirectionalLight& light) {
     ZoneScoped;
 
     const auto num_cells = cvar_lpv_resolution.Get();

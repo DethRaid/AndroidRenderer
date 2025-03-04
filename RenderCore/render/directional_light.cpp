@@ -73,7 +73,7 @@ DirectionalLight::DirectionalLight() {
                       .build();
 }
 
-void DirectionalLight::update_shadow_cascades(const SceneTransform& view) {
+void DirectionalLight::update_shadow_cascades(const SceneView& view) {
     const auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
@@ -299,7 +299,7 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const SceneDrawer& sun
 }
 
 void DirectionalLight::render(
-    CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneTransform& view,
+    CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneView& view,
     const AccelerationStructureHandle rtas
 ) const {
     ZoneScoped;
