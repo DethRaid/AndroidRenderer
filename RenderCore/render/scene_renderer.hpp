@@ -92,8 +92,6 @@ private:
 
     TextureHandle gbuffer_emission_handle = nullptr;
 
-    TextureHandle motion_vectors_handle = nullptr;
-
     TextureHandle ao_handle = nullptr;
 
     // This should be something like an extracted texture?

@@ -454,6 +454,14 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         .descriptorCount = 1,
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
                     }
+                },
+                {
+                    {
+                        .binding = 2,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                        .descriptorCount = 1,
+                        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+                    }
                 }
             }
         };
@@ -463,6 +471,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                 )
                                 .bind(cascade_data_buffer)
                                 .bind(scene.get_sun_light().get_constant_buffer())
+                                .bind(scene.get_primitive_buffer())
                                 .build();
 
         graph.add_render_pass(
@@ -492,7 +501,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 .execute = [&](CommandBuffer& commands) {
                     commands.bind_descriptor_set(0, set);
 
-                    commands.set_push_constant(4, cascade_index);
+                    commands.set_push_constant(1, cascade_index);
 
                     rsm_drawer.draw(commands);
 

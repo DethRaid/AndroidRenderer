@@ -16,8 +16,14 @@ void MotionVectorsPhase::set_render_resolution(const glm::uvec2& resolution) {
         }
     }
 
-    motion_vectors = allocator.create_texture(
-        "motion_vectors",
-        {.format = VK_FORMAT_R16G16_SFLOAT, .resolution = resolution, .usage = TextureUsage::RenderTarget}
-    );
+    if(motion_vectors == nullptr) {
+        motion_vectors = allocator.create_texture(
+            "motion_vectors",
+            {.format = VK_FORMAT_R16G16_SFLOAT, .resolution = resolution, .usage = TextureUsage::RenderTarget}
+        );
+    }
+}
+
+TextureHandle MotionVectorsPhase::get_motion_vectors() const {
+    return motion_vectors;
 }

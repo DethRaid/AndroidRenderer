@@ -16,6 +16,8 @@ public:
 
     void render(RenderGraph& graph, const SceneDrawer& drawer, BufferHandle view_data_buffer, BufferHandle visible_objects_buffer);
 
+    TextureHandle get_motion_vectors() const;
+
 private:
     TextureHandle motion_vectors = nullptr;
 };

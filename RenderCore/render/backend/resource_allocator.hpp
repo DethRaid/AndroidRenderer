@@ -121,6 +121,8 @@ struct TextureCreateInfo {
     VkFormat view_format = VK_FORMAT_UNDEFINED;
 
     VkImageCreateFlags flags = 0;
+
+    VkImageUsageFlags usage_flags = 0;
 };
 
 /**

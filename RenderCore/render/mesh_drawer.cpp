@@ -22,8 +22,6 @@ void SceneDrawer::draw(CommandBuffer& commands) const {
     commands.bind_vertex_buffer(1, mesh_storage->get_vertex_data_buffer());
     commands.bind_index_buffer(mesh_storage->get_index_buffer());
 
-    commands.bind_buffer_reference(0, scene->get_primitive_buffer());
-
     if (is_color_pass(type)) {
         commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
     }
@@ -32,7 +30,7 @@ void SceneDrawer::draw(CommandBuffer& commands) const {
         const auto& mesh = primitive->mesh;
 
         commands.bind_pipeline(primitive->material->second.pipelines[static_cast<size_t>(type)]);
-        commands.set_push_constant(2, primitive.index);
+        commands.set_push_constant(0, primitive.index);
         commands.draw_indexed(mesh->num_indices, 1, static_cast<uint32_t>(mesh->first_index), static_cast<uint32_t>(mesh->first_vertex), 0);
     }
     
@@ -55,8 +53,6 @@ void SceneDrawer::draw_indirect(
     commands.bind_vertex_buffer(1, mesh_storage->get_vertex_data_buffer());
     commands.bind_vertex_buffer(2, primitive_ids);
     commands.bind_index_buffer(mesh_storage->get_index_buffer());
-
-    commands.bind_buffer_reference(0, scene->get_primitive_buffer());
 
     if (is_color_pass(type)) {
         commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());

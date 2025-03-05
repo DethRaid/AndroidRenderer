@@ -47,7 +47,7 @@ ResourceAllocator::~ResourceAllocator() {
 TextureHandle ResourceAllocator::create_texture(const std::string& name, const TextureCreateInfo& create_info) {
     const auto device = backend.get_device().device;
 
-    VkImageUsageFlags vk_usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+    VkImageUsageFlags vk_usage = VK_IMAGE_USAGE_SAMPLED_BIT | create_info.usage_flags;
     VmaAllocationCreateFlags vma_flags = {};
     VkImageAspectFlags view_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
 

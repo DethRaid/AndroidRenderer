@@ -12,7 +12,7 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-static sl::Resource wrap_resource(TextureHandle texture);
+static sl::Resource wrap_resource(TextureHandle texture, VkImageLayout layout);
 
 PFN_vkGetInstanceProcAddr StreamlineAdapter::try_load_streamline() {
     const auto streamline_dir = to_wstring(SAH_BINARY_DIR) + std::wstring{L"/sl.interposer.dll"};
@@ -167,10 +167,10 @@ void StreamlineAdapter::evaluate_dlss(
     const TextureHandle color_in, const TextureHandle color_out,
     const TextureHandle depth_in, const TextureHandle motion_vectors_in
 ) {
-    auto color_in_res = wrap_resource(color_in);
-    auto color_out_res = wrap_resource(color_out);
-    auto depth_in_res = wrap_resource(depth_in);
-    auto motion_vectors_in_res = wrap_resource(motion_vectors_in);
+    auto color_in_res = wrap_resource(color_in, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    auto color_out_res = wrap_resource(color_out, VK_IMAGE_LAYOUT_GENERAL);
+    auto depth_in_res = wrap_resource(depth_in, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    auto motion_vectors_in_res = wrap_resource(motion_vectors_in, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     auto color_in_tag = sl::ResourceTag{
         &color_in_res, sl::kBufferTypeScalingInputColor, sl::ResourceLifecycle::eValidUntilPresent
@@ -207,22 +207,22 @@ void StreamlineAdapter::evaluate_dlss(
     }
 }
 
-sl::Resource wrap_resource(const TextureHandle texture) {
+sl::Resource wrap_resource(const TextureHandle texture, const VkImageLayout layout) {
     auto sl_resource = sl::Resource{
        sl::ResourceType::eTex2d,
        texture->image,
        texture->vma.allocation_info.deviceMemory,
        texture->image_view,
-       VK_IMAGE_LAYOUT_GENERAL
+       static_cast<uint32_t>(layout)
     };
     const auto extent = texture->create_info.extent;
     sl_resource.width = extent.width;
     sl_resource.height = extent.height;
     sl_resource.nativeFormat = texture->create_info.format;
-    sl_resource.mipLevels = texture->create_info.mipLevels;
-    sl_resource.arrayLayers = texture->create_info.arrayLayers;
-    sl_resource.flags = texture->create_info.flags;
-    sl_resource.usage = texture->create_info.usage;
+    // sl_resource.mipLevels = texture->create_info.mipLevels;
+    // sl_resource.arrayLayers = texture->create_info.arrayLayers;
+    // sl_resource.flags = texture->create_info.flags;
+    // sl_resource.usage = texture->create_info.usage;
 
     return sl_resource;
 }

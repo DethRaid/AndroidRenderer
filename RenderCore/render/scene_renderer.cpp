@@ -382,13 +382,23 @@ void SceneRenderer::render() {
                                                   .binding = 0,
                                                   .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                                   .descriptorCount = 1,
-                                                  .stageFlags = VK_SHADER_STAGE_ALL
+                                                  .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
                                               }
+                                          },
+                                          {
+                                              {
+                                                  .binding = 1,
+                                                  .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                                  .descriptorCount = 1,
+                                                  .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+                                              },
+                                              true
                                           }
                                       }
                                   },
                                   "gbuffers_global_descriptor")
                               .bind(player_view.get_buffer())
+                              .bind(scene->get_primitive_buffer())
                               .build();
     render_graph.add_render_pass(
         DynamicRenderingPass{
@@ -481,6 +491,7 @@ void SceneRenderer::render() {
 
     case AntiAliasingType::DLSS:
         if(streamline) {
+            const auto motion_vectors_handle = motion_vectors_phase.get_motion_vectors();
             render_graph.add_pass(
                 {
                     .name = "DLSS",
@@ -491,7 +502,7 @@ void SceneRenderer::render() {
                         },
                         {
                             .texture = antialiased_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                            .access = VK_ACCESS_2_SHADER_WRITE_BIT, .layout = VK_IMAGE_LAYOUT_GENERAL
+                            .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT, .layout = VK_IMAGE_LAYOUT_GENERAL
                         },
                         {
                             .texture = gbuffer_depth_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -611,10 +622,6 @@ void SceneRenderer::create_scene_render_targets() {
         allocator.destroy_texture(gbuffer_emission_handle);
     }
 
-    if(motion_vectors_handle != nullptr) {
-        allocator.destroy_texture(motion_vectors_handle);
-    }
-
     if(depth_buffer_mip_chain != nullptr) {
         allocator.destroy_texture(depth_buffer_mip_chain);
     }
@@ -636,6 +643,8 @@ void SceneRenderer::create_scene_render_targets() {
     }
 
     depth_culling_phase.set_render_resolution(scene_render_resolution);
+
+    motion_vectors_phase.set_render_resolution(scene_render_resolution);
 
     // gbuffer and lighting render targets
     gbuffer_color_handle = allocator.create_texture(
@@ -677,14 +686,6 @@ void SceneRenderer::create_scene_render_targets() {
             TextureUsage::RenderTarget
         }
     );
-
-    motion_vectors_handle = allocator.create_texture(
-        "Motion Vectors",
-        {
-            .format = VK_FORMAT_R16G16_SFLOAT,
-            .resolution = scene_render_resolution,
-            .usage = TextureUsage::RenderTarget
-        });
 
     const auto mip_chain_resolution = scene_render_resolution / glm::uvec2{2};
     const auto minor_dimension = glm::min(mip_chain_resolution.x, mip_chain_resolution.y);
@@ -734,7 +735,8 @@ void SceneRenderer::create_scene_render_targets() {
         {
             .format = VK_FORMAT_B10G11R11_UFLOAT_PACK32,
             .resolution = output_resolution,
-            .usage = TextureUsage::StorageImage
+            .usage = TextureUsage::StorageImage,
+            .usage_flags = VK_IMAGE_USAGE_TRANSFER_DST_BIT
         });
 
     auto& swapchain = backend.get_swapchain();

@@ -163,180 +163,186 @@ void AmbientOcclusionPhase::generate_ao(
     RenderGraph& graph, const SceneView& view, TextureHandle gbuffer_normals, TextureHandle gbuffer_depth,
     TextureHandle ao_out
 ) {
-    if(cvar_cacao_enabled.Get() == 0) {
-        return;
-    }
-
-#if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
     ZoneScoped;
 
-    if(!has_context) {
-        FfxCacaoContextDescription description = {};
-        description.backendInterface = ffx_interface;
-        description.width = ao_out->create_info.extent.width;
-        description.height = ao_out->create_info.extent.height;
-        description.useDownsampledSsao = false;
-        const auto error_code = ffxCacaoContextCreate(&context, &description);
-        if(error_code != FFX_OK) {
-            spdlog::error(
-                "Could not initialize FFX CACAO context: {} (error code {})",
-                to_string(error_code),
-                error_code);
-            return;
+#if !defined(SAH_USE_FFX_CACAO) || !SAH_USE_FFX_CACAO
+    cvar_cacao_enabled.Set(0);
+#endif
+
+    if(cvar_cacao_enabled.Get() == 0) {
+        graph.add_render_pass(
+            {
+                .name = "Clear AO",
+                .color_attachments = {
+                    RenderingAttachmentInfo{
+                        .image = ao_out,
+                        .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .clear_value = {.color = {.float32 = {1, 1, 1, 1}}}
+                    }
+                },
+                .execute = [](CommandBuffer&) {}
+            });
+    } else {
+#if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
+        if(!has_context) {
+            FfxCacaoContextDescription description = {};
+            description.backendInterface = ffx_interface;
+            description.width = ao_out->create_info.extent.width;
+            description.height = ao_out->create_info.extent.height;
+            description.useDownsampledSsao = false;
+            const auto error_code = ffxCacaoContextCreate(&context, &description);
+            if(error_code != FFX_OK) {
+                spdlog::error(
+                    "Could not initialize FFX CACAO context: {} (error code {})",
+                    to_string(error_code),
+                    error_code);
+                return;
+            }
+
+            has_context = true;
         }
 
-        has_context = true;
-    }
+        if(stinky_depth == nullptr || stinky_depth->create_info.extent.width != gbuffer_depth->create_info.extent.
+            width) {
+            auto& allocator = RenderBackend::get().get_global_allocator();
+            allocator.destroy_texture(stinky_depth);
+            stinky_depth = allocator.create_texture(
+                "R32F Depth Meme",
+                {
+                    .format = VK_FORMAT_R32_SFLOAT,
+                    .resolution = {gbuffer_depth->create_info.extent.width, gbuffer_depth->create_info.extent.height},
+                    .num_mips = gbuffer_depth->create_info.mipLevels,
+                    .usage = TextureUsage::StorageImage
+                });
+        }
 
-    if(stinky_depth == nullptr || stinky_depth->create_info.extent.width != gbuffer_depth->create_info.extent.width) {
-        auto& allocator = RenderBackend::get().get_global_allocator();
-        allocator.destroy_texture(stinky_depth);
-        stinky_depth = allocator.create_texture(
-            "R32F Depth Meme",
-            {
-                .format = VK_FORMAT_R32_SFLOAT,
-                .resolution = {gbuffer_depth->create_info.extent.width, gbuffer_depth->create_info.extent.height},
-                .num_mips = gbuffer_depth->create_info.mipLevels,
-                .usage = TextureUsage::StorageImage
+        graph.add_copy_pass(
+            ImageCopyPass{
+                .name = "Copy D32 to R32 lmao",
+                .dst = stinky_depth,
+                .src = gbuffer_depth
             });
-    }
 
-    graph.add_copy_pass(
-        ImageCopyPass{
-            .name = "Copy D32 to R32 lmao",
-            .dst = stinky_depth,
-            .src = gbuffer_depth
-        });
-
-    const auto stinky_depth_name = to_wstring(stinky_depth->name);
-    auto ffx_depth = ffxGetResourceVK(
-        stinky_depth->image,
-        {
-            .type = FFX_RESOURCE_TYPE_TEXTURE2D,
-            .format = FFX_SURFACE_FORMAT_R32_FLOAT,
-            .width = stinky_depth->create_info.extent.depth,
-            .height = stinky_depth->create_info.extent.height,
-            .depth = 1,
-            .mipCount = 1,
-            .flags = FFX_RESOURCE_FLAGS_NONE,
-            .usage = FFX_RESOURCE_USAGE_READ_ONLY
-        },
-        stinky_depth_name.c_str());
-    const auto stinky_normals_name = to_wstring(gbuffer_normals->name);
-    auto ffx_normals = ffxGetResourceVK(
-        gbuffer_normals->image,
-        {
-            .type = FFX_RESOURCE_TYPE_TEXTURE2D,
-            .format = FFX_SURFACE_FORMAT_R16G16B16A16_FLOAT,
-            .width = gbuffer_normals->create_info.extent.depth,
-            .height = gbuffer_normals->create_info.extent.height,
-            .depth = 1,
-            .mipCount = 1,
-            .flags = FFX_RESOURCE_FLAGS_NONE,
-            .usage = FFX_RESOURCE_USAGE_READ_ONLY
-        },
-        stinky_normals_name.c_str());
-    const auto stinky_ao_name = to_wstring(ao_out->name);
-    auto ffx_ao = ffxGetResourceVK(
-        ao_out->image,
-        {
-            .type = FFX_RESOURCE_TYPE_TEXTURE2D,
-            .format = FFX_SURFACE_FORMAT_R32_FLOAT,
-            .width = ao_out->create_info.extent.depth,
-            .height = ao_out->create_info.extent.height,
-            .depth = 1,
-            .mipCount = 1,
-            .flags = FFX_RESOURCE_FLAGS_NONE,
-            .usage = FFX_RESOURCE_USAGE_UAV
-        },
-        stinky_ao_name.c_str());
-
-    graph.add_pass(
-        {
-            .name = "CACAO",
-            .textures = {
-                {
-                    .texture = gbuffer_normals,
-                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    .access = VK_ACCESS_2_SHADER_READ_BIT,
-                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                },
-                {
-                    .texture = stinky_depth,
-                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    .access = VK_ACCESS_2_SHADER_READ_BIT,
-                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                },
-                {
-                    .texture = ao_out,
-                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
-                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                },
+        const auto stinky_depth_name = to_wstring(stinky_depth->name);
+        auto ffx_depth = ffxGetResourceVK(
+            stinky_depth->image,
+            {
+                .type = FFX_RESOURCE_TYPE_TEXTURE2D,
+                .format = FFX_SURFACE_FORMAT_R32_FLOAT,
+                .width = stinky_depth->create_info.extent.depth,
+                .height = stinky_depth->create_info.extent.height,
+                .depth = 1,
+                .mipCount = 1,
+                .flags = FFX_RESOURCE_FLAGS_NONE,
+                .usage = FFX_RESOURCE_USAGE_READ_ONLY
             },
-            .execute = [=, this](CommandBuffer& commands) {
-                const auto cacao_settings = FfxCacaoSettings{
-                    .radius = 0.5,
-                    .shadowMultiplier = 1.f,
-                    .shadowPower = 1.f,
-                    .shadowClamp = 0.f,
-                    .horizonAngleThreshold = 0.f,
-                    .fadeOutFrom = 1000.f,
-                    .fadeOutTo = 1100.f,
-                    .qualityLevel = cvar_cacao_quality.Get(),
-                    .adaptiveQualityLimit = 1.0,
-                    .blurPassCount = 1,
-                    .sharpness = 1.f,
-                    .temporalSupersamplingAngleOffset = 0.f,
-                    .temporalSupersamplingRadiusOffset = 0.f,
-                    .detailShadowStrength = 1.f,
-                    .generateNormals = false,
-                    .bilateralSigmaSquared = 0.f,
-                    .bilateralSimilarityDistanceSigma = 0.f
-                };
-                FfxErrorCode errorCode = ffxCacaoUpdateSettings(&context, &FFX_CACAO_DEFAULT_SETTINGS, false);
-
-                auto ffx_cmds = ffxGetCommandListVK(commands.get_vk_commands());
-
-                FfxFloat32x4x4 projection_matrix = {};
-                const auto transposed_projection = glm::transpose(view.get_gpu_data().projection);
-                std::memcpy(&projection_matrix, &view.get_gpu_data().projection, sizeof(glm::mat4));
-
-                FfxFloat32x4x4 normals_to_view = {};
-                const auto transposed_view = glm::transpose(view.get_gpu_data().view);
-                std::memcpy(&normals_to_view, &view.get_gpu_data().view, sizeof(glm::mat4));
-
-                const auto desc = FfxCacaoDispatchDescription{
-                    .commandList = ffx_cmds,
-                    .depthBuffer = ffx_depth,
-                    .normalBuffer = ffx_normals,
-                    .outputBuffer = ffx_ao,
-                    .proj = &projection_matrix,
-                    .normalsToView = &normals_to_view,
-                    .normalUnpackMul = 1,
-                    .normalUnpackAdd = 0
-                };
-
-                ffxCacaoContextDispatch(&context, &desc);
-            }
-        });
-
-    graph.set_resource_usage(
-        {
-            .texture = ao_out,
-            .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-            .access = VK_ACCESS_2_SHADER_WRITE_BIT,
-            .layout = VK_IMAGE_LAYOUT_GENERAL
-        });
-#else
-    graph.add_render_pass({
-        .name = "Clear AO",
-        .color_attachments = {RenderingAttachmentInfo{
-            .image = ao_out,
-            .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .clear_value = {.color = {.float32 = {1, 1, 1, 1}}}}
+            stinky_depth_name.c_str());
+        const auto stinky_normals_name = to_wstring(gbuffer_normals->name);
+        auto ffx_normals = ffxGetResourceVK(
+            gbuffer_normals->image,
+            {
+                .type = FFX_RESOURCE_TYPE_TEXTURE2D,
+                .format = FFX_SURFACE_FORMAT_R16G16B16A16_FLOAT,
+                .width = gbuffer_normals->create_info.extent.depth,
+                .height = gbuffer_normals->create_info.extent.height,
+                .depth = 1,
+                .mipCount = 1,
+                .flags = FFX_RESOURCE_FLAGS_NONE,
+                .usage = FFX_RESOURCE_USAGE_READ_ONLY
             },
-        .execute = [](CommandBuffer&) {}
-    });
+            stinky_normals_name.c_str());
+        const auto stinky_ao_name = to_wstring(ao_out->name);
+        auto ffx_ao = ffxGetResourceVK(
+            ao_out->image,
+            {
+                .type = FFX_RESOURCE_TYPE_TEXTURE2D,
+                .format = FFX_SURFACE_FORMAT_R32_FLOAT,
+                .width = ao_out->create_info.extent.depth,
+                .height = ao_out->create_info.extent.height,
+                .depth = 1,
+                .mipCount = 1,
+                .flags = FFX_RESOURCE_FLAGS_NONE,
+                .usage = FFX_RESOURCE_USAGE_UAV
+            },
+            stinky_ao_name.c_str());
+
+        graph.add_pass(
+            {
+                .name = "CACAO",
+                .textures = {
+                    {
+                        .texture = gbuffer_normals,
+                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        .access = VK_ACCESS_2_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    },
+                    {
+                        .texture = stinky_depth,
+                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        .access = VK_ACCESS_2_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    },
+                    {
+                        .texture = ao_out,
+                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    },
+                },
+                .execute = [=, this](CommandBuffer& commands) {
+                    const auto cacao_settings = FfxCacaoSettings{
+                        .radius = 0.5,
+                        .shadowMultiplier = 1.f,
+                        .shadowPower = 1.f,
+                        .shadowClamp = 0.f,
+                        .horizonAngleThreshold = 0.f,
+                        .fadeOutFrom = 1000.f,
+                        .fadeOutTo = 1100.f,
+                        .qualityLevel = cvar_cacao_quality.Get(),
+                        .adaptiveQualityLimit = 1.0,
+                        .blurPassCount = 1,
+                        .sharpness = 1.f,
+                        .temporalSupersamplingAngleOffset = 0.f,
+                        .temporalSupersamplingRadiusOffset = 0.f,
+                        .detailShadowStrength = 1.f,
+                        .generateNormals = false,
+                        .bilateralSigmaSquared = 0.f,
+                        .bilateralSimilarityDistanceSigma = 0.f
+                    };
+                    FfxErrorCode errorCode = ffxCacaoUpdateSettings(&context, &FFX_CACAO_DEFAULT_SETTINGS, false);
+
+                    auto ffx_cmds = ffxGetCommandListVK(commands.get_vk_commands());
+
+                    FfxFloat32x4x4 projection_matrix = {};
+                    const auto transposed_projection = glm::transpose(view.get_gpu_data().projection);
+                    std::memcpy(&projection_matrix, &view.get_gpu_data().projection, sizeof(glm::mat4));
+
+                    FfxFloat32x4x4 normals_to_view = {};
+                    const auto transposed_view = glm::transpose(view.get_gpu_data().view);
+                    std::memcpy(&normals_to_view, &view.get_gpu_data().view, sizeof(glm::mat4));
+
+                    const auto desc = FfxCacaoDispatchDescription{
+                        .commandList = ffx_cmds,
+                        .depthBuffer = ffx_depth,
+                        .normalBuffer = ffx_normals,
+                        .outputBuffer = ffx_ao,
+                        .proj = &projection_matrix,
+                        .normalsToView = &normals_to_view,
+                        .normalUnpackMul = 1,
+                        .normalUnpackAdd = 0
+                    };
+
+                    ffxCacaoContextDispatch(&context, &desc);
+                }
+            });
+
+        graph.set_resource_usage(
+            {
+                .texture = ao_out,
+                .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .access = VK_ACCESS_2_SHADER_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_GENERAL
+            });
 #endif
+    }
 }

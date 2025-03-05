@@ -566,17 +566,19 @@ void collect_vertex_attributes(
             attribute.location = input->location;
         }
 
-        if(input->name == POSITION_VERTEX_ATTRIBUTE_NAME) {
+        const auto string_name = std::string{ input->name };
+
+        if(string_name.find(POSITION_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
             needs_position_buffer = true;
-        } else if(input->name == NORMAL_VERTEX_ATTRIBUTE_NAME) {
+        } else if(string_name.find(NORMAL_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
             needs_data_buffer = true;
-        } else if(input->name == TANGENT_VERTEX_ATTRIBUTE_NAME) {
+        } else if(string_name.find(TANGENT_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
             needs_data_buffer = true;
-        } else if(input->name == TEXCOORD_VERTEX_ATTRIBUTE_NAME) {
+        } else if(string_name.find(TEXCOORD_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
             needs_data_buffer = true;
-        } else if(input->name == COLOR_VERTEX_ATTRIBUTE_NAME) {
+        } else if(string_name.find(COLOR_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
             needs_data_buffer = true;
-        } else if(input->name == PRIMITIVE_ID_VERTEX_ATTRIBUTE_NAME) {
+        } else if(string_name.find(PRIMITIVE_ID_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
             needs_primitive_id_buffer = true;
         } else if(input->location != -1) {
             // -1 is used for some builtin things i guess

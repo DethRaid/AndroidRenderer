@@ -3,6 +3,7 @@
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/matrix_clip_space.hpp>
 
+#include "render_scene.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/command_buffer.hpp"
@@ -259,23 +260,33 @@ glm::vec3 DirectionalLight::get_direction() const {
 void DirectionalLight::render_shadows(RenderGraph& graph, const SceneDrawer& sun_shadow_drawer) const {
     auto& backend = RenderBackend::get();
     if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) == SunShadowMode::CSM) {
-        const auto set = backend.get_transient_descriptor_allocator()
-                                .build_set(
-                                    {
-                                        .bindings = {
-                                            {
-                                                {
-                                                    .binding = 0,
-                                                    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                    .descriptorCount = 1,
-                                                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                                                }
-                                            }
-                                        }
-                                    },
-                                    "Directional shadow descriptor set")
-                                .bind(sun_buffer)
-                                .build();
+
+        auto set = backend.get_transient_descriptor_allocator().build_set(
+                              DescriptorSetInfo{
+                                  .bindings = {
+                                      DescriptorInfo{
+                                          {
+                                              .binding = 0,
+                                              .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                              .descriptorCount = 1,
+                                              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+                                          }
+                                      },
+                                      {
+                                          {
+                                              .binding = 1,
+                                              .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                              .descriptorCount = 1,
+                                              .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+                                          },
+                                          true
+                                      }
+                                  }
+                              },
+                              "Directional shadow descriptor set")
+                          .bind(sun_buffer)
+                          .bind(sun_shadow_drawer.get_scene().get_primitive_buffer())
+                          .build();
 
         graph.add_render_pass(
             {

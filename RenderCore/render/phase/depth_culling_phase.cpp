@@ -122,7 +122,12 @@ void DepthCullingPhase::render(
     graph.begin_label("Depth/culling pass");
 
     auto& backend = RenderBackend::get();
-    const auto view_descriptor = backend.get_transient_descriptor_allocator().build_set(
+
+    auto& scene = drawer.get_scene();
+    const auto primitive_buffer = scene.get_primitive_buffer();
+
+    const auto view_descriptor = backend.get_transient_descriptor_allocator()
+                                        .build_set(
                                             {
                                                 .bindings = {
                                                     DescriptorInfo{
@@ -131,8 +136,17 @@ void DepthCullingPhase::render(
                                                             .descriptorType =
                                                             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                                             .descriptorCount = 1,
-                                                            .stageFlags =
-                                                            VK_SHADER_STAGE_VERTEX_BIT,
+                                                            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                                                        },
+                                                        true
+                                                    },
+                                                    DescriptorInfo{
+                                                        {
+                                                            .binding = 0,
+                                                            .descriptorType =
+                                                            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                                            .descriptorCount = 1,
+                                                            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
                                                         },
                                                         true
                                                     }
@@ -140,10 +154,9 @@ void DepthCullingPhase::render(
                                             },
                                             "Main view descriptor set")
                                         .bind(view_data_buffer)
+                                        .bind(primitive_buffer)
                                         .build();
 
-    auto& scene = drawer.get_scene();
-    const auto primitive_buffer = scene.get_primitive_buffer();
     const auto num_primitives = scene.get_total_num_primitives();
 
     auto& allocator = backend.get_global_allocator();

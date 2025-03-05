@@ -10,37 +10,32 @@
 #include "shared/basic_pbr_material.hpp"
 #include "shared/primitive_data.hpp"
 
-layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer PrimitiveDataBuffer {
-    PrimitiveDataGPU primitive_datas[];
-};
-
-layout(buffer_reference, scalar, buffer_reference_align = 4) readonly buffer PrimitiveIdBuffer {
-    uint primitive_ids[];
-};
-
-layout(push_constant) uniform Constants {
-    PrimitiveDataBuffer primitive_data_buffer;
-    PrimitiveIdBuffer primitive_id_buffer;
-    uint cascade_index;
-};
-
 layout(set = 0, binding = 1) uniform SunLightBuffer {
     SunLightConstants sun;
 };
 
+layout(set = 0, binding = 2, scalar) readonly buffer PrimitiveDataBuffer {
+    PrimitiveDataGPU primitive_datas[];
+};
+
 layout(set = 1, binding = 0) uniform sampler2D textures[];
+
+layout(push_constant) uniform Constants {
+    uint primitive_index;
+    uint cascade_index;
+};
+
 
 layout(location = 0) in mediump vec3 vertex_normal;
 layout(location = 1) in mediump vec3 vertex_tangent;
 layout(location = 2) in vec2 vertex_texcoord;
 layout(location = 3) in mediump vec4 vertex_color;
-layout(location = 4) flat in uint primitive_id;
 
 layout(location = 0) out mediump vec4 rsm_flux;
 layout(location = 1) out mediump vec4 rsm_normal;
 
 void main() {
-    PrimitiveDataGPU primitive = primitive_data_buffer.primitive_datas[primitive_id];
+    PrimitiveDataGPU primitive = primitive_datas[primitive_index];
     BasicPbrMaterialGpu material = primitive.material_id.material;
 
     // Base color

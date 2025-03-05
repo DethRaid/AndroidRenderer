@@ -488,14 +488,8 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         &pipeline->pipeline
     );
 
-    if(!pipeline->pipeline_name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_PIPELINE,
-            .objectHandle = reinterpret_cast<uint64_t>(pipeline->pipeline),
-            .pObjectName = pipeline->pipeline_name.c_str()
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+    if(!pipeline->pipeline_name.empty()) {
+        backend.set_object_name(pipeline->pipeline, pipeline->pipeline_name);
     }
 
     return pipeline->pipeline;
