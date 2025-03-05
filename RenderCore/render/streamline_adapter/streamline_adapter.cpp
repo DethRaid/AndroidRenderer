@@ -44,6 +44,8 @@ StreamlineAdapter::StreamlineAdapter() {
     auto prefs = sl::Preferences{};
     prefs.showConsole = true;
     prefs.logLevel = sl::LogLevel::eDefault;
+    prefs.flags = sl::PreferenceFlags::eDisableCLStateTracking | sl::PreferenceFlags::eAllowOTA |
+        sl::PreferenceFlags::eLoadDownloadedPlugins;
     prefs.featuresToLoad = features_to_load.data();
     prefs.numFeaturesToLoad = static_cast<uint32_t>(features_to_load.size());
     prefs.renderAPI = sl::RenderAPI::eVulkan;
@@ -85,25 +87,33 @@ void StreamlineAdapter::update_frame_token(const uint32_t frame_index) {
     slGetNewFrameToken(frame_token, &frame_index);
 }
 
-void StreamlineAdapter::set_constants(const SceneView& scene_transform) {
+void StreamlineAdapter::set_constants(const SceneView& scene_transform, const glm::uvec2 render_resolution) {
     const auto& view_data = scene_transform.get_gpu_data();
 
     auto constants = sl::Constants{};
-    std::memcpy(&constants.cameraViewToClip, &view_data.projection, sizeof(glm::mat4));
-    std::memcpy(&constants.clipToCameraView, &view_data.inverse_projection, sizeof(glm::mat4));
 
-    const auto clip_to_prev_clip = view_data.inverse_projection * view_data.inverse_view * view_data.last_frame_view *
-        view_data.last_frame_projection;
+    const auto jitter = scene_transform.get_jitter();
+
+    auto projection = scene_transform.get_projection();
+
+    const auto inverse_projection = glm::inverse(projection);
+
+    std::memcpy(&constants.cameraViewToClip, &projection, sizeof(glm::mat4));
+    std::memcpy(&constants.clipToCameraView, &inverse_projection, sizeof(glm::mat4));
+
+    const auto clip_to_prev_clip = inverse_projection * view_data.inverse_view * view_data.last_frame_view *
+        scene_transform.get_last_frame_projection();
     std::memcpy(&constants.clipToPrevClip, &clip_to_prev_clip, sizeof(glm::mat4));
 
     const auto prev_clip_to_clip = glm::inverse(clip_to_prev_clip);
     std::memcpy(&constants.prevClipToClip, &prev_clip_to_clip, sizeof(glm::mat4));
 
-    constants.jitterOffset = {0, 0};
+    const auto scaled_jitter = jitter * glm::vec2{render_resolution};
+    constants.jitterOffset = {scaled_jitter.x, scaled_jitter.y};
 
     constants.mvecScale = {1, 1};
 
-    constants.cameraPinholeOffset = { 0, 0 };
+    constants.cameraPinholeOffset = {0, 0};
 
     const auto camera_pos = scene_transform.get_position();
     std::memcpy(&constants.cameraPos, &camera_pos, sizeof(glm::vec3));
@@ -135,12 +145,12 @@ void StreamlineAdapter::set_constants(const SceneView& scene_transform) {
 
 void StreamlineAdapter::set_dlss_mode(const sl::DLSSMode mode) {
     dlss_mode = mode;
-    if (dlss_mode != sl::DLSSMode::eOff) {
+    if(dlss_mode != sl::DLSSMode::eOff) {
         bool dlss_loaded = false;
         slIsFeatureLoaded(sl::kFeatureDLSS, dlss_loaded);
-        if (!dlss_loaded) {
+        if(!dlss_loaded) {
             auto result = slSetFeatureLoaded(sl::kFeatureDLSS, true);
-            if (result != sl::Result::eOk) {
+            if(result != sl::Result::eOk) {
                 logger->error("Error loading DLSS: {}", sl::getResultAsStr(result));
             }
         }
@@ -178,7 +188,7 @@ void StreamlineAdapter::evaluate_dlss(
     auto color_out_tag = sl::ResourceTag{
         &color_out_res, sl::kBufferTypeScalingOutputColor, sl::ResourceLifecycle::eValidUntilPresent
     };
-    auto depth_tag = sl::ResourceTag{&depth_in_res, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent };
+    auto depth_tag = sl::ResourceTag{&depth_in_res, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent};
     auto motion_vectors_tag = sl::ResourceTag{
         &motion_vectors_in_res, sl::kBufferTypeMotionVectors, sl::ResourceLifecycle::eValidUntilPresent
     };
@@ -209,11 +219,11 @@ void StreamlineAdapter::evaluate_dlss(
 
 sl::Resource wrap_resource(const TextureHandle texture, const VkImageLayout layout) {
     auto sl_resource = sl::Resource{
-       sl::ResourceType::eTex2d,
-       texture->image,
-       texture->vma.allocation_info.deviceMemory,
-       texture->image_view,
-       static_cast<uint32_t>(layout)
+        sl::ResourceType::eTex2d,
+        texture->image,
+        texture->vma.allocation_info.deviceMemory,
+        texture->image_view,
+        static_cast<uint32_t>(layout)
     };
     const auto extent = texture->create_info.extent;
     sl_resource.width = extent.width;

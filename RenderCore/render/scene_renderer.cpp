@@ -5,10 +5,10 @@
 #include "render/scene_renderer.hpp"
 
 #include "antialiasing_type.hpp"
+#include "indirect_drawing_utils.hpp"
 #include "backend/blas_build_queue.hpp"
 #include "render/backend/render_graph.hpp"
 #include "core/system_interface.hpp"
-#include "core/user_options.hpp"
 #include "render/render_scene.hpp"
 #include "streamline_adapter/streamline_adapter.hpp"
 
@@ -193,10 +193,11 @@ void SceneRenderer::render() {
 
     backend.get_texture_descriptor_pool().commit_descriptors();
 
+    update_jitter();
     player_view.update_transforms(backend.get_upload_queue());
 
     if(streamline) {
-        streamline->set_constants(player_view);
+        streamline->set_constants(player_view, scene_render_resolution);
     }
 
     auto render_graph = backend.create_render_graph();
@@ -281,8 +282,21 @@ void SceneRenderer::render() {
         material_storage,
         player_view.get_buffer());
 
+    const auto visible_objects_list = depth_culling_phase.get_visible_objects_buffer();
+    const auto visible_buffers = translate_visibility_list_to_draw_commands(
+        render_graph,
+        visible_objects_list,
+        scene->get_primitive_buffer(),
+        scene->get_total_num_primitives(),
+        scene->get_meshes().get_draw_args_buffer());
+
     if(needs_motion_vectors) {
-        //motion_vectors_phase.render(render_graph);
+        motion_vectors_phase.render(
+            render_graph,
+            depth_prepass_drawer,
+            player_view.get_buffer(),
+            depth_culling_phase.get_depth_buffer(),
+            visible_buffers);
     }
 
     // LPV
@@ -364,96 +378,17 @@ void SceneRenderer::render() {
 
     // Gbuffers, lighting, and translucency
 
-    const auto visible_objects_buffer = depth_culling_phase.get_visible_objects_buffer();
-    const auto& [draw_commands, draw_count, primitive_ids] = depth_culling_phase.
-        translate_visibility_list_to_draw_commands(
-            render_graph,
-            visible_objects_buffer,
-            scene->get_primitive_buffer(),
-            scene->get_total_num_primitives(),
-            meshes.get_draw_args_buffer()
-        );
-
-    auto gbuffer_set = backend.get_transient_descriptor_allocator().build_set(
-                                  DescriptorSetInfo{
-                                      .bindings = {
-                                          DescriptorInfo{
-                                              {
-                                                  .binding = 0,
-                                                  .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                  .descriptorCount = 1,
-                                                  .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-                                              }
-                                          },
-                                          {
-                                              {
-                                                  .binding = 1,
-                                                  .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                  .descriptorCount = 1,
-                                                  .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-                                              },
-                                              true
-                                          }
-                                      }
-                                  },
-                                  "gbuffers_global_descriptor")
-                              .bind(player_view.get_buffer())
-                              .bind(scene->get_primitive_buffer())
-                              .build();
-    render_graph.add_render_pass(
-        DynamicRenderingPass{
-            .name = "Gbuffer",
-            .buffers = {
-                {
-                    draw_commands,
-                    VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-                    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
-                },
-                {
-                    draw_count,
-                    VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-                    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
-                },
-                {
-                    primitive_ids,
-                    VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
-                    VK_ACCESS_2_SHADER_READ_BIT
-                },
-            },
-            .descriptor_sets = {gbuffer_set},
-            .color_attachments = {
-                RenderingAttachmentInfo{
-                    .image = gbuffer_color_handle,
-                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .store_op = VK_ATTACHMENT_STORE_OP_STORE
-                },
-                RenderingAttachmentInfo{
-                    .image = gbuffer_normals_handle,
-                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .store_op = VK_ATTACHMENT_STORE_OP_STORE,
-                    .clear_value = {.color = {.float32 = {0.5f, 0.5f, 1.f, 0}}}
-                },
-                RenderingAttachmentInfo{
-                    .image = gbuffer_data_handle,
-                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .store_op = VK_ATTACHMENT_STORE_OP_STORE
-                },
-                RenderingAttachmentInfo{
-                    .image = gbuffer_emission_handle,
-                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .store_op = VK_ATTACHMENT_STORE_OP_STORE
-                },
-            },
-            .depth_attachment = RenderingAttachmentInfo{.image = gbuffer_depth_handle},
-            .shading_rate_image = vrsaa_shading_rate_image,
-            .execute = [&](CommandBuffer& commands) {
-                commands.bind_descriptor_set(0, gbuffer_set);
-
-                gbuffer_drawer.draw_indirect(commands, draw_commands, draw_count, primitive_ids);
-
-                commands.clear_descriptor_set(0);
-            }
-        });
+    gbuffers_phase.render(
+        render_graph,
+        gbuffer_drawer,
+        visible_buffers,
+        gbuffer_depth_handle,
+        gbuffer_color_handle,
+        gbuffer_normals_handle,
+        gbuffer_data_handle,
+        gbuffer_emission_handle,
+        vrsaa_shading_rate_image,
+        player_view);
 
     ao_phase.generate_ao(
         render_graph,
@@ -502,7 +437,8 @@ void SceneRenderer::render() {
                         },
                         {
                             .texture = antialiased_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                            .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT, .layout = VK_IMAGE_LAYOUT_GENERAL
+                            .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                            .layout = VK_IMAGE_LAYOUT_GENERAL
                         },
                         {
                             .texture = gbuffer_depth_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -586,6 +522,11 @@ void SceneRenderer::render() {
 
     last_frame_depth_usage = render_graph.get_last_usage_token(depth_buffer_mip_chain);
     last_frame_normal_usage = render_graph.get_last_usage_token(normal_target_mip_chain);
+
+    auto& allocator = backend.get_global_allocator();
+    allocator.destroy_buffer(visible_buffers.commands);
+    allocator.destroy_buffer(visible_buffers.count);
+    allocator.destroy_buffer(visible_buffers.primitive_ids);
 
     backend.execute_graph(std::move(render_graph));
 }
@@ -770,6 +711,14 @@ void SceneRenderer::create_scene_render_targets() {
     ui_phase.set_resources(
         antialiased_scene_handle,
         glm::uvec2{swapchain.extent.width, swapchain.extent.height});
+}
+
+void SceneRenderer::update_jitter() {
+    previous_jitter = jitter;
+    jitter = glm::vec2{jitter_sequence_x.get_next_value(), jitter_sequence_y.get_next_value()} - 0.5f;
+    jitter /= glm::vec2{scene_render_resolution};
+
+    player_view.set_jitter(jitter);
 }
 
 void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {

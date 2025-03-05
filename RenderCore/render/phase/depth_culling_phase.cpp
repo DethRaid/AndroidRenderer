@@ -4,6 +4,7 @@
 #include <glm/exponential.hpp>
 
 #include "core/system_interface.hpp"
+#include "render/indirect_drawing_utils.hpp"
 #include "render/material_storage.hpp"
 #include "render/mesh_drawer.hpp"
 #include "render/mesh_storage.hpp"
@@ -16,11 +17,15 @@ DepthCullingPhase::DepthCullingPhase() {
     auto& backend = RenderBackend::get();
     auto& pipeline_cache = backend.get_pipeline_cache();
 
-    init_dual_bump_point_pipeline = pipeline_cache.create_pipeline(
-        "shaders/util/init_dual_bump_point.comp.spv");
-
-    visibility_list_to_draw_commands = pipeline_cache.create_pipeline(
-        "shaders/util/visibility_list_to_draw_commands.comp.spv");
+    depth_pso = backend.begin_building_pipeline(fmt::format("depth_prepass"))
+                       .set_vertex_shader("shaders/deferred/basic.vert.spv")
+                       .set_raster_state(
+                           {
+                               .front_face = VK_FRONT_FACE_CLOCKWISE
+                           }
+                       )
+                       .enable_dgc()
+                       .build();
 
     hi_z_culling_shader = pipeline_cache.create_pipeline("shaders/culling/hi_z_culling.comp.spv");
 
@@ -261,14 +266,13 @@ void DepthCullingPhase::render(
 
     {
         // Translate newly visible objects to indirect draw commands
-        const auto& [draw_commands_buffer, draw_count_buffer, primitive_id_buffer] =
-            translate_visibility_list_to_draw_commands(
-                graph,
-                newly_visible_objects,
-                primitive_buffer,
-                num_primitives,
-                drawer.get_mesh_storage().get_draw_args_buffer()
-            );
+        const auto& buffers = translate_visibility_list_to_draw_commands(
+            graph,
+            newly_visible_objects,
+            primitive_buffer,
+            num_primitives,
+            drawer.get_mesh_storage().get_draw_args_buffer()
+        );
 
         // Draw them
 
@@ -278,16 +282,16 @@ void DepthCullingPhase::render(
                 .textures = {},
                 .buffers = {
                     {
-                        draw_commands_buffer, VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                        buffers.commands, VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
                         VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
                     },
                     {
-                        draw_count_buffer,
+                        buffers.count,
                         VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
                         VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
                     },
                     {
-                        primitive_id_buffer,
+                        buffers.primitive_ids,
                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
                         VK_ACCESS_2_SHADER_READ_BIT
                     },
@@ -301,12 +305,16 @@ void DepthCullingPhase::render(
 
                     drawer.draw_indirect(
                         commands,
-                        draw_commands_buffer,
-                        draw_count_buffer,
-                        primitive_id_buffer
+                        depth_pso,
+                        buffers
                     );
                 }
             });
+
+        // cleanup
+        allocator.destroy_buffer(buffers.commands);
+        allocator.destroy_buffer(buffers.count);
+        allocator.destroy_buffer(buffers.primitive_ids);
     }
 
     graph.end_label();
@@ -318,74 +326,6 @@ TextureHandle DepthCullingPhase::get_depth_buffer() const {
 
 BufferHandle DepthCullingPhase::get_visible_objects_buffer() const {
     return visible_objects;
-}
-
-std::tuple<BufferHandle, BufferHandle, BufferHandle>
-DepthCullingPhase::translate_visibility_list_to_draw_commands(
-    RenderGraph& graph,
-    const BufferHandle visibility_list,
-    const BufferHandle primitive_buffer,
-    const uint32_t num_primitives,
-    const BufferHandle mesh_draw_args_buffer
-) const {
-
-    ZoneScoped;
-
-    auto& backend = RenderBackend::get();
-    auto& allocator = backend.get_global_allocator();
-    const auto draw_commands_buffer = allocator.create_buffer(
-        "Draw commands",
-        sizeof(VkDrawIndexedIndirectCommand) * num_primitives,
-        BufferUsage::IndirectBuffer
-    );
-    const auto draw_count_buffer = allocator.create_buffer(
-        "Draw count and offsets",
-        sizeof(glm::uvec4),
-        BufferUsage::IndirectBuffer);
-    const auto primitive_id_buffer = allocator.create_buffer(
-        "Primitive ID",
-        sizeof(uint32_t) * num_primitives,
-        BufferUsage::VertexBuffer
-    );
-
-    auto& descriptor_allocator = backend.get_transient_descriptor_allocator();
-
-    const auto dbp_set = descriptor_allocator.build_set(init_dual_bump_point_pipeline, 0)
-                                             .bind(draw_count_buffer)
-                                             .build();
-    graph.add_compute_dispatch<uint>(
-        {
-            .name = "Init dual bump point",
-            .descriptor_sets = {dbp_set},
-            .push_constants = num_primitives,
-            .num_workgroups = {1, 1, 1},
-            .compute_shader = init_dual_bump_point_pipeline
-        });
-
-    const auto tvl_set = descriptor_allocator.build_set(visibility_list_to_draw_commands, 0)
-                                             .bind(primitive_buffer)
-                                             .bind(visibility_list)
-                                             .bind(mesh_draw_args_buffer)
-                                             .bind(draw_commands_buffer)
-                                             .bind(draw_count_buffer)
-                                             .bind(primitive_id_buffer)
-                                             .build();
-    graph.add_compute_dispatch<uint>(
-        {
-            .name = "Translate visibility list",
-            .descriptor_sets = {tvl_set},
-            .push_constants = num_primitives,
-            .num_workgroups = {(num_primitives + 95) / 96, 1, 1},
-            .compute_shader = visibility_list_to_draw_commands
-        }
-    );
-
-    // Destroy the buffers next frame
-    allocator.destroy_buffer(draw_commands_buffer);
-    allocator.destroy_buffer(draw_count_buffer);
-    allocator.destroy_buffer(primitive_id_buffer);
-
-    return std::make_tuple(draw_commands_buffer, draw_count_buffer, primitive_id_buffer);
 }
 
 void DepthCullingPhase::draw_visible_objects_dgc(
@@ -449,6 +389,12 @@ void DepthCullingPhase::draw_visible_objects_dgc(
                 commands.execute_commands();
             }
         });
+
+    // cleanup
+    auto& allocator = RenderBackend::get().get_global_allocator();
+    allocator.destroy_buffer(draw_commands_buffer);
+    allocator.destroy_buffer(draw_count_buffer);
+    allocator.destroy_buffer(primitive_id_buffer);
 }
 
 struct DrawBatchCommand {
@@ -532,14 +478,13 @@ void DepthCullingPhase::draw_visible_objects(
 ) const {
     // Translate last frame's list of objects to indirect draw commands
 
-    const auto& [draw_commands_buffer, draw_count_buffer, primitive_id_buffer] =
-        translate_visibility_list_to_draw_commands(
-            graph,
-            visible_objects,
-            primitive_buffer,
-            num_primitives,
-            drawer.get_mesh_storage().get_draw_args_buffer()
-        );
+    const auto buffers = translate_visibility_list_to_draw_commands(
+        graph,
+        visible_objects,
+        primitive_buffer,
+        num_primitives,
+        drawer.get_mesh_storage().get_draw_args_buffer()
+    );
 
     // Draw last frame's visible objects
 
@@ -548,17 +493,17 @@ void DepthCullingPhase::draw_visible_objects(
             .name = "Rasterize last frame's visible objects",
             .buffers = {
                 {
-                    draw_commands_buffer,
+                    buffers.commands,
                     VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
                     VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
                 },
                 {
-                    draw_count_buffer,
+                    buffers.count,
                     VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
                     VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
                 },
                 {
-                    primitive_id_buffer,
+                    buffers.primitive_ids,
                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
                     VK_ACCESS_2_SHADER_READ_BIT
                 },
@@ -574,10 +519,15 @@ void DepthCullingPhase::draw_visible_objects(
 
                 drawer.draw_indirect(
                     commands,
-                    draw_commands_buffer,
-                    draw_count_buffer,
-                    primitive_id_buffer
+                    depth_pso,
+                    buffers
                 );
             }
         });
+
+    // cleanup
+    auto& allocator = RenderBackend::get().get_global_allocator();
+    allocator.destroy_buffer(buffers.commands);
+    allocator.destroy_buffer(buffers.count);
+    allocator.destroy_buffer(buffers.primitive_ids);
 }

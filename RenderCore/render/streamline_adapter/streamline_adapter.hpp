@@ -32,7 +32,7 @@ public:
      */
     void update_frame_token(uint32_t frame_index);
 
-    void set_constants(const SceneView& scene_transform);
+    void set_constants(const SceneView& scene_transform, glm::uvec2 render_resolution);
 
     /**
      * Sets the DLSS mode to use

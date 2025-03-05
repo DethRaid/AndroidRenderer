@@ -10,8 +10,10 @@
 #include "mesh_storage.hpp"
 #include "mip_chain_generator.hpp"
 #include "procedural_sky.hpp"
+#include "core/halton_sequence.hpp"
 #include "phase/ambient_occlusion_phase.hpp"
 #include "phase/depth_culling_phase.hpp"
+#include "phase/gbuffes_phase.hpp"
 #include "phase/motion_vectors_phase.hpp"
 #include "phase/sampling_rate_calculator.hpp"
 #include "render/phase/ui_phase.hpp"
@@ -111,11 +113,22 @@ private:
 
     ProceduralSky sky;
 
+    HaltonSequence jitter_sequence_x = HaltonSequence{ 2 };
+    HaltonSequence jitter_sequence_y = HaltonSequence{ 3 };
+
+    /**
+     * \brief Screen-space camera jitter applied to this frame
+     */
+    glm::vec2 jitter = {};
+    glm::vec2 previous_jitter = {};
+
     DepthCullingPhase depth_culling_phase;
 
     SceneDrawer depth_prepass_drawer;
 
     MotionVectorsPhase motion_vectors_phase;
+
+    GbuffersPhase gbuffers_phase;
 
     SceneDrawer gbuffer_drawer;
 
@@ -134,6 +147,8 @@ private:
     void set_render_resolution(glm::uvec2 new_render_resolution);
 
     void create_scene_render_targets();
+
+    void update_jitter();
 
     void draw_debug_visualizers(RenderGraph& render_graph);
 };

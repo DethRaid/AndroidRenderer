@@ -368,7 +368,7 @@ void RenderBackend::create_instance_and_device() {
     volkLoadDevice(device.device);
 
     if(streamline) {
-        streamline->set_devices_from_backend(*this);
+        // streamline->set_devices_from_backend(*this);
     }
 }
 

@@ -1,8 +1,10 @@
 #pragma once
 
+#include "backend/graphics_pipeline.hpp"
 #include "backend/handles.hpp"
 #include "render/scene_pass_type.hpp"
 
+struct IndirectDrawingBuffers;
 class ResourceAllocator;
 class MaterialStorage;
 class CommandBuffer;
@@ -48,7 +50,7 @@ public:
      */
     void draw(CommandBuffer& commands) const;
 
-    void draw_indirect(CommandBuffer& commands, BufferHandle indirect_buffer, BufferHandle draw_count_buffer, BufferHandle primitive_ids) const;
+    void draw_indirect(CommandBuffer& commands, GraphicsPipelineHandle pso, const IndirectDrawingBuffers& drawbuffers) const;
 
     const RenderScene& get_scene() const;
 

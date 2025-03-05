@@ -1,5 +1,6 @@
 #include "mesh_drawer.hpp"
 
+#include "indirect_drawing_utils.hpp"
 #include "render/material_storage.hpp"
 #include "render/mesh_storage.hpp"
 #include "render/render_scene.hpp"
@@ -40,8 +41,7 @@ void SceneDrawer::draw(CommandBuffer& commands) const {
 }
 
 void SceneDrawer::draw_indirect(
-    CommandBuffer& commands, const BufferHandle indirect_buffer, const BufferHandle draw_count_buffer,
-    const BufferHandle primitive_ids
+    CommandBuffer& commands, const GraphicsPipelineHandle pso, const IndirectDrawingBuffers& drawbuffers
 ) const {
     if (scene == nullptr) {
         return;
@@ -51,18 +51,15 @@ void SceneDrawer::draw_indirect(
 
     commands.bind_vertex_buffer(0, mesh_storage->get_vertex_position_buffer());
     commands.bind_vertex_buffer(1, mesh_storage->get_vertex_data_buffer());
-    commands.bind_vertex_buffer(2, primitive_ids);
+    commands.bind_vertex_buffer(2, drawbuffers.primitive_ids);
     commands.bind_index_buffer(mesh_storage->get_index_buffer());
 
     if (is_color_pass(type)) {
         commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
     }
 
-    // Assume all the pipelines are the same - because they are
-    // TODO: Provide a better way to classify draws by material
-
-    commands.bind_pipeline(solids[0]->material->second.pipelines[type]);
-    commands.draw_indexed_indirect(indirect_buffer, draw_count_buffer, static_cast<uint32_t>(solids.size()));
+    commands.bind_pipeline(pso);
+    commands.draw_indexed_indirect(drawbuffers.commands, drawbuffers.count, static_cast<uint32_t>(solids.size()));
 
     if (is_color_pass(type)) {
         commands.clear_descriptor_set(1);

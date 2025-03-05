@@ -33,6 +33,10 @@ struct ViewDataGPU {
     float material_texture_mip_bias;
     
     vec2 render_resolution;
+
+    vec2 jitter;
+
+    vec2 previous_jitter;
 };
 
 #endif

@@ -58,6 +58,14 @@ public:
 
     glm::vec3 get_forward() const;
 
+    void set_jitter(glm::vec2 jitter_in);
+
+    glm::vec2 get_jitter() const;
+
+    const glm::mat4& get_projection() const;
+
+    const glm::mat4& get_last_frame_projection() const;
+
 private:
     float fov = {75.f};
 
@@ -84,12 +92,16 @@ private:
 
     ViewDataGPU gpu_data = {};
 
+    glm::mat4 projection = {};
+    glm::mat4 last_frame_projection = {};
+
     BufferHandle buffer = {};
 
     bool is_dirty = true;
 
+    glm::vec2 jitter = {};
+
     void refresh_view_matrices();
+
+    void refresh_projection_matrices();
 };
-
-
-
