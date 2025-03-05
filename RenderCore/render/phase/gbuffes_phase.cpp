@@ -7,6 +7,10 @@
 
 GbuffersPhase::GbuffersPhase() {
     auto& backend = RenderBackend::get();
+    const auto blend_state = VkPipelineColorBlendAttachmentState{
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+        VK_COLOR_COMPONENT_A_BIT
+    };
     opaque_pso = backend.begin_building_pipeline("gbuffer_opaque")
                         .set_vertex_shader("shaders/deferred/basic.vert.spv")
                         .set_fragment_shader("shaders/deferred/standard_pbr.frag.spv")
@@ -22,6 +26,10 @@ GbuffersPhase::GbuffersPhase() {
                                 .front_face = VK_FRONT_FACE_CLOCKWISE
                             }
                         )
+                        .set_blend_state(0, blend_state)
+                        .set_blend_state(1, blend_state)
+                        .set_blend_state(2, blend_state)
+                        .set_blend_state(3, blend_state)
                         .build();
 
 }
