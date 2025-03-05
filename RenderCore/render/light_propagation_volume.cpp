@@ -1124,26 +1124,39 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
 
     bool use_gv = false;
 
+    auto& descriptor_allocator = RenderBackend::get().get_transient_descriptor_allocator();
+    const auto a_to_b_set = descriptor_allocator
+                            .build_set(propagation_shader, 0)
+                            .bind(lpv_a_red)
+                            .bind(lpv_a_green)
+                            .bind(lpv_a_blue)
+                            .bind(lpv_b_red)
+                            .bind(lpv_b_green)
+                            .bind(lpv_b_blue)
+                            .bind(geometry_volume_handle, linear_sampler)
+                            .build();
+
+    const auto b_to_a_set = descriptor_allocator
+                            .build_set(propagation_shader, 0)
+                            .bind(lpv_b_red)
+                            .bind(lpv_b_green)
+                            .bind(lpv_b_blue)
+                            .bind(lpv_a_red)
+                            .bind(lpv_a_green)
+                            .bind(lpv_a_blue)
+                            .bind(geometry_volume_handle, linear_sampler)
+                            .build();
+
     for(auto step_index = 0; step_index < cvar_lpv_num_propagation_steps.Get(); step_index += 2) {
         perform_propagation_step(
             render_graph,
-            lpv_a_red,
-            lpv_a_green,
-            lpv_a_blue,
-            lpv_b_red,
-            lpv_b_green,
-            lpv_b_blue,
+            a_to_b_set,
             use_gv
         );
         // use_gv = true;
         perform_propagation_step(
             render_graph,
-            lpv_b_red,
-            lpv_b_green,
-            lpv_b_blue,
-            lpv_a_red,
-            lpv_a_green,
-            lpv_a_blue,
+            b_to_a_set,
             use_gv
         );
 
@@ -1326,22 +1339,9 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
 }
 
 void LightPropagationVolume::perform_propagation_step(
-    RenderGraph& render_graph,
-    const TextureHandle read_red, const TextureHandle read_green, const TextureHandle read_blue,
-    const TextureHandle write_red, const TextureHandle write_green, const TextureHandle write_blue,
-    const bool use_gv
+    RenderGraph& render_graph, const DescriptorSet& set, const bool use_gv
 ) const {
     ZoneScoped;
-
-    const auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(propagation_shader, 0)
-                                         .bind(read_red)
-                                         .bind(read_green)
-                                         .bind(read_blue)
-                                         .bind(write_red)
-                                         .bind(write_green)
-                                         .bind(write_blue)
-                                         .bind(geometry_volume_handle, linear_sampler)
-                                         .build();
 
     struct PropagateLightingConstants {
         uint32_t cascade_index;

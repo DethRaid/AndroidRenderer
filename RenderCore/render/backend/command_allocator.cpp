@@ -18,7 +18,7 @@ CommandAllocator::CommandAllocator(RenderBackend& backend_in, const uint32_t que
         .queueFamilyIndex = queue_index,
     };
 
-    const auto device = backend->get_device();
+    const auto& device = backend->get_device();
     const auto result = vkCreateCommandPool(device, &create_info, nullptr, &command_pool);
     if (result != VK_SUCCESS) {
         logger->error("Could not create command pool: Vulkan error {}", result);
@@ -48,7 +48,7 @@ CommandAllocator& CommandAllocator::operator=(CommandAllocator&& old) noexcept {
 }
 
 CommandAllocator::~CommandAllocator() {
-    const auto device = backend->get_device();
+    const auto& device = backend->get_device();
     if (command_pool != VK_NULL_HANDLE) {
         if (!command_buffers.empty()) {
             vkFreeCommandBuffers(
@@ -82,7 +82,7 @@ VkCommandBuffer CommandAllocator::allocate_command_buffer(const std::string& nam
         .commandBufferCount = 1,
     };
 
-    const auto device = backend->get_device();
+    const auto& device = backend->get_device();
     auto commands = VkCommandBuffer{};
     const auto result = vkAllocateCommandBuffers(device, &alloc_info, &commands);
     if (result != VK_SUCCESS) {
@@ -99,7 +99,7 @@ void CommandAllocator::return_command_buffer(const VkCommandBuffer buffer) {
 }
 
 void CommandAllocator::reset() {
-    const auto device = backend->get_device();
+    const auto& device = backend->get_device();
     const auto result = vkResetCommandPool(device, command_pool, 0);
     if(result != VK_SUCCESS) {
         logger->error("Resetting command pool failed: {}", string_VkResult(result));

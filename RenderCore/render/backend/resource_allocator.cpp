@@ -26,7 +26,7 @@ ResourceAllocator::ResourceAllocator(RenderBackend& backend_in) :
     const auto create_info = VmaAllocatorCreateInfo{
         .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
         .physicalDevice = backend.get_physical_device(),
-        .device = backend.get_device().device,
+        .device = backend.get_device(),
         .pVulkanFunctions = &functions,
         .instance = backend.get_instance(),
         .vulkanApiVersion = VK_API_VERSION_1_3
@@ -38,14 +38,14 @@ ResourceAllocator::ResourceAllocator(RenderBackend& backend_in) :
 }
 
 ResourceAllocator::~ResourceAllocator() {
-    const auto device = backend.get_device().device;
+    const auto& device = backend.get_device();
     for(const auto& [info, sampler] : sampler_cache) {
         vkDestroySampler(device, sampler, nullptr);
     }
 }
 
 TextureHandle ResourceAllocator::create_texture(const std::string& name, const TextureCreateInfo& create_info) {
-    const auto device = backend.get_device().device;
+    const auto& device = backend.get_device();
 
     VkImageUsageFlags vk_usage = VK_IMAGE_USAGE_SAMPLED_BIT | create_info.usage_flags;
     VmaAllocationCreateFlags vma_flags = {};
@@ -193,7 +193,7 @@ TextureHandle ResourceAllocator::create_volume_texture(
     const std::string& name, VkFormat format, glm::uvec3 resolution,
     uint32_t num_mips, TextureUsage usage
 ) {
-    const auto device = backend.get_device().device;
+    const auto& device = backend.get_device();
 
     VkImageUsageFlags vk_usage = VK_IMAGE_USAGE_SAMPLED_BIT;
     VmaAllocationCreateFlags vma_flags = {};
@@ -316,7 +316,7 @@ TextureHandle ResourceAllocator::emplace_texture(GpuTexture&& new_texture) {
     if(new_texture.type == TextureAllocationType::Ktx) {
         // Name the image, create an image view, name the image view
 
-        const auto device = backend.get_device().device;
+        const auto& device = backend.get_device();
 
         if(new_texture.image_view == VK_NULL_HANDLE) {
             VkImageAspectFlags view_aspect = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -367,7 +367,7 @@ void ResourceAllocator::destroy_texture(TextureHandle handle) {
 BufferHandle ResourceAllocator::create_buffer(const std::string& name, const size_t size, const BufferUsage usage) {
     logger->trace("Creating buffer {} with size {} and usage {}", name, size, to_string(usage));
 
-    const auto device = backend.get_device().device;
+    const auto& device = backend.get_device();
 
     VkBufferUsageFlags vk_usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     VmaAllocationCreateFlags vma_flags = {};
@@ -537,7 +537,7 @@ void ResourceAllocator::destroy_framebuffer(Framebuffer&& framebuffer) {
 }
 
 VkSampler ResourceAllocator::get_sampler(const VkSamplerCreateInfo& info) {
-    const auto device = backend.get_device().device;
+    const auto& device = backend.get_device();
 
     const auto info_hash = SamplerCreateInfoHasher{}(info);
 
@@ -815,7 +815,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
     VkRenderPass render_pass;
     {
         ZoneScopedN("vkCreateRenderPass");
-        vkCreateRenderPass2(backend.get_device().device, &create_info, nullptr, &render_pass);
+        vkCreateRenderPass2(backend.get_device(), &create_info, nullptr, &render_pass);
 
         backend.set_object_name(render_pass, pass.name);
     }
@@ -828,7 +828,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
 void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
     ZoneScoped;
 
-    const auto device = backend.get_device().device;
+    const auto& device = backend.get_device();
 
     auto& zombie_ases = as_zombie_lists[frame_idx];
     for(const auto& as : zombie_ases) {

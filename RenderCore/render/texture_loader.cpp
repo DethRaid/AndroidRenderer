@@ -18,7 +18,7 @@ TextureLoader::TextureLoader() {
 
     auto& backend = RenderBackend::get();
     const auto physical_device = backend.get_physical_device();
-    const auto device = backend.get_device();
+    const auto& device = backend.get_device();
     const auto queue = backend.get_transfer_queue();
 
     const auto command_pool_create_info = VkCommandPoolCreateInfo{

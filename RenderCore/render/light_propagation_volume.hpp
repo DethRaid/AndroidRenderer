@@ -133,7 +133,8 @@ public:
      * @param ao_texture Ambient occlusion texture
      */
     void add_lighting_to_scene(
-        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor, BufferHandle scene_view_buffer, TextureHandle ao_texture
+        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor, BufferHandle scene_view_buffer,
+        TextureHandle ao_texture
     ) const;
 
     void visualize_vpls(
@@ -207,10 +208,5 @@ private:
      */
     void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index) const;
 
-    void perform_propagation_step(
-        RenderGraph& render_graph,
-        TextureHandle read_red, TextureHandle read_green, TextureHandle read_blue,
-        TextureHandle write_red, TextureHandle write_green, TextureHandle write_blue,
-        bool use_gv
-    ) const;
+    void perform_propagation_step(RenderGraph& render_graph, const DescriptorSet& set, bool use_gv) const;
 };

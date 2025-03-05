@@ -11,7 +11,7 @@ Framebuffer Framebuffer::create(const RenderBackend& backend, const std::vector<
                                 const std::optional<TextureHandle> depth_attachment, const VkRenderPass render_pass) {
     ZoneScoped;
 
-    auto device = backend.get_device();
+    const auto& device = backend.get_device();
 
     auto render_area = VkRect2D{};
 
