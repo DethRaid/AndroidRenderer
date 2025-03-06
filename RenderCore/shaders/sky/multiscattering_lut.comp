@@ -134,3 +134,4 @@ void main() {
 
     imageStore(multiscattering_lut, ivec2(gl_GlobalInvocationID.xy), vec4(psi, 1.f));
 }
+

@@ -20,5 +20,4 @@ public:
 
 private:
     GraphicsPipelineHandle opaque_pso;
-    GraphicsPipelineHandle masked_pso;
 };

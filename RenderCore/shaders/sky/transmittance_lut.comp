@@ -62,3 +62,4 @@ void main()
 
     imageStore(transmittance_lut, ivec2(gl_GlobalInvocationID.xy), vec4(transmittance, 1.f));
 }
+

@@ -99,5 +99,4 @@ void GbuffersPhase::render(
                 commands.clear_descriptor_set(0);
             }
         });
-
 }

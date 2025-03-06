@@ -51,7 +51,11 @@ ProceduralSky::ProceduralSky() {
     sky_application_pso = backend.begin_building_pipeline("Hillaire Sky")
                                  .set_vertex_shader("shaders/common/fullscreen.vert.spv")
                                  .set_fragment_shader("shaders/sky/hillaire.frag.spv")
-                                 .set_depth_state({.enable_depth_write = false})
+                                 .set_depth_state(
+                                     {
+                                         .enable_depth_write = false,
+                                         .compare_op = VK_COMPARE_OP_LESS_OR_EQUAL
+                                     })
                                  .build();
 
     linear_sampler = allocator.get_sampler(
