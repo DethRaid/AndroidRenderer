@@ -5,6 +5,7 @@
 #include "render/scene_renderer.hpp"
 
 #include "antialiasing_type.hpp"
+#include "fsr3.hpp"
 #include "indirect_drawing_utils.hpp"
 #include "backend/blas_build_queue.hpp"
 #include "render/backend/render_graph.hpp"
@@ -32,7 +33,7 @@ static auto cvar_use_lpv = AutoCVar_Int{
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
-    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::DLSS
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::FSR3
 };
 
 static auto cvar_dlss_quality = AutoCVar_Enum{
@@ -176,6 +177,20 @@ void SceneRenderer::render() {
             streamline->set_dlss_mode(sl::DLSSMode::eOff);
             player_view.set_mip_bias(0);
         }
+    }
+
+    if(cvar_anti_aliasing.Get() == AntiAliasingType::FSR3) {
+        if(!fsr3) {
+            fsr3 = std::make_unique<FidelityFSSuperResolution3>(backend);
+        }
+
+        fsr3->initialize(output_resolution);
+
+        const auto optimal_render_resolution = fsr3->get_optimal_render_resolution();
+
+        set_render_resolution(optimal_render_resolution);
+    } else {
+        fsr3 = nullptr;
     }
 
     ui_phase.add_data_upload_passes(backend.get_upload_queue());
@@ -420,8 +435,7 @@ void SceneRenderer::render() {
         }
         break;
 
-    case AntiAliasingType::XeSS:
-        // TODO: Make a XeSS Streamline plugin
+    case AntiAliasingType::FSR3:
         break;
 
     case AntiAliasingType::DLSS:

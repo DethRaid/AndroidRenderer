@@ -2,6 +2,7 @@
 
 #include <imgui.h>
 
+#include "fsr3.hpp"
 #include "render/bloomer.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/scene_view.hpp"
@@ -143,6 +144,8 @@ private:
     RenderVisualization active_visualization = RenderVisualization::None;
 
     VoxelVisualizer voxel_visualizer;
+
+    std::unique_ptr<FidelityFSSuperResolution3> fsr3;
 
     void set_render_resolution(glm::uvec2 new_render_resolution);
 
