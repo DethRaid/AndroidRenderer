@@ -139,6 +139,7 @@ void StreamlineAdapter::set_constants(const SceneView& scene_transform, const gl
     constants.motionVectors3D = sl::Boolean::eFalse;
     constants.reset = sl::Boolean::eFalse;
     constants.orthographicProjection = sl::Boolean::eFalse;
+    constants.motionVectorsJittered = sl::Boolean::eTrue;
 
     slSetConstants(constants, *frame_token, viewport);
 }

@@ -82,8 +82,9 @@ void RenderGraph::add_copy_pass(const ImageCopyPass& pass) {
 }
 
 void RenderGraph::add_pass(const ComputePass& pass) {
+    num_passes++;
     if(!pass.name.empty()) {
-        logger->debug("Adding compute pass {}", pass.name);
+        logger->trace("Adding compute pass {}", pass.name);
 
         cmds.begin_label(pass.name);
     }
@@ -132,7 +133,9 @@ void RenderGraph::end_render_pass() {
 }
 
 void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
-    logger->debug("Adding dynamic render pass {}", pass.name);
+    num_passes++;
+
+    logger->trace("Adding dynamic render pass {}", pass.name);
 
     for(const auto& set : pass.descriptor_sets) {
         set.get_resource_usage_information(pass.textures, pass.buffers);
@@ -226,7 +229,9 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
 }
 
 void RenderGraph::add_render_pass_internal(RenderPass pass) {
-    logger->debug("Adding render pass {}", pass.name);
+    num_passes++;
+
+    logger->trace("Adding render pass {}", pass.name);
 
     auto& allocator = backend.get_global_allocator();
 
@@ -436,6 +441,10 @@ void RenderGraph::execute_post_submit_tasks() {
     }
 
     post_submit_lambdas.clear();
+
+    logger->debug("Executed {} passes", num_passes);
+
+    num_passes = 0;
 }
 
 void RenderGraph::set_resource_usage(const TextureUsageToken& texture_usage_token, const bool skip_barrier) const {
