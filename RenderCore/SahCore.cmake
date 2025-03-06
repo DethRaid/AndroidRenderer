@@ -125,6 +125,10 @@ elseif(WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk/ffx_cacao_x64d.dll"
             $<TARGET_FILE_DIR:SahCore>)
+        add_custom_command(TARGET SahCore POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk/ffx_fsr3_x64d.dll"
+            $<TARGET_FILE_DIR:SahCore>)
     endif()
 endif()
 

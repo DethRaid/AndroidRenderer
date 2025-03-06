@@ -57,8 +57,8 @@ FetchContent_Declare(
 )
 FetchContent_Declare(
     streamline
-    GIT_REPOSITORY  https://github.com/NVIDIAGameWorks/Streamline.git
-    GIT_TAG         v2.7.2
+    GIT_REPOSITORY      https://github.com/NVIDIAGameWorks/Streamline.git
+    GIT_TAG             v2.7.2
 )
 FetchContent_Declare(
         tl_optional
@@ -120,6 +120,7 @@ else()
     target_link_libraries(fidelityfx INTERFACE
         ffx_backend_vk_x64d
         ffx_cacao_x64d
+        ffx_fsr3_x64d
     )
 endif()
 
