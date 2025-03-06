@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.22.1)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(SAH_USE_FFX_CACAO ON CACHE BOOL "" FORCE)
+
 project(sah_renderer)
 
 # Oh whoops the internet died
@@ -74,3 +76,4 @@ foreach(source IN LISTS SOURCES)
     source_group("${source_path_msvc}" FILES "${source}")
 endforeach()
 
+set_property(DIRECTORY ${CMAKE_PROJECT_DIR} PROPERTY VS_STARTUP_PROJECT SahWindows)

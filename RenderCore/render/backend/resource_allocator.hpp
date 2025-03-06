@@ -107,6 +107,24 @@ inline const char* to_string(const BufferUsage e) {
     }
 }
 
+struct TextureCreateInfo {
+    VkFormat format = VK_FORMAT_UNDEFINED;
+
+    glm::uvec2 resolution = {};
+
+    uint32_t num_mips = 1;
+
+    TextureUsage usage = TextureUsage::StaticImage;
+
+    uint32_t num_layers = 1;
+
+    VkFormat view_format = VK_FORMAT_UNDEFINED;
+
+    VkImageCreateFlags flags = 0;
+
+    VkImageUsageFlags usage_flags = 0;
+};
+
 /**
  * Allocates all kinds of resources
  *
@@ -123,16 +141,10 @@ public:
      * Creates a texture with the given parameters
      *
      * @param name Name of the texture
-     * @param format Format of the texture
-     * @param resolution Resolution of the texture
-     * @param num_mips Number of mipmaps in the image
-     * @param usage How the texture will be used
+     * @param create_info Information about how to create the texture
      * @return A handle to the texture
      */
-    TextureHandle create_texture(
-        const std::string& name, VkFormat format, glm::uvec2 resolution, uint32_t num_mips,
-        TextureUsage usage, uint32_t num_layers = 1, VkFormat view_format = VK_FORMAT_UNDEFINED
-    );
+    TextureHandle create_texture(const std::string& name, const TextureCreateInfo& create_info);
 
     TextureHandle create_volume_texture(
         const std::string& name, VkFormat format, glm::uvec3 resolution, uint32_t num_mips, TextureUsage usage
@@ -155,7 +167,9 @@ public:
 
     void destroy_buffer(BufferHandle handle);
 
-    AccelerationStructureHandle create_acceleration_structure(uint64_t acceleration_structure_size, VkAccelerationStructureTypeKHR type);
+    AccelerationStructureHandle create_acceleration_structure(
+        uint64_t acceleration_structure_size, VkAccelerationStructureTypeKHR type
+    );
 
     void destroy_acceleration_structure(AccelerationStructureHandle handle);
 
@@ -189,7 +203,7 @@ public:
     void report_memory_usage() const;
 
     VmaAllocator get_vma() const;
-    
+
 private:
     RenderBackend& backend;
 

@@ -9,7 +9,7 @@ static std::shared_ptr<spdlog::logger> logger;
 PipelineCache::PipelineCache(RenderBackend& backend_in) : backend{backend_in} {
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("PipelineCache");
-        logger->set_level(spdlog::level::trace);
+        // logger->set_level(spdlog::level::trace);
     }
 
     const auto& physical_device = backend.get_physical_device();
@@ -38,18 +38,18 @@ PipelineCache::PipelineCache(RenderBackend& backend_in) : backend{backend_in} {
         .pInitialData = data ? data->data() : nullptr,
     };
 
-    vkCreatePipelineCache(backend.get_device().device, &create_info, nullptr, &vk_pipeline_cache);
+    vkCreatePipelineCache(backend.get_device(), &create_info, nullptr, &vk_pipeline_cache);
 }
 
 PipelineCache::~PipelineCache() {
     if(vk_pipeline_cache != VK_NULL_HANDLE) {
         auto pipeline_cache_size = size_t{};
-        vkGetPipelineCacheData(backend.get_device().device, vk_pipeline_cache, &pipeline_cache_size, nullptr);
+        vkGetPipelineCacheData(backend.get_device(), vk_pipeline_cache, &pipeline_cache_size, nullptr);
 
         auto pipeline_cache_data = std::vector<uint8_t>{};
         pipeline_cache_data.resize(pipeline_cache_size);
         vkGetPipelineCacheData(
-            backend.get_device().device,
+            backend.get_device(),
             vk_pipeline_cache,
             &pipeline_cache_size,
             pipeline_cache_data.data()
@@ -61,13 +61,13 @@ PipelineCache::~PipelineCache() {
             static_cast<uint32_t>(pipeline_cache_data.size())
         );
 
-        vkDestroyPipelineCache(backend.get_device().device, vk_pipeline_cache, nullptr);
+        vkDestroyPipelineCache(backend.get_device(), vk_pipeline_cache, nullptr);
         vk_pipeline_cache = VK_NULL_HANDLE;
     }
 }
 
 GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuilder& pipeline_builder) {
-    const auto device = backend.get_device().device;
+    const auto& device = backend.get_device();
 
     auto pipeline = GraphicsPipeline{};
 
@@ -478,7 +478,7 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         rendering_info.pNext = &shading_rate_create_info;
     }
 
-    const auto device = backend.get_device().device;
+    const auto& device = backend.get_device();
     vkCreateGraphicsPipelines(
         device,
         vk_pipeline_cache,
@@ -488,14 +488,8 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         &pipeline->pipeline
     );
 
-    if(!pipeline->pipeline_name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_PIPELINE,
-            .objectHandle = reinterpret_cast<uint64_t>(pipeline->pipeline),
-            .pObjectName = pipeline->pipeline_name.c_str()
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
+    if(!pipeline->pipeline_name.empty()) {
+        backend.set_object_name(pipeline->pipeline, pipeline->pipeline_name);
     }
 
     return pipeline->pipeline;
@@ -593,7 +587,7 @@ VkPipeline PipelineCache::get_pipeline(
         .subpass = active_subpass,
     };
 
-    const auto device = backend.get_device().device;
+    const auto& device = backend.get_device();
     vkCreateGraphicsPipelines(
         device,
         vk_pipeline_cache,

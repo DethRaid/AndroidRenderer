@@ -4,6 +4,7 @@
 #include <spdlog/sinks/android_sink.h>
 #include <spdlog/logger.h>
 
+#include "pipeline_cache.hpp"
 #include "render/backend/resource_access_synchronizer.hpp"
 #include "render/backend/utils.hpp"
 #include "render/backend/render_backend.hpp"
@@ -55,29 +56,35 @@ void RenderGraph::add_copy_pass(const BufferCopyPass& pass) {
 }
 
 void RenderGraph::add_copy_pass(const ImageCopyPass& pass) {
-    add_pass(
-        {
-            .name = pass.name,
-            .textures = {
-                {
-                    pass.src, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+    if(is_depth_format(pass.dst->create_info.format) || is_depth_format(pass.src->create_info.format)) {
+        do_compute_shader_copy(pass);
+
+    } else {
+        add_pass(
+            {
+                .name = pass.name,
+                .textures = {
+                    {
+                        pass.src, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+                    },
+                    {
+                        pass.dst, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+                    }
                 },
-                {
-                    pass.dst, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+                .execute = [=](const CommandBuffer& commands) {
+                    commands.copy_image_to_image(pass.src, pass.dst);
                 }
-            },
-            .execute = [=](const CommandBuffer& commands) {
-                commands.copy_image_to_image(pass.src, pass.dst);
             }
-        }
-    );
+        );
+    }
 }
 
 void RenderGraph::add_pass(const ComputePass& pass) {
+    num_passes++;
     if(!pass.name.empty()) {
-        logger->debug("Adding compute pass {}", pass.name);
+        logger->trace("Adding compute pass {}", pass.name);
 
         cmds.begin_label(pass.name);
     }
@@ -126,7 +133,9 @@ void RenderGraph::end_render_pass() {
 }
 
 void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
-    logger->debug("Adding dynamic render pass {}", pass.name);
+    num_passes++;
+
+    logger->trace("Adding dynamic render pass {}", pass.name);
 
     for(const auto& set : pass.descriptor_sets) {
         set.get_resource_usage_information(pass.textures, pass.buffers);
@@ -220,7 +229,9 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
 }
 
 void RenderGraph::add_render_pass_internal(RenderPass pass) {
-    logger->debug("Adding render pass {}", pass.name);
+    num_passes++;
+
+    logger->trace("Adding render pass {}", pass.name);
 
     auto& allocator = backend.get_global_allocator();
 
@@ -347,6 +358,35 @@ void RenderGraph::update_accesses_and_issues_barriers(
     access_tracker.issue_barriers(cmds);
 }
 
+static ComputePipelineHandle image_copy_shader = {};
+
+void RenderGraph::do_compute_shader_copy(const ImageCopyPass& pass) {
+    if(pass.dst->create_info.extent.width != pass.src->create_info.extent.width ||
+        pass.dst->create_info.extent.height != pass.src->create_info.extent.height) {
+        throw std::runtime_error{"Source and dest images have different extents, cannot copy!"};
+    }
+
+    if(!image_copy_shader.is_valid()) {
+        image_copy_shader = RenderBackend::get().get_pipeline_cache().create_pipeline("shaders/util/image_copy.comp.spv");
+    }
+
+    const auto set = RenderBackend::get().get_transient_descriptor_allocator()
+                                         .build_set(image_copy_shader, 0)
+                                         .bind(pass.src)
+                                         .bind(pass.dst)
+                                         .build();
+
+    const auto resolution = glm::uvec2{pass.dst->create_info.extent.width, pass.dst->create_info.extent.height};
+    add_compute_dispatch<glm::uvec2>(
+        {
+            .name = "Image copy",
+            .descriptor_sets = {set},
+            .push_constants = resolution,
+            .num_workgroups = {(resolution.x + 7) / 8, (resolution.y + 7) / 8, 1},
+            .compute_shader = image_copy_shader,
+        });
+}
+
 void RenderGraph::add_finish_frame_and_present_pass(const PresentPass& pass) {
     add_transition_pass(
         {
@@ -401,6 +441,10 @@ void RenderGraph::execute_post_submit_tasks() {
     }
 
     post_submit_lambdas.clear();
+
+    logger->debug("Executed {} passes", num_passes);
+
+    num_passes = 0;
 }
 
 void RenderGraph::set_resource_usage(const TextureUsageToken& texture_usage_token, const bool skip_barrier) const {

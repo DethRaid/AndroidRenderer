@@ -51,7 +51,9 @@ void VRSAA::generate_shading_rate_image(RenderGraph& graph) const {
 
 }
 
-void VRSAA::measure_aliasing(RenderGraph& graph, const TextureHandle scene_color, const TextureHandle gbuffer_depth) const {
+void VRSAA::measure_aliasing(
+    RenderGraph& graph, const TextureHandle scene_color, const TextureHandle gbuffer_depth
+) const {
     ZoneScoped;
 
     const auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(contrast_shader, 0)
@@ -86,10 +88,13 @@ void VRSAA::create_contrast_image(const glm::vec2& resolution) {
 
     contrast_image = allocator.create_texture(
         "Contrast",
-        VK_FORMAT_R16G16_SFLOAT,
-        resolution,
-        1,
-        TextureUsage::StorageImage);
+        {
+            VK_FORMAT_R16G16_SFLOAT,
+            resolution,
+            1,
+            TextureUsage::StorageImage
+        }
+    );
 }
 
 void VRSAA::create_shading_rate_image(const glm::vec2& resolution) {
@@ -108,10 +113,13 @@ void VRSAA::create_shading_rate_image(const glm::vec2& resolution) {
 
     shading_rate_image = allocator.create_texture(
         "Shading rate",
-        VK_FORMAT_R8_UINT,
-        glm::ceil(shading_rate_image_size),
-        1,
-        TextureUsage::ShadingRateImage);
+        {
+            VK_FORMAT_R8_UINT,
+            glm::ceil(shading_rate_image_size),
+            1,
+            TextureUsage::ShadingRateImage
+        }
+    );
 }
 
 struct ShadingRateParams {

@@ -22,7 +22,7 @@ layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer Ma
 #define MATERIAL_BUFFER_REFERENCE MaterialDataBuffer
 
 #else // slang
-#define MATERIAL_BUFFER_REFERENCE uint64_t
+#define MATERIAL_BUFFER_REFERENCE BasicPbrMaterialGpu*
 
 #endif
 

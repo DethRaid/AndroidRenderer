@@ -34,7 +34,7 @@ static bool is_write_access(const VkAccessFlagBits2 access) {
 ResourceAccessTracker::ResourceAccessTracker(RenderBackend& backend_in) : backend{backend_in} {
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("ResourceAccessTracker");
-        logger->set_level(spdlog::level::info);
+        // logger->set_level(spdlog::level::trace);
     }
 }
 

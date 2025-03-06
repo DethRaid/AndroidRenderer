@@ -7,7 +7,7 @@
 
 #include "render/backend/handles.hpp"
 
-class SceneTransform;
+class SceneView;
 class RenderGraph;
 
 /**
@@ -27,7 +27,7 @@ public:
     ~AmbientOcclusionPhase();
 
     void generate_ao(
-        RenderGraph& graph, const SceneTransform& view, TextureHandle gbuffer_normals, TextureHandle gbuffer_depth,
+        RenderGraph& graph, const SceneView& view, TextureHandle gbuffer_normals, TextureHandle gbuffer_depth,
         TextureHandle ao_out
     );
 
@@ -35,9 +35,10 @@ private:
 #if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
     FfxInterface ffx_interface;
 
-    // ffxContext ffx = nullptr;
     FfxDevice ffx_device;
     bool has_context = false;
     FfxCacaoContext context = {};
+
+    TextureHandle stinky_depth = nullptr;
 #endif
 };

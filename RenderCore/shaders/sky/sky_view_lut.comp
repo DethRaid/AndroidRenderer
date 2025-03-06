@@ -103,3 +103,4 @@ void main() {
 
     imageStore(sky_view_lut, ivec2(gl_GlobalInvocationID), vec4(lum, 1.f));
 }
+

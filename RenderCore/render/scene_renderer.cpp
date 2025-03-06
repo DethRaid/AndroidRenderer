@@ -5,11 +5,12 @@
 #include "render/scene_renderer.hpp"
 
 #include "antialiasing_type.hpp"
+#include "indirect_drawing_utils.hpp"
 #include "backend/blas_build_queue.hpp"
 #include "render/backend/render_graph.hpp"
 #include "core/system_interface.hpp"
-#include "core/user_options.hpp"
 #include "render/render_scene.hpp"
+#include "streamline_adapter/streamline_adapter.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
@@ -31,7 +32,11 @@ static auto cvar_use_lpv = AutoCVar_Int{
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
-    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::VRSAA
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::DLSS
+};
+
+static auto cvar_dlss_quality = AutoCVar_Enum{
+    "r.DLSS.Quality", "DLSS Quality", sl::DLSSMode::eDLAA
 };
 // ReSharper restore CppDeclaratorNeverUsed
 
@@ -51,7 +56,7 @@ SceneRenderer::SceneRenderer() {
         0.05f
     );
 
-    set_render_resolution(screen_resolution);
+    set_output_resolution(screen_resolution);
 
     auto& backend = RenderBackend::get();
 
@@ -75,33 +80,8 @@ SceneRenderer::SceneRenderer() {
     logger->info("Initialized SceneRenderer");
 }
 
-void SceneRenderer::set_render_resolution(const glm::uvec2& screen_resolution) {
-    ZoneScoped;
-
-    if(screen_resolution == scene_render_resolution) {
-        return;
-    }
-
-    auto resolution_multiplier = 1u;
-    if(cvar_anti_aliasing.Get() == AntiAliasingType::VRSAA) {
-        resolution_multiplier = 2u;
-    }
-
-    scene_render_resolution = screen_resolution * resolution_multiplier;
-
-    logger->info(
-        "Setting resolution to {} by {}",
-        scene_render_resolution.x,
-        scene_render_resolution.y);
-
-    player_view.set_render_resolution(scene_render_resolution);
-
-    player_view.set_aspect_ratio(
-        static_cast<float>(scene_render_resolution.x) / static_cast<float>(scene_render_resolution.
-            y)
-    );
-
-    create_scene_render_targets();
+void SceneRenderer::set_output_resolution(const glm::uvec2& new_output_resolution) {
+    output_resolution = new_output_resolution;
 }
 
 void SceneRenderer::set_scene(RenderScene& scene_in) {
@@ -130,6 +110,28 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
     }
 }
 
+void SceneRenderer::set_render_resolution(const glm::uvec2 new_render_resolution) {
+    if(new_render_resolution == scene_render_resolution) {
+        return;
+    }
+
+    scene_render_resolution = new_render_resolution;
+
+    logger->info(
+        "Setting resolution to {} by {}",
+        scene_render_resolution.x,
+        scene_render_resolution.y);
+
+    player_view.set_render_resolution(scene_render_resolution);
+
+    player_view.set_aspect_ratio(
+        static_cast<float>(scene_render_resolution.x) / static_cast<float>(scene_render_resolution.
+            y)
+    );
+
+    create_scene_render_targets();
+}
+
 void SceneRenderer::render() {
     ZoneScoped;
 
@@ -139,11 +141,41 @@ void SceneRenderer::render() {
 
     logger->trace("Beginning frame");
 
+    auto* streamline = backend.get_streamline();
+
+    auto needs_motion_vectors = false;
+
+    if(cvar_anti_aliasing.Get() == AntiAliasingType::None) {
+        set_render_resolution(output_resolution);
+    }
+
     if(cvar_anti_aliasing.Get() != AntiAliasingType::VRSAA) {
         vrsaa = nullptr;
     } else if(vrsaa == nullptr) {
         vrsaa = std::make_unique<VRSAA>();
+
+        set_render_resolution(output_resolution * 2u);
+
         vrsaa->init(scene_render_resolution);
+    }
+
+    if(streamline) {
+        if(cvar_anti_aliasing.Get() == AntiAliasingType::DLSS) {
+            streamline->set_dlss_mode(cvar_dlss_quality.Get());
+
+            const auto optimal_render_resolution = streamline->get_dlss_render_resolution(output_resolution);
+
+            set_render_resolution(optimal_render_resolution);
+            player_view.set_mip_bias(
+                log2(
+                    static_cast<double>(optimal_render_resolution.x) / static_cast<double>(output_resolution.x)) - 1.0f
+                + FLT_EPSILON);
+            needs_motion_vectors = true;
+
+        } else {
+            streamline->set_dlss_mode(sl::DLSSMode::eOff);
+            player_view.set_mip_bias(0);
+        }
     }
 
     ui_phase.add_data_upload_passes(backend.get_upload_queue());
@@ -161,7 +193,12 @@ void SceneRenderer::render() {
 
     backend.get_texture_descriptor_pool().commit_descriptors();
 
+    update_jitter();
     player_view.update_transforms(backend.get_upload_queue());
+
+    if(streamline) {
+        streamline->set_constants(player_view, scene_render_resolution);
+    }
 
     auto render_graph = backend.create_render_graph();
 
@@ -245,6 +282,23 @@ void SceneRenderer::render() {
         material_storage,
         player_view.get_buffer());
 
+    const auto visible_objects_list = depth_culling_phase.get_visible_objects_buffer();
+    const auto visible_buffers = translate_visibility_list_to_draw_commands(
+        render_graph,
+        visible_objects_list,
+        scene->get_primitive_buffer(),
+        scene->get_total_num_primitives(),
+        scene->get_meshes().get_draw_args_buffer());
+
+    if(needs_motion_vectors) {
+        motion_vectors_phase.render(
+            render_graph,
+            depth_prepass_drawer,
+            player_view.get_buffer(),
+            depth_culling_phase.get_depth_buffer(),
+            visible_buffers);
+    }
+
     // LPV
 
     if(lpv) {
@@ -252,8 +306,7 @@ void SceneRenderer::render() {
 
         const auto build_mode = LightPropagationVolume::get_build_mode();
 
-        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && build_mode ==
-            GvBuildMode::Voxels) {
+        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && build_mode == GvBuildMode::Voxels) {
             lpv->build_geometry_volume_from_voxels(render_graph, *scene);
         } else if(build_mode == GvBuildMode::DepthBuffers) {
             lpv->build_geometry_volume_from_scene_view(
@@ -325,83 +378,17 @@ void SceneRenderer::render() {
 
     // Gbuffers, lighting, and translucency
 
-    const auto visible_objects_buffer = depth_culling_phase.get_visible_objects_buffer();
-    const auto& [draw_commands, draw_count, primitive_ids] = depth_culling_phase.
-        translate_visibility_list_to_draw_commands(
-            render_graph,
-            visible_objects_buffer,
-            scene->get_primitive_buffer(),
-            scene->get_total_num_primitives(),
-            meshes.get_draw_args_buffer()
-        );
-
-    render_graph.add_render_pass(
-        DynamicRenderingPass{
-            .name = "Gbuffer",
-            .buffers = {
-                {
-                    draw_commands,
-                    VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-                    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
-                },
-                {
-                    draw_count,
-                    VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-                    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
-                },
-                {
-                    primitive_ids,
-                    VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
-                    VK_ACCESS_2_SHADER_READ_BIT
-                },
-            },
-            .color_attachments = {
-                RenderingAttachmentInfo{
-                    .image = gbuffer_color_handle,
-                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .store_op = VK_ATTACHMENT_STORE_OP_STORE
-                },
-                RenderingAttachmentInfo{
-                    .image = gbuffer_normals_handle,
-                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .store_op = VK_ATTACHMENT_STORE_OP_STORE,
-                    .clear_value = {.color = {.float32 = {0.5f, 0.5f, 1.f, 0}}}
-                },
-                RenderingAttachmentInfo{
-                    .image = gbuffer_data_handle,
-                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .store_op = VK_ATTACHMENT_STORE_OP_STORE
-                },
-                RenderingAttachmentInfo{
-                    .image = gbuffer_emission_handle,
-                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .store_op = VK_ATTACHMENT_STORE_OP_STORE
-                },
-            },
-            .depth_attachment = RenderingAttachmentInfo{.image = gbuffer_depth_handle},
-            .shading_rate_image = vrsaa_shading_rate_image,
-            .execute = [&](CommandBuffer& commands) {
-                auto global_set = *vkutil::DescriptorBuilder::begin(
-                                       backend,
-                                       backend.get_transient_descriptor_allocator()
-                                   )
-                                   .bind_buffer(
-                                       0,
-                                       {
-                                           .buffer = player_view.get_buffer()
-                                       },
-                                       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                       VK_SHADER_STAGE_VERTEX_BIT
-                                   )
-                                   .build();
-
-                commands.bind_descriptor_set(0, global_set);
-
-                gbuffer_drawer.draw_indirect(commands, draw_commands, draw_count, primitive_ids);
-
-                commands.clear_descriptor_set(0);
-            }
-        });
+    gbuffers_phase.render(
+        render_graph,
+        gbuffer_drawer,
+        visible_buffers,
+        gbuffer_depth_handle,
+        gbuffer_color_handle,
+        gbuffer_normals_handle,
+        gbuffer_data_handle,
+        gbuffer_emission_handle,
+        vrsaa_shading_rate_image,
+        player_view);
 
     ao_phase.generate_ao(
         render_graph,
@@ -414,19 +401,70 @@ void SceneRenderer::render() {
         render_graph,
         player_view,
         lit_scene_handle,
+        ao_handle,
         lpv.get(),
         sky,
         vrsaa_shading_rate_image);
 
-    // VRS
+    // Anti-aliasing/upscaling
 
-    if(vrsaa) {
-        vrsaa->measure_aliasing(render_graph, gbuffer_color_handle, gbuffer_depth_handle);
+    switch(cvar_anti_aliasing.Get()) {
+    case AntiAliasingType::None:
+        // TODO: Copy lit scene to "antialiased" render target with a bilinear filter
+        break;
+
+    case AntiAliasingType::VRSAA:
+        if(vrsaa) {
+            vrsaa->measure_aliasing(render_graph, gbuffer_color_handle, gbuffer_depth_handle);
+            // TODO: Perform a proper VSR resolve, and also do VRS in lighting
+        }
+        break;
+
+    case AntiAliasingType::XeSS:
+        // TODO: Make a XeSS Streamline plugin
+        break;
+
+    case AntiAliasingType::DLSS:
+        if(streamline) {
+            const auto motion_vectors_handle = motion_vectors_phase.get_motion_vectors();
+            render_graph.add_pass(
+                {
+                    .name = "DLSS",
+                    .textures = {
+                        {
+                            .texture = lit_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        },
+                        {
+                            .texture = antialiased_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                            .layout = VK_IMAGE_LAYOUT_GENERAL
+                        },
+                        {
+                            .texture = gbuffer_depth_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        },
+                        {
+                            .texture = motion_vectors_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        },
+                    },
+                    .execute = [&](CommandBuffer& commands) {
+                        streamline->evaluate_dlss(
+                            commands,
+                            lit_scene_handle,
+                            antialiased_scene_handle,
+                            gbuffer_depth_handle,
+                            motion_vectors_handle);
+                    }
+                });
+        }
+        break;
     }
 
     // Bloom
 
-    bloomer.fill_bloom_tex(render_graph, lit_scene_handle);
+    bloomer.fill_bloom_tex(render_graph, antialiased_scene_handle);
 
     // Other postprocessing
 
@@ -438,12 +476,6 @@ void SceneRenderer::render() {
         draw_debug_visualizers(render_graph);
     }
 
-    // Optical Flow
-
-    /*
-     * Use https://developer.nvidia.com/optical-flow-sdk to generation motion vectors if available
-     */
-
     // UI
 
     const auto swapchain_index = backend.get_current_swapchain_index();
@@ -454,7 +486,7 @@ void SceneRenderer::render() {
             .name = "UI",
             .textures = {
                 {
-                    lit_scene_handle,
+                    antialiased_scene_handle,
                     VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                     VK_ACCESS_2_SHADER_READ_BIT,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -491,10 +523,15 @@ void SceneRenderer::render() {
     last_frame_depth_usage = render_graph.get_last_usage_token(depth_buffer_mip_chain);
     last_frame_normal_usage = render_graph.get_last_usage_token(normal_target_mip_chain);
 
+    auto& allocator = backend.get_global_allocator();
+    allocator.destroy_buffer(visible_buffers.commands);
+    allocator.destroy_buffer(visible_buffers.count);
+    allocator.destroy_buffer(visible_buffers.primitive_ids);
+
     backend.execute_graph(std::move(render_graph));
 }
 
-SceneTransform& SceneRenderer::get_local_player() {
+SceneView& SceneRenderer::get_local_player() {
     return player_view;
 }
 
@@ -542,39 +579,53 @@ void SceneRenderer::create_scene_render_targets() {
         allocator.destroy_texture(lit_scene_handle);
     }
 
+    if(antialiased_scene_handle != nullptr) {
+        allocator.destroy_texture(antialiased_scene_handle);
+    }
+
     depth_culling_phase.set_render_resolution(scene_render_resolution);
+
+    motion_vectors_phase.set_render_resolution(scene_render_resolution);
 
     // gbuffer and lighting render targets
     gbuffer_color_handle = allocator.create_texture(
         "gbuffer_color",
-        VK_FORMAT_R8G8B8A8_SRGB,
-        scene_render_resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R8G8B8A8_SRGB,
+            scene_render_resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
 
     gbuffer_normals_handle = allocator.create_texture(
         "gbuffer_normals",
-        VK_FORMAT_R16G16B16A16_SFLOAT,
-        scene_render_resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R16G16B16A16_SFLOAT,
+            scene_render_resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
 
     gbuffer_data_handle = allocator.create_texture(
         "gbuffer_data",
-        VK_FORMAT_R8G8B8A8_UNORM,
-        scene_render_resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R8G8B8A8_UNORM,
+            scene_render_resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
 
     gbuffer_emission_handle = allocator.create_texture(
         "gbuffer_emission",
-        VK_FORMAT_R8G8B8A8_SRGB,
-        scene_render_resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R8G8B8A8_SRGB,
+            scene_render_resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
 
     const auto mip_chain_resolution = scene_render_resolution / glm::uvec2{2};
@@ -582,35 +633,52 @@ void SceneRenderer::create_scene_render_targets() {
     const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
     depth_buffer_mip_chain = allocator.create_texture(
         "Depth buffer mip chain",
-        VK_FORMAT_R16_SFLOAT,
-        mip_chain_resolution,
-        num_mips,
-        TextureUsage::StorageImage
+        {
+            VK_FORMAT_R16_SFLOAT,
+            mip_chain_resolution,
+            num_mips,
+            TextureUsage::StorageImage
+        }
     );
 
     normal_target_mip_chain = allocator.create_texture(
         "gbuffer_normals B",
-        VK_FORMAT_R16G16B16A16_SFLOAT,
-        mip_chain_resolution,
-        num_mips,
-        TextureUsage::StorageImage
+        {
+            VK_FORMAT_R16G16B16A16_SFLOAT,
+            mip_chain_resolution,
+            num_mips,
+            TextureUsage::StorageImage
+        }
     );
 
     ao_handle = allocator.create_texture(
         "AO",
-        VK_FORMAT_R32_SFLOAT,
-        scene_render_resolution,
-        1,
-        TextureUsage::StorageImage
+        TextureCreateInfo{
+            .format = VK_FORMAT_R32_SFLOAT,
+            .resolution = scene_render_resolution,
+            .num_mips = 1,
+            .usage = TextureUsage::StorageImage,
+        }
     );
 
     lit_scene_handle = allocator.create_texture(
         "lit_scene",
-        VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        scene_render_resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            scene_render_resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
+
+    antialiased_scene_handle = allocator.create_texture(
+        "antialiased_scene",
+        {
+            .format = VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            .resolution = output_resolution,
+            .usage = TextureUsage::StorageImage,
+            .usage_flags = VK_IMAGE_USAGE_TRANSFER_DST_BIT
+        });
 
     auto& swapchain = backend.get_swapchain();
     const auto& images = swapchain.get_images();
@@ -641,8 +709,16 @@ void SceneRenderer::create_scene_render_targets() {
     }
 
     ui_phase.set_resources(
-        lit_scene_handle,
+        antialiased_scene_handle,
         glm::uvec2{swapchain.extent.width, swapchain.extent.height});
+}
+
+void SceneRenderer::update_jitter() {
+    previous_jitter = jitter;
+    jitter = glm::vec2{jitter_sequence_x.get_next_value(), jitter_sequence_y.get_next_value()} - 0.5f;
+    jitter /= glm::vec2{scene_render_resolution};
+
+    player_view.set_jitter(jitter);
 }
 
 void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
@@ -652,9 +728,8 @@ void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
         break;
 
     case RenderVisualization::VoxelizedMeshes:
-        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && *CVarSystem::Get()->GetIntCVar(
-                "r.voxel.Visualize")
-            != 0) {
+        if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 &&
+            *CVarSystem::Get()->GetIntCVar("r.voxel.Visualize") != 0) {
             voxel_visualizer.render(
                 render_graph,
                 *scene,

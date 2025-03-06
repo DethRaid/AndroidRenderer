@@ -115,10 +115,11 @@ void main() {
     // Screen position for the ray
     vec2 location_screen = gl_FragCoord.xy / view_info.render_resolution.xy;
  
-    vec4 location_clipspace = vec4(location_screen, 1.f, 1.f);
+    vec4 location_clipspace = vec4(location_screen, 0.f, 1.f);
     vec4 location_viewspace = view_info.inverse_projection * location_clipspace;
     location_viewspace /= location_viewspace.w;
-    const vec3 view_vector_worldspace = -normalize((view_info.inverse_view * vec4(location_viewspace.xyz, 0)).xyz);
+    vec3 view_vector_worldspace = -normalize((view_info.inverse_view * vec4(location_viewspace.xyz, 0)).xyz);
+    view_vector_worldspace.y *= -1;
 
     vec3 sunDir = -constants.sun_direction;
         
@@ -150,4 +151,6 @@ void main() {
     lum *= exposure_factor;
 
     color = lum;
+
+    //color = vec3(view_vector_worldspace);
 }

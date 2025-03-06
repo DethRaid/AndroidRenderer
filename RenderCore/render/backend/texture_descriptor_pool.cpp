@@ -14,7 +14,7 @@ TextureDescriptorPool::TextureDescriptorPool(RenderBackend& backend_in) : backen
     cvar_sampled_image_count.Set(sampled_image_count > INT_MAX ? INT_MAX : static_cast<int32_t>(sampled_image_count));
     sampled_image_count = cvar_sampled_image_count.Get();
 
-    const auto device = backend_in.get_device().device;
+    const auto& device = backend_in.get_device();
 
     const auto pool_sizes = VkDescriptorPoolSize{
         .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -63,7 +63,7 @@ TextureDescriptorPool::TextureDescriptorPool(RenderBackend& backend_in) : backen
 }
 
 TextureDescriptorPool::~TextureDescriptorPool() {
-    const auto device = backend.get_device().device;
+    const auto& device = backend.get_device();
     
     vkDestroyDescriptorSetLayout(device, descriptor_set.layout, nullptr);
     vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
@@ -108,7 +108,7 @@ void TextureDescriptorPool::commit_descriptors() {
 
     ZoneScoped;
 
-    const auto device = backend.get_device().device;
+    const auto& device = backend.get_device();
     vkUpdateDescriptorSets(device, static_cast<uint32_t>(pending_writes.size()), pending_writes.data(), 0, nullptr);
 
     pending_writes.clear();

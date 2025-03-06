@@ -334,7 +334,7 @@ void LightPropagationVolume::set_scene_drawer(SceneDrawer&& drawer) {
     rsm_drawer = drawer;
 }
 
-void LightPropagationVolume::update_cascade_transforms(const SceneTransform& view, const DirectionalLight& light) {
+void LightPropagationVolume::update_cascade_transforms(const SceneView& view, const DirectionalLight& light) {
     ZoneScoped;
 
     const auto num_cells = cvar_lpv_resolution.Get();
@@ -454,6 +454,14 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         .descriptorCount = 1,
                         .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
                     }
+                },
+                {
+                    {
+                        .binding = 2,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                        .descriptorCount = 1,
+                        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+                    }
                 }
             }
         };
@@ -463,6 +471,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                 )
                                 .bind(cascade_data_buffer)
                                 .bind(scene.get_sun_light().get_constant_buffer())
+                                .bind(scene.get_primitive_buffer())
                                 .build();
 
         graph.add_render_pass(
@@ -492,7 +501,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 .execute = [&](CommandBuffer& commands) {
                     commands.bind_descriptor_set(0, set);
 
-                    commands.set_push_constant(4, cascade_index);
+                    commands.set_push_constant(1, cascade_index);
 
                     rsm_drawer.draw(commands);
 
@@ -1115,26 +1124,39 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
 
     bool use_gv = false;
 
+    auto& descriptor_allocator = RenderBackend::get().get_transient_descriptor_allocator();
+    const auto a_to_b_set = descriptor_allocator
+                            .build_set(propagation_shader, 0)
+                            .bind(lpv_a_red)
+                            .bind(lpv_a_green)
+                            .bind(lpv_a_blue)
+                            .bind(lpv_b_red)
+                            .bind(lpv_b_green)
+                            .bind(lpv_b_blue)
+                            .bind(geometry_volume_handle, linear_sampler)
+                            .build();
+
+    const auto b_to_a_set = descriptor_allocator
+                            .build_set(propagation_shader, 0)
+                            .bind(lpv_b_red)
+                            .bind(lpv_b_green)
+                            .bind(lpv_b_blue)
+                            .bind(lpv_a_red)
+                            .bind(lpv_a_green)
+                            .bind(lpv_a_blue)
+                            .bind(geometry_volume_handle, linear_sampler)
+                            .build();
+
     for(auto step_index = 0; step_index < cvar_lpv_num_propagation_steps.Get(); step_index += 2) {
         perform_propagation_step(
             render_graph,
-            lpv_a_red,
-            lpv_a_green,
-            lpv_a_blue,
-            lpv_b_red,
-            lpv_b_green,
-            lpv_b_blue,
+            a_to_b_set,
             use_gv
         );
         // use_gv = true;
         perform_propagation_step(
             render_graph,
-            lpv_b_red,
-            lpv_b_green,
-            lpv_b_blue,
-            lpv_a_red,
-            lpv_a_green,
-            lpv_a_blue,
+            b_to_a_set,
             use_gv
         );
 
@@ -1172,7 +1194,8 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
 void LightPropagationVolume::add_lighting_to_scene(
     CommandBuffer& commands,
     const DescriptorSet& gbuffers_descriptor,
-    const BufferHandle scene_view_buffer
+    const BufferHandle scene_view_buffer,
+    const TextureHandle ao_texture
 ) const {
     GpuZoneScoped(commands)
 
@@ -1186,6 +1209,7 @@ void LightPropagationVolume::add_lighting_to_scene(
                                        .bind(lpv_a_blue, linear_sampler)
                                        .bind(cascade_data_buffer)
                                        .bind(scene_view_buffer)
+                                       .bind(ao_texture, linear_sampler)
                                        .build();
 
     commands.bind_descriptor_set(1, lpv_descriptor);
@@ -1315,22 +1339,9 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
 }
 
 void LightPropagationVolume::perform_propagation_step(
-    RenderGraph& render_graph,
-    const TextureHandle read_red, const TextureHandle read_green, const TextureHandle read_blue,
-    const TextureHandle write_red, const TextureHandle write_green, const TextureHandle write_blue,
-    const bool use_gv
+    RenderGraph& render_graph, const DescriptorSet& set, const bool use_gv
 ) const {
     ZoneScoped;
-
-    const auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(propagation_shader, 0)
-                                         .bind(read_red)
-                                         .bind(read_green)
-                                         .bind(read_blue)
-                                         .bind(write_red)
-                                         .bind(write_green)
-                                         .bind(write_blue)
-                                         .bind(geometry_volume_handle, linear_sampler)
-                                         .build();
 
     struct PropagateLightingConstants {
         uint32_t cascade_index;
@@ -1359,24 +1370,30 @@ void CascadeData::create_render_targets(ResourceAllocator& allocator) {
     const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
     flux_target = allocator.create_texture(
         "RSM Flux",
-        VK_FORMAT_R8G8B8A8_SRGB,
-        resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R8G8B8A8_SRGB,
+            resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
     normals_target = allocator.create_texture(
         "RSM Normals",
-        VK_FORMAT_R8G8B8A8_UNORM,
-        resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_R8G8B8A8_UNORM,
+            resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
     depth_target = allocator.create_texture(
         "RSM Depth",
-        VK_FORMAT_D16_UNORM,
-        resolution,
-        1,
-        TextureUsage::RenderTarget
+        {
+            VK_FORMAT_D16_UNORM,
+            resolution,
+            1,
+            TextureUsage::RenderTarget
+        }
     );
 
 }

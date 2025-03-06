@@ -12,11 +12,11 @@ class ResourceAllocator;
 class RenderBackend;
 
 /**
- * A transform that can represent a camera viewing the scene
+ * A class that can view a scene. Contains various camera and rendering parameters
  */
-class SceneTransform {
+class SceneView {
 public:
-    explicit SceneTransform();
+    explicit SceneView();
 
     void set_render_resolution(glm::uvec2 render_resolution);
     
@@ -44,6 +44,8 @@ public:
 
     void set_aspect_ratio(float aspect_in);
 
+    void set_mip_bias(float mip_bias);
+
     float get_near() const;
 
     float get_fov() const;
@@ -55,6 +57,14 @@ public:
     glm::vec3 get_position() const;
 
     glm::vec3 get_forward() const;
+
+    void set_jitter(glm::vec2 jitter_in);
+
+    glm::vec2 get_jitter() const;
+
+    const glm::mat4& get_projection() const;
+
+    const glm::mat4& get_last_frame_projection() const;
 
 private:
     float fov = {75.f};
@@ -82,12 +92,16 @@ private:
 
     ViewDataGPU gpu_data = {};
 
+    glm::mat4 projection = {};
+    glm::mat4 last_frame_projection = {};
+
     BufferHandle buffer = {};
 
     bool is_dirty = true;
 
+    glm::vec2 jitter = {};
+
     void refresh_view_matrices();
+
+    void refresh_projection_matrices();
 };
-
-
-

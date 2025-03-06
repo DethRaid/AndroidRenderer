@@ -31,8 +31,12 @@ LightingPhase::LightingPhase() {
 }
 
 void LightingPhase::render(
-    RenderGraph& render_graph, const SceneTransform& view, const TextureHandle lit_scene_texture,
-    const LightPropagationVolume* lpv, const ProceduralSky& sky,
+    RenderGraph& render_graph, 
+    const SceneView& view, 
+    const TextureHandle lit_scene_texture,
+    TextureHandle ao_texture,
+    const LightPropagationVolume* lpv,
+    const ProceduralSky& sky,
     const std::optional<TextureHandle> vrsaa_shading_rate_image
 ) const {
     ZoneScoped;
@@ -55,7 +59,13 @@ void LightingPhase::render(
                                           .bind(gbuffer.depth, sampler)
                                           .build();
 
-    auto texture_usages = std::vector<TextureUsageToken>{};
+    auto texture_usages = std::vector<TextureUsageToken>{
+        {
+            .texture = ao_texture,
+            .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+            .access = VK_ACCESS_2_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        }};
     const auto sun_shadowmap_handle = sun.get_shadowmap_handle();
     if(sun_shadowmap_handle != nullptr) {
         texture_usages.emplace_back(
@@ -84,7 +94,7 @@ void LightingPhase::render(
                 sun.render(commands, gbuffers_descriptor_set, view, rtas);
 
                 if(lpv) {
-                    lpv->add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer());
+                    lpv->add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer(), ao_texture);
                 }
 
                 if(*CVarSystem::Get()->GetIntCVar("r.MeshLight.Raytrace")) {

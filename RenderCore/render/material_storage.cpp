@@ -80,45 +80,6 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
         break;
     }
 
-    // Depth prepass
-    const auto depth_prepass_pipeline = backend.begin_building_pipeline(
-                                                   fmt::format("{} depth prepass", new_material.name)
-                                               )
-                                               .set_vertex_shader("shaders/deferred/basic.vert.spv")
-                                               .set_raster_state(
-                                                   {
-                                                       .cull_mode = cull_mode,
-                                                       .front_face = front_face
-                                                   }
-                                               )
-                                               .enable_dgc()
-                                               .build();
-    proxy.pipelines[ScenePassType::DepthPrepass] = depth_prepass_pipeline;
-
-    // gbuffer
-    const auto gbuffer_pipeline = backend.begin_building_pipeline(new_material.name)
-                                         .set_vertex_shader("shaders/deferred/basic.vert.spv")
-                                         .set_fragment_shader("shaders/deferred/standard_pbr.frag.spv")
-                                         .set_blend_state(0, blend_state)
-                                         .set_blend_state(1, blend_state)
-                                         .set_blend_state(2, blend_state)
-                                         .set_blend_state(3, blend_state)
-                                         .set_depth_state(
-                                             {
-                                                 .enable_depth_test = true,
-                                                 .enable_depth_write = false,
-                                                 .compare_op = VK_COMPARE_OP_EQUAL
-                                             }
-                                         )
-                                         .set_raster_state(
-                                             {
-                                                 .cull_mode = cull_mode,
-                                                 .front_face = front_face
-                                             }
-                                         )
-                                         .build();
-    proxy.pipelines[ScenePassType::Gbuffer] = gbuffer_pipeline;
-
     // RSM
     const auto rsm_pipeline = backend.begin_building_pipeline(fmt::format("{} RSM", new_material.name))
                                      .set_vertex_shader("shaders/lpv/rsm.vert.spv")
@@ -169,25 +130,25 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
 
     if(backend.supports_device_generated_commands()) {
         ZoneScopedN("Create VkPipelines");
-        [[maybe_unused]] const auto forced_depth_prepass_pipeline = backend
-                                                                    .get_pipeline_cache()
-                                                                    .get_pipeline_for_dynamic_rendering(
-                                                                        depth_prepass_pipeline,
-                                                                        {},
-                                                                        VK_FORMAT_D32_SFLOAT,
-                                                                        0);
-        [[maybe_unused]] const auto forced_gbuffer_pipeline = backend
-                                                              .get_pipeline_cache()
-                                                              .get_pipeline_for_dynamic_rendering(
-                                                                  gbuffer_pipeline,
-                                                                  std::array{
-                                                                      VK_FORMAT_R8G8B8A8_SRGB,
-                                                                      VK_FORMAT_R16G16B16A16_SFLOAT,
-                                                                      VK_FORMAT_R8G8B8A8_UNORM,
-                                                                      VK_FORMAT_R8G8B8A8_SRGB
-                                                                  },
-                                                                  VK_FORMAT_D32_SFLOAT,
-                                                                  0);
+        // [[maybe_unused]] const auto forced_depth_prepass_pipeline = backend
+        //                                                             .get_pipeline_cache()
+        //                                                             .get_pipeline_for_dynamic_rendering(
+        //                                                                 depth_prepass_pipeline,
+        //                                                                 {},
+        //                                                                 VK_FORMAT_D32_SFLOAT,
+        //                                                                 0);
+        // [[maybe_unused]] const auto forced_gbuffer_pipeline = backend
+        //                                                       .get_pipeline_cache()
+        //                                                       .get_pipeline_for_dynamic_rendering(
+        //                                                           gbuffer_pipeline,
+        //                                                           std::array{
+        //                                                               VK_FORMAT_R8G8B8A8_SRGB,
+        //                                                               VK_FORMAT_R16G16B16A16_SFLOAT,
+        //                                                               VK_FORMAT_R8G8B8A8_UNORM,
+        //                                                               VK_FORMAT_R8G8B8A8_SRGB
+        //                                                           },
+        //                                                           VK_FORMAT_D32_SFLOAT,
+        //                                                           0);
         [[maybe_unused]] const auto forced_rsm_pipeline = backend
                                                           .get_pipeline_cache()
                                                           .get_pipeline_for_dynamic_rendering(

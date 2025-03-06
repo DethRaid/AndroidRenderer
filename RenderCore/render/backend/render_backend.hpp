@@ -16,6 +16,7 @@
 #include "render/backend/resource_upload_queue.hpp"
 #include "render/backend/constants.hpp"
 
+class StreamlineAdapter;
 class BlasBuildQueue;
 class PipelineCache;
 /**
@@ -93,6 +94,11 @@ public:
     uint32_t get_current_gpu_frame() const;
 
     /**
+     * Updates internal state with the beginning of the simulation. Useful for things like Nvidia Reflex
+     */
+    void mark_simulation_begin() const;
+
+    /**
      * Begins the frame
      *
      * Waits for the GPU to finish with this frame, does some beginning-of-frame setup, is generally cool
@@ -133,6 +139,8 @@ public:
      * Callers should make no effort to save these descriptors
      */
     DescriptorSetAllocator& get_transient_descriptor_allocator();
+
+    StreamlineAdapter* get_streamline() const;
 
     CommandBuffer create_graphics_command_buffer(const std::string& name);
 
@@ -183,6 +191,8 @@ public:
 
 private:
     static inline std::unique_ptr<RenderBackend> g_render_backend = nullptr;
+
+    std::unique_ptr<StreamlineAdapter> streamline;
 
     bool is_first_frame = true;
 

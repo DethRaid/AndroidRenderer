@@ -9,7 +9,7 @@ class RenderGraph;
 class CommandBuffer;
 class RenderScene;
 class RenderBackend;
-class SceneTransform;
+class SceneView;
 class LightPropagationVolume;
 
 struct GBuffer {
@@ -35,8 +35,13 @@ public:
     void set_gbuffer(const GBuffer& gbuffer_in);
 
     void render(
-        RenderGraph& render_graph, const SceneTransform& view, TextureHandle lit_scene_texture,
-        const LightPropagationVolume* lpv, const ProceduralSky& sky, std::optional<TextureHandle> vrsaa_shading_rate_image
+        RenderGraph& render_graph, 
+        const SceneView& view, 
+        TextureHandle lit_scene_texture, 
+        TextureHandle ao_texture,
+        const LightPropagationVolume* lpv, 
+        const ProceduralSky& sky, 
+        std::optional<TextureHandle> vrsaa_shading_rate_image
     ) const;
 
 private:

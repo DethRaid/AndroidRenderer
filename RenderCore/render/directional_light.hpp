@@ -14,7 +14,7 @@ struct DescriptorSet;
 class ResourceAllocator;
 
 class CommandBuffer;
-class SceneTransform;
+class SceneView;
 class RenderBackend;
 
 /**
@@ -24,7 +24,7 @@ class DirectionalLight {
 public:
     explicit DirectionalLight();
 
-    void update_shadow_cascades(const SceneTransform& view);
+    void update_shadow_cascades(const SceneView& view);
 
     void set_direction(const glm::vec3& direction);
 
@@ -41,7 +41,7 @@ public:
     void render_shadows(RenderGraph& graph, const SceneDrawer& sun_shadow_drawer) const;
 
     void render(
-        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneTransform& view,
+        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneView& view,
         AccelerationStructureHandle rtas
     ) const;
 

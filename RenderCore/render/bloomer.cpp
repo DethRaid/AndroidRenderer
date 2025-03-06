@@ -272,9 +272,11 @@ void Bloomer::create_bloom_tex(const TextureHandle scene_color) {
 
     bloom_tex = allocator.create_texture(
         "Bloom texture",
-        create_info.format,
-        bloom_tex_resolution,
-        cvar_num_bloom_mips.Get(),
-        TextureUsage::StorageImage
+        {
+            create_info.format,
+            bloom_tex_resolution,
+            static_cast<uint32_t>(cvar_num_bloom_mips.Get()),
+            TextureUsage::StorageImage
+        }
     );
 }
