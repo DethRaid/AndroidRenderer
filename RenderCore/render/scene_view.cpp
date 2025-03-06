@@ -150,8 +150,8 @@ void SceneView::refresh_projection_matrices() {
 
     gpu_data.last_frame_projection = gpu_data.projection;
     gpu_data.projection = projection;
-    gpu_data.projection[0][2] += jitter.x;
-    gpu_data.projection[1][2] += jitter.y;
+    gpu_data.projection[2][0] += jitter.x;
+    gpu_data.projection[2][1] += jitter.y;
 
     gpu_data.inverse_projection = glm::inverse(gpu_data.projection);
 

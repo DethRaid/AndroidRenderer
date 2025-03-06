@@ -111,8 +111,8 @@ void StreamlineAdapter::set_constants(const SceneView& scene_transform, const gl
     const auto scaled_jitter = jitter * glm::vec2{render_resolution};
     constants.jitterOffset = {scaled_jitter.x, scaled_jitter.y};
 
-    constants.mvecScale = {1, 1};
-
+    constants.mvecScale = {1.f / render_resolution.x, 1.f / render_resolution.y};
+    
     constants.cameraPinholeOffset = {0, 0};
 
     const auto camera_pos = scene_transform.get_position();
@@ -139,7 +139,7 @@ void StreamlineAdapter::set_constants(const SceneView& scene_transform, const gl
     constants.motionVectors3D = sl::Boolean::eFalse;
     constants.reset = sl::Boolean::eFalse;
     constants.orthographicProjection = sl::Boolean::eFalse;
-    constants.motionVectorsJittered = sl::Boolean::eTrue;
+    constants.motionVectorsJittered = sl::Boolean::eFalse;
 
     slSetConstants(constants, *frame_token, viewport);
 }
@@ -203,7 +203,7 @@ void StreamlineAdapter::evaluate_dlss(
     options.outputWidth = output_resolution.width;
     options.outputHeight = output_resolution.height;
     options.sharpness = dlss_settings.optimalSharpness;
-    options.useAutoExposure = sl::Boolean::eFalse;
+    options.useAutoExposure = sl::Boolean::eTrue;
     slDLSSSetOptions(viewport, options);
 
     auto options_arr = std::array<const sl::BaseStructure*, 1>{&viewport};
