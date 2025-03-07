@@ -27,6 +27,8 @@ endif()
 
 # Include the shared renderer
 
+set(SAH_USE_FFX 1 CACHE BOOL "" FORCE)
+set(SAH_USE_STREAMLINE 1 CACHE BOOL "" FORCE)
 include(${CMAKE_CURRENT_LIST_DIR}/../RenderCore/SahCore.cmake)
 
 # Win32 dependencies
@@ -64,7 +66,7 @@ add_dependencies(SahWindows compile_shaders)
 
 target_link_libraries(SahWindows PUBLIC
         SahCore
-        )
+)
     
 #######################
 # Generate VS filters #

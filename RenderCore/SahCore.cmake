@@ -51,6 +51,7 @@ target_compile_definitions(SahCore PUBLIC
         SAH_BINARY_DIR="${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
         SAH_USE_FFX=${SAH_USE_FFX}
         SAH_USE_STREAMLINE=${SAH_USE_STREAMLINE}
+        UTF_CPP_CPLUSPLUS=202002
         )
 
 if(WIN32)

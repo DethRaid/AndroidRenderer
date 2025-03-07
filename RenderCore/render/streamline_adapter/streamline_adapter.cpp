@@ -2,12 +2,14 @@
 
 #if SAH_USE_STREAMLINE
 
+#include <stdexcept>
+
 #include <sl_security.h>
 #include <sl_helpers.h>
 #include <sl_helpers_vk.h>
 #include <sl_matrix_helpers.h>
 #include <libloaderapi.h>
-#include <stdexcept>
+#include <utf8.h>
 
 #include "core/string_conversion.hpp"
 #include "core/system_interface.hpp"
@@ -17,19 +19,20 @@ static std::shared_ptr<spdlog::logger> logger;
 static sl::Resource wrap_resource(TextureHandle texture, VkImageLayout layout);
 
 PFN_vkGetInstanceProcAddr StreamlineAdapter::try_load_streamline() {
-    const auto streamline_dir = to_wstring(SAH_BINARY_DIR) + std::wstring{L"/sl.interposer.dll"};
-    if(!sl::security::verifyEmbeddedSignature(streamline_dir.c_str())) {
+    const auto path = std::filesystem::path{ SAH_BINARY_DIR } / "sl.interposer.dll";
+    const auto streamline_dir = path.generic_u16string();
+    const auto* skill_issue_char = reinterpret_cast<const wchar_t*>(streamline_dir.c_str());
+    if(!sl::security::verifyEmbeddedSignature(skill_issue_char)) {
         // SL module not signed, disable SL
         return nullptr;
     } else {
-        auto mod = LoadLibraryW(streamline_dir.c_str());
+        auto mod = LoadLibraryW(skill_issue_char);
         if(mod == nullptr) {
             return nullptr;
         }
 
         available = true;
 
-        // Map functions from SL and use them instead of standard DXGI/D3D12 API
         return reinterpret_cast<PFN_vkGetInstanceProcAddr>(GetProcAddress(mod, "vkGetInstanceProcAddr"));
     }
 }
