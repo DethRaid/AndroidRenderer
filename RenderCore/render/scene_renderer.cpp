@@ -33,7 +33,7 @@ static auto cvar_use_lpv = AutoCVar_Int{
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
-    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::DLSS
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::None
 };
 
 #if SAH_USE_STREAMLINE
@@ -75,7 +75,7 @@ SceneRenderer::SceneRenderer() {
         logger->debug("Initialized LPV");
     }
 
-    if(!backend.supports_shading_rate_image) {
+    if(!backend.supports_shading_rate_image && cvar_anti_aliasing.Get() == AntiAliasingType::VRSAA) {
         logger->info("Backend does not support VRSAA, turning AA off");
         cvar_anti_aliasing.Set(AntiAliasingType::None);
     }

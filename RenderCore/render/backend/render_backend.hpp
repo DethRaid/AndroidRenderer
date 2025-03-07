@@ -286,7 +286,6 @@ private:
     VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV device_generated_commands_features = {};
     VkPhysicalDeviceFragmentShadingRateFeaturesKHR shading_rate_image_features = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR,
-        .attachmentFragmentShadingRate = VK_TRUE,
     };
     VkPhysicalDeviceFeatures2 device_features = {};
 

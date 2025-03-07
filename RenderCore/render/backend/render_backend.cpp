@@ -331,6 +331,9 @@ void RenderBackend::create_instance_and_device() {
 
     supports_shading_rate_image = physical_device.enable_extension_if_present(
         VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME);
+    if(supports_shading_rate_image) {
+        logger->debug("{} is supported", VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME);
+    }
 
     query_physical_device_features();
 
@@ -408,6 +411,7 @@ void RenderBackend::query_physical_device_features() {
     if(supports_shading_rate_image) {
         shading_rate_image_features = VkPhysicalDeviceFragmentShadingRateFeaturesKHR{
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR,
+            .attachmentFragmentShadingRate = VK_TRUE,
         };
         physical_device_features.add_extension(&shading_rate_image_features);
     }
@@ -428,11 +432,16 @@ void RenderBackend::query_physical_device_features() {
         logger->info("Ray tracing supported");
     }
 
-    supports_rt &= acceleration_structure_features.accelerationStructure == VK_TRUE;
+    supports_rt = acceleration_structure_features.accelerationStructure == VK_TRUE;
 
-    supports_dgc &= device_generated_commands_features.deviceGeneratedCommands == VK_TRUE;
+    supports_dgc = device_generated_commands_features.deviceGeneratedCommands == VK_TRUE;
 
-    supports_shading_rate_image &= shading_rate_image_features.attachmentFragmentShadingRate == VK_TRUE;
+    supports_shading_rate_image = shading_rate_image_features.attachmentFragmentShadingRate == VK_TRUE;
+    if(supports_shading_rate_image) {
+        logger->debug("Shading rate attachment is supported!");
+    } else {
+        logger->debug("Shading rate attachment is NOT supported");
+    }
 
     if(supports_shading_rate_image) {
         auto count = uint32_t{};

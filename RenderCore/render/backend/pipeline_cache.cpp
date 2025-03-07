@@ -480,6 +480,7 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
     }
 
     const auto& device = backend.get_device();
+    logger->trace("About to compile PSO {}", pipeline->pipeline_name);
     const auto result = vkCreateGraphicsPipelines(
         device,
         vk_pipeline_cache,
