@@ -140,7 +140,9 @@ public:
      */
     DescriptorSetAllocator& get_transient_descriptor_allocator();
 
+#if SAH_USE_STREAMLINE
     StreamlineAdapter* get_streamline() const;
+#endif
 
     CommandBuffer create_graphics_command_buffer(const std::string& name);
 
@@ -192,7 +194,9 @@ public:
 private:
     static inline std::unique_ptr<RenderBackend> g_render_backend = nullptr;
 
+#if SAH_USE_STREAMLINE
     std::unique_ptr<StreamlineAdapter> streamline;
+#endif
 
     bool is_first_frame = true;
 

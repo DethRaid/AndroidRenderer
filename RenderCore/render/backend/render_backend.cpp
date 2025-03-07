@@ -78,6 +78,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
                                  } {
     logger = SystemInterface::get().get_logger("RenderBackend");
 
+#if SAH_USE_STREAMLINE
     try {
         streamline = std::make_unique<StreamlineAdapter>();
     } catch (const std::exception& e) {
@@ -93,6 +94,13 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
             throw std::runtime_error{ "Could not initialize Volk, Vulkan is not available" };
         }
     }
+
+#else
+    const auto volk_result = volkInitialize();
+    if (volk_result != VK_SUCCESS) {
+        throw std::runtime_error{ "Could not initialize Volk, Vulkan is not available" };
+    }
+#endif
 
     supports_raytracing = *CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable") != 0;
 
@@ -163,7 +171,7 @@ void RenderBackend::create_instance_and_device() {
     auto instance_builder = vkb::InstanceBuilder{vkGetInstanceProcAddr}
                             .set_app_name("Renderer")
                             .set_engine_name("Sarah's Artisanal Handcrafted Renderer")
-                            .set_app_version(0, 6, 0)
+                            .set_app_version(0, 8, 0)
                             .require_api_version(1, 3, 0)
 #if defined(_WIN32 )
             .enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
@@ -174,6 +182,7 @@ void RenderBackend::create_instance_and_device() {
         // Only enable the debug utils extension when we have validation layers. Apparently the validation layer
         // provides that extension on Android
         instance_builder.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        instance_builder.enable_layer("VK_LAYER_KHRONOS_validation");
 #endif
 
     auto instance_ret = instance_builder.build();
@@ -366,10 +375,6 @@ void RenderBackend::create_instance_and_device() {
     }
     device = *device_ret;
     volkLoadDevice(device.device);
-
-    if(streamline) {
-        // streamline->set_devices_from_backend(*this);
-    }
 }
 
 void RenderBackend::query_physical_device_features() {
@@ -849,9 +854,11 @@ uint32_t RenderBackend::get_current_gpu_frame() const {
 }
 
 void RenderBackend::mark_simulation_begin() const {
+#if SAH_USE_STREAMLINE
     if(streamline) {
         streamline->update_frame_token(total_num_frames + 1);
     }
+#endif
 }
 
 ResourceUploadQueue& RenderBackend::get_upload_queue() const {
@@ -936,9 +943,11 @@ DescriptorSetAllocator& RenderBackend::get_transient_descriptor_allocator() {
     return frame_descriptor_allocators[cur_frame_idx];
 }
 
+#if SAH_USE_STREAMLINE
 StreamlineAdapter* RenderBackend::get_streamline() const {
     return streamline.get();
 }
+#endif
 
 VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
     auto semaphore = VkSemaphore{};

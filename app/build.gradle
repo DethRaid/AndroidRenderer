@@ -45,6 +45,7 @@ android {
                 proguardFile '$playcoreDir/proguard/review.pgcfg'
             }
             debug {
+                debuggable true
                 proguardFile '$playcoreDir/proguard/common.pgcfg'
                 proguardFile '$playcoreDir/proguard/gms_task.pgcfg'
                 proguardFile '$playcoreDir/proguard/asset_delivery.pgcfg'

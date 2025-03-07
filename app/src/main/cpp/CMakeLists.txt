@@ -40,6 +40,8 @@ endif()
 include(${PLAYCORE_LOCATION}/playcore.cmake)
 add_playcore_static_library()
 
+set(SAH_USE_FFX OFF CACHE BOOL "" FORCE)
+set(SAH_USE_STREAMLINE OFF CACHE BOOL "" FORCE)
 include(${CMAKE_CURRENT_LIST_DIR}/../../../../RenderCore/SahCore.cmake)
 
 # Build

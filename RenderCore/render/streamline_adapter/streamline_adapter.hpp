@@ -1,5 +1,7 @@
 #pragma once
 
+#if SAH_USE_STREAMLINE
+
 #include <string>
 
 #include <glm/vec2.hpp>
@@ -69,3 +71,4 @@ private:
 
     sl::FrameToken* frame_token = nullptr;
 };
+#endif

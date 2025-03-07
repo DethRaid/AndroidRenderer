@@ -1,5 +1,7 @@
 #include "fsr3.hpp"
 
+#if SAH_USE_FFX
+
 #include "scene_view.hpp"
 #include "backend/render_backend.hpp"
 #include "console/cvars.hpp"
@@ -181,3 +183,5 @@ std::string to_string(const FfxApiUpscaleQualityMode quality_mode) {
 
     return "Unknown";
 }
+
+#endif

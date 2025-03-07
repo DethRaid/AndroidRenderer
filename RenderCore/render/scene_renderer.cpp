@@ -36,9 +36,11 @@ static auto cvar_anti_aliasing = AutoCVar_Enum{
     "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::DLSS
 };
 
+#if SAH_USE_STREAMLINE
 static auto cvar_dlss_quality = AutoCVar_Enum{
     "r.DLSS.Quality", "DLSS Quality", sl::DLSSMode::eMaxQuality
 };
+#endif
 // ReSharper restore CppDeclaratorNeverUsed
 
 SceneRenderer::SceneRenderer() {
@@ -142,7 +144,9 @@ void SceneRenderer::render() {
 
     logger->trace("Beginning frame");
 
+#if SAH_USE_STREAMLINE
     auto* streamline = backend.get_streamline();
+#endif
 
     auto needs_motion_vectors = false;
 
@@ -160,6 +164,7 @@ void SceneRenderer::render() {
         vrsaa->init(scene_render_resolution);
     }
 
+#if SAH_USE_STREAMLINE
     if(streamline) {
         if(cvar_anti_aliasing.Get() == AntiAliasingType::DLSS) {
             streamline->set_dlss_mode(cvar_dlss_quality.Get());
@@ -179,7 +184,9 @@ void SceneRenderer::render() {
             player_view.set_mip_bias(0);
         }
     }
+#endif
 
+#if SAH_USE_FFX
     if(cvar_anti_aliasing.Get() == AntiAliasingType::FSR3) {
         if(!fsr3) {
             fsr3 = std::make_unique<FidelityFSSuperResolution3>(backend);
@@ -200,6 +207,7 @@ void SceneRenderer::render() {
     } else {
         fsr3 = nullptr;
     }
+#endif
 
     ui_phase.add_data_upload_passes(backend.get_upload_queue());
 
@@ -219,12 +227,16 @@ void SceneRenderer::render() {
     update_jitter();
     player_view.update_transforms(backend.get_upload_queue());
 
+#if SAH_USE_STREAMLINE
     if (streamline) {
         streamline->set_constants(player_view, scene_render_resolution);
     }
+#endif
+#if SAH_USE_FFX
     if(fsr3) {
         fsr3->set_constants(player_view, scene_render_resolution);
     }
+#endif
 
     auto render_graph = backend.create_render_graph();
 
@@ -447,6 +459,7 @@ void SceneRenderer::render() {
         break;
 
     case AntiAliasingType::FSR3:
+#if SAH_USE_FFX
         if(fsr3) {
             const auto motion_vectors_handle = motion_vectors_phase.get_motion_vectors();
             render_graph.add_pass(
@@ -481,9 +494,11 @@ void SceneRenderer::render() {
                     }
                 });
         }
+#endif
         break;
 
     case AntiAliasingType::DLSS:
+#if SAH_USE_STREAMLINE
         if(streamline) {
             const auto motion_vectors_handle = motion_vectors_phase.get_motion_vectors();
             render_graph.add_pass(
@@ -518,6 +533,7 @@ void SceneRenderer::render() {
                     }
                 });
         }
+#endif
         break;
     }
 
@@ -777,7 +793,9 @@ void SceneRenderer::update_jitter() {
 
     switch(cvar_anti_aliasing.Get()) {
     case AntiAliasingType::FSR3:
+#if SAH_USE_FFX
         jitter = fsr3->get_jitter();
+#endif
         break;
 
     case AntiAliasingType::DLSS:

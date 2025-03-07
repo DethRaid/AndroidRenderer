@@ -1,3 +1,4 @@
+#include <vulkan/vk_enum_string_helper.h>
 #include "pipeline_cache.hpp"
 
 #include "pipeline_builder.hpp"
@@ -479,7 +480,7 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
     }
 
     const auto& device = backend.get_device();
-    vkCreateGraphicsPipelines(
+    const auto result = vkCreateGraphicsPipelines(
         device,
         vk_pipeline_cache,
         1,
@@ -487,6 +488,9 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         nullptr,
         &pipeline->pipeline
     );
+    if(result != VK_SUCCESS) {
+        logger->error("Could not create pipeline {}: {}", pipeline->pipeline_name, string_VkResult(result));
+    }
 
     if(!pipeline->pipeline_name.empty()) {
         backend.set_object_name(pipeline->pipeline, pipeline->pipeline_name);

@@ -1,22 +1,16 @@
 #include "string_conversion.hpp"
 
-#include <Windows.h>
+#include <utf8.h>
 
 #include <sstream>
 
-std::string to_string(const std::wstring& chonker) {
-    int count = WideCharToMultiByte(CP_UTF8, 0, chonker.c_str(), chonker.length(), nullptr, 0, nullptr, nullptr);
-    std::string str(count, 0);
-    WideCharToMultiByte(CP_UTF8, 0, chonker.c_str(), -1, str.data(), count, nullptr, nullptr);
-    return str;
-}
-
-std::wstring to_wstring(const std::string& thinboi) {
-    int count = MultiByteToWideChar(CP_UTF8, 0, thinboi.c_str(), thinboi.length(), nullptr, 0);
-    std::wstring wstr(count, 0);
-    MultiByteToWideChar(CP_UTF8, 0, thinboi.c_str(), thinboi.length(), wstr.data(), count);
-    return wstr;
-}
+// std::string to_string(const std::u16string& chonker) {
+//     return utf8::utf16to8(chonker);
+// }
+//
+// std::u16string to_wstring(const std::string& thinboi) {
+//     return utf8::utf8to16(thinboi);
+// }
 
 std::vector<std::string_view> split_string_by_newline(const std::string_view str) {
     return split_string(str, '\n');

@@ -1,5 +1,6 @@
 #pragma once
 
+#if SAH_USE_FFX
 #include <ffx_api/ffx_upscale.hpp>
 #include <ffx_api/vk/ffx_api_vk.hpp>
 
@@ -43,3 +44,4 @@ private:
 
     ffx::DispatchDescUpscale dispatch_desc = {};
 };
+#endif

@@ -5,7 +5,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(sah_renderer)
 
-option(SAH_USE_FFX_CACAO "Whether to use AMD's FidelityFX CACAO" OFF)
+option(SAH_USE_FFX "Whether to use AMD's FidelityFX library" ON)
+option(SAH_USE_STREAMLINE "Whether to use Nvidia's Streamline library" ON)
 
 set(SAH_TOOLS_DIR "${CMAKE_CURRENT_LIST_DIR}/../Tools")
 
@@ -48,17 +49,9 @@ target_compile_definitions(SahCore PUBLIC
         _SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING
         TRACY_ENABLE
         SAH_BINARY_DIR="${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+        SAH_USE_FFX=${SAH_USE_FFX}
+        SAH_USE_STREAMLINE=${SAH_USE_STREAMLINE}
         )
-
-if(SAH_USE_FFX_CACAO)
-    target_compile_definitions(SahCore PUBLIC
-            "SAH_USE_FFX_CACAO=1"
-    )
-else()
-    target_compile_definitions(SahCore PUBLIC
-            "SAH_USE_FFX_CACAO=0"
-    )
-endif()
 
 if(WIN32)
         target_compile_definitions(SahCore PUBLIC
@@ -90,9 +83,9 @@ target_link_libraries(SahCore PUBLIC
         spdlog::spdlog
         spirv-reflect-static
         stb
-        streamline
         tl::optional
         Tracy::TracyClient
+        utf8cpp
         vk-bootstrap
         volk::volk_headers
         )
@@ -105,31 +98,36 @@ if(ANDROID)
     )
 elseif(WIN32)
     target_link_libraries(SahCore PUBLIC
-        glfw 
+        glfw
     )
     target_compile_options(SahCore PUBLIC 
         "/MP"
     )
+endif()
 
-    if(SAH_USE_FFX_CACAO)
-        target_link_libraries(SahCore PUBLIC
-                ffx_api
-                fidelityfx
-            )
+if(SAH_USE_FFX)
+    target_link_libraries(SahCore PUBLIC
+            ffx_api
+            fidelityfx
+        )
 
-        add_custom_command(TARGET SahCore POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${fidelityfx_SOURCE_DIR}/PrebuiltSignedDLL/amd_fidelityfx_vk.dll"
-            $<TARGET_FILE_DIR:SahCore>)
-        add_custom_command(TARGET SahCore POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk/ffx_cacao_x64d.dll"
-            $<TARGET_FILE_DIR:SahCore>)
-        add_custom_command(TARGET SahCore POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk/ffx_fsr3_x64d.dll"
-            $<TARGET_FILE_DIR:SahCore>)
-    endif()
+    add_custom_command(TARGET SahCore POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${fidelityfx_SOURCE_DIR}/PrebuiltSignedDLL/amd_fidelityfx_vk.dll"
+        $<TARGET_FILE_DIR:SahCore>)
+    add_custom_command(TARGET SahCore POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk/ffx_cacao_x64d.dll"
+        $<TARGET_FILE_DIR:SahCore>)
+    add_custom_command(TARGET SahCore POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk/ffx_fsr3_x64d.dll"
+        $<TARGET_FILE_DIR:SahCore>)
+endif()
+if(SAH_USE_STREAMLINE)
+    target_link_libraries(SahCore PUBLIC
+            streamline
+    )
 endif()
 
 #######################

@@ -145,7 +145,9 @@ private:
 
     VoxelVisualizer voxel_visualizer;
 
+#if SAH_USE_FFX
     std::unique_ptr<FidelityFSSuperResolution3> fsr3;
+#endif
 
     void set_render_resolution(glm::uvec2 new_render_resolution);
 

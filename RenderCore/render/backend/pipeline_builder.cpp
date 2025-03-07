@@ -157,7 +157,7 @@ static void collect_vertex_attributes(
 
 static void init_logger() {
     logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
-    logger->set_level(spdlog::level::trace);
+    logger->set_level(spdlog::level::debug);
 }
 
 GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cache{cache_in} {

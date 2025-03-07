@@ -1,5 +1,7 @@
 #include "streamline_adapter.hpp"
 
+#if SAH_USE_STREAMLINE
+
 #include <sl_security.h>
 #include <sl_helpers.h>
 #include <sl_helpers_vk.h>
@@ -237,3 +239,4 @@ sl::Resource wrap_resource(const TextureHandle texture, const VkImageLayout layo
 
     return sl_resource;
 }
+#endif
