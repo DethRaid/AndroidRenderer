@@ -128,7 +128,7 @@ const glm::mat4& SceneView::get_last_frame_projection() const { return last_fram
 
 void SceneView::refresh_view_matrices() {
     forward = glm::vec3{cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw)};
-    const auto right = glm::vec3{sin(yaw - 3.1415927 / 2.0), 0, cos(yaw - 3.14159 / 2.0)};
+    const auto right = glm::vec3{sin(yaw - 3.1415927f / 2.0), 0, cos(yaw - 3.14159f / 2.0)};
     const auto up = cross(right, forward);
 
     gpu_data.last_frame_view = gpu_data.view;
@@ -150,6 +150,7 @@ void SceneView::refresh_projection_matrices() {
 
     gpu_data.last_frame_projection = gpu_data.projection;
     gpu_data.projection = projection;
+
     gpu_data.projection[2][0] += jitter.x;
     gpu_data.projection[2][1] += jitter.y;
 

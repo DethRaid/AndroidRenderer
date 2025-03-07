@@ -7,7 +7,7 @@
 #include "core/string_conversion.hpp"
 
 static auto cvar_fsr3_quality = AutoCVar_Enum{
-    "r.FSR3.Quality", "FSR3 Quality", FFX_UPSCALE_QUALITY_MODE_QUALITY
+    "r.FSR3.Quality", "FSR3 Quality", FFX_UPSCALE_QUALITY_MODE_PERFORMANCE
 };
 
 static std::string to_string(FfxApiUpscaleQualityMode quality_mode);
@@ -108,8 +108,8 @@ void FidelityFSSuperResolution3::initialize(const glm::uvec2& output_resolution_
 
 void FidelityFSSuperResolution3::set_constants(const SceneView& scene_transform, const glm::uvec2 render_resolution) {
     const auto f_render_resolution = glm::vec2{ render_resolution };
-    const auto scaled_jitter = scene_transform.get_jitter() * f_render_resolution * glm::vec2{0.5f, -0.5f};
-    dispatch_desc.jitterOffset = {scaled_jitter.x, scaled_jitter.y};
+    const auto scaled_jitter = scene_transform.get_jitter() * f_render_resolution * glm::vec2{ 0.5f, -0.5f };
+    dispatch_desc.jitterOffset = {-scaled_jitter.x, -scaled_jitter.y};
     dispatch_desc.motionVectorScale = { 1.f, 1.f };
     dispatch_desc.renderSize = {render_resolution.x, render_resolution.y};
     dispatch_desc.upscaleSize = { output_resolution.x, output_resolution.y };
@@ -152,7 +152,7 @@ void FidelityFSSuperResolution3::dispatch(
     local_dispatch_desc.depth = depth_in_res;
     local_dispatch_desc.motionVectors = motion_vectors_in_res;
     local_dispatch_desc.output = color_out_res;
-    //local_dispatch_desc.flags = FFX_UPSCALE_FLAG_DRAW_DEBUG_VIEW;
+    // local_dispatch_desc.flags = FFX_UPSCALE_FLAG_DRAW_DEBUG_VIEW;
 
     ffx::Dispatch(upscaling_context, local_dispatch_desc);
 }
@@ -162,7 +162,7 @@ glm::uvec2 FidelityFSSuperResolution3::get_optimal_render_resolution() const {
 }
 
 glm::vec2 FidelityFSSuperResolution3::get_jitter() const {
-    return jitter * glm::vec2{2.f, -2.f} / glm::vec2{optimal_render_resolution};
+    return jitter * glm::vec2{ 2.f, -2.f } / glm::vec2{ optimal_render_resolution };
 }
 
 std::string to_string(const FfxApiUpscaleQualityMode quality_mode) {

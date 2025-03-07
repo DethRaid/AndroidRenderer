@@ -109,7 +109,7 @@ void StreamlineAdapter::set_constants(const SceneView& scene_transform, const gl
     std::memcpy(&constants.prevClipToClip, &prev_clip_to_clip, sizeof(glm::mat4));
 
     const auto scaled_jitter = jitter * glm::vec2{render_resolution};
-    constants.jitterOffset = {scaled_jitter.x, scaled_jitter.y};
+    constants.jitterOffset = {-scaled_jitter.x, -scaled_jitter.y};
 
     constants.mvecScale = {1.f / render_resolution.x, 1.f / render_resolution.y};
     
@@ -139,7 +139,7 @@ void StreamlineAdapter::set_constants(const SceneView& scene_transform, const gl
     constants.motionVectors3D = sl::Boolean::eFalse;
     constants.reset = sl::Boolean::eFalse;
     constants.orthographicProjection = sl::Boolean::eFalse;
-    constants.motionVectorsJittered = sl::Boolean::eFalse;
+    constants.motionVectorsJittered = sl::Boolean::eTrue;
 
     slSetConstants(constants, *frame_token, viewport);
 }

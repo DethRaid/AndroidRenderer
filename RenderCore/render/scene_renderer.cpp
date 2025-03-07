@@ -782,13 +782,13 @@ void SceneRenderer::update_jitter() {
 
     case AntiAliasingType::DLSS:
         jitter = glm::vec2{jitter_sequence_x.get_next_value(), jitter_sequence_y.get_next_value()} - 0.5f;
+        jitter /= glm::vec2{ scene_render_resolution };
         break;
 
     default:
         jitter = {};
         break;
     }
-    jitter /= glm::vec2{scene_render_resolution};
 
     player_view.set_jitter(jitter);
 }
