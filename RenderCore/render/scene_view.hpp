@@ -90,9 +90,19 @@ private:
 
     glm::vec3 forward = {};
 
+    /**
+     * The projection matrices encased within contain jitter
+     */
     ViewDataGPU gpu_data = {};
 
+    /**
+     * Projection matrix with no jitter
+     */
     glm::mat4 projection = {};
+
+    /**
+     * Previous projection matrix with no jitter
+     */
     glm::mat4 last_frame_projection = {};
 
     BufferHandle buffer = {};
