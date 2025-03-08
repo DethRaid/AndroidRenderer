@@ -96,6 +96,7 @@ if(ANDROID)
             game-activity::game-activity
             log
             android
+            adrenotools
     )
 elseif(WIN32)
     target_link_libraries(SahCore PUBLIC

@@ -55,6 +55,8 @@ public:
     const RenderScene& get_scene() const;
 
     const MeshStorage& get_mesh_storage() const;
+
+    const MaterialStorage& get_material_storage() const;
     
 private: 
     const RenderScene* scene = nullptr;

@@ -5,9 +5,9 @@
 #include "backend/pipeline_cache.hpp"
 #include "backend/render_backend.hpp"
 
-static ComputePipelineHandle init_dual_bump_point_pipeline = {};
+static ComputePipelineHandle init_dual_bump_point_pipeline = nullptr;
 
-static ComputePipelineHandle visibility_list_to_draw_commands = {};
+static ComputePipelineHandle visibility_list_to_draw_commands = nullptr;
 
 IndirectDrawingBuffers translate_visibility_list_to_draw_commands(
     RenderGraph& graph, const BufferHandle visibility_list, const BufferHandle primitive_buffer,
@@ -19,11 +19,11 @@ IndirectDrawingBuffers translate_visibility_list_to_draw_commands(
 
     auto& pipeline_cache = backend.get_pipeline_cache();
 
-    if(!init_dual_bump_point_pipeline.is_valid()) {
+    if(!init_dual_bump_point_pipeline) {
         init_dual_bump_point_pipeline = pipeline_cache.create_pipeline(
             "shaders/util/init_dual_bump_point.comp.spv");
     }
-    if(!visibility_list_to_draw_commands.is_valid()) {
+    if(!visibility_list_to_draw_commands) {
         visibility_list_to_draw_commands = pipeline_cache.create_pipeline(
             "shaders/util/visibility_list_to_draw_commands.comp.spv");
     }

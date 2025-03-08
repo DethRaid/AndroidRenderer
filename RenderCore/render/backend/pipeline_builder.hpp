@@ -9,6 +9,7 @@
 #include <tl/optional.hpp>
 
 #include "render/backend/graphics_pipeline.hpp"
+#include "render/backend/handles.hpp"
 
 class PipelineCache;
 

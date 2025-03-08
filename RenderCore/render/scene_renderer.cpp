@@ -33,7 +33,7 @@ static auto cvar_use_lpv = AutoCVar_Int{
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
-    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::DLSS
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::None
 };
 
 #if SAH_USE_STREAMLINE
@@ -506,21 +506,28 @@ void SceneRenderer::render() {
                     .name = "DLSS",
                     .textures = {
                         {
-                            .texture = lit_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                            .texture = lit_scene_handle,
+                            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT,
+                            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                         },
                         {
-                            .texture = antialiased_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                            .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                            .texture = antialiased_scene_handle,
+                            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
                             .layout = VK_IMAGE_LAYOUT_GENERAL
                         },
                         {
-                            .texture = gbuffer_depth_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                            .texture = gbuffer_depth_handle,
+                            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT,
+                            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                         },
                         {
-                            .texture = motion_vectors_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                            .texture = motion_vectors_handle,
+                            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT,
+                            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                         },
                     },
                     .execute = [&](CommandBuffer& commands) {
@@ -732,7 +739,8 @@ void SceneRenderer::create_scene_render_targets() {
             .format = VK_FORMAT_R32_SFLOAT,
             .resolution = scene_render_resolution,
             .num_mips = 1,
-            .usage = TextureUsage::StorageImage,
+            .usage = TextureUsage::RenderTarget,
+            .usage_flags = VK_IMAGE_USAGE_STORAGE_BIT
         }
     );
 

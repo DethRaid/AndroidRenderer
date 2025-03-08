@@ -8,6 +8,9 @@ ConstantBuffer<ViewDataGPU> camera_data;
 [vk::binding(1, 0)]
 StructuredBuffer<PrimitiveDataGPU> primitive_datas;
 
+[vk::binding(2, 0)]
+StructuredBuffer<BasicPbrMaterialGpu> materials;
+
 [vk::binding(0, 1)]
 Sampler2D textures[];
 
@@ -27,7 +30,7 @@ GbufferOutput main(
     const uint primitive_id) {
 
     PrimitiveDataGPU primitive = primitive_datas[primitive_id];
-    BasicPbrMaterialGpu material = *primitive.material_id;
+    BasicPbrMaterialGpu material = materials[primitive.material_id];
 
     GbufferOutput gbuffer = (GbufferOutput)0;
 

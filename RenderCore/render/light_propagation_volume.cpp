@@ -4,6 +4,7 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 
+#include "material_storage.hpp"
 #include "backend/pipeline_builder.hpp"
 #include "backend/pipeline_cache.hpp"
 #include "backend/render_graph.hpp"
@@ -462,6 +463,14 @@ void LightPropagationVolume::inject_indirect_sun_light(
                         .descriptorCount = 1,
                         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
                     }
+                },
+                {
+                    {
+                        .binding = 3,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                        .descriptorCount = 1,
+                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+                    }
                 }
             }
         };
@@ -472,6 +481,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
                                 .bind(cascade_data_buffer)
                                 .bind(scene.get_sun_light().get_constant_buffer())
                                 .bind(scene.get_primitive_buffer())
+                                .bind(rsm_drawer.get_material_storage().get_material_buffer())
                                 .build();
 
         graph.add_render_pass(

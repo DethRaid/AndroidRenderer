@@ -186,7 +186,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
         // Assumption that all shader stages will use the same push constants. If this is not true, I have a headache and I need to lie down
     }
 
-    return pipelines.add_object(std::move(pipeline));
+    return &(*pipelines.emplace(std::move(pipeline)));
 }
 
 ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_file_path) {
@@ -327,14 +327,14 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
 
     logger->trace("Named pipeline and pipeline layout");
 
-    return compute_pipelines.add_object(
+    return &(*compute_pipelines.emplace(
         ComputeShader{
             .name = shader_file_path,
             .layout = pipeline_layout,
             .pipeline = pipeline,
             .num_push_constants = num_push_constants,
             .descriptor_sets = descriptor_sets
-        });
+        }));
 }
 
 GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<GraphicsPipelineHandle> pipelines_in) {
@@ -363,7 +363,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<Grap
         nullptr,
         &graphics_pipeline.pipeline);
 
-    return pipelines.add_object(std::move(graphics_pipeline));
+    return &(*pipelines.emplace(std::move(graphics_pipeline)));
 }
 
 VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(

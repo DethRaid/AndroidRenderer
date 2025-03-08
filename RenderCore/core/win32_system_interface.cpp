@@ -202,6 +202,10 @@ glm::uvec2 Win32SystemInterface::get_resolution() {
     return glm::uvec2{width, height};
 }
 
+std::string Win32SystemInterface::get_native_library_dir() const {
+    return "";
+}
+
 HWND Win32SystemInterface::get_hwnd() const {
     return hwnd;
 }

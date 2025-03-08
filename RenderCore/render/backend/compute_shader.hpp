@@ -12,5 +12,3 @@ struct ComputeShader {
     uint32_t num_push_constants = 0;
     std::vector<DescriptorSetInfo> descriptor_sets;
 };
-
-using ComputePipelineHandle = PooledObject<ComputeShader>;

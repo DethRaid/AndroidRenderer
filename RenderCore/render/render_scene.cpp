@@ -39,9 +39,7 @@ RenderScene::RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in)
 
 MeshPrimitiveHandle
 RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
-    const auto materials_buffer = materials.get_material_buffer();
-    primitive.data.material_id = materials_buffer->address;
-    primitive.data.material_id += sizeof(BasicPbrMaterialGpu) * primitive.material.index;
+    primitive.data.material_id = primitive.material.index;
     primitive.data.mesh_id = primitive.mesh.index;
     primitive.data.type = static_cast<uint32_t>(primitive.material->first.transparency_mode);
 
