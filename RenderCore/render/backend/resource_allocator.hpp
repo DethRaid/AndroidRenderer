@@ -231,8 +231,6 @@ private:
     // Cache from sampler create info hash to sampler
     // I do the hashing myself
     std::unordered_map<std::size_t, VkSampler> sampler_cache;
-
-    void set_object_name(uint64_t object_handle, VkObjectType object_type, const std::string& name);
 };
 
 template <typename MappedType>

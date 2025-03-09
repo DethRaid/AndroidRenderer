@@ -9,6 +9,15 @@
 #include <tracy/Tracy.hpp>
 #include <vulkan/vk_enum_string_helper.h>
 
+#if defined(__ANDROID__)
+
+#include <adrenotools/driver.h>
+#include <linux/stat.h>
+#include <sys/stat.h>
+#include <dlfcn.h>
+
+#endif
+
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 #include "render/backend/blas_build_queue.hpp"
@@ -35,41 +44,67 @@ VkBool32 VKAPI_ATTR debug_callback(
 ) {
     const auto severity = vkb::to_string_message_severity(message_severity);
     const auto type = vkb::to_string_message_type(message_type);
-    switch(message_severity) {
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-        spdlog::debug("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-        break;
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-        spdlog::info("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-        break;
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-        if(
-            // This ID is for a warning that you should only have validation layers enabled in debug builds
-            callback_data->messageIdNumber != 0x822806fa &&
-            // Warning about the command buffer being resettable. Tracy requires a resettable command buffer
-            callback_data->messageIdNumber != 0x8728e724
-        ) {
-            spdlog::warn("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-        }
-        break;
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-        spdlog::error("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-        break;
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_FLAG_BITS_MAX_ENUM_EXT:
-        spdlog::info("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-        break;
+    switch (message_severity) {
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+            spdlog::debug("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
+            break;
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+            spdlog::info("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
+            break;
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+            if (
+                // This ID is for a warning that you should only have validation layers enabled in debug builds
+                callback_data->messageIdNumber != 0x822806fa &&
+                // Warning about the command buffer being resettable. Tracy requires a resettable command buffer
+                callback_data->messageIdNumber != 0x8728e724
+                ) {
+                spdlog::warn("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
+            }
+            break;
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+            spdlog::error("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
+            break;
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_FLAG_BITS_MAX_ENUM_EXT:
+            spdlog::info("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
+            break;
     }
 
     return VK_FALSE;
 }
 
 RenderBackend& RenderBackend::get() {
-    if(g_render_backend == nullptr) {
+    if (g_render_backend == nullptr) {
         g_render_backend = std::make_unique<RenderBackend>();
         logger->debug("Assigned render backend to global pointer");
     }
 
     return *g_render_backend;
+}
+
+/**
+ * Android driver replacement - possibly useful?
+ */
+void* replace_driver(const std::string& path, const char* hooksDir, const char* driverName) {
+    void* lib_vulkan = nullptr;
+#if defined(__ANDROID__)
+    const auto temp_path = path + "temp";
+    mkdir(temp_path.c_str(), S_IRWXU | S_IRWXG);
+
+    // String nativeLibDir = getApplicationLibraryDir( appInfo );
+    // std::string nativeLibDir = GetJavaString( env, jNativeLibDir );
+
+    lib_vulkan = adrenotools_open_libvulkan(RTLD_NOW | RTLD_LOCAL, ADRENOTOOLS_DRIVER_CUSTOM,
+                                            temp_path.c_str(),  //
+                                            hooksDir,                   //
+                                            path.c_str(),               //
+                                            driverName, nullptr, nullptr);
+    if (!lib_vulkan) {
+        logger->error("Could not load replacement driver {}", driverName);
+    } else {
+        logger->info("Loaded replacement driver {}!", driverName);
+    }
+#endif
+    return lib_vulkan;
 }
 
 RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_descriptor_allocator{*this},
@@ -78,6 +113,8 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
                                  } {
     logger = SystemInterface::get().get_logger("RenderBackend");
 
+    VkResult volk_result = VK_SUCCESS;
+#if SAH_USE_STREAMLINE
     try {
         streamline = std::make_unique<StreamlineAdapter>();
     } catch (const std::exception& e) {
@@ -88,10 +125,39 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
     if(vk_get_instance_proc != nullptr) {
         volkInitializeCustom(vk_get_instance_proc);
     } else {
-        const auto volk_result = volkInitialize();
-        if (volk_result != VK_SUCCESS) {
-            throw std::runtime_error{ "Could not initialize Volk, Vulkan is not available" };
+        volk_result = volkInitialize();
+    }
+
+#else
+    {
+        auto& sys_interface = dynamic_cast<AndroidSystemInterface&>(SystemInterface::get());
+        auto* app = sys_interface.get_app();
+        const auto srcFolder = std::filesystem::path{
+            app->activity->externalDataPath ? app->activity->externalDataPath : ""};
+        const auto dstFolder = std::filesystem::path{
+            app->activity->internalDataPath ? app->activity->internalDataPath : ""};
+
+        const auto driver_name = std::string{"libstinky.so"};
+
+        const auto driver_data = sys_interface.load_file(srcFolder / driver_name);
+        if (driver_data) {
+            sys_interface.write_file(dstFolder / driver_name, driver_data->data(), driver_data->size());
         }
+
+        const auto native_lib_dir = SystemInterface::get().get_native_library_dir();
+        void* lib_vulkan = replace_driver(dstFolder, native_lib_dir.c_str(), driver_name.c_str());
+        if (lib_vulkan) {
+            auto vk_get_instance_proc_addr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(lib_vulkan,
+                                                                                               "vkGetInstanceProcAddr"));
+            volkInitializeCustom(vk_get_instance_proc_addr);
+        } else {
+            volk_result = volkInitialize();
+        }
+    }
+#endif
+
+    if (volk_result != VK_SUCCESS) {
+        throw std::runtime_error{fmt::format("Could not initialize Volk, Vulkan is not available ({})", string_VkResult(volk_result))};
     }
 
     supports_raytracing = *CVarSystem::Get()->GetIntCVar("r.Raytracing.Enable") != 0;
@@ -122,7 +188,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
     create_tracy_context();
 
     global_descriptor_allocator.init(device.device);
-    for(auto& frame_allocator : frame_descriptor_allocators) {
+    for (auto& frame_allocator: frame_descriptor_allocators) {
         frame_allocator.init(device.device);
     }
     descriptor_layout_cache.init(device.device);
@@ -145,7 +211,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     };
-    for(auto& fence : frame_fences) {
+    for (auto& fence: frame_fences) {
         vkCreateFence(device.device, &fence_create_info, nullptr, &fence);
     }
 
@@ -161,23 +227,24 @@ void RenderBackend::add_transfer_barrier(const VkImageMemoryBarrier2& barrier) {
 void RenderBackend::create_instance_and_device() {
     // vkb enables the surface extensions for us
     auto instance_builder = vkb::InstanceBuilder{vkGetInstanceProcAddr}
-                            .set_app_name("Renderer")
-                            .set_engine_name("Sarah's Artisanal Handcrafted Renderer")
-                            .set_app_version(0, 6, 0)
-                            .require_api_version(1, 3, 0)
+        .set_app_name("Renderer")
+        .set_engine_name("Sarah's Artisanal Handcrafted Renderer")
+        .set_app_version(0, 8, 0)
+        .require_api_version(1, 3, 0)
 #if defined(_WIN32 )
-            .enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
+    .enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
 #endif
-        ;
+    ;
 
 #if defined(__ANDROID__)
-        // Only enable the debug utils extension when we have validation layers. Apparently the validation layer
-        // provides that extension on Android
-        instance_builder.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    // Only enable the debug utils extension when we have validation layers. Apparently the validation layer
+    // provides that extension on Android
+    instance_builder.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    instance_builder.enable_layer("VK_LAYER_KHRONOS_validation");
 #endif
 
     auto instance_ret = instance_builder.build();
-    if(!instance_ret) {
+    if (!instance_ret) {
         const auto error_message = fmt::format(
             "Could not initialize Vulkan: {} (VK_RESULT {})",
             instance_ret.error().message(),
@@ -191,14 +258,14 @@ void RenderBackend::create_instance_and_device() {
 #if defined(__ANDROID__)
     auto& system_interface = reinterpret_cast<AndroidSystemInterface&>(SystemInterface::get());
     const auto surface_create_info = VkAndroidSurfaceCreateInfoKHR{
-            .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
-            .window = system_interface.get_window()
+        .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
+        .window = system_interface.get_window()
     };
 
     auto vk_result = vkCreateAndroidSurfaceKHR(instance.instance, &surface_create_info, nullptr,
-        &surface);
+                                               &surface);
     if (vk_result != VK_SUCCESS) {
-        throw std::runtime_error{ "Could not create rendering surface" };
+        throw std::runtime_error{"Could not create rendering surface"};
     }
 
 #elif defined(_WIN32)
@@ -277,18 +344,18 @@ void RenderBackend::create_instance_and_device() {
     };
 
     auto phys_device_builder = vkb::PhysicalDeviceSelector{instance}
-                               .set_surface(surface)
-                               .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
-                               .add_required_extension(
-                                   VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME) // FFX needs this
-                               .set_required_features(required_features)
-                               .set_required_features_11(required_1_1_features)
-                               .set_required_features_12(required_1_2_features)
-                               .set_required_features_13(required_1_3_features)
-                               .set_minimum_version(1, 1);
+        .set_surface(surface)
+        .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
+        .add_required_extension(
+            VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME) // FFX needs this
+        .set_required_features(required_features)
+        .set_required_features_11(required_1_1_features)
+        .set_required_features_12(required_1_2_features)
+        .set_required_features_13(required_1_3_features)
+        .set_minimum_version(1, 1);
 
     auto phys_device_ret = phys_device_builder.select();
-    if(!phys_device_ret) {
+    if (!phys_device_ret) {
         const auto error_message = fmt::format("Could not select device: {}", phys_device_ret.error().message());
         throw std::runtime_error{error_message};
     }
@@ -296,9 +363,9 @@ void RenderBackend::create_instance_and_device() {
 
     logger->info("Selected device {}", physical_device.name);
 
-    if(cvar_use_dgc.Get()) {
+    if (cvar_use_dgc.Get()) {
         supports_dgc = physical_device.enable_extension_if_present(VK_EXT_DEVICE_GENERATED_COMMANDS_EXTENSION_NAME);
-        if(supports_dgc) {
+        if (supports_dgc) {
             logger->info("Device Generated Commands is supported!");
         }
     }
@@ -322,6 +389,12 @@ void RenderBackend::create_instance_and_device() {
 
     supports_shading_rate_image = physical_device.enable_extension_if_present(
         VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME);
+    if (supports_shading_rate_image) {
+        logger->debug("{} is supported", VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME);
+    }
+
+    const auto supports_dr = physical_device.enable_extension_if_present(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+    logger->info("Supports DR extension: {}", supports_dr);
 
     query_physical_device_features();
 
@@ -329,17 +402,17 @@ void RenderBackend::create_instance_and_device() {
 
     auto device_builder = vkb::DeviceBuilder{physical_device};
 
-    if(supports_ray_tracing()) {
+    if (supports_ray_tracing()) {
         device_builder.add_pNext(&acceleration_structure_features);
         device_builder.add_pNext(&ray_pipeline_features);
         device_builder.add_pNext(&ray_query_features);
     }
 
-    if(supports_device_generated_commands()) {
+    if (supports_device_generated_commands()) {
         device_builder.add_pNext(&device_generated_commands_features);
     }
 
-    if(supports_shading_rate_image) {
+    if (supports_shading_rate_image) {
         device_builder.add_pNext(&shading_rate_image_features);
     }
 
@@ -355,28 +428,24 @@ void RenderBackend::create_instance_and_device() {
         .flags = aftermath_flags
     };
 
-    if(supports_nv_diagnostics_config) {
+    if (supports_nv_diagnostics_config) {
         device_builder.add_pNext(&device_diagnostics_info);
     }
 
     auto device_ret = device_builder.build();
-    if(!device_ret) {
+    if (!device_ret) {
         const auto message = fmt::format("Could not create logical device: {}", device_ret.error().message());
         throw std::runtime_error{"Could not build logical device"};
     }
     device = *device_ret;
     volkLoadDevice(device.device);
-
-    if(streamline) {
-        // streamline->set_devices_from_backend(*this);
-    }
 }
 
 void RenderBackend::query_physical_device_features() {
     auto physical_device_features = ExtensibleStruct<VkPhysicalDeviceFeatures2>{};
     physical_device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 
-    if(supports_ray_tracing()) {
+    if (supports_ray_tracing()) {
         ray_pipeline_features = VkPhysicalDeviceRayTracingPipelineFeaturesKHR{
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR
         };
@@ -393,16 +462,17 @@ void RenderBackend::query_physical_device_features() {
         physical_device_features.add_extension(&ray_query_features);
     }
 
-    if(supports_device_generated_commands()) {
+    if (supports_device_generated_commands()) {
         device_generated_commands_features = VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV{
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_GENERATED_COMMANDS_FEATURES_NV,
         };
         physical_device_features.add_extension(&device_generated_commands_features);
     }
 
-    if(supports_shading_rate_image) {
+    if (supports_shading_rate_image) {
         shading_rate_image_features = VkPhysicalDeviceFragmentShadingRateFeaturesKHR{
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR,
+            .attachmentFragmentShadingRate = VK_TRUE,
         };
         physical_device_features.add_extension(&shading_rate_image_features);
     }
@@ -411,7 +481,7 @@ void RenderBackend::query_physical_device_features() {
 
     device_features = **physical_device_features;
 
-    if(SystemInterface::get().is_renderdoc_loaded()) {
+    if (SystemInterface::get().is_renderdoc_loaded()) {
         logger->info("RenderDoc is loaded! Turning ray tracing features off");
         acceleration_structure_features.accelerationStructure = VK_FALSE;
         acceleration_structure_features.accelerationStructureCaptureReplay = VK_FALSE;
@@ -419,17 +489,22 @@ void RenderBackend::query_physical_device_features() {
         acceleration_structure_features.accelerationStructureHostCommands = VK_FALSE;
     }
 
-    if(acceleration_structure_features.accelerationStructure) {
+    if (acceleration_structure_features.accelerationStructure) {
         logger->info("Ray tracing supported");
     }
 
-    supports_rt &= acceleration_structure_features.accelerationStructure == VK_TRUE;
+    supports_rt = acceleration_structure_features.accelerationStructure == VK_TRUE;
 
-    supports_dgc &= device_generated_commands_features.deviceGeneratedCommands == VK_TRUE;
+    supports_dgc = device_generated_commands_features.deviceGeneratedCommands == VK_TRUE;
 
-    supports_shading_rate_image &= shading_rate_image_features.attachmentFragmentShadingRate == VK_TRUE;
+    supports_shading_rate_image = shading_rate_image_features.attachmentFragmentShadingRate == VK_TRUE;
+    if (supports_shading_rate_image) {
+        logger->debug("Shading rate attachment is supported!");
+    } else {
+        logger->debug("Shading rate attachment is NOT supported");
+    }
 
-    if(supports_shading_rate_image) {
+    if (supports_shading_rate_image) {
         auto count = uint32_t{};
         vkGetPhysicalDeviceFragmentShadingRatesKHR(physical_device, &count, nullptr);
 
@@ -442,7 +517,7 @@ void RenderBackend::query_physical_device_features() {
 
         supported_shading_rates = std::vector<glm::uvec2>{};
         supported_shading_rates.reserve(count);
-        for(const auto& rate : shading_rates) {
+        for (const auto& rate: shading_rates) {
             supported_shading_rates.emplace_back(rate.fragmentSize.width, rate.fragmentSize.height);
         }
 
@@ -454,7 +529,7 @@ void RenderBackend::query_physical_device_properties() {
     auto physical_device_properties = ExtensibleStruct<VkPhysicalDeviceProperties2>{};
     physical_device_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 
-    if(supports_shading_rate_image) {
+    if (supports_shading_rate_image) {
         physical_device_properties.add_extension(&shading_rate_properties);
     }
 
@@ -468,21 +543,21 @@ void RenderBackend::query_physical_device_properties() {
 
 void RenderBackend::create_swapchain() {
     auto swapchain_ret = vkb::SwapchainBuilder{device}
-                         .set_desired_format(
-                             {.format = VK_FORMAT_R8G8B8A8_SRGB, .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR}
-                         )
-                         .add_fallback_format(
-                             {.format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR}
-                         )
-                         .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
-                         .set_image_usage_flags(
-                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
-                         )
+        .set_desired_format(
+            {.format = VK_FORMAT_R8G8B8A8_SRGB, .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR}
+        )
+        .add_fallback_format(
+            {.format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR}
+        )
+        .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+        .set_image_usage_flags(
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+        )
 #if defined(__ANDROID__)
-            .set_composite_alpha_flags(VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR)
+        .set_composite_alpha_flags(VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR)
 #endif
         .build();
-    if(!swapchain_ret) {
+    if (!swapchain_ret) {
         throw std::runtime_error{"Could not create swapchain"};
     }
 
@@ -569,7 +644,7 @@ uint32_t RenderBackend::get_transfer_queue_family_index() const {
 void RenderBackend::advance_frame() {
     ZoneScoped;
 
-    if(!is_first_frame) {
+    if (!is_first_frame) {
         total_num_frames++;
 
         cur_frame_idx++;
@@ -578,7 +653,7 @@ void RenderBackend::advance_frame() {
 
     logger->trace("Beginning frame {} (frame idx {})", total_num_frames, cur_frame_idx);
 
-    if(total_num_frames % 100 == 0) {
+    if (total_num_frames % 100 == 0) {
         allocator->report_memory_usage();
     }
 
@@ -605,11 +680,11 @@ void RenderBackend::advance_frame() {
         );
     }
 
-    if(!is_first_frame) {
+    if (!is_first_frame) {
         graphics_command_allocators[cur_frame_idx].reset();
 
         auto& semaphores = zombie_semaphores[cur_frame_idx];
-        for(const auto& semaphore : semaphores) {
+        for (const auto& semaphore: semaphores) {
             vkDestroySemaphore(device, semaphore, nullptr);
         }
         semaphores.clear();
@@ -630,7 +705,7 @@ void RenderBackend::flush_batched_command_buffers() {
     // Flushes pending uploads to our queued_transfer_command_buffers
     upload_queue->flush_pending_uploads();
 
-    if(!queued_transfer_command_buffers.empty()) {
+    if (!queued_transfer_command_buffers.empty()) {
         const auto submission_semaphore = create_transient_semaphore("Transfer commands submission");
         const auto mask = static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
         const auto transfer_submit = VkSubmitInfo{
@@ -649,7 +724,7 @@ void RenderBackend::flush_batched_command_buffers() {
             vkQueueSubmit(transfer_queue, 1, &transfer_submit, VK_NULL_HANDLE);
         }
 
-        for(auto commands : queued_transfer_command_buffers) {
+        for (auto commands: queued_transfer_command_buffers) {
             transfer_command_allocators[cur_frame_idx].return_command_buffer(commands);
         }
 
@@ -664,7 +739,7 @@ void RenderBackend::flush_batched_command_buffers() {
     // Submit any transfer barriers
     // Currently, the high-level code decides if we need a transfer barrier and the backend just does what it's told
     // This is fine I guess 
-    if(!transfer_barriers.empty()) {
+    if (!transfer_barriers.empty()) {
         const auto transfer_semaphore = create_transient_semaphore("Queue transfer operation");
 
         // Submit release barriers to transfer queue
@@ -741,17 +816,17 @@ void RenderBackend::flush_batched_command_buffers() {
         transfer_barriers.clear();
     }
 
-    if(!queued_command_buffers.empty()) {
+    if (!queued_command_buffers.empty()) {
         auto command_buffers = std::vector<VkCommandBuffer>{};
         command_buffers.reserve(queued_command_buffers.size() * 2);
 
-        for(const auto& queued_commands : queued_command_buffers) {
+        for (const auto& queued_commands: queued_command_buffers) {
             command_buffers.emplace_back(queued_commands.get_vk_commands());
         }
 
         auto wait_stages = std::vector<VkPipelineStageFlags>{VK_PIPELINE_STAGE_ALL_COMMANDS_BIT};
         auto wait_semaphores = std::vector{swapchain_semaphore};
-        if(!last_submission_semaphores.empty()) {
+        if (!last_submission_semaphores.empty()) {
             wait_semaphores.insert(
                 wait_semaphores.end(),
                 last_submission_semaphores.begin(),
@@ -783,14 +858,14 @@ void RenderBackend::flush_batched_command_buffers() {
             const auto result = vkQueueSubmit(graphics_queue, 1, &submit, frame_fences[cur_frame_idx]);
             logger->trace("Submitted submission fence for frame {}", cur_frame_idx);
 
-            if(result == VK_ERROR_DEVICE_LOST) {
+            if (result == VK_ERROR_DEVICE_LOST) {
                 logger->error("Device lost detected!");
                 logger->flush();
                 SAH_BREAKPOINT;
             }
         }
 
-        for(const auto& queued_commands : queued_command_buffers) {
+        for (const auto& queued_commands: queued_command_buffers) {
             graphics_command_allocators[cur_frame_idx].return_command_buffer(queued_commands.get_vk_commands());
         }
 
@@ -829,11 +904,11 @@ void RenderBackend::create_tracy_context() {
     vkAllocateCommandBuffers(device.device, &command_buffer_allocate, &tracy_command_buffer);
 
     tracy_context = TracyVkContext(
-        physical_device.physical_device,
-        device.device,
-        graphics_queue,
-        tracy_command_buffer
-    );
+                        physical_device.physical_device,
+                        device.device,
+                        graphics_queue,
+                        tracy_command_buffer
+                    );
 }
 
 ResourceAllocator& RenderBackend::get_global_allocator() const {
@@ -849,9 +924,11 @@ uint32_t RenderBackend::get_current_gpu_frame() const {
 }
 
 void RenderBackend::mark_simulation_begin() const {
+#if SAH_USE_STREAMLINE
     if(streamline) {
         streamline->update_frame_token(total_num_frames + 1);
     }
+#endif
 }
 
 ResourceUploadQueue& RenderBackend::get_upload_queue() const {
@@ -891,11 +968,11 @@ VkCommandBuffer RenderBackend::create_transfer_command_buffer(const std::string&
 }
 
 void RenderBackend::create_command_pools() {
-    for(auto& command_pool : graphics_command_allocators) {
+    for (auto& command_pool: graphics_command_allocators) {
         command_pool = CommandAllocator{*this, graphics_queue_family_index};
     }
 
-    for(auto& command_pool : transfer_command_allocators) {
+    for (auto& command_pool: transfer_command_allocators) {
         command_pool = CommandAllocator{*this, transfer_queue_family_index};
     }
 }
@@ -936,14 +1013,16 @@ DescriptorSetAllocator& RenderBackend::get_transient_descriptor_allocator() {
     return frame_descriptor_allocators[cur_frame_idx];
 }
 
+#if SAH_USE_STREAMLINE
 StreamlineAdapter* RenderBackend::get_streamline() const {
     return streamline.get();
 }
+#endif
 
 VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
     auto semaphore = VkSemaphore{};
 
-    if(!available_semaphores.empty()) {
+    if (!available_semaphores.empty()) {
         semaphore = available_semaphores.back();
         available_semaphores.pop_back();
 
@@ -957,7 +1036,7 @@ VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
         vkCreateSemaphore(device, &create_info, nullptr, &semaphore);
     }
 
-    if(!name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
+    if (!name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
         const auto name_info = VkDebugUtilsObjectNameInfoEXT{
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .objectType = VK_OBJECT_TYPE_SEMAPHORE,
@@ -1062,7 +1141,7 @@ void RenderBackend::create_default_resources() {
 void RenderBackend::set_object_name(
     const uint64_t object_handle, const VkObjectType object_type, const std::string& name
 ) const {
-    if(vkSetDebugUtilsObjectNameEXT != nullptr) {
+    if (vkSetDebugUtilsObjectNameEXT != nullptr) {
         const auto name_info = VkDebugUtilsObjectNameInfoEXT{
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .objectType = object_type,

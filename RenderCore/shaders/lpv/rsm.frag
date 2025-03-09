@@ -18,6 +18,10 @@ layout(set = 0, binding = 2, scalar) readonly buffer PrimitiveDataBuffer {
     PrimitiveDataGPU primitive_datas[];
 };
 
+layout(set = 0, binding = 3, scalar) readonly buffer MaterialDataBuffer {
+    BasicPbrMaterialGpu materials[];
+};
+
 layout(set = 1, binding = 0) uniform sampler2D textures[];
 
 layout(push_constant) uniform Constants {
@@ -36,7 +40,7 @@ layout(location = 1) out mediump vec4 rsm_normal;
 
 void main() {
     PrimitiveDataGPU primitive = primitive_datas[primitive_index];
-    BasicPbrMaterialGpu material = primitive.material_id.material;
+    BasicPbrMaterialGpu material = materials[primitive.material_id];
 
     // Base color
     mediump vec4 base_color_sample = texture(textures[material.base_color_texture_index], vertex_texcoord);

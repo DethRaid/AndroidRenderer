@@ -8,6 +8,9 @@ ConstantBuffer<ViewDataGPU> camera_data;
 [vk::binding(1, 0)]
 StructuredBuffer<PrimitiveDataGPU> primitive_datas;
 
+[vk::binding(2, 0)]
+StructuredBuffer<BasicPbrMaterialGpu> materials;
+
 [vk::binding(0, 1)]
 Sampler2D textures[];
 
@@ -24,11 +27,10 @@ GbufferOutput main(
     const half3 vertex_tangent,
     const vec2 vertex_texcoord,
     const half4 vertex_color,
-    const uint primitive_id,
-    uint shading_rate: SV_ShadingRate) {
+    const uint primitive_id) {
 
     PrimitiveDataGPU primitive = primitive_datas[primitive_id];
-    BasicPbrMaterialGpu material = *primitive.material_id;
+    BasicPbrMaterialGpu material = materials[primitive.material_id];
 
     GbufferOutput gbuffer = (GbufferOutput)0;
 
@@ -49,7 +51,7 @@ GbufferOutput main(
     Sampler2D normals_texture = textures[material.normal_texture_index];
     half3 normal_sample = (half3)normals_texture.SampleBias(vertex_texcoord, camera_data.material_texture_mip_bias).xyz * 2.0 - 1.0;
     half3 normal = mul(tbn, normal_sample);
-    gbuffer.normal = half4(vertex_normal, (half)shading_rate);
+    gbuffer.normal = half4(vertex_normal, 0);
 
     // Data
     Sampler2D data_texture = textures[material.data_texture_index];

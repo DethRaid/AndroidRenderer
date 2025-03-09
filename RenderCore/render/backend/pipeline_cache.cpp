@@ -1,3 +1,4 @@
+#include <vulkan/vk_enum_string_helper.h>
 #include "pipeline_cache.hpp"
 
 #include "pipeline_builder.hpp"
@@ -9,7 +10,7 @@ static std::shared_ptr<spdlog::logger> logger;
 PipelineCache::PipelineCache(RenderBackend& backend_in) : backend{backend_in} {
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("PipelineCache");
-        // logger->set_level(spdlog::level::trace);
+        logger->set_level(spdlog::level::debug);
     }
 
     const auto& physical_device = backend.get_physical_device();
@@ -185,7 +186,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
         // Assumption that all shader stages will use the same push constants. If this is not true, I have a headache and I need to lie down
     }
 
-    return pipelines.add_object(std::move(pipeline));
+    return &(*pipelines.emplace(std::move(pipeline)));
 }
 
 ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_file_path) {
@@ -326,14 +327,14 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
 
     logger->trace("Named pipeline and pipeline layout");
 
-    return compute_pipelines.add_object(
+    return &(*compute_pipelines.emplace(
         ComputeShader{
             .name = shader_file_path,
             .layout = pipeline_layout,
             .pipeline = pipeline,
             .num_push_constants = num_push_constants,
             .descriptor_sets = descriptor_sets
-        });
+        }));
 }
 
 GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<GraphicsPipelineHandle> pipelines_in) {
@@ -362,7 +363,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<Grap
         nullptr,
         &graphics_pipeline.pipeline);
 
-    return pipelines.add_object(std::move(graphics_pipeline));
+    return &(*pipelines.emplace(std::move(graphics_pipeline)));
 }
 
 VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
@@ -479,7 +480,8 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
     }
 
     const auto& device = backend.get_device();
-    vkCreateGraphicsPipelines(
+    logger->trace("About to compile PSO {}", pipeline->pipeline_name);
+    const auto result = vkCreateGraphicsPipelines(
         device,
         vk_pipeline_cache,
         1,
@@ -487,6 +489,9 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         nullptr,
         &pipeline->pipeline
     );
+    if(result != VK_SUCCESS) {
+        logger->error("Could not create pipeline {}: {}", pipeline->pipeline_name, string_VkResult(result));
+    }
 
     if(!pipeline->pipeline_name.empty()) {
         backend.set_object_name(pipeline->pipeline, pipeline->pipeline_name);

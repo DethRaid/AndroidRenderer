@@ -82,6 +82,8 @@ public:
 
     RenderDocWrapper& get_renderdoc() const;
 
+    virtual std::string get_native_library_dir() const = 0;
+
 protected:
     std::unique_ptr<RenderDocWrapper> renderdoc;
 };
@@ -107,11 +109,17 @@ public:
 
     glm::uvec2 get_resolution() override;
 
+    std::string get_native_library_dir() const override;
+
+    android_app* get_app() const;
+
     ANativeWindow* get_window();
 
     AAssetManager* get_asset_manager();
 
 private:
+    android_app* app = nullptr;
+
     AAssetManager* asset_manager = nullptr;
 
     ANativeWindow* window = nullptr;
@@ -134,6 +142,8 @@ public:
     void poll_input(InputManager& input) override;
 
     glm::uvec2 get_resolution() override;
+
+    std::string get_native_library_dir() const override;
 
     HWND get_hwnd() const;
 

@@ -70,3 +70,5 @@ void SceneDrawer::draw_indirect(
 const RenderScene& SceneDrawer::get_scene() const { return *scene; }
 
 const MeshStorage& SceneDrawer::get_mesh_storage() const { return *mesh_storage; }
+
+const MaterialStorage& SceneDrawer::get_material_storage() const { return *material_storage; }

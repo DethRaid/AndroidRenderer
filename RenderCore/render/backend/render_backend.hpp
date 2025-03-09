@@ -140,7 +140,9 @@ public:
      */
     DescriptorSetAllocator& get_transient_descriptor_allocator();
 
+#if SAH_USE_STREAMLINE
     StreamlineAdapter* get_streamline() const;
+#endif
 
     CommandBuffer create_graphics_command_buffer(const std::string& name);
 
@@ -192,7 +194,9 @@ public:
 private:
     static inline std::unique_ptr<RenderBackend> g_render_backend = nullptr;
 
+#if SAH_USE_STREAMLINE
     std::unique_ptr<StreamlineAdapter> streamline;
+#endif
 
     bool is_first_frame = true;
 
@@ -282,7 +286,6 @@ private:
     VkPhysicalDeviceDeviceGeneratedCommandsFeaturesNV device_generated_commands_features = {};
     VkPhysicalDeviceFragmentShadingRateFeaturesKHR shading_rate_image_features = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR,
-        .attachmentFragmentShadingRate = VK_TRUE,
     };
     VkPhysicalDeviceFeatures2 device_features = {};
 

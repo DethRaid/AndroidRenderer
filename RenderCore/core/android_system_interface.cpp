@@ -12,7 +12,7 @@
 static bool begin_stdout_redirection(const char* app_name);
 
 AndroidSystemInterface::AndroidSystemInterface(android_app* app) :
-        asset_manager{app->activity->assetManager}, window{app->window} {
+    app{app}, asset_manager{app->activity->assetManager}, window{app->window} {
     begin_stdout_redirection("SAH");
 }
 
@@ -27,7 +27,7 @@ std::shared_ptr<spdlog::logger> AndroidSystemInterface::get_logger(const std::st
 }
 
 void AndroidSystemInterface::flush_all_loggers() {
-    for(auto& log : all_loggers) {
+    for (auto& log: all_loggers) {
         log->flush();
     }
 }
@@ -60,15 +60,58 @@ glm::uvec2 AndroidSystemInterface::get_resolution() {
 }
 
 void AndroidSystemInterface::write_file(const std::filesystem::path& filepath, const void* data, uint32_t data_size) {
-    // TODO
+    FILE* file = fopen(filepath.c_str(), "w+");
+
+    if (file != NULL)
+    {
+        fwrite(data, sizeof(uint8_t), data_size, file);
+        fflush(file);
+        fclose(file);
+    }
 }
 
 void AndroidSystemInterface::poll_input(InputManager& input) {
     // TODO
 }
 
+android_app* AndroidSystemInterface::get_app() const {
+    return app;
+}
+
 AAssetManager* AndroidSystemInterface::get_asset_manager() {
     return asset_manager;
+}
+
+std::string AndroidSystemInterface::get_native_library_dir() const {
+    JNIEnv* env = nullptr;
+    app->activity->vm->AttachCurrentThread(&env, nullptr);
+
+    jclass contextClassDef = env->GetObjectClass(app->activity->javaGameActivity);
+    const jmethodID getApplicationContextMethod =
+        env->GetMethodID(contextClassDef, "getApplicationContext", "()Landroid/content/Context;");
+    const jmethodID getApplicationInfoMethod = env->GetMethodID(
+        contextClassDef, "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;");
+    jobject contextObject =
+        env->CallObjectMethod(app->activity->javaGameActivity, getApplicationContextMethod);
+    jobject applicationInfoObject = env->CallObjectMethod(contextObject, getApplicationInfoMethod);
+    jclass applicationInfoObjectDef = env->GetObjectClass(applicationInfoObject);
+    const jfieldID nativeLibraryDirField =
+        env->GetFieldID(applicationInfoObjectDef, "nativeLibraryDir", "Ljava/lang/String;");
+
+    jstring nativeLibraryDirJStr =
+        (jstring) env->GetObjectField(applicationInfoObject, nativeLibraryDirField);
+    const char* textCStr = env->GetStringUTFChars(nativeLibraryDirJStr, nullptr);
+    const std::string libDir = textCStr;
+    env->ReleaseStringUTFChars(nativeLibraryDirJStr, textCStr);
+
+    env->DeleteLocalRef(nativeLibraryDirJStr);
+    env->DeleteLocalRef(applicationInfoObjectDef);
+    env->DeleteLocalRef(applicationInfoObject);
+    env->DeleteLocalRef(contextObject);
+    env->DeleteLocalRef(contextClassDef);
+
+    app->activity->vm->DetachCurrentThread();
+    return libDir;
 }
 
 // from https://codelab.wordpress.com/2014/11/03/how-to-use-standard-output-streams-for-logging-in-android-apps/

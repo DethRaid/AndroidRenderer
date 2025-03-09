@@ -56,11 +56,6 @@ FetchContent_Declare(
         GIT_TAG         aa43588c42b78bc188fdd36124f1d1491e04a680
 )
 FetchContent_Declare(
-    streamline
-    GIT_REPOSITORY      https://github.com/NVIDIAGameWorks/Streamline.git
-    GIT_TAG             v2.7.2
-)
-FetchContent_Declare(
         tl_optional
         GIT_REPOSITORY  https://github.com/TartanLlama/optional.git
         GIT_TAG         c28fcf74d207fc667c4ed3dbae4c251ea551c8c1
@@ -69,6 +64,11 @@ FetchContent_Declare(
         fetch_tracy
         GIT_REPOSITORY  https://github.com/wolfpld/tracy.git
         GIT_TAG         v0.11.1
+)
+FetchContent_Declare(
+        utf8cpp
+        GIT_REPOSITORY https://github.com/nemtrif/utfcpp.git
+        GIT_TAG        v4.0.6
 )
 FetchContent_Declare(
         fetch_volk
@@ -86,42 +86,72 @@ FetchContent_Declare(
         GIT_TAG         38627f4e37d7a9b13214fd267ec60e0e877e3997
 )
 
-FetchContent_MakeAvailable(glm spdlog fetch_fastgltf tl_optional fetch_magic_enum fetch_spirv_reflect streamline
-        fetch_tracy fetch_vma vk-bootstrap fetch_volk)
+FetchContent_MakeAvailable(
+        glm
+        spdlog
+        fetch_fastgltf
+        tl_optional
+        fetch_magic_enum
+        fetch_spirv_reflect
+        utf8cpp
+        fetch_tracy
+        fetch_vma
+        vk-bootstrap
+        fetch_volk)
 
-FetchContent_Declare(
-        fidelityfx
-        DOWNLOAD_EXTRACT_TIMESTAMP OFF
-        URL             https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/releases/download/v1.1.3/FidelityFX-SDK-v1.1.3.zip
-)
-FetchContent_GetProperties(fidelityfx)
-if(fidelityfx_POPULATED)
-    message("fidelityfx automatically populated")
-else()
-    FetchContent_Populate(fidelityfx)
+if(ANDROID)
+        FetchContent_Declare(
+                libadrenotools
+                GIT_REPOSITORY  https://github.com/bylaws/libadrenotools.git
+                GIT_TAG         8fae8ce254dfc1344527e05301e43f37dea2df80
+        )
+        FetchContent_MakeAvailable(libadrenotools)
+endif()
 
-    add_library(ffx_api INTERFACE)
-    target_include_directories(ffx_api INTERFACE
-            "${fidelityfx_SOURCE_DIR}/ffx-api/include"
-            )
-    target_link_directories(ffx_api INTERFACE
-        ${fidelityfx_SOURCE_DIR}/PrebuiltSignedDLL
+if(SAH_USE_STREAMLINE)
+    FetchContent_Declare(
+            streamline
+            GIT_REPOSITORY      https://github.com/NVIDIAGameWorks/Streamline.git
+            GIT_TAG             v2.7.2
     )
-    target_link_libraries(ffx_api INTERFACE 
-        amd_fidelityfx_vk)
+    FetchContent_MakeAvailable(streamline)
+endif()
 
-    add_library(fidelityfx INTERFACE)
-    target_include_directories(fidelityfx INTERFACE
-            "${fidelityfx_SOURCE_DIR}/sdk/include"
-            )
-    target_link_directories(fidelityfx INTERFACE
-            "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk"
-            )
-    target_link_libraries(fidelityfx INTERFACE
-        ffx_backend_vk_x64d
-        ffx_cacao_x64d
-        ffx_fsr3_x64d
+if(SAH_USE_FFX)
+    FetchContent_Declare(
+            fidelityfx
+            DOWNLOAD_EXTRACT_TIMESTAMP OFF
+            URL             https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/releases/download/v1.1.3/FidelityFX-SDK-v1.1.3.zip
     )
+    FetchContent_GetProperties(fidelityfx)
+    if(fidelityfx_POPULATED)
+        message("fidelityfx automatically populated")
+    else()
+        FetchContent_Populate(fidelityfx)
+
+        add_library(ffx_api INTERFACE)
+        target_include_directories(ffx_api INTERFACE
+                "${fidelityfx_SOURCE_DIR}/ffx-api/include"
+                )
+        target_link_directories(ffx_api INTERFACE
+            ${fidelityfx_SOURCE_DIR}/PrebuiltSignedDLL
+        )
+        target_link_libraries(ffx_api INTERFACE
+            amd_fidelityfx_vk)
+
+        add_library(fidelityfx INTERFACE)
+        target_include_directories(fidelityfx INTERFACE
+                "${fidelityfx_SOURCE_DIR}/sdk/include"
+                )
+        target_link_directories(fidelityfx INTERFACE
+                "${fidelityfx_SOURCE_DIR}/sdk/bin/ffx_sdk"
+                )
+        target_link_libraries(fidelityfx INTERFACE
+            ffx_backend_vk_x64d
+            ffx_cacao_x64d
+            ffx_fsr3_x64d
+        )
+    endif()
 endif()
 
 FetchContent_Declare(

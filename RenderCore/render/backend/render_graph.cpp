@@ -358,7 +358,7 @@ void RenderGraph::update_accesses_and_issues_barriers(
     access_tracker.issue_barriers(cmds);
 }
 
-static ComputePipelineHandle image_copy_shader = {};
+static ComputePipelineHandle image_copy_shader = nullptr;
 
 void RenderGraph::do_compute_shader_copy(const ImageCopyPass& pass) {
     if(pass.dst->create_info.extent.width != pass.src->create_info.extent.width ||
@@ -366,7 +366,7 @@ void RenderGraph::do_compute_shader_copy(const ImageCopyPass& pass) {
         throw std::runtime_error{"Source and dest images have different extents, cannot copy!"};
     }
 
-    if(!image_copy_shader.is_valid()) {
+    if(!image_copy_shader) {
         image_copy_shader = RenderBackend::get().get_pipeline_cache().create_pipeline("shaders/util/image_copy.comp.spv");
     }
 

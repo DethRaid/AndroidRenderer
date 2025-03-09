@@ -1,6 +1,7 @@
 #include "gbuffes_phase.hpp"
 
 #include "render/indirect_drawing_utils.hpp"
+#include "render/material_storage.hpp"
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
 #include "render/backend/render_backend.hpp"
@@ -44,6 +45,7 @@ void GbuffersPhase::render(
     auto gbuffer_set = backend.get_transient_descriptor_allocator().build_set(opaque_pso, 0)
                               .bind(player_view.get_buffer())
                               .bind(drawer.get_scene().get_primitive_buffer())
+                              .bind(drawer.get_material_storage().get_material_buffer())
                               .build();
     graph.add_render_pass(
         DynamicRenderingPass{

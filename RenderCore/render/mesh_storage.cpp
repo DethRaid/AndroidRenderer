@@ -10,8 +10,8 @@
 #include "shared/vertex_data.hpp"
 
 constexpr uint32_t max_num_meshes = 65536;
-constexpr const uint32_t max_num_vertices = 100000000;
-constexpr const uint32_t max_num_indices = 100000000;
+constexpr const uint32_t max_num_vertices = 1000000;
+constexpr const uint32_t max_num_indices = 1000000;
 
 static std::shared_ptr<spdlog::logger> logger;
 

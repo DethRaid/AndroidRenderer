@@ -4,26 +4,9 @@
 
 #include "shared/prelude.h"
 
-#include "shared/basic_pbr_material.hpp"
-
-#if defined(__cplusplus)
-#include "render/backend/device_address.hpp"
-#define MATERIAL_BUFFER_REFERENCE DeviceAddress
-#elif defined(GL_core_profile)
-#extension GL_EXT_scalar_block_layout : enable
-#extension GL_EXT_buffer_reference_uvec2 : enable
+#if defined(GL_core_profile)
 #extension GL_EXT_shader_16bit_storage : enable
 #extension GL_EXT_shader_explicit_arithmetic_types : enable
-
-layout(buffer_reference, scalar, buffer_reference_align = 16) readonly buffer MaterialDataBuffer {
-    BasicPbrMaterialGpu material;
-};
-
-#define MATERIAL_BUFFER_REFERENCE MaterialDataBuffer
-
-#else // slang
-#define MATERIAL_BUFFER_REFERENCE BasicPbrMaterialGpu*
-
 #endif
 
 #define PRIMITIVE_TYPE_SOLID 0
@@ -38,7 +21,9 @@ struct PrimitiveDataGPU {
     vec4 bounds_min_and_radius;
     vec4 bounds_max;
 
-    MATERIAL_BUFFER_REFERENCE material_id;
+    uint material_id;
+    
+    uint padding;
 
     uint mesh_id;
     uint type;  // See the PRIMITIVE_TYPE_ defines above

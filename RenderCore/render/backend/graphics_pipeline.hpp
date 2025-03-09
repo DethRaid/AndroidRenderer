@@ -9,7 +9,6 @@
 #include <tl/optional.hpp>
 
 #include "render/backend/descriptor_set_info.hpp"
-#include "core/object_pool.hpp"
 
 class RenderBackend;
 
@@ -94,5 +93,3 @@ private:
         const std::vector<VkPushConstantRange>& push_constants
     );
 };
-
-using GraphicsPipelineHandle = PooledObject<GraphicsPipeline>;

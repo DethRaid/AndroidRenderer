@@ -193,7 +193,7 @@ BufferHandle MaterialStorage::get_material_buffer() const {
 }
 
 GraphicsPipelineHandle MaterialStorage::get_pipeline_group() {
-    if(!is_pipeline_group_dirty & pipeline_group.is_valid()) {
+    if(!is_pipeline_group_dirty && pipeline_group) {
         return pipeline_group;
     }
 

@@ -27,6 +27,8 @@ endif()
 
 # Include the shared renderer
 
+set(SAH_USE_FFX 1 CACHE BOOL "" FORCE)
+set(SAH_USE_STREAMLINE 1 CACHE BOOL "" FORCE)
 include(${CMAKE_CURRENT_LIST_DIR}/../RenderCore/SahCore.cmake)
 
 # Win32 dependencies
@@ -37,13 +39,13 @@ include(${CMAKE_CURRENT_LIST_DIR}/extern/extern.cmake)
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake;")
 
-set(SHADER_DIR ${CMAKE_CURRENT_LIST_DIR}/../RenderCore/shaders)
+set(SAH_SHADER_DIR ${CMAKE_CURRENT_LIST_DIR}/../RenderCore/shaders)
 
 file(GLOB_RECURSE SHADERS CONFIGURE_DEPENDS
-        ${SHADER_DIR}/*.vert
-        ${SHADER_DIR}/*.geom
-        ${SHADER_DIR}/*.frag
-        ${SHADER_DIR}/*.comp
+        ${SAH_SHADER_DIR}/*.vert
+        ${SAH_SHADER_DIR}/*.geom
+        ${SAH_SHADER_DIR}/*.frag
+        ${SAH_SHADER_DIR}/*.comp
         )
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS 
@@ -58,13 +60,13 @@ set(SHADER_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../RenderCore)
 set(EXTERN_DIR ${SHADER_INCLUDE_DIR}/extern)
 
 add_custom_target(compile_shaders
-    python ${SAH_TOOLS_DIR}/compile_shaders.py ${SHADER_DIR} ${CMAKE_BINARY_DIR}/shaders
+    python ${SAH_TOOLS_DIR}/compile_shaders.py ${SAH_SHADER_DIR} ${CMAKE_BINARY_DIR}/shaders
 )
 add_dependencies(SahWindows compile_shaders)
 
 target_link_libraries(SahWindows PUBLIC
         SahCore
-        )
+)
     
 #######################
 # Generate VS filters #

@@ -207,6 +207,4 @@ private:
      * \param cascade_index Index of the cascade that we're injecting into
      */
     void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index) const;
-
-    void perform_propagation_step(RenderGraph& render_graph, const DescriptorSet& set, bool use_gv) const;
 };

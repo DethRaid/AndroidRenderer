@@ -24,7 +24,7 @@ public:
 
 private:
     bool is_pipeline_group_dirty = true;
-    GraphicsPipelineHandle pipeline_group{};
+    GraphicsPipelineHandle pipeline_group = nullptr;
 
     ObjectPool<BasicPbrMaterialProxy> material_pool;
 

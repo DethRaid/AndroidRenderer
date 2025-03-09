@@ -1,5 +1,9 @@
 #include "fsr3.hpp"
 
+#if SAH_USE_FFX
+
+#include <utf8.h>
+
 #include "scene_view.hpp"
 #include "backend/render_backend.hpp"
 #include "console/cvars.hpp"
@@ -66,15 +70,16 @@ void FidelityFSSuperResolution3::initialize(const glm::uvec2& output_resolution_
             FFX_UPSCALE_ENABLE_DEBUG_CHECKING;
         create_upscaling.maxRenderSize = {.width = optimal_render_resolution.x, .height = optimal_render_resolution.y};
         create_upscaling.maxUpscaleSize = {.width = output_resolution.x, .height = output_resolution.y};
-        create_upscaling.fpMessage = +[](uint32_t type, const wchar_t* c_message) {
-            const auto wmessage = std::wstring{c_message};
-            const auto message = to_string(wmessage);
+        create_upscaling.fpMessage = +[](const uint32_t type, const wchar_t* c_message) {
+            const auto wmessage = std::u16string_view{reinterpret_cast<const char16_t*>(c_message)};
+            const auto message = utf8::utf16tou8(wmessage);
+            const auto skill_issue = std::string_view{ reinterpret_cast<const char*>(message.c_str()), message.size() };
             if(type == FFX_API_MESSAGE_TYPE_WARNING) {
-                logger->warn(message);
+                logger->warn("{}", skill_issue);
             } else if(type == FFX_API_MESSAGE_TYPE_ERROR) {
-                logger->error(message);
+                logger->error("{}", skill_issue);
             } else {
-                logger->info(message);
+                logger->info("{}", skill_issue);
             }
         };
 
@@ -181,3 +186,5 @@ std::string to_string(const FfxApiUpscaleQualityMode quality_mode) {
 
     return "Unknown";
 }
+
+#endif
