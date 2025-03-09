@@ -1157,19 +1157,40 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
                             .bind(geometry_volume_handle, linear_sampler)
                             .build();
 
-    for(auto step_index = 0; step_index < cvar_lpv_num_propagation_steps.Get(); step_index += 2) {
-        perform_propagation_step(
-            render_graph,
-            a_to_b_set,
-            use_gv
-        );
-        // use_gv = true;
-        perform_propagation_step(
-            render_graph,
-            b_to_a_set,
-            use_gv
-        );
+    const auto num_cells = static_cast<uint32_t>(cvar_lpv_resolution.Get());
+    const auto num_cascades = static_cast<uint32_t>(cvar_lpv_num_cascades.Get());
+    const auto dispatch_size = glm::uvec3{ num_cells * num_cascades, num_cells, num_cells } / glm::uvec3{ 8, 8, 8 };
 
+    struct PropagationConstants {
+        uint32_t use_gv;
+        uint32_t num_cascades;
+        uint32_t num_cells;
+    };
+
+    const auto constants = PropagationConstants{
+        .use_gv = use_gv ? 1u : 0u,
+        .num_cascades = num_cascades,
+        .num_cells = num_cells
+    };
+
+    for(auto step_index = 0; step_index < cvar_lpv_num_propagation_steps.Get(); step_index += 2) {
+        render_graph.add_compute_dispatch(
+            ComputeDispatch{
+                .name = "Propagate lighting cascade",
+                .descriptor_sets = std::vector{a_to_b_set},
+                .push_constants = constants,
+                .num_workgroups = dispatch_size,
+                .compute_shader = propagation_shader
+            });
+
+        render_graph.add_compute_dispatch(
+            ComputeDispatch{
+                .name = "Propagate lighting cascade",
+                .descriptor_sets = std::vector{b_to_a_set},
+                .push_constants = constants,
+                .num_workgroups = dispatch_size,
+                .compute_shader = propagation_shader
+            });
     }
 
     render_graph.add_transition_pass(
@@ -1346,32 +1367,6 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
 
     allocator.destroy_buffer(view_matrices);
 
-}
-
-void LightPropagationVolume::perform_propagation_step(
-    RenderGraph& render_graph, const DescriptorSet& set, const bool use_gv
-) const {
-    ZoneScoped;
-
-    struct PropagateLightingConstants {
-        uint32_t cascade_index;
-        uint32_t use_gv;
-    };
-
-    for(uint32_t cascade_index = 0; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
-        render_graph.add_compute_dispatch(
-            ComputeDispatch<PropagateLightingConstants>{
-                .name = "Propagate lighting cascade",
-                .descriptor_sets = std::vector{set},
-                .push_constants = PropagateLightingConstants{
-                    .cascade_index = cascade_index, .use_gv = use_gv ? 1u : 0u
-                },
-                .num_workgroups = {1, 32, 32},
-                .compute_shader = propagation_shader
-            }
-        );
-
-    }
 }
 
 void CascadeData::create_render_targets(ResourceAllocator& allocator) {

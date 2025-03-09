@@ -156,4 +156,13 @@ private:
     void update_jitter();
 
     void draw_debug_visualizers(RenderGraph& render_graph);
+
+    /**
+     * Simple funscreen triangle PSO to copy one sampled image to a render target
+     */
+    GraphicsPipelineHandle copy_scene_pso;
+
+    VkSampler linear_sampler;
+
+    void evaluate_antialiasing(RenderGraph& render_graph, TextureHandle gbuffer_depth_handle) const;
 };
