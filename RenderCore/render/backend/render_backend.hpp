@@ -6,6 +6,7 @@
 #include <VkBootstrap.h>
 #include <tracy/TracyVulkan.hpp>
 
+#include "render/noise_texture.hpp"
 #include "render/backend/descriptor_set_allocator.hpp"
 #include "render/backend/render_graph.hpp"
 #include "render/backend/resource_access_synchronizer.hpp"

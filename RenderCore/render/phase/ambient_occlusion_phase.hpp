@@ -1,14 +1,21 @@
 #pragma once
 
-#if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
-#include <ffx_api/ffx_api.h>
+#if SAH_USE_FFX
 #include <FidelityFX/host/ffx_cacao.h>
 #endif
 
 #include "render/backend/handles.hpp"
 
+struct NoiseTexture;
+class RenderScene;
 class SceneView;
 class RenderGraph;
+
+enum class AoTechnique {
+    Off,
+    CACAO,
+    RTAO
+};
 
 /**
  * Renders ambient occlusion
@@ -27,12 +34,12 @@ public:
     ~AmbientOcclusionPhase();
 
     void generate_ao(
-        RenderGraph& graph, const SceneView& view, TextureHandle gbuffer_normals, TextureHandle gbuffer_depth,
-        TextureHandle ao_out
+        RenderGraph& graph, const SceneView& view, const RenderScene& scene, const NoiseTexture& noise,
+        TextureHandle gbuffer_normals, TextureHandle gbuffer_depth, TextureHandle ao_out
     );
 
 private:
-#if defined(SAH_USE_FFX_CACAO) && SAH_USE_FFX_CACAO
+#if SAH_USE_FFX
     FfxInterface ffx_interface;
 
     FfxDevice ffx_device;
@@ -41,4 +48,18 @@ private:
 
     TextureHandle stinky_depth = nullptr;
 #endif
+
+    void evaluate_cacao(
+        RenderGraph& graph, const SceneView& view, TextureHandle gbuffer_depth, TextureHandle gbuffer_normals,
+        TextureHandle ao_out
+    );
+
+    ComputePipelineHandle rtao_pipeline = nullptr;
+
+    uint32_t frame_index = 0;
+
+    void evaluate_rtao(
+        RenderGraph& graph, const SceneView& view, const RenderScene& scene, const NoiseTexture& noise,
+        TextureHandle gbuffer_depth, TextureHandle gbuffer_normals, TextureHandle ao_out
+    );
 };

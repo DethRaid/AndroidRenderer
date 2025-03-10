@@ -45,7 +45,6 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
 
     auto handle = mesh_primitives.add_object(std::move(primitive));
 
-
     total_num_primitives++;
 
     switch(handle->material->first.transparency_mode) {
@@ -184,6 +183,10 @@ const MeshStorage& RenderScene::get_meshes() const {
 }
 
 RaytracingScene& RenderScene::get_raytracing_scene() {
+    return *raytracing_scene;
+}
+
+const RaytracingScene& RenderScene::get_raytracing_scene() const {
     return *raytracing_scene;
 }
 

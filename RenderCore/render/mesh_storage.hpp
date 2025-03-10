@@ -61,7 +61,10 @@ private:
         std::span<const StandardVertex> vertices, std::span<const uint32_t> indices
     ) const;
 
-    static StandardVertex interpolate_vertex(std::span<const StandardVertex> vertices, std::span<const uint32_t> indices, size_t triangle_id, glm::vec3 barycentric);
+    static StandardVertex interpolate_vertex(
+        std::span<const StandardVertex> vertices, std::span<const uint32_t> indices, size_t triangle_id,
+        glm::vec3 barycentric
+    );
 
     BufferHandle generate_sh_point_cloud(const std::vector<StandardVertex>& point_cloud) const;
 

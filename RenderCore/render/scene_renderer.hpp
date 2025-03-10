@@ -85,6 +85,11 @@ private:
 
     glm::uvec2 scene_render_resolution = glm::uvec2{};
 
+    /**
+     * Spatio-temporal blue noise texture, containing 3D vectors in a cosine-weighted hemisphere
+     */
+    NoiseTexture stbn_3d_cosine;
+
     std::unique_ptr<LightPropagationVolume> lpv;
 
     TextureHandle gbuffer_color_handle = nullptr;

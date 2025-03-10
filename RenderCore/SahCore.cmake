@@ -154,3 +154,5 @@ foreach(dir ${SAH_INCLUDES})
   message(STATUS "include='${dir}'")
 endforeach()
 
+
+Copy assets folder to output directory

@@ -488,6 +488,7 @@ AccelerationStructureHandle MeshStorage::create_blas_for_mesh(
                                VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR);
 
     as->scratch_buffer_size = size_info.buildScratchSize;
+    as->num_triangles = num_triangles;
 
     backend.get_blas_build_queue().enqueue(as, geometry);
 
