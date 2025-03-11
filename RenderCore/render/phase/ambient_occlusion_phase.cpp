@@ -17,11 +17,11 @@ static AutoCVar_Enum cvar_ao_technique{
 };
 
 static AutoCVar_Int cvar_rtao_samples{
-    "r.RTAO.SamplesPerPixel", "Number of RTAO samples per pixel", 1
+    "r.AO.RTAO.SamplesPerPixel", "Number of RTAO samples per pixel", 1
 };
 
-static AutoCVar_Float cvar_rtao_ray_distance{
-    "r.RTAO.MaxRayDistance", "Maximum ray distance for RTAO", 1.f
+static AutoCVar_Float cvar_ao_radius{
+    "r.AO.MaxRayDistance", "Maximum ray distance for RTAO", 1.2f
 };
 
 #if SAH_USE_FFX
@@ -299,25 +299,25 @@ void AmbientOcclusionPhase::evaluate_cacao(
             },
             .execute = [=, this](CommandBuffer& commands) {
                 const auto cacao_settings = FfxCacaoSettings{
-                    .radius = 0.5,
+                    .radius = static_cast<float>(cvar_ao_radius.Get()),
                     .shadowMultiplier = 1.f,
-                    .shadowPower = 1.f,
-                    .shadowClamp = 0.f,
-                    .horizonAngleThreshold = 0.f,
-                    .fadeOutFrom = 1000.f,
-                    .fadeOutTo = 1100.f,
+                    .shadowPower = 1.5f,
+                    .shadowClamp = 0.98f,
+                    .horizonAngleThreshold = 0.06f,
+                    .fadeOutFrom = 50.f,
+                    .fadeOutTo = 300.f,
                     .qualityLevel = cvar_cacao_quality.Get(),
-                    .adaptiveQualityLimit = 1.0,
-                    .blurPassCount = 1,
-                    .sharpness = 1.f,
+                    .adaptiveQualityLimit = 0.45f,
+                    .blurPassCount = 2,
+                    .sharpness = 0.98f,
                     .temporalSupersamplingAngleOffset = 0.f,
                     .temporalSupersamplingRadiusOffset = 0.f,
-                    .detailShadowStrength = 1.f,
-                    .generateNormals = true,
-                    .bilateralSigmaSquared = 0.f,
-                    .bilateralSimilarityDistanceSigma = 0.f
+                    .detailShadowStrength = 0.5f,
+                    .generateNormals = false,
+                    .bilateralSigmaSquared = 5.f,
+                    .bilateralSimilarityDistanceSigma = 0.01f
                 };
-                FfxErrorCode errorCode = ffxCacaoUpdateSettings(&context, &FFX_CACAO_DEFAULT_SETTINGS, false);
+                FfxErrorCode errorCode = ffxCacaoUpdateSettings(&context, &cacao_settings, false);
 
                 auto ffx_cmds = ffxGetCommandListVK(commands.get_vk_commands());
 
@@ -386,7 +386,7 @@ void AmbientOcclusionPhase::evaluate_rtao(
             .descriptor_sets = {set},
             .push_constants = Constants{
                 .samples_per_pixel = static_cast<uint32_t>(cvar_rtao_samples.Get()),
-                .max_ray_distance = static_cast<float>(cvar_rtao_ray_distance.Get()),
+                .max_ray_distance = static_cast<float>(cvar_ao_radius.Get()),
                 .output_resolution = {resolution},
                 .noise_tex_resolution = {noise.resolution}
             },

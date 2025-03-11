@@ -91,7 +91,7 @@ void LightingPhase::render(
                     rtas = scene->get_raytracing_scene().get_acceleration_structure();
                 }
 
-                //sun.render(commands, gbuffers_descriptor_set, view, rtas);
+                sun.render(commands, gbuffers_descriptor_set, view, rtas);
 
                 if(lpv) {
                     lpv->add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer(), ao_texture);

@@ -34,6 +34,21 @@ float3 get_worldspace_position(uint2 pixel) {
     return worldspace_position.xyz / worldspace_position.w;
 }
 
+half3x3 make_ssc(half3 v) {
+    return half3x3(
+        0, -v.z, v.y,
+        v.x, 0, -v.x,
+        -v.z, v.x, 0
+    );
+}
+
+half3x3 make_rotation_matrix(half3 a, half3 b) {
+    half3x3 eye = half3x3(1, 0, 0, 0, 1, 0, 0, 0, 1);
+    half3 v = cross(a, b);
+    half3x3 ssc = make_ssc(v);
+    return eye + ssc + mul(ssc, ssc) * (1.f / (1.f + dot(a, b)));
+}
+
 [numthreads(8, 8, 1)]
 [shader("compute")]
 void main(uint2 thread_id: SV_DispatchThreadID) {
@@ -55,15 +70,10 @@ void main(uint2 thread_id: SV_DispatchThreadID) {
     float ao = samples_per_pixel;
 
     half3 noise_axis = half3(0, 0, 1);
-    half3x3 tbn;
-    tbn[0] = normal;
-    tbn[2] = normalize(cross(normal, noise_axis));
-    tbn[1] = normalize(cross(tbn[2], normal));
-    tbn = transpose(tbn);
+    half3x3 tbn = make_rotation_matrix(normal, noise_axis);
 
     for (uint ray_index = 0; ray_index < samples_per_pixel; ray_index++) {
         const float3 noise = normalize(noisetex[noisetex_pixel] * 2.f - 1.f);
-        const float3 local_noise = mul(noise, tbn);
 
         RayDesc ray = (RayDesc)0;
         ray.Origin = worldspace_position;
