@@ -59,14 +59,15 @@ void main(uint2 thread_id: SV_DispatchThreadID) {
     tbn[0] = normal;
     tbn[2] = normalize(cross(normal, noise_axis));
     tbn[1] = normalize(cross(tbn[2], normal));
+    tbn = transpose(tbn);
 
     for (uint ray_index = 0; ray_index < samples_per_pixel; ray_index++) {
-        const float3 noise = noisetex[noisetex_pixel];
+        const float3 noise = normalize(noisetex[noisetex_pixel] * 2.f - 1.f);
         const float3 local_noise = mul(noise, tbn);
 
         RayDesc ray = (RayDesc)0;
         ray.Origin = worldspace_position;
-        ray.Direction = normalize(local_noise);
+        ray.Direction = normalize(normal + noise);
         ray.TMin = 0.01;
         ray.TMax = max_ray_distance;
 

@@ -170,5 +170,5 @@ void main() {
     }
 
     lighting = vec4(total_lighting * exposure_factor, 1.f);
-    // lighting = vec4(ao.xxx, 1.f);
+    //lighting = vec4(ao.xxx, 1.f);
 }

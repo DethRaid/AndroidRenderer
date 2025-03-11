@@ -84,7 +84,7 @@ SceneRenderer::SceneRenderer() {
         .minFilter = VK_FILTER_LINEAR,
     });
 
-    stbn_3d_cosine = NoiseTexture::create("assets/stbn/stbn_unitvec3_cosine_2Dx1D_128x128x64", 64, texture_loader);
+    stbn_3d_cosine = NoiseTexture::create("assets/stbn/stbn_unitvec3_2Dx1D_128x128x64", 64, texture_loader);
 
     logger->info("Initialized SceneRenderer");
 }
