@@ -48,18 +48,25 @@ void main(uint2 thread_id: SV_DispatchThreadID) {
     // Normalize the count and write to the output
 
     const float3 worldspace_position = get_worldspace_position(thread_id);
-    const float3 normal = normal_buffer[thread_id];
+    const half3 normal = normalize(normal_buffer[thread_id].xyz);
 
     const uint2 noisetex_pixel = thread_id % noise_tex_xy;
 
     float ao = samples_per_pixel;
 
+    half3 noise_axis = half3(0, 0, 1);
+    half3x3 tbn;
+    tbn[0] = normal;
+    tbn[2] = normalize(cross(normal, noise_axis));
+    tbn[1] = normalize(cross(tbn[2], normal));
+
     for (uint ray_index = 0; ray_index < samples_per_pixel; ray_index++) {
         const float3 noise = noisetex[noisetex_pixel];
+        const float3 local_noise = mul(noise, tbn);
 
         RayDesc ray = (RayDesc)0;
         ray.Origin = worldspace_position;
-        ray.Direction = normalize(normal + noise);
+        ray.Direction = normalize(local_noise);
         ray.TMin = 0.01;
         ray.TMax = max_ray_distance;
 

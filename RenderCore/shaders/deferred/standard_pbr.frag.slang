@@ -43,11 +43,11 @@ GbufferOutput main(
 
     // Normals
     half3 bitangent = cross(vertex_tangent, vertex_normal);
-    half3x3 tbn = transpose(half3x3(
+    half3x3 tbn = half3x3(
         vertex_tangent,
         bitangent,
         vertex_normal
-    ));
+    );
     Sampler2D normals_texture = textures[material.normal_texture_index];
     half3 normal_sample = (half3)normals_texture.SampleBias(vertex_texcoord, camera_data.material_texture_mip_bias).xyz * 2.0 - 1.0;
     half3 normal = mul(tbn, normal_sample);

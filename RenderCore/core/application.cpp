@@ -104,7 +104,7 @@ void Application::load_scene(const std::filesystem::path& scene_path) {
     logger->info("Beginning import of scene {}", scene_path.string());
 
     auto imported_model = GltfModel{scene_path, gltf->getParsedAsset(), *scene_renderer};
-    imported_model.add_to_scene(*scene, *scene_renderer);
+    imported_model.add_to_scene(*scene);
 
     logger->info("Loaded scene {}", scene_path.string());
 }

@@ -21,7 +21,7 @@ static AutoCVar_Int cvar_rtao_samples{
 };
 
 static AutoCVar_Float cvar_rtao_ray_distance{
-    "r.RTAO.MaxRayDistance", "Maximum ray distance for RTAO", 16.f
+    "r.RTAO.MaxRayDistance", "Maximum ray distance for RTAO", 1.f
 };
 
 #if SAH_USE_FFX
@@ -313,7 +313,7 @@ void AmbientOcclusionPhase::evaluate_cacao(
                     .temporalSupersamplingAngleOffset = 0.f,
                     .temporalSupersamplingRadiusOffset = 0.f,
                     .detailShadowStrength = 1.f,
-                    .generateNormals = false,
+                    .generateNormals = true,
                     .bilateralSigmaSquared = 0.f,
                     .bilateralSimilarityDistanceSigma = 0.f
                 };
@@ -322,12 +322,11 @@ void AmbientOcclusionPhase::evaluate_cacao(
                 auto ffx_cmds = ffxGetCommandListVK(commands.get_vk_commands());
 
                 FfxFloat32x4x4 projection_matrix = {};
-                const auto transposed_projection = glm::transpose(view.get_gpu_data().projection);
                 std::memcpy(&projection_matrix, &view.get_gpu_data().projection, sizeof(glm::mat4));
 
                 FfxFloat32x4x4 normals_to_view = {};
                 const auto transposed_view = glm::transpose(view.get_gpu_data().view);
-                std::memcpy(&normals_to_view, &view.get_gpu_data().view, sizeof(glm::mat4));
+                std::memcpy(&normals_to_view, &transposed_view, sizeof(glm::mat4));
 
                 const auto desc = FfxCacaoDispatchDescription{
                     .commandList = ffx_cmds,
