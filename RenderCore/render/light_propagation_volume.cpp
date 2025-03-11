@@ -4,6 +4,7 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 
+#include "material_pipelines.hpp"
 #include "material_storage.hpp"
 #include "backend/pipeline_builder.hpp"
 #include "backend/pipeline_cache.hpp"
@@ -48,7 +49,7 @@ static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
 static auto cvar_lpv_build_gv_mode = AutoCVar_Enum{
     "r.LPV.GvBuildMode",
     "How to build the geometry volume.\n0 = Disable\n1 = Use the RSM depth buffer and last frame's depth buffer\n2 = Use voxels from the renderer's voxel cache",
-    GvBuildMode::DepthBuffers
+    GvBuildMode::Off
 };
 
 static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
@@ -331,10 +332,6 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
     }
 }
 
-void LightPropagationVolume::set_scene_drawer(SceneDrawer&& drawer) {
-    rsm_drawer = drawer;
-}
-
 void LightPropagationVolume::update_cascade_transforms(const SceneView& view, const DirectionalLight& light) {
     ZoneScoped;
 
@@ -436,54 +433,18 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
     graph.begin_label("LPV indirect sun light injection");
 
-    auto cascade_index = 0u;
-    for(const auto& cascade : cascades) {
-        const auto set_info = DescriptorSetInfo{
-            .bindings = {
-                {
-                    {
-                        .binding = 0,
-                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                        .descriptorCount = 1,
-                        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
-                    }
-                },
-                {
-                    {
-                        .binding = 1,
-                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                        .descriptorCount = 1,
-                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                    }
-                },
-                {
-                    {
-                        .binding = 2,
-                        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                        .descriptorCount = 1,
-                        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
-                    }
-                },
-                {
-                    {
-                        .binding = 3,
-                        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                        .descriptorCount = 1,
-                        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
-                    }
-                }
-            }
-        };
-        const auto set = backend.get_transient_descriptor_allocator().build_set(
-                                    set_info,
-                                    "RSM Cascade Data and Light set"
-                                )
-                                .bind(cascade_data_buffer)
-                                .bind(scene.get_sun_light().get_constant_buffer())
-                                .bind(scene.get_primitive_buffer())
-                                .bind(rsm_drawer.get_material_storage().get_material_buffer())
-                                .build();
+    const auto rsm_pso = MaterialPipelines::get().get_rsm_pso();
+    const auto rsm_masked_pso = MaterialPipelines::get().get_rsm_masked_pso();
+    const auto set = backend.get_transient_descriptor_allocator()
+                            .build_set(rsm_pso, 0)
+                            .bind(cascade_data_buffer)
+                            .bind(scene.get_sun_light().get_constant_buffer())
+                            .bind(scene.get_primitive_buffer())
+                            .bind(scene.get_material_storage().get_material_buffer())
+                            .build();
 
+    for(auto cascade_index = 0u; cascade_index < cascades.size(); cascade_index++) {
+        const auto& cascade = cascades[cascade_index];
         graph.add_render_pass(
             DynamicRenderingPass{
                 .name = "Render RSM",
@@ -513,12 +474,15 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
                     commands.set_push_constant(1, cascade_index);
 
-                    rsm_drawer.draw(commands);
+                    scene.draw_opaque_and_masked(commands, rsm_pso, rsm_masked_pso);
 
                     commands.clear_descriptor_set(0);
                 }
             });
+    }
 
+    for(auto cascade_index = 0u; cascade_index < cascades.size(); cascade_index++) {
+        const auto& cascade = cascades[cascade_index];
         graph.add_pass(
             ComputePass{
                 .name = "Clear VPL Count",
@@ -534,64 +498,64 @@ void LightPropagationVolume::inject_indirect_sun_light(
                 }
             });
 
-        {
-            auto descriptor_set = backend.get_transient_descriptor_allocator()
-                                         .build_set(rsm_generate_vpls_pipeline, 0)
-                                         .bind(cascade.flux_target, backend.get_default_sampler())
-                                         .bind(cascade.normals_target, backend.get_default_sampler())
-                                         .bind(cascade.depth_target, backend.get_default_sampler())
-                                         .bind(cascade_data_buffer)
-                                         .build();
 
-            struct VplPipelineConstants {
-                DeviceAddress count_buffer_address;
-                DeviceAddress vpl_buffer_address;
-                int32_t cascade_index;
-                uint32_t rsm_resolution;
-                float lpv_cell_size;
-            };
+        auto descriptor_set = backend.get_transient_descriptor_allocator()
+                                     .build_set(rsm_generate_vpls_pipeline, 0)
+                                     .bind(cascade.flux_target, backend.get_default_sampler())
+                                     .bind(cascade.normals_target, backend.get_default_sampler())
+                                     .bind(cascade.depth_target, backend.get_default_sampler())
+                                     .bind(cascade_data_buffer)
+                                     .build();
 
-            const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
-            const auto dispatch_size = resolution / glm::uvec2{2};
-            // Each thread selects one VPL from a 2x2 filter on the RSM
+        struct VplPipelineConstants {
+            DeviceAddress count_buffer_address;
+            DeviceAddress vpl_buffer_address;
+            int32_t cascade_index;
+            uint32_t rsm_resolution;
+            float lpv_cell_size;
+        };
 
-            graph.add_compute_dispatch<VplPipelineConstants>(
-                ComputeDispatch<VplPipelineConstants>{
-                    .name = "Extract VPLs",
-                    .descriptor_sets = std::vector{descriptor_set},
-                    .buffers = {
-                        {
-                            .buffer = cascade.vpl_count_buffer,
-                            .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                            .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
+        const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
+        const auto dispatch_size = resolution / glm::uvec2{2};
+        // Each thread selects one VPL from a 2x2 filter on the RSM
 
-                        },
-                        {
-                            .buffer = cascade.vpl_buffer,
-                            .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                            .access = VK_ACCESS_2_SHADER_WRITE_BIT
-                        }
+        graph.add_compute_dispatch<VplPipelineConstants>(
+            ComputeDispatch<VplPipelineConstants>{
+                .name = "Extract VPLs",
+                .descriptor_sets = std::vector{descriptor_set},
+                .buffers = {
+                    {
+                        .buffer = cascade.vpl_count_buffer,
+                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT
 
                     },
-                    .push_constants = VplPipelineConstants{
-                        .count_buffer_address = cascade.vpl_count_buffer->address,
-                        .vpl_buffer_address = cascade.vpl_buffer->address,
-                        .cascade_index = static_cast<int32_t>(cascade_index),
-                        .rsm_resolution = resolution.x,
-                        .lpv_cell_size = static_cast<float>(cvar_lpv_cell_size.Get())
-                    },
-                    .num_workgroups = {(dispatch_size + glm::uvec2{7}) / glm::uvec2{8}, 1},
-                    .compute_shader = rsm_generate_vpls_pipeline
-                });
-        }
+                    {
+                        .buffer = cascade.vpl_buffer,
+                        .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        .access = VK_ACCESS_2_SHADER_WRITE_BIT
+                    }
 
+                },
+                .push_constants = VplPipelineConstants{
+                    .count_buffer_address = cascade.vpl_count_buffer->address,
+                    .vpl_buffer_address = cascade.vpl_buffer->address,
+                    .cascade_index = static_cast<int32_t>(cascade_index),
+                    .rsm_resolution = resolution.x,
+                    .lpv_cell_size = static_cast<float>(cvar_lpv_cell_size.Get())
+                },
+                .num_workgroups = {(dispatch_size + glm::uvec2{7}) / glm::uvec2{8}, 1},
+                .compute_shader = rsm_generate_vpls_pipeline
+            });
+    }
+
+    for(auto cascade_index = 0u; cascade_index < cascades.size(); cascade_index++) {
+        const auto& cascade = cascades[cascade_index];
         dispatch_vpl_injection_pass(graph, cascade_index, cascade);
 
         if(cvar_lpv_build_gv_mode.Get() == GvBuildMode::DepthBuffers) {
             inject_rsm_depth_into_cascade_gv(graph, cascade, cascade_index);
         }
-
-        cascade_index++;
     }
 
     graph.end_label();
@@ -1159,7 +1123,7 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
 
     const auto num_cells = static_cast<uint32_t>(cvar_lpv_resolution.Get());
     const auto num_cascades = static_cast<uint32_t>(cvar_lpv_num_cascades.Get());
-    const auto dispatch_size = glm::uvec3{ num_cells * num_cascades, num_cells, num_cells } / glm::uvec3{ 8, 8, 8 };
+    const auto dispatch_size = glm::uvec3{num_cells * num_cascades, num_cells, num_cells} / glm::uvec3{8, 8, 8};
 
     struct PropagationConstants {
         uint32_t use_gv;

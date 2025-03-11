@@ -7,11 +7,11 @@
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
+class RenderScene;
 class MaterialStorage;
 class TextureDescriptorPool;
 class RenderGraph;
 class ResourceAllocator;
-class SceneDrawer;
 /**
  * \brief Render phase that culls visible objects and produces a depth buffer in the process
  *
@@ -29,7 +29,7 @@ public:
 
     void set_render_resolution(const glm::uvec2& resolution);
 
-    void render(RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials, BufferHandle view_data_buffer);
+    void render(RenderGraph& graph, const RenderScene& scene, MaterialStorage& materials, BufferHandle view_data_buffer);
 
     TextureHandle get_depth_buffer() const;
 
@@ -42,7 +42,7 @@ private:
     VkSampler max_reduction_sampler;
 
     // Index of the hi-z descriptor in the texture descriptor array
-    uint32_t hi_z_index;
+    uint32_t hi_z_index = UINT32_MAX;
 
     /**
      * \brief uint list of visible primitives
@@ -62,17 +62,19 @@ private:
     /**
      * Draws visible objects using device-generated commands
      */
-    void draw_visible_objects_dgc(RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials, const DescriptorSet& descriptors, BufferHandle primitive_buffer, uint32_t num_primitives);
+    void draw_visible_objects_dgc(RenderGraph& graph, const RenderScene& scene, MaterialStorage& materials, const DescriptorSet& descriptors, BufferHandle primitive_buffer, uint32_t num_primitives);
 
     void create_command_signature();
 
     std::optional<BufferHandle> create_preprocess_buffer(GraphicsPipelineHandle pipeline, uint32_t num_primitives);
 
     /**
-     * Draws visible objects, using a different draw command for each material type
+     * Draws visible objects, using a different draw command for each material type. Uses the visible_objects buffer
+     *
+     * @see visible_objects
      */
     void draw_visible_objects(
-        RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& view_descriptor, BufferHandle primitive_buffer,
+        RenderGraph& graph, const RenderScene& scene, const DescriptorSet& view_descriptor, BufferHandle primitive_buffer,
         uint32_t num_primitives
     ) const;
 

@@ -44,7 +44,7 @@ GbufferOutput main(
     const float3 viewspace_position,
     const half3 vertex_normal,
     const half3 vertex_tangent,
-    const vec2 vertex_texcoord,
+    const float2 vertex_texcoord,
     const half4 vertex_color,
     const uint primitive_id) {
 

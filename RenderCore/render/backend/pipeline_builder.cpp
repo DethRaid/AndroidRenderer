@@ -561,6 +561,9 @@ void collect_vertex_attributes(
     needs_position_buffer = false;
     needs_data_buffer = false;
     for(const auto* input : inputs) {
+        if(input->name == nullptr) {
+            continue;   // UGH
+        }
         if(auto itr = vertex_layout.attributes.find(input->name); itr != vertex_layout.attributes.end()) {
             auto& attribute = vertex_attributes.emplace_back(itr->second);
             attribute.location = input->location;

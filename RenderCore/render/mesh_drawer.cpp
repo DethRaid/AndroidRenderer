@@ -40,7 +40,7 @@ void SceneDrawer::draw(CommandBuffer& commands) const {
     }
 }
 
-void SceneDrawer::draw(CommandBuffer& commands, GraphicsPipelineHandle pso) const {
+void SceneDrawer::draw(CommandBuffer& commands, GraphicsPipelineHandle solid_pso) const {
     if (scene == nullptr) {
         return;
     }
@@ -55,7 +55,7 @@ void SceneDrawer::draw(CommandBuffer& commands, GraphicsPipelineHandle pso) cons
         commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
     }
 
-    commands.bind_pipeline(pso);
+    commands.bind_pipeline(solid_pso);
 
     for (const auto& primitive : solids) {
         const auto& mesh = primitive->mesh;

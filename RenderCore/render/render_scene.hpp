@@ -25,7 +25,7 @@ public:
     MeshPrimitiveHandle add_primitive(RenderGraph& graph, MeshPrimitive primitive);
 
     void begin_frame(RenderGraph& graph);
-    
+
     const std::vector<MeshPrimitiveHandle>& get_solid_primitives() const;
 
     const std::vector<MeshPrimitiveHandle>& get_masked_primitives() const;
@@ -36,17 +36,35 @@ public:
 
     uint32_t get_total_num_primitives() const;
 
-    DirectionalLight &get_sun_light();
+    DirectionalLight& get_sun_light();
 
     /**
      * Retrieves a list of all solid primitives that lie within the given bounds
      */
-    std::vector<MeshPrimitiveHandle> get_primitives_in_bounds(const glm::vec3& min_bounds, const glm::vec3& max_bounds) const;
+    std::vector<MeshPrimitiveHandle> get_primitives_in_bounds(
+        const glm::vec3& min_bounds, const glm::vec3& max_bounds
+    ) const;
 
     /**
      * \brief Generates emissive point clouds for new emissive meshes
      */
     void generate_emissive_point_clouds(RenderGraph& render_graph);
+
+    /**
+     * Draws the entire scene with the provided opaque and masked PSOs
+     */
+    void draw_opaque_and_masked(
+        CommandBuffer& commands, GraphicsPipelineHandle solid_pso, GraphicsPipelineHandle masked_pso
+    ) const;
+
+    /**
+     * Draws the commands in the IndirectDrawingBuffers with the provided opaque PSO
+     */
+    void draw_opaque(
+        CommandBuffer& commands, const IndirectDrawingBuffers& drawbuffers, GraphicsPipelineHandle solid_pso
+    ) const;
+
+    void draw_transparent(CommandBuffer& commands, GraphicsPipelineHandle pso) const;
 
     const MeshStorage& get_meshes() const;
 
@@ -55,6 +73,10 @@ public:
     const RaytracingScene& get_raytracing_scene() const;
 
     VoxelCache& get_voxel_cache() const;
+
+    MaterialStorage& get_material_storage() const;
+
+    MeshStorage& get_mesh_storage() const;
 
 private:
     MeshStorage& meshes;
@@ -79,9 +101,9 @@ private:
 
     std::vector<MeshPrimitiveHandle> solid_primitives;
 
-    std::vector<MeshPrimitiveHandle>  cutout_primitives;
+    std::vector<MeshPrimitiveHandle> masked_primitives;
 
-    std::vector<MeshPrimitiveHandle>  translucent_primitives;
+    std::vector<MeshPrimitiveHandle> translucent_primitives;
 
     std::vector<MeshPrimitiveHandle> new_emissive_objects;
 

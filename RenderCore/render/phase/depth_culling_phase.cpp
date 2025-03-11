@@ -110,7 +110,7 @@ void DepthCullingPhase::set_render_resolution(const glm::uvec2& resolution) {
 }
 
 void DepthCullingPhase::render(
-    RenderGraph& graph, const SceneDrawer& drawer,
+    RenderGraph& graph, const RenderScene& scene,
     MaterialStorage& materials, const BufferHandle view_data_buffer
 ) {
     ZoneScoped;
@@ -119,7 +119,6 @@ void DepthCullingPhase::render(
 
     auto& backend = RenderBackend::get();
 
-    auto& scene = drawer.get_scene();
     const auto primitive_buffer = scene.get_primitive_buffer();
 
     const auto depth_pso = MaterialPipelines::get().get_depth_pso();
@@ -143,13 +142,13 @@ void DepthCullingPhase::render(
     if(backend.supports_device_generated_commands()) {
         draw_visible_objects_dgc(
             graph,
-            drawer,
+            scene,
             materials,
             view_descriptor,
             primitive_buffer,
             num_primitives);
     } else {
-        draw_visible_objects(graph, drawer, view_descriptor, primitive_buffer, num_primitives);
+        draw_visible_objects(graph, scene, view_descriptor, primitive_buffer, num_primitives);
     }
 
     // Build Hi-Z pyramid
@@ -231,58 +230,7 @@ void DepthCullingPhase::render(
     // Save the list of visible objects so we can use them next frame
     visible_objects = this_frame_visible_objects;
 
-    {
-        // Translate newly visible objects to indirect draw commands
-        const auto& buffers = translate_visibility_list_to_draw_commands(
-            graph,
-            newly_visible_objects,
-            primitive_buffer,
-            num_primitives,
-            drawer.get_mesh_storage().get_draw_args_buffer()
-        );
-
-        // Draw them
-
-        graph.add_render_pass(
-            DynamicRenderingPass{
-                .name = "Rasterize newly visible objects",
-                .textures = {},
-                .buffers = {
-                    {
-                        buffers.commands, VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-                        VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
-                    },
-                    {
-                        buffers.count,
-                        VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-                        VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
-                    },
-                    {
-                        buffers.primitive_ids,
-                        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
-                        VK_ACCESS_2_SHADER_READ_BIT
-                    },
-                },
-                .descriptor_sets = std::vector{view_descriptor},
-                .depth_attachment = RenderingAttachmentInfo{
-                    .image = depth_buffer,
-                },
-                .execute = [&](CommandBuffer& commands) {
-                    commands.bind_descriptor_set(0, view_descriptor);
-
-                    drawer.draw_indirect(
-                        commands,
-                        depth_pso,
-                        buffers
-                    );
-                }
-            });
-
-        // cleanup
-        allocator.destroy_buffer(buffers.commands);
-        allocator.destroy_buffer(buffers.count);
-        allocator.destroy_buffer(buffers.primitive_ids);
-    }
+    draw_visible_objects(graph, scene, view_descriptor, primitive_buffer, num_primitives);
 
     graph.end_label();
 }
@@ -296,7 +244,7 @@ BufferHandle DepthCullingPhase::get_visible_objects_buffer() const {
 }
 
 void DepthCullingPhase::draw_visible_objects_dgc(
-    RenderGraph& graph, const SceneDrawer& drawer, MaterialStorage& materials,
+    RenderGraph& graph, const RenderScene& scene, MaterialStorage& materials,
     const DescriptorSet& descriptors,
     const BufferHandle primitive_buffer, const uint32_t num_primitives
 ) {
@@ -327,7 +275,7 @@ void DepthCullingPhase::draw_visible_objects_dgc(
             visible_objects,
             primitive_buffer,
             num_primitives,
-            drawer.get_mesh_storage().get_draw_args_buffer()
+            scene.get_mesh_storage().get_draw_args_buffer()
         );
 
     BufferHandle indirect_commands_buffer;
@@ -440,7 +388,7 @@ std::optional<BufferHandle> DepthCullingPhase::create_preprocess_buffer(
 }
 
 void DepthCullingPhase::draw_visible_objects(
-    RenderGraph& graph, const SceneDrawer& drawer, const DescriptorSet& view_descriptor,
+    RenderGraph& graph, const RenderScene& scene, const DescriptorSet& view_descriptor,
     const BufferHandle primitive_buffer, const uint32_t num_primitives
 ) const {
     // Translate last frame's list of objects to indirect draw commands
@@ -450,7 +398,7 @@ void DepthCullingPhase::draw_visible_objects(
         visible_objects,
         primitive_buffer,
         num_primitives,
-        drawer.get_mesh_storage().get_draw_args_buffer()
+        scene.get_mesh_storage().get_draw_args_buffer()
     );
 
     // Draw last frame's visible objects
@@ -483,14 +431,11 @@ void DepthCullingPhase::draw_visible_objects(
             },
             .execute = [&](CommandBuffer& commands) {
                 const auto depth_pso = MaterialPipelines::get().get_depth_pso();
+                const auto depth_masked_pso = MaterialPipelines::get().get_depth_masked_pso();
 
                 commands.bind_descriptor_set(0, view_descriptor);
 
-                drawer.draw_indirect(
-                    commands,
-                    depth_pso,
-                    buffers
-                );
+                scene.draw_opaque(commands, buffers, depth_pso);
             }
         });
 

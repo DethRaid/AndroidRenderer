@@ -17,10 +17,13 @@ public:
     MaterialPipelines();
 
     GraphicsPipelineHandle get_depth_pso() const;
+    GraphicsPipelineHandle get_depth_masked_pso() const;
 
     GraphicsPipelineHandle get_shadow_pso() const;
+    GraphicsPipelineHandle get_shadow_masked_pso() const;
 
     GraphicsPipelineHandle get_rsm_pso() const;
+    GraphicsPipelineHandle get_rsm_masked_pso() const;
 
     GraphicsPipelineHandle get_gbuffers_pso() const;
 
@@ -28,9 +31,16 @@ public:
 
 private:
     GraphicsPipelineHandle depth_pso = nullptr;
+    GraphicsPipelineHandle depth_masked_pso = nullptr;
+
     GraphicsPipelineHandle shadow_pso = nullptr;
+    GraphicsPipelineHandle shadow_masked_pso = nullptr;
+
     GraphicsPipelineHandle rsm_pso = nullptr;
+    GraphicsPipelineHandle rsm_masked_pso = nullptr;
+
     GraphicsPipelineHandle gbuffers_pso = nullptr;
+
     GraphicsPipelineHandle transparent_pso = nullptr;
 };
 

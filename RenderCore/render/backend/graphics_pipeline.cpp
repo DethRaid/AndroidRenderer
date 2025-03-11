@@ -21,14 +21,14 @@ void GraphicsPipeline::create_pipeline_layout(
     auto& cache = backend.get_descriptor_cache();
 
     auto set_index = 0u;
-    for (const auto& set_info : descriptor_set_infos) {
-        if (descriptor_set_layouts.size() <= set_index) {
+    for(const auto& set_info : descriptor_set_infos) {
+        if(descriptor_set_layouts.size() <= set_index) {
             descriptor_set_layouts.resize(set_index + 1);
         }
 
         auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
 
-        for (const auto& binding : set_info.bindings) {
+        for(const auto& binding : set_info.bindings) {
             bindings.emplace_back(binding);
         }
 
@@ -42,9 +42,10 @@ void GraphicsPipeline::create_pipeline_layout(
         // If the last binding is un unsized texture array, tell Vulkan about it
         auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
         auto binding_flags = std::vector<VkDescriptorBindingFlags>{};
-        if (set_info.has_variable_count_binding) {
+        if(set_info.has_variable_count_binding) {
             binding_flags.resize(bindings.size());
-            binding_flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+            binding_flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+                VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
             flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
                 .bindingCount = static_cast<uint32_t>(binding_flags.size()),
@@ -60,7 +61,7 @@ void GraphicsPipeline::create_pipeline_layout(
 
         set_index++;
     }
-    
+
     const auto create_info = VkPipelineLayoutCreateInfo{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size()),
@@ -80,14 +81,25 @@ VkPipelineLayout GraphicsPipeline::get_layout() const {
     return pipeline_layout;
 }
 
-uint32_t GraphicsPipeline::get_num_push_constants() const { return num_push_constants; }
-VkShaderStageFlags GraphicsPipeline::get_push_constant_shader_stages() const { return push_constant_stages; }
+uint32_t GraphicsPipeline::get_num_push_constants() const {
+    return num_push_constants;
+}
+
+VkShaderStageFlags GraphicsPipeline::get_push_constant_shader_stages() const {
+    return push_constant_stages;
+}
+
+uint32_t GraphicsPipeline::get_num_descriptor_sets() const {
+    return static_cast<uint32_t>(descriptor_sets.size());
+}
 
 const DescriptorSetInfo& GraphicsPipeline::get_descriptor_set_info(const uint32_t set_index) const {
     return descriptor_sets.at(set_index);
 }
 
-VkPipeline GraphicsPipeline::get_pipeline() const { return pipeline; }
+VkPipeline GraphicsPipeline::get_pipeline() const {
+    return pipeline;
+}
 
 std::string_view GraphicsPipeline::get_name() const {
     return pipeline_name;

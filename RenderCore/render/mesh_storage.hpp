@@ -42,6 +42,8 @@ public:
 
     BufferHandle get_draw_args_buffer() const;
 
+    void bind_to_commands(const CommandBuffer& commands) const;
+
 private:
     ObjectPool<Mesh> meshes;
 

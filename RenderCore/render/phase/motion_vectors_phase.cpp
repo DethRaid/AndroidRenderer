@@ -46,13 +46,13 @@ void MotionVectorsPhase::set_render_resolution(const glm::uvec2& resolution) {
 }
 
 void MotionVectorsPhase::render(
-    RenderGraph& graph, const SceneDrawer& drawer, const BufferHandle view_data_buffer,
+    RenderGraph& graph, const RenderScene& scene, const BufferHandle view_data_buffer,
     const TextureHandle depth_buffer, const IndirectDrawingBuffers& buffers
 ) {
     auto& allocator = RenderBackend::get().get_transient_descriptor_allocator();
     const auto set = allocator.build_set(motion_vectors_pso, 0)
                               .bind(view_data_buffer)
-                              .bind(drawer.get_scene().get_primitive_buffer())
+                              .bind(scene.get_primitive_buffer())
                               .build();
 
     graph.add_render_pass(
@@ -87,7 +87,7 @@ void MotionVectorsPhase::render(
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_descriptor_set(0, set);
 
-                drawer.draw_indirect(commands, motion_vectors_pso, buffers);
+                scene.draw_opaque(commands, buffers, motion_vectors_pso);
 
                 commands.clear_descriptor_set(0);
             }

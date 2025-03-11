@@ -1,18 +1,15 @@
 #include "shared/primitive_data.hpp"
-#include "shared/view_data.hpp"
+#include "shared/sun_light_constants.hpp"
 #include "shared/vertex_data.hpp"
 
 [[vk::binding(0, 0)]]
-ConstantBuffer<ViewDataGPU> camera_data;
+ConstantBuffer<SunLightConstants> sun_light;
 
 [[vk::binding(1, 0)]]
 StructuredBuffer<PrimitiveDataGPU> primitive_datas;
 
 struct VertexOutput {
     float4 position : SV_Position;
-    float3 viewspace_position;
-    half3 normal;
-    half3 tangent;
     float2 texcoord;
     half4 color;
     uint primitive_id;
@@ -25,19 +22,16 @@ VertexOutput main(
     const float3 tangent_in,
     const float2 texcoord_in,
     const half4 color_in,
-    const uint primitive_id_in
+    const uint primitive_id_in,
+    const uint view_index : SV_ViewID
 ) {
     VertexOutput output;
 
     output.primitive_id = primitive_id_in;
     PrimitiveDataGPU data = primitive_datas[output.primitive_id];
 
-    float4 viewspace_position = mul(camera_data.view, mul(data.model, float4(position_in, 1.f)));
-    output.position = mul(camera_data.projection, viewspace_position);
+    output.position = mul(sun_light.cascade_matrices[view_index], mul(data.model, float4(position_in, 1.f)));
 
-    output.viewspace_position = viewspace_position.xyz; 
-    output.normal = (half3)normalize(mul((half3x3)data.model, normal_in));
-    output.tangent = (half3)normalize(mul((half3x3)data.model, tangent_in));
     output.texcoord = texcoord_in;
     output.color = color_in;
 

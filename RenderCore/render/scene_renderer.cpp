@@ -99,24 +99,9 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
 
     auto& backend = RenderBackend::get();
 
-    sun_shadow_drawer = SceneDrawer{
-        ScenePassType::Shadow, *scene, meshes, material_storage, backend.get_global_allocator()
-    };
-    depth_prepass_drawer = SceneDrawer{
-        ScenePassType::DepthPrepass, *scene, meshes, material_storage,
-        backend.get_global_allocator()
-    };
     gbuffer_drawer = SceneDrawer{
         ScenePassType::Gbuffer, *scene, meshes, material_storage, backend.get_global_allocator()
     };
-
-    if (lpv) {
-        lpv->set_scene_drawer(
-            SceneDrawer{
-                ScenePassType::RSM, *scene, meshes, material_storage, backend.get_global_allocator()
-            }
-        );
-    }
 }
 
 void SceneRenderer::set_render_resolution(const glm::uvec2 new_render_resolution) {
@@ -322,7 +307,7 @@ void SceneRenderer::render() {
 
     depth_culling_phase.render(
         render_graph,
-        depth_prepass_drawer,
+        *scene,
         material_storage,
         player_view.get_buffer());
 
@@ -337,7 +322,7 @@ void SceneRenderer::render() {
     if (needs_motion_vectors) {
         motion_vectors_phase.render(
             render_graph,
-            depth_prepass_drawer,
+            *scene,
             player_view.get_buffer(),
             depth_culling_phase.get_depth_buffer(),
             visible_buffers);
@@ -379,7 +364,7 @@ void SceneRenderer::render() {
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
     {
         const auto& sun = scene->get_sun_light();
-        sun.render_shadows(render_graph, sun_shadow_drawer);
+        sun.render_shadows(render_graph, *scene);
     }
 
     if (lpv) {

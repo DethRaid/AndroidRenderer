@@ -4,6 +4,8 @@
 #include <glm/ext/matrix_clip_space.hpp>
 
 #include "material_pipelines.hpp"
+#include "material_storage.hpp"
+#include "mesh_storage.hpp"
 #include "render_scene.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
@@ -258,20 +260,29 @@ glm::vec3 DirectionalLight::get_direction() const {
     return glm::normalize(glm::vec3{constants.direction_and_size});
 }
 
-void DirectionalLight::render_shadows(RenderGraph& graph, const SceneDrawer& sun_shadow_drawer) const {
+void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& scene) const {
     auto& backend = RenderBackend::get();
     if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) == SunShadowMode::CSM) {
         const auto shadow_pso = MaterialPipelines::get().get_shadow_pso();
+        const auto shadow_masked_pso = MaterialPipelines::get().get_shadow_masked_pso();
 
-        auto set = backend.get_transient_descriptor_allocator().build_set(shadow_pso, 0)
-                          .bind(sun_buffer)
-                          .bind(sun_shadow_drawer.get_scene().get_primitive_buffer())
-                          .build();
+        const auto solid_set = backend.get_transient_descriptor_allocator()
+                                      .build_set(shadow_pso, 0)
+                                      .bind(sun_buffer)
+                                      .bind(scene.get_primitive_buffer())
+                                      .build();
+
+        const auto masked_set = backend.get_transient_descriptor_allocator()
+                                       .build_set(shadow_masked_pso, 0)
+                                       .bind(sun_buffer)
+                                       .bind(scene.get_primitive_buffer())
+                                       .bind(scene.get_material_storage().get_material_buffer())
+                                       .build();
 
         graph.add_render_pass(
             {
                 .name = "Sun shadow",
-                .descriptor_sets = {set},
+                .descriptor_sets = {masked_set},
                 .depth_attachment = RenderingAttachmentInfo{
                     .image = shadowmap_handle,
                     .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -279,10 +290,43 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const SceneDrawer& sun
                 },
                 .view_mask = 0x000F,
                 .execute = [&](CommandBuffer& commands) {
-                    commands.bind_descriptor_set(0, set);
+                    scene.get_mesh_storage().bind_to_commands(commands);
 
-                    sun_shadow_drawer.draw(commands, shadow_pso);
+                    commands.bind_pipeline(shadow_pso);
+                    commands.bind_descriptor_set(0, solid_set);
 
+                    for(const auto& primitive : scene.get_solid_primitives()) {
+                        const auto& mesh = primitive->mesh;
+
+                        commands.set_push_constant(0, primitive.index);
+                        commands.draw_indexed(
+                            mesh->num_indices,
+                            1,
+                            static_cast<uint32_t>(mesh->first_index),
+                            static_cast<uint32_t>(mesh->first_vertex),
+                            0);
+                    }
+
+                    commands.bind_pipeline(shadow_masked_pso);
+                    commands.bind_descriptor_set(0, masked_set);
+                    commands.bind_descriptor_set(
+                        1,
+                        backend.get_texture_descriptor_pool().get_descriptor_set());
+
+
+                    for(const auto& primitive : scene.get_masked_primitives()) {
+                        const auto& mesh = primitive->mesh;
+
+                        commands.set_push_constant(0, primitive.index);
+                        commands.draw_indexed(
+                            mesh->num_indices,
+                            1,
+                            static_cast<uint32_t>(mesh->first_index),
+                            static_cast<uint32_t>(mesh->first_vertex),
+                            0);
+                    }
+
+                    commands.clear_descriptor_set(1);
                     commands.clear_descriptor_set(0);
                 }
             });

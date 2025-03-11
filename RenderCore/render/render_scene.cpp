@@ -1,5 +1,7 @@
 #include "render_scene.hpp"
 
+#include "indirect_drawing_utils.hpp"
+#include "mesh_storage.hpp"
 #include "raytracing_scene.hpp"
 #include "backend/pipeline_cache.hpp"
 #include "render/backend/resource_allocator.hpp"
@@ -53,7 +55,7 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
         break;
 
     case TransparencyMode::Cutout:
-        cutout_primitives.push_back(handle);
+        masked_primitives.push_back(handle);
         break;
 
     case TransparencyMode::Translucent:
@@ -61,7 +63,7 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
         break;
     }
 
-    if (handle->material->first.emissive) {
+    if(handle->material->first.emissive) {
         new_emissive_objects.push_back(handle);
     }
 
@@ -123,7 +125,7 @@ const std::vector<PooledObject<MeshPrimitive>>& RenderScene::get_solid_primitive
 }
 
 const std::vector<MeshPrimitiveHandle>& RenderScene::get_masked_primitives() const {
-    return cutout_primitives;
+    return masked_primitives;
 }
 
 const std::vector<MeshPrimitiveHandle>& RenderScene::get_transparent_primitives() const {
@@ -170,12 +172,99 @@ std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
 
 void RenderScene::generate_emissive_point_clouds(RenderGraph& render_graph) {
     render_graph.begin_label("Generate emissive mesh VPLs");
-    for (auto& primitive : new_emissive_objects) {
+    for(auto& primitive : new_emissive_objects) {
         primitive->emissive_points_buffer = generate_vpls_for_primitive(render_graph, primitive);
     }
     render_graph.end_label();
 
     new_emissive_objects.clear();
+}
+
+void RenderScene::draw_opaque_and_masked(
+    CommandBuffer& commands, const GraphicsPipelineHandle solid_pso, const GraphicsPipelineHandle masked_pso
+) const {
+    meshes.bind_to_commands(commands);
+
+    commands.bind_pipeline(solid_pso);
+    if (solid_pso->get_num_descriptor_sets() > 1) {
+        commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
+    }
+
+    for(const auto& primitive : solid_primitives) {
+        const auto& mesh = primitive->mesh;
+
+        commands.set_push_constant(0, primitive.index);
+        commands.draw_indexed(
+            mesh->num_indices,
+            1,
+            static_cast<uint32_t>(mesh->first_index),
+            static_cast<uint32_t>(mesh->first_vertex),
+            0);
+    }
+
+    commands.bind_pipeline(masked_pso);
+    if (masked_pso->get_num_descriptor_sets() > 1) {
+        commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
+    }
+
+    for(const auto& primitive : masked_primitives) {
+        const auto& mesh = primitive->mesh;
+
+        commands.set_push_constant(0, primitive.index);
+        commands.draw_indexed(
+            mesh->num_indices,
+            1,
+            static_cast<uint32_t>(mesh->first_index),
+            static_cast<uint32_t>(mesh->first_vertex),
+            0);
+    }
+
+    if (solid_pso->get_num_descriptor_sets() > 1 || masked_pso->get_num_descriptor_sets() > 1) {
+        commands.clear_descriptor_set(1);
+    }
+}
+
+void RenderScene::draw_opaque(
+    CommandBuffer& commands, const IndirectDrawingBuffers& drawbuffers, const GraphicsPipelineHandle solid_pso
+) const {
+    meshes.bind_to_commands(commands);
+    commands.bind_vertex_buffer(2, drawbuffers.primitive_ids);
+
+    if(solid_pso->get_num_descriptor_sets() > 1) {
+        commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
+    }
+
+    commands.bind_pipeline(solid_pso);
+    commands.draw_indexed_indirect(drawbuffers.commands, drawbuffers.count, static_cast<uint32_t>(solid_primitives.size()));
+
+    if (solid_pso->get_num_descriptor_sets() > 1) {
+        commands.clear_descriptor_set(1);
+    }
+}
+
+void RenderScene::draw_transparent(CommandBuffer& commands, GraphicsPipelineHandle pso) const {
+    meshes.bind_to_commands(commands);
+
+    if (pso->get_num_descriptor_sets() > 1) {
+        commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
+    }
+
+    commands.bind_pipeline(pso);
+    for(const auto& primitive : translucent_primitives) {
+        const auto& mesh = primitive->mesh;
+
+        commands.set_push_constant(0, primitive.index);
+        commands.draw_indexed(
+            mesh->num_indices,
+            1,
+            static_cast<uint32_t>(mesh->first_index),
+            static_cast<uint32_t>(mesh->first_vertex),
+            0);
+    }
+
+    if (pso->get_num_descriptor_sets() > 1) {
+        commands.clear_descriptor_set(1);
+    }
 }
 
 const MeshStorage& RenderScene::get_meshes() const {
@@ -193,6 +282,9 @@ const RaytracingScene& RenderScene::get_raytracing_scene() const {
 VoxelCache& RenderScene::get_voxel_cache() const {
     return *voxel_cache;
 }
+
+MaterialStorage& RenderScene::get_material_storage() const { return materials; }
+MeshStorage& RenderScene::get_mesh_storage() const { return meshes; }
 
 void RenderScene::create_voxel_cache() {
     auto& backend = RenderBackend::get();

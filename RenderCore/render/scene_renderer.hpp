@@ -115,8 +115,6 @@ private:
 
     std::vector<TextureHandle> swapchain_images;
 
-    SceneDrawer sun_shadow_drawer;
-
     ProceduralSky sky;
 
     HaltonSequence jitter_sequence_x = HaltonSequence{ 2 };
@@ -129,8 +127,6 @@ private:
     glm::vec2 previous_jitter = {};
 
     DepthCullingPhase depth_culling_phase;
-
-    SceneDrawer depth_prepass_drawer;
 
     MotionVectorsPhase motion_vectors_phase;
 

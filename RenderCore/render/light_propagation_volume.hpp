@@ -78,8 +78,6 @@ public:
 
     void init_resources(ResourceAllocator& allocator);
 
-    void set_scene_drawer(SceneDrawer&& drawer);
-
     /**
      * Updates the transform of this LPV to match the scene view
      */
@@ -189,8 +187,6 @@ private:
      * with the VPL's light on the surface
      */
     GraphicsPipelineHandle vpl_visualization_pipeline;
-
-    SceneDrawer rsm_drawer = {};
 
     GraphicsPipelineHandle inject_rsm_depth_into_gv_pipeline;
     GraphicsPipelineHandle inject_scene_depth_into_gv_pipeline;

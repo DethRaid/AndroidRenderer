@@ -225,6 +225,12 @@ BufferHandle MeshStorage::get_draw_args_buffer() const {
     return mesh_draw_args_buffer;
 }
 
+void MeshStorage::bind_to_commands(const CommandBuffer& commands) const {
+    commands.bind_vertex_buffer(0, vertex_position_buffer);
+    commands.bind_vertex_buffer(1, vertex_data_buffer);
+    commands.bind_index_buffer(index_buffer);
+}
+
 /**
  * \brief Finds the reservoir that contains the probability sample
  *

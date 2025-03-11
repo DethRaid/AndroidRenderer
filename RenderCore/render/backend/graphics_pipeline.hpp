@@ -31,6 +31,8 @@ public:
 
     VkShaderStageFlags get_push_constant_shader_stages() const;
 
+    uint32_t get_num_descriptor_sets() const;
+
     const DescriptorSetInfo& get_descriptor_set_info(uint32_t set_index) const;
 
     VkPipeline get_pipeline() const;
