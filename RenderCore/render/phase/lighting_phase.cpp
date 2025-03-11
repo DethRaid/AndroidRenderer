@@ -1,5 +1,6 @@
 #include "lighting_phase.hpp"
 
+#include "render/material_pipelines.hpp"
 #include "render/procedural_sky.hpp"
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
@@ -143,10 +144,26 @@ void LightingPhase::rasterize_sky_shadow(RenderGraph& render_graph, const SceneV
     if(sky_occlusion_map == nullptr) {
         sky_occlusion_map = allocator.create_texture(
             "sky_shadowmap",
-            {.format = VK_FORMAT_R16_UNORM, .resolution = {1024, 1024}, .usage = TextureUsage::RenderTarget});
+            {.format = VK_FORMAT_D16_UNORM, .resolution = {1024, 1024}, .usage = TextureUsage::RenderTarget });
     }
 
+    const auto sky_shadow_pso = MaterialPipelines::get().get_sky_shadow_pso();
+    const auto sky_shadow_masked_pso = MaterialPipelines::get().get_sky_shadow_masked_pso();
 
+    render_graph.add_render_pass(
+        {
+            .name = "sky_shadow",
+            .descriptor_sets = {},
+            .depth_attachment = RenderingAttachmentInfo{
+                .image = sky_occlusion_map,
+                .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                .store_op = VK_ATTACHMENT_STORE_OP_STORE,
+                .clear_value = {.depthStencil = {.depth = 1.f}}
+            },
+            .execute = [&](CommandBuffer& commands) {
+                
+            }
+        });
 }
 
 void LightingPhase::add_raytraced_mesh_lighting(

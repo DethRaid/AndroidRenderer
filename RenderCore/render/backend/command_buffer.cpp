@@ -377,6 +377,8 @@ void CommandBuffer::bind_pipeline(const ComputePipelineHandle& pipeline) {
     num_push_constants_in_current_pipeline = pipeline->num_push_constants;
     push_constant_shader_stages = VK_SHADER_STAGE_COMPUTE_BIT;
 
+    num_descriptor_sets_in_current_pipeline = static_cast<uint32_t>(pipeline->descriptor_sets.size());
+
     vkCmdBindPipeline(commands, current_bind_point, pipeline->pipeline);
 
     are_bindings_dirty = true;
@@ -389,6 +391,8 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
 
     num_push_constants_in_current_pipeline = pipeline->get_num_push_constants();
     push_constant_shader_stages = pipeline->get_push_constant_shader_stages();
+
+    num_descriptor_sets_in_current_pipeline = pipeline->get_num_descriptor_sets();
 
     auto& cache = backend->get_pipeline_cache();
 
@@ -606,7 +610,7 @@ void CommandBuffer::commit_bindings() {
 
     auto has_any_descriptor_sets = false;
     for(uint32_t i = 0; i < descriptor_sets.size(); i++) {
-        if(descriptor_sets[i] != VK_NULL_HANDLE) {
+        if(descriptor_sets[i] != VK_NULL_HANDLE && num_descriptor_sets_in_current_pipeline >= i) {
             has_any_descriptor_sets = true;
             vkCmdBindDescriptorSets(
                 commands,
@@ -619,10 +623,6 @@ void CommandBuffer::commit_bindings() {
                 nullptr
             );
         }
-    }
-
-    for(auto& set : descriptor_sets) {
-        set = VK_NULL_HANDLE;
     }
 
     are_bindings_dirty = false;

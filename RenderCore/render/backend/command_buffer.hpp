@@ -282,6 +282,7 @@ private:
      * should handle that noise
      */
     std::unordered_map<VkEvent, std::vector<VkBufferMemoryBarrier2>> event_buffer_barriers;
+    uint32_t num_descriptor_sets_in_current_pipeline = 0;
 
     void bind_index_buffer(BufferHandle buffer, VkIndexType index_type) const;
 

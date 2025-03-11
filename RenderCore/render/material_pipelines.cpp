@@ -47,8 +47,32 @@ MaterialPipelines::MaterialPipelines() {
         )
         .build();
 
-    shadow_masked_pso = backend.begin_building_pipeline("shadow")
+    shadow_masked_pso = backend.begin_building_pipeline("shadow_masked")
         .set_vertex_shader("shaders/lighting/shadow_masked.vert.spv")
+        .set_fragment_shader("shaders/prepass/masked.frag.spv")
+        .set_raster_state(
+            {
+                .cull_mode = VK_CULL_MODE_FRONT_BIT,
+                .front_face = VK_FRONT_FACE_CLOCKWISE,
+                .depth_clamp_enable = true
+            }
+        )
+        .build();
+
+
+    sky_shadow_pso = backend.begin_building_pipeline("sky_shadow")
+        .set_vertex_shader("shaders/lighting/sky_shadow.vert.spv")
+        .set_raster_state(
+            {
+                .cull_mode = VK_CULL_MODE_FRONT_BIT,
+                .front_face = VK_FRONT_FACE_CLOCKWISE,
+                .depth_clamp_enable = true
+            }
+        )
+        .build();
+
+    sky_shadow_masked_pso = backend.begin_building_pipeline("sky_shadow_masked")
+        .set_vertex_shader("shaders/lighting/sky_shadow_masked.vert.spv")
         .set_fragment_shader("shaders/prepass/masked.frag.spv")
         .set_raster_state(
             {
@@ -102,10 +126,14 @@ GraphicsPipelineHandle MaterialPipelines::get_shadow_masked_pso() const {
     return shadow_masked_pso;
 }
 
+GraphicsPipelineHandle MaterialPipelines::get_sky_shadow_pso() const { return sky_shadow_pso; }
+GraphicsPipelineHandle MaterialPipelines::get_sky_shadow_masked_pso() const { return sky_shadow_masked_pso; }
+
 GraphicsPipelineHandle MaterialPipelines::get_rsm_pso() const { return rsm_pso; }
 
 GraphicsPipelineHandle MaterialPipelines::get_rsm_masked_pso() const { return rsm_masked_pso; }
 
 GraphicsPipelineHandle MaterialPipelines::get_gbuffers_pso() const { return gbuffers_pso; }
+GraphicsPipelineHandle MaterialPipelines::get_gbuffers_masked_pso() const { return gbuffers_masked_pso; }
 
 GraphicsPipelineHandle MaterialPipelines::get_transparent_pso() const { return transparent_pso; }

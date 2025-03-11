@@ -2,7 +2,6 @@
 
 #include "backend/handles.hpp"
 
-class RenderBackend;
 /**
  * Basic storage for material pipelines
  *
@@ -26,8 +25,12 @@ public:
     GraphicsPipelineHandle get_rsm_masked_pso() const;
 
     GraphicsPipelineHandle get_gbuffers_pso() const;
+    GraphicsPipelineHandle get_gbuffers_masked_pso() const;
 
     GraphicsPipelineHandle get_transparent_pso() const;
+
+    GraphicsPipelineHandle get_sky_shadow_pso() const;
+    GraphicsPipelineHandle get_sky_shadow_masked_pso() const;
 
 private:
     GraphicsPipelineHandle depth_pso = nullptr;
@@ -40,7 +43,11 @@ private:
     GraphicsPipelineHandle rsm_masked_pso = nullptr;
 
     GraphicsPipelineHandle gbuffers_pso = nullptr;
+    GraphicsPipelineHandle gbuffers_masked_pso = nullptr;
 
     GraphicsPipelineHandle transparent_pso = nullptr;
+
+    GraphicsPipelineHandle sky_shadow_pso = nullptr;
+    GraphicsPipelineHandle sky_shadow_masked_pso = nullptr;
 };
 

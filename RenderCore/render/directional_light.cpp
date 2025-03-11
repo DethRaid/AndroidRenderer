@@ -33,7 +33,7 @@ static auto cvar_num_shadow_cascades = AutoCVar_Int{"r.Shadow.NumCascades", "Num
 
 static auto cvar_shadow_cascade_resolution = AutoCVar_Int{
     "r.Shadow.CascadeResolution",
-    "Resolution of one cascade in the shadowmap", 1024
+    "Resolution of one cascade in the shadowmap", 4096
 };
 
 static auto cvar_max_shadow_distance = AutoCVar_Float{"r.Shadow.Distance", "Maximum distance of shadows", 128};
