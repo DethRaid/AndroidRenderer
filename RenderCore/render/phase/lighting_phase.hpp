@@ -42,7 +42,7 @@ public:
         const LightPropagationVolume* lpv, 
         const ProceduralSky& sky, 
         std::optional<TextureHandle> vrsaa_shading_rate_image
-    ) const;
+    );
 
 private:
     RenderScene* scene = nullptr;
@@ -50,6 +50,10 @@ private:
     GBuffer gbuffer;
 
     GraphicsPipelineHandle emission_pipeline;
+
+    TextureHandle sky_occlusion_map = nullptr;
+
+    void rasterize_sky_shadow(RenderGraph& render_graph, const SceneView& view);
 
     void add_raytraced_mesh_lighting(
         CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, BufferHandle view_buffer

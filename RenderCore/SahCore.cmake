@@ -90,6 +90,12 @@ target_link_libraries(SahCore PUBLIC
         vk-bootstrap
         volk::volk_headers
         )
+        
+add_custom_command(TARGET SahCore POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different 
+    ${CMAKE_CURRENT_LIST_DIR}/assets
+    ${CMAKE_BINARY_DIR}/assets
+    )
 
 if(ANDROID)
     target_link_libraries(SahCore PUBLIC
@@ -153,4 +159,3 @@ get_target_property(SAH_INCLUDES SahCore INCLUDE_DIRECTORIES)
 foreach(dir ${SAH_INCLUDES})
   message(STATUS "include='${dir}'")
 endforeach()
-

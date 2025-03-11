@@ -5,6 +5,7 @@
 
 #include "core/system_interface.hpp"
 #include "render/indirect_drawing_utils.hpp"
+#include "render/material_pipelines.hpp"
 #include "render/material_storage.hpp"
 #include "render/mesh_drawer.hpp"
 #include "render/mesh_storage.hpp"
@@ -16,16 +17,6 @@
 DepthCullingPhase::DepthCullingPhase() {
     auto& backend = RenderBackend::get();
     auto& pipeline_cache = backend.get_pipeline_cache();
-
-    depth_pso = backend.begin_building_pipeline(fmt::format("depth_prepass"))
-                       .set_vertex_shader("shaders/deferred/basic.vert.spv")
-                       .set_raster_state(
-                           {
-                               .front_face = VK_FRONT_FACE_CLOCKWISE
-                           }
-                       )
-                       .enable_dgc()
-                       .build();
 
     hi_z_culling_shader = pipeline_cache.create_pipeline("shaders/culling/hi_z_culling.comp.spv");
 
@@ -131,33 +122,9 @@ void DepthCullingPhase::render(
     auto& scene = drawer.get_scene();
     const auto primitive_buffer = scene.get_primitive_buffer();
 
+    const auto depth_pso = MaterialPipelines::get().get_depth_pso();
     const auto view_descriptor = backend.get_transient_descriptor_allocator()
-                                        .build_set(
-                                            {
-                                                .bindings = {
-                                                    DescriptorInfo{
-                                                        {
-                                                            .binding = 0,
-                                                            .descriptorType =
-                                                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                                            .descriptorCount = 1,
-                                                            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-                                                        },
-                                                        true
-                                                    },
-                                                    DescriptorInfo{
-                                                        {
-                                                            .binding = 0,
-                                                            .descriptorType =
-                                                            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                            .descriptorCount = 1,
-                                                            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-                                                        },
-                                                        true
-                                                    }
-                                                }
-                                            },
-                                            "Main view descriptor set")
+                                        .build_set(depth_pso, 0)
                                         .bind(view_data_buffer)
                                         .bind(primitive_buffer)
                                         .build();
@@ -515,6 +482,8 @@ void DepthCullingPhase::draw_visible_objects(
                 .clear_value = {.depthStencil = {.depth = 1.0}}
             },
             .execute = [&](CommandBuffer& commands) {
+                const auto depth_pso = MaterialPipelines::get().get_depth_pso();
+
                 commands.bind_descriptor_set(0, view_descriptor);
 
                 drawer.draw_indirect(

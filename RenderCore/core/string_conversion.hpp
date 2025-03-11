@@ -3,9 +3,9 @@
 #include <string>
 #include <vector>
 
-// [[nodiscard]] std::string to_string(const std::wstring& chonker);
+[[nodiscard]] std::string to_string(const std::wstring& chonker);
 
-// [[nodiscard]] std::wstring to_wstring(const std::string& thinboi);
+[[nodiscard]] std::wstring to_wstring(const std::string& thinboi);
 
 /**
  * \brief Splits a string based on a separator

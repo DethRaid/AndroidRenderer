@@ -21,7 +21,7 @@ static auto cvar_enable_sun_gi = AutoCVar_Int{
 };
 
 static auto cvar_enable_mesh_lights = AutoCVar_Int{
-    "r.MeshLight.Enable", "Whether or not to enable mesh lights", 0
+    "r.MeshLight.Enable", "Whether or not to enable mesh lights", 1
 };
 
 static auto cvar_raytrace_mesh_lights = AutoCVar_Int{
@@ -33,7 +33,7 @@ static auto cvar_use_lpv = AutoCVar_Int{
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
-    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::None
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::DLSS
 };
 
 #if SAH_USE_STREAMLINE
@@ -83,6 +83,8 @@ SceneRenderer::SceneRenderer() {
         .magFilter = VK_FILTER_LINEAR,
         .minFilter = VK_FILTER_LINEAR,
     });
+
+    stbn_3d_cosine = NoiseTexture::create("assets/stbn/stbn_unitvec3_2Dx1D_128x128x64", 64, texture_loader);
 
     logger->info("Initialized SceneRenderer");
 }
@@ -280,8 +282,6 @@ void SceneRenderer::render() {
 
     meshes.flush_mesh_draw_arg_uploads(render_graph);
 
-    meshes.flush_mesh_draw_arg_uploads(render_graph);
-
     render_graph.add_transition_pass(
         {
             .buffers = {
@@ -437,6 +437,8 @@ void SceneRenderer::render() {
     ao_phase.generate_ao(
         render_graph,
         player_view,
+        *scene,
+        stbn_3d_cosine,
         gbuffer_normals_handle,
         gbuffer_depth_handle,
         ao_handle);

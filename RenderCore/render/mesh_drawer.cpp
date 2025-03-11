@@ -40,6 +40,35 @@ void SceneDrawer::draw(CommandBuffer& commands) const {
     }
 }
 
+void SceneDrawer::draw(CommandBuffer& commands, GraphicsPipelineHandle pso) const {
+    if (scene == nullptr) {
+        return;
+    }
+
+    const auto& solids = scene->get_solid_primitives();
+
+    commands.bind_vertex_buffer(0, mesh_storage->get_vertex_position_buffer());
+    commands.bind_vertex_buffer(1, mesh_storage->get_vertex_data_buffer());
+    commands.bind_index_buffer(mesh_storage->get_index_buffer());
+
+    if (is_color_pass(type)) {
+        commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
+    }
+
+    commands.bind_pipeline(pso);
+
+    for (const auto& primitive : solids) {
+        const auto& mesh = primitive->mesh;
+
+        commands.set_push_constant(0, primitive.index);
+        commands.draw_indexed(mesh->num_indices, 1, static_cast<uint32_t>(mesh->first_index), static_cast<uint32_t>(mesh->first_vertex), 0);
+    }
+
+    if (is_color_pass(type)) {
+        commands.clear_descriptor_set(1);
+    }
+}
+
 void SceneDrawer::draw_indirect(
     CommandBuffer& commands, const GraphicsPipelineHandle pso, const IndirectDrawingBuffers& drawbuffers
 ) const {

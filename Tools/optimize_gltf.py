@@ -44,7 +44,7 @@ if __name__ == '__main__':
     if len(files_to_compress) == 0:
         exit()
 
-    gltfpack_command = 'gltfpack.exe -i {} -o {} -tu -noq'
+    gltfpack_command = 'gltfpack.exe -i {} -o {} -tu -tj 24 -noq'
 
     processes = []
 

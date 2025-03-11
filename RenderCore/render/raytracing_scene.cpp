@@ -14,6 +14,7 @@ RaytracingScene::RaytracingScene(RenderScene& scene_in)
 
 void RaytracingScene::add_primitive(const MeshPrimitiveHandle primitive) {
     const auto& model_matrix = primitive->data.model;
+    const auto blas_flags = primitive->material->first.transparency_mode == TransparencyMode::Solid ? VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR : VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
     placed_blases.emplace_back(
         VkAccelerationStructureInstanceKHR{
             .transform = {
@@ -26,6 +27,7 @@ void RaytracingScene::add_primitive(const MeshPrimitiveHandle primitive) {
             .instanceCustomIndex = primitive.index,
             .mask = 0xFF,
             .instanceShaderBindingTableRecordOffset = primitive->material.index * ScenePassType::Count,
+            .flags = static_cast<VkGeometryInstanceFlagsKHR>(blas_flags),
             .accelerationStructureReference = primitive->mesh->blas->as_address
         });
 

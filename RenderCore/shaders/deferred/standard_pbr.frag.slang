@@ -21,8 +21,27 @@ struct GbufferOutput {
     half4 emission;
 };
 
+float3x3 cotangent_frame(float3 N, float3 p, float2 uv) {
+    // get edge vectors of the pixel triangle
+    float3 dp1 = ddx(p);
+    float3 dp2 = ddy(p);
+    float2 duv1 = ddx(uv);
+    float2 duv2 = ddy(uv);
+
+    // solve the linear system
+    float3 dp2perp = cross(dp2, N);
+    float3 dp1perp = cross(N, dp1);
+    float3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+    float3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+
+    // construct a scale-invariant frame
+    float invmax = rsqrt(max(dot(T, T), dot(B, B)));
+    return float3x3(T * invmax, B * invmax, N);
+}
+
 [shader("fragment")]
 GbufferOutput main(
+    const float3 viewspace_position,
     const half3 vertex_normal,
     const half3 vertex_tangent,
     const vec2 vertex_texcoord,
@@ -42,16 +61,11 @@ GbufferOutput main(
     gbuffer.base_color = tinted_base_color;
 
     // Normals
-    half3 bitangent = cross(vertex_tangent, vertex_normal);
-    half3x3 tbn = transpose(half3x3(
-        vertex_tangent,
-        bitangent,
-        vertex_normal
-    ));
+    float3x3 tbn = cotangent_frame(vertex_normal, viewspace_position, vertex_texcoord);
     Sampler2D normals_texture = textures[material.normal_texture_index];
     half3 normal_sample = (half3)normals_texture.SampleBias(vertex_texcoord, camera_data.material_texture_mip_bias).xyz * 2.0 - 1.0;
-    half3 normal = mul(tbn, normal_sample);
-    gbuffer.normal = half4(vertex_normal, 0);
+    half3 normal = mul(normal_sample, tbn);
+    gbuffer.normal = half4(normal, 0);
 
     // Data
     Sampler2D data_texture = textures[material.data_texture_index];

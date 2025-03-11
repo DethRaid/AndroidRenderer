@@ -21,8 +21,8 @@ RenderScene::RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in)
     );
 
     // Defaults
-    // sun.set_direction({0.1f, -1.f, 0.33f});
     sun.set_direction({0.1f, -1.f, -0.33f});
+    // sun.set_direction({0.1f, -1.f, -0.01f});
     sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 100000.f);
 
     if(backend.supports_ray_tracing()) {
@@ -44,7 +44,6 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
     primitive.data.type = static_cast<uint32_t>(primitive.material->first.transparency_mode);
 
     auto handle = mesh_primitives.add_object(std::move(primitive));
-
 
     total_num_primitives++;
 
@@ -184,6 +183,10 @@ const MeshStorage& RenderScene::get_meshes() const {
 }
 
 RaytracingScene& RenderScene::get_raytracing_scene() {
+    return *raytracing_scene;
+}
+
+const RaytracingScene& RenderScene::get_raytracing_scene() const {
     return *raytracing_scene;
 }
 

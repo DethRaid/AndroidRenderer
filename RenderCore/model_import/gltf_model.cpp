@@ -87,7 +87,7 @@ glm::vec4 GltfModel::get_bounding_sphere() const { return bounding_sphere; }
 
 const fastgltf::Asset& GltfModel::get_gltf_data() const { return *model; }
 
-void GltfModel::add_primitives(SceneRenderer& renderer, RenderScene& scene, RenderGraph& graph) {
+void GltfModel::add_primitives(RenderScene& scene, RenderGraph& graph) {
     traverse_nodes(
         [&](const fastgltf::Node& node, const glm::mat4& node_to_world) {
             if (node.meshIndex) {
@@ -130,11 +130,11 @@ void GltfModel::add_primitives(SceneRenderer& renderer, RenderScene& scene, Rend
     logger->info("Added nodes to the render scene");
 }
 
-void GltfModel::add_to_scene(RenderScene& scene, SceneRenderer& scene_renderer) {
+void GltfModel::add_to_scene(RenderScene& scene) {
     auto& backend = RenderBackend::get();
     auto graph = RenderGraph{backend};
 
-    add_primitives(scene_renderer, scene, graph);
+    add_primitives(scene, graph);
 
     graph.finish();
     backend.execute_graph(std::move(graph));
@@ -157,6 +157,8 @@ void GltfModel::import_resources_for_model(SceneRenderer& renderer) {
 
     logger->info("Imported resources");
 }
+
+static const fastgltf::Sampler default_sampler{};
 
 void
 GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& texture_loader, RenderBackend& backend) {
@@ -208,7 +210,7 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
             );
 
             const auto& texture = model->textures[gltf_material.pbrData->baseColorTexture->textureIndex];
-            const auto& sampler = model->samplers[*texture.samplerIndex];
+            const auto& sampler = texture.samplerIndex ? model->samplers[*texture.samplerIndex] : default_sampler;
 
             material.base_color_sampler = to_vk_sampler(sampler, backend);
         } else {
@@ -224,7 +226,7 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
             );
 
             const auto& texture = model->textures[gltf_material.normalTexture->textureIndex];
-            const auto& sampler = model->samplers[*texture.samplerIndex];
+            const auto& sampler = texture.samplerIndex ? model->samplers[*texture.samplerIndex] : default_sampler;
 
             material.normal_sampler = to_vk_sampler(sampler, backend);
         } else {
@@ -240,7 +242,7 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
             );
 
             const auto& texture = model->textures[gltf_material.pbrData->metallicRoughnessTexture->textureIndex];
-            const auto& sampler = model->samplers[*texture.samplerIndex];
+            const auto& sampler = texture.samplerIndex ? model->samplers[*texture.samplerIndex] : default_sampler;
 
             material.metallic_roughness_sampler = to_vk_sampler(sampler, backend);
         } else {
@@ -256,7 +258,7 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
             );
 
             const auto& texture = model->textures[gltf_material.emissiveTexture->textureIndex];
-            const auto& sampler = model->samplers[*texture.samplerIndex];
+            const auto& sampler = texture.samplerIndex ? model->samplers[*texture.samplerIndex] : default_sampler;
 
             material.emission_sampler = to_vk_sampler(sampler, backend);
 
@@ -436,7 +438,7 @@ void GltfModel::import_single_texture(
                 logger->info("Loading texture {}", uri);
 
                 // Try to load a KTX version of the texture
-                const auto texture_filepath = std::filesystem::path{uri};
+                const auto texture_filepath = filepath.parent_path() / std::filesystem::path{uri};
                 auto ktx_texture_filepath = texture_filepath;
                 ktx_texture_filepath.replace_extension("ktx2");
                 auto data_maybe = SystemInterface::get().load_file(ktx_texture_filepath);
@@ -452,9 +454,9 @@ void GltfModel::import_single_texture(
                     image_data = std::move(*data_maybe);
                     image_name = texture_filepath;
                     const auto& extension = texture_filepath.extension();
-                    if (extension == "png") {
+                    if (extension == ".png") {
                         mime_type = fastgltf::MimeType::PNG;
-                    } else if (extension == "jpg" || extension == "jpeg") {
+                    } else if (extension == ".jpg" || extension == ".jpeg") {
                         mime_type = fastgltf::MimeType::JPEG;
                     }
                     return;
@@ -497,6 +499,7 @@ VkSampler GltfModel::to_vk_sampler(const fastgltf::Sampler& sampler, RenderBacke
         switch (*sampler.minFilter) {
         case fastgltf::Filter::Nearest:
             create_info.minFilter = VK_FILTER_NEAREST;
+            create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
             break;
 
         case fastgltf::Filter::Linear:

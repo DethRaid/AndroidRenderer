@@ -46,9 +46,9 @@ public:
      *
      * @param scene Storage to add primitives to
      */
-    void add_primitives(SceneRenderer& renderer, RenderScene& scene, RenderGraph& graph);
+    void add_primitives(RenderScene& scene, RenderGraph& graph);
 
-    void add_to_scene(RenderScene& scene, SceneRenderer& scene_renderer);
+    void add_to_scene(RenderScene& scene);
 
 private:
     std::filesystem::path filepath;

@@ -52,6 +52,8 @@ public:
 
     RaytracingScene& get_raytracing_scene();
 
+    const RaytracingScene& get_raytracing_scene() const;
+
     VoxelCache& get_voxel_cache() const;
 
 private:
