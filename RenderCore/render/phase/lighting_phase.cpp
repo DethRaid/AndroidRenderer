@@ -5,6 +5,16 @@
 #include "render/scene_view.hpp"
 #include "shared/view_data.hpp"
 
+enum class SkyOcclusionType {
+    Off,
+    DepthMap,
+    RayTraced
+};
+
+static AutoCVar_Enum cvar_sky_occlusion_type{
+    "r.Sky.OcclusionType", "How to determine sky light occlusion", SkyOcclusionType::DepthMap
+};
+
 LightingPhase::LightingPhase() {
     auto& backend = RenderBackend::get();
     emission_pipeline = backend.begin_building_pipeline("Emissive Lighting")
@@ -31,14 +41,14 @@ LightingPhase::LightingPhase() {
 }
 
 void LightingPhase::render(
-    RenderGraph& render_graph, 
-    const SceneView& view, 
+    RenderGraph& render_graph,
+    const SceneView& view,
     const TextureHandle lit_scene_texture,
     TextureHandle ao_texture,
     const LightPropagationVolume* lpv,
     const ProceduralSky& sky,
     const std::optional<TextureHandle> vrsaa_shading_rate_image
-) const {
+) {
     ZoneScoped;
 
     if(scene == nullptr) {
@@ -46,6 +56,14 @@ void LightingPhase::render(
     }
 
     auto& backend = RenderBackend::get();
+
+    if(cvar_sky_occlusion_type.Get() == SkyOcclusionType::DepthMap) {
+        rasterize_sky_shadow(render_graph, view);
+    } else {
+        if(sky_occlusion_map != nullptr) {
+            backend.get_global_allocator().destroy_texture(sky_occlusion_map);
+        }
+    }
 
     auto& sun = scene->get_sun_light();
     auto& sun_pipeline = sun.get_pipeline();
@@ -65,7 +83,8 @@ void LightingPhase::render(
             .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
             .access = VK_ACCESS_2_SHADER_READ_BIT,
             .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        }};
+        }
+    };
     const auto sun_shadowmap_handle = sun.get_shadowmap_handle();
     if(sun_shadowmap_handle != nullptr) {
         texture_usages.emplace_back(
@@ -115,6 +134,19 @@ void LightingPhase::set_gbuffer(const GBuffer& gbuffer_in) {
 
 void LightingPhase::set_scene(RenderScene& scene_in) {
     scene = &scene_in;
+}
+
+void LightingPhase::rasterize_sky_shadow(RenderGraph& render_graph, const SceneView& view) {
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
+
+    if(sky_occlusion_map == nullptr) {
+        sky_occlusion_map = allocator.create_texture(
+            "sky_shadowmap",
+            {.format = VK_FORMAT_R16_UNORM, .resolution = {1024, 1024}, .usage = TextureUsage::RenderTarget});
+    }
+
+
 }
 
 void LightingPhase::add_raytraced_mesh_lighting(

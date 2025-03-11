@@ -10,6 +10,7 @@ StructuredBuffer<PrimitiveDataGPU> primitive_datas;
 
 struct VertexOutput {
     float4 position : SV_Position;
+    float3 viewspace_position;
     half3 normal;
     half3 tangent;
     float2 texcoord;
@@ -40,8 +41,10 @@ VertexOutput main(
     output.primitive_id = primitive_id_in;
     PrimitiveDataGPU data = primitive_datas[output.primitive_id];
 
-    output.position = mul(camera_data.projection, mul(camera_data.view, mul(data.model, vec4(position_in, 1.f))));
+    float4 viewspace_position = mul(camera_data.view, mul(data.model, float4(position_in, 1.f)));
+    output.position = mul(camera_data.projection, viewspace_position);
 
+    output.viewspace_position = viewspace_position.xyz; 
     output.normal = (half3)normalize(mul((half3x3)data.model, normal_in));
     output.tangent = (half3)normalize(mul((half3x3)data.model, tangent_in));
     output.texcoord = texcoord_in;

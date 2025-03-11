@@ -29,9 +29,10 @@ float3 get_worldspace_position(uint2 pixel) {
     float2 texcoord = float2(pixel) / view_info.render_resolution.xy;
     float4 ndc_position = float4(float3(texcoord * 2.f - 1.f, depth), 1.f);
     float4 viewspace_position = mul(view_info.inverse_projection, ndc_position);
+    viewspace_position /= viewspace_position.w;
     float4 worldspace_position = mul(view_info.inverse_view, viewspace_position);
 
-    return worldspace_position.xyz / worldspace_position.w;
+    return worldspace_position.xyz;
 }
 
 half3x3 make_ssc(half3 v) {
@@ -78,7 +79,7 @@ void main(uint2 thread_id: SV_DispatchThreadID) {
         RayDesc ray = (RayDesc)0;
         ray.Origin = worldspace_position;
         ray.Direction = normalize(normal + noise);
-        ray.TMin = 0.01;
+        ray.TMin = 0.05;
         ray.TMax = max_ray_distance;
 
         RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_CULL_NON_OPAQUE> query;

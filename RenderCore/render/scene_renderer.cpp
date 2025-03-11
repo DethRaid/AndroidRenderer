@@ -21,7 +21,7 @@ static auto cvar_enable_sun_gi = AutoCVar_Int{
 };
 
 static auto cvar_enable_mesh_lights = AutoCVar_Int{
-    "r.MeshLight.Enable", "Whether or not to enable mesh lights", 0
+    "r.MeshLight.Enable", "Whether or not to enable mesh lights", 1
 };
 
 static auto cvar_raytrace_mesh_lights = AutoCVar_Int{

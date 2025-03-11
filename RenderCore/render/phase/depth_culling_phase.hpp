@@ -36,8 +36,6 @@ public:
     BufferHandle get_visible_objects_buffer() const;
 
 private:
-    GraphicsPipelineHandle depth_pso = {};
-
     TextureHandle depth_buffer = nullptr;
 
     TextureHandle hi_z_buffer = nullptr;

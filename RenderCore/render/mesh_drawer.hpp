@@ -50,6 +50,8 @@ public:
      */
     void draw(CommandBuffer& commands) const;
 
+    void draw(CommandBuffer& commands, GraphicsPipelineHandle pso) const;
+
     void draw_indirect(CommandBuffer& commands, GraphicsPipelineHandle pso, const IndirectDrawingBuffers& drawbuffers) const;
 
     const RenderScene& get_scene() const;
