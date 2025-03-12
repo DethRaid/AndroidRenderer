@@ -145,6 +145,10 @@ public:
     template <typename IndexType = uint32_t>
     void bind_index_buffer(BufferHandle buffer) const;
 
+    void set_cull_mode(VkCullModeFlags cull_mode) const;
+
+    void set_front_face(VkFrontFace front_face) const;
+
     void draw(
         uint32_t num_vertices, uint32_t num_instances = 1, uint32_t first_vertex = 0, uint32_t first_instance = 0
     );

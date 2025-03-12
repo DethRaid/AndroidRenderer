@@ -50,12 +50,9 @@ public:
      */
     void generate_emissive_point_clouds(RenderGraph& render_graph);
 
-    /**
-     * Draws the entire scene with the provided opaque and masked PSOs
-     */
-    void draw_opaque_and_masked(
-        CommandBuffer& commands, GraphicsPipelineHandle solid_pso, GraphicsPipelineHandle masked_pso
-    ) const;
+    void draw_opaque(CommandBuffer& commands, GraphicsPipelineHandle pso) const;
+
+    void draw_masked(CommandBuffer& commands, GraphicsPipelineHandle pso) const;
 
     /**
      * Draws the commands in the IndirectDrawingBuffers with the provided opaque PSO
@@ -99,7 +96,11 @@ private:
 
     ScatterUploadBuffer<PrimitiveDataGPU> primitive_upload_buffer;
 
+    // TODO: Group solid primitives by front face
+
     std::vector<MeshPrimitiveHandle> solid_primitives;
+
+    // TODO: Group masked primitives by front face and cull mode
 
     std::vector<MeshPrimitiveHandle> masked_primitives;
 
@@ -116,4 +117,8 @@ private:
     void create_voxel_cache();
 
     BufferHandle generate_vpls_for_primitive(RenderGraph& graph, const MeshPrimitiveHandle& primitive);
+
+    void draw_primitives(
+        CommandBuffer& commands, GraphicsPipelineHandle pso, std::span<const MeshPrimitiveHandle> primitives
+    ) const;
 };

@@ -289,6 +289,14 @@ void CommandBuffer::bind_vertex_buffer(const uint32_t binding_index, const Buffe
     vkCmdBindVertexBuffers(commands, binding_index, 1, &buffer->buffer, &offset);
 }
 
+void CommandBuffer::set_cull_mode(const VkCullModeFlags cull_mode) const {
+    vkCmdSetCullMode(commands, cull_mode);
+}
+
+void CommandBuffer::set_front_face(const VkFrontFace front_face) const {
+    vkCmdSetFrontFace(commands, front_face);
+}
+
 void CommandBuffer::draw(
     const uint32_t num_vertices, const uint32_t num_instances, const uint32_t first_vertex,
     const uint32_t first_instance

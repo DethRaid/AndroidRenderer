@@ -22,11 +22,6 @@ GbuffersPhase::GbuffersPhase() {
                                 .compare_op = VK_COMPARE_OP_EQUAL
                             }
                         )
-                        .set_raster_state(
-                            {
-                                .front_face = VK_FRONT_FACE_CLOCKWISE
-                            }
-                        )
                         .set_blend_state(0, blend_state)
                         .set_blend_state(1, blend_state)
                         .set_blend_state(2, blend_state)

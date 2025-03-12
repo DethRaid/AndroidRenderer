@@ -474,7 +474,9 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
                     commands.set_push_constant(1, cascade_index);
 
-                    scene.draw_opaque_and_masked(commands, rsm_pso, rsm_masked_pso);
+                    scene.draw_opaque(commands, rsm_pso);
+
+                    scene.draw_masked(commands, rsm_masked_pso);
 
                     commands.clear_descriptor_set(0);
                 }

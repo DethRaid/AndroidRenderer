@@ -30,7 +30,6 @@ MeshVoxelizer::MeshVoxelizer(RenderBackend& backend_in) : backend{&backend_in} {
                                            .compare_op = VK_COMPARE_OP_ALWAYS
                                        }
                                    )
-                                   .set_raster_state({.cull_mode = VK_CULL_MODE_NONE})
                                    .build();
 
     compute_voxelization_pipeline = backend->get_pipeline_cache()

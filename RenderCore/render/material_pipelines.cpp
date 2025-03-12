@@ -17,22 +17,12 @@ MaterialPipelines::MaterialPipelines() {
 
     depth_pso = backend.begin_building_pipeline("depth_prepass")
         .set_vertex_shader("shaders/deferred/basic.vert.spv")
-        .set_raster_state(
-            {
-                .front_face = VK_FRONT_FACE_CLOCKWISE
-            }
-        )
         .enable_dgc()
         .build();
 
     depth_masked_pso = backend.begin_building_pipeline("depth_prepass_masked")
         .set_vertex_shader("shaders/deferred/basic.vert.spv")
         .set_fragment_shader("shaders/prepass/masked.frag.spv")
-        .set_raster_state(
-            {
-                .front_face = VK_FRONT_FACE_CLOCKWISE
-            }
-        )
         .enable_dgc()
         .build();
 
@@ -40,8 +30,6 @@ MaterialPipelines::MaterialPipelines() {
         .set_vertex_shader("shaders/lighting/shadow.vert.spv")
         .set_raster_state(
             {
-                .cull_mode = VK_CULL_MODE_FRONT_BIT,
-                .front_face = VK_FRONT_FACE_CLOCKWISE,
                 .depth_clamp_enable = true
             }
         )
@@ -52,8 +40,6 @@ MaterialPipelines::MaterialPipelines() {
         .set_fragment_shader("shaders/prepass/masked.frag.spv")
         .set_raster_state(
             {
-                .cull_mode = VK_CULL_MODE_FRONT_BIT,
-                .front_face = VK_FRONT_FACE_CLOCKWISE,
                 .depth_clamp_enable = true
             }
         )
@@ -64,8 +50,6 @@ MaterialPipelines::MaterialPipelines() {
         .set_vertex_shader("shaders/lighting/sky_shadow.vert.spv")
         .set_raster_state(
             {
-                .cull_mode = VK_CULL_MODE_FRONT_BIT,
-                .front_face = VK_FRONT_FACE_CLOCKWISE,
                 .depth_clamp_enable = true
             }
         )
@@ -76,8 +60,6 @@ MaterialPipelines::MaterialPipelines() {
         .set_fragment_shader("shaders/prepass/masked.frag.spv")
         .set_raster_state(
             {
-                .cull_mode = VK_CULL_MODE_FRONT_BIT,
-                .front_face = VK_FRONT_FACE_CLOCKWISE,
                 .depth_clamp_enable = true
             }
         )
@@ -92,11 +74,6 @@ MaterialPipelines::MaterialPipelines() {
         .set_fragment_shader("shaders/lpv/rsm.frag.spv")
         .set_blend_state(0, blend_state)
         .set_blend_state(1, blend_state)
-        .set_raster_state(
-            {
-                .front_face = VK_FRONT_FACE_CLOCKWISE
-            }
-        )
         .build();
 
     rsm_masked_pso = backend.begin_building_pipeline("rsm_masked")
@@ -104,11 +81,6 @@ MaterialPipelines::MaterialPipelines() {
         .set_fragment_shader("shaders/lpv/rsm_masked.frag.spv")
         .set_blend_state(0, blend_state)
         .set_blend_state(1, blend_state)
-        .set_raster_state(
-            {
-                .front_face = VK_FRONT_FACE_CLOCKWISE
-            }
-        )
         .build();
 }
 

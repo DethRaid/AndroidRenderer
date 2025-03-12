@@ -80,34 +80,6 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
         break;
     }
 
-    // RSM
-    const auto rsm_pipeline = backend.begin_building_pipeline(fmt::format("{} RSM", new_material.name))
-                                     .set_vertex_shader("shaders/lpv/rsm.vert.spv")
-                                     .set_fragment_shader("shaders/lpv/rsm.frag.spv")
-                                     .set_blend_state(0, blend_state)
-                                     .set_blend_state(1, blend_state)
-                                     .set_raster_state(
-                                         {
-                                             .cull_mode = cull_mode,
-                                             .front_face = front_face
-                                         }
-                                     )
-                                     .build();
-    proxy.pipelines[ScenePassType::RSM] = rsm_pipeline;
-
-    // Shadow
-    const auto shadow_pipeline = backend.begin_building_pipeline(fmt::format("{} SHADOW", new_material.name))
-                                        .set_vertex_shader("shaders/lighting/shadow.vert.spv")
-                                        .set_raster_state(
-                                            {
-                                                .cull_mode = cull_mode,
-                                                .front_face = front_face,
-                                                .depth_clamp_enable = true
-                                            }
-                                        )
-                                        .build();
-    proxy.pipelines[ScenePassType::Shadow] = shadow_pipeline;
-
     // Voxelization
     auto voxel_blend_state = blend_state;
     voxel_blend_state.colorWriteMask = 0;
@@ -123,49 +95,12 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
                                                       .enable_depth_write = false
                                                   }
                                               )
-                                              .set_raster_state({.cull_mode = VK_CULL_MODE_NONE})
                                               .set_blend_state(0, voxel_blend_state)
                                               .build();
     proxy.pipelines[ScenePassType::Vozelization] = voxelization_pipeline;
 
     if(backend.supports_device_generated_commands()) {
         ZoneScopedN("Create VkPipelines");
-        // [[maybe_unused]] const auto forced_depth_prepass_pipeline = backend
-        //                                                             .get_pipeline_cache()
-        //                                                             .get_pipeline_for_dynamic_rendering(
-        //                                                                 depth_prepass_pipeline,
-        //                                                                 {},
-        //                                                                 VK_FORMAT_D32_SFLOAT,
-        //                                                                 0);
-        // [[maybe_unused]] const auto forced_gbuffer_pipeline = backend
-        //                                                       .get_pipeline_cache()
-        //                                                       .get_pipeline_for_dynamic_rendering(
-        //                                                           gbuffer_pipeline,
-        //                                                           std::array{
-        //                                                               VK_FORMAT_R8G8B8A8_SRGB,
-        //                                                               VK_FORMAT_R16G16B16A16_SFLOAT,
-        //                                                               VK_FORMAT_R8G8B8A8_UNORM,
-        //                                                               VK_FORMAT_R8G8B8A8_SRGB
-        //                                                           },
-        //                                                           VK_FORMAT_D32_SFLOAT,
-        //                                                           0);
-        [[maybe_unused]] const auto forced_rsm_pipeline = backend
-                                                          .get_pipeline_cache()
-                                                          .get_pipeline_for_dynamic_rendering(
-                                                              rsm_pipeline,
-                                                              std::array{
-                                                                  VK_FORMAT_R8G8B8A8_SRGB,
-                                                                  VK_FORMAT_R8G8B8A8_UNORM,
-                                                              },
-                                                              VK_FORMAT_D16_UNORM,
-                                                              0);
-        [[maybe_unused]] const auto forced_shadow_pipeline = backend
-                                                             .get_pipeline_cache()
-                                                             .get_pipeline_for_dynamic_rendering(
-                                                                 shadow_pipeline,
-                                                                 {},
-                                                                 VK_FORMAT_D16_UNORM,
-                                                                 0);
         [[maybe_unused]] const auto forced_voxelization_pipeline = backend
                                                                    .get_pipeline_cache()
                                                                    .get_pipeline_for_dynamic_rendering(

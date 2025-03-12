@@ -290,43 +290,13 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& sce
                 },
                 .view_mask = 0x000F,
                 .execute = [&](CommandBuffer& commands) {
-                    scene.get_mesh_storage().bind_to_commands(commands);
-
-                    commands.bind_pipeline(shadow_pso);
                     commands.bind_descriptor_set(0, solid_set);
 
-                    for(const auto& primitive : scene.get_solid_primitives()) {
-                        const auto& mesh = primitive->mesh;
+                    scene.draw_opaque(commands, shadow_pso);
 
-                        commands.set_push_constant(0, primitive.index);
-                        commands.draw_indexed(
-                            mesh->num_indices,
-                            1,
-                            static_cast<uint32_t>(mesh->first_index),
-                            static_cast<uint32_t>(mesh->first_vertex),
-                            0);
-                    }
-
-                    commands.bind_pipeline(shadow_masked_pso);
                     commands.bind_descriptor_set(0, masked_set);
-                    commands.bind_descriptor_set(
-                        1,
-                        backend.get_texture_descriptor_pool().get_descriptor_set());
+                    scene.draw_masked(commands, shadow_masked_pso);
 
-
-                    for(const auto& primitive : scene.get_masked_primitives()) {
-                        const auto& mesh = primitive->mesh;
-
-                        commands.set_push_constant(0, primitive.index);
-                        commands.draw_indexed(
-                            mesh->num_indices,
-                            1,
-                            static_cast<uint32_t>(mesh->first_index),
-                            static_cast<uint32_t>(mesh->first_vertex),
-                            0);
-                    }
-
-                    commands.clear_descriptor_set(1);
                     commands.clear_descriptor_set(0);
                 }
             });

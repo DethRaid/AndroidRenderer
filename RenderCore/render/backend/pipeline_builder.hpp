@@ -60,10 +60,6 @@ struct DepthStencilState {
 struct RasterState {
     VkPolygonMode polygon_mode = VK_POLYGON_MODE_FILL;
 
-    VkCullModeFlags cull_mode = VK_CULL_MODE_BACK_BIT;
-
-    VkFrontFace front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-
     float line_width = 1.f;
 
     bool depth_clamp_enable = false;
