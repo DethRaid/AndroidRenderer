@@ -29,11 +29,6 @@ struct CascadeData {
      */
     glm::mat4 rsm_vp;
 
-    // Render targets and framebuffer to use
-    TextureHandle flux_target;
-    TextureHandle normals_target;
-    TextureHandle depth_target;
-
     /**
      * Buffer that stores the count of the VPLs in this cascade
      *
@@ -48,8 +43,6 @@ struct CascadeData {
 
     glm::vec3 min_bounds;
     glm::vec3 max_bounds;
-
-    void create_render_targets(ResourceAllocator& allocator);
 };
 
 enum class GvBuildMode {
@@ -131,6 +124,11 @@ public:
 
 private:
     RenderBackend& backend;
+
+    // RSM render targets. Each is an array texture with one layer per cascade
+    TextureHandle rsm_flux_target;
+    TextureHandle rsm_normals_target;
+    TextureHandle rsm_depth_target;
 
     // We have a A and B LPV, to allow for ping-ponging during the propagation step
 

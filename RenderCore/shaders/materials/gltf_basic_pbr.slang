@@ -56,14 +56,13 @@ cbuffer Constants {
 #endif
 
 #if SAH_RSM
-ConstantBuffer<LPVCascadeMatrices[4]> cascade_matrices;
+ConstantBuffer<float4x4[4]> cascade_matrices;
 
 ConstantBuffer<SunLightConstants> sun_light;
 
 [vk::push_constant]
 cbuffer Constants {
     uint primitive_id_in;
-    uint view_id;
 }
 #endif
 
@@ -98,7 +97,7 @@ VertexOutput main_vs(
 #if SAH_MAIN_VIEW
     const uint primitive_id_in
 #endif
-#if SAH_CSM
+#if SAH_CSM || SAH_RSM
     const uint view_id : SV_ViewId
 #endif
 ) {
@@ -114,7 +113,7 @@ VertexOutput main_vs(
     output.position = mul(camera_data.projection, viewspace_position);
     output.viewspace_position = viewspace_position.xyz;
 #elif SAH_RSM
-    output.position = mul(cascade_matrices[view_id].rsm_vp, mul(data.model, float4(position_in, 1.f)));
+    output.position = mul(cascade_matrices[view_id], mul(data.model, float4(position_in, 1.f)));
 #elif SAH_CSM
     output.position = mul(sun_light.cascade_matrices[view_id], mul(data.model, float4(position_in, 1.f)));    
 #endif

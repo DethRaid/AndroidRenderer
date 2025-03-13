@@ -235,6 +235,10 @@ LightPropagationVolume::~LightPropagationVolume() {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
+    allocator.destroy_texture(rsm_flux_target);
+    allocator.destroy_texture(rsm_normals_target);
+    allocator.destroy_texture(rsm_depth_target);
+
     allocator.destroy_texture(lpv_a_red);
     allocator.destroy_texture(lpv_a_green);
     allocator.destroy_texture(lpv_a_blue);
@@ -250,7 +254,7 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
     ZoneScoped;
 
     const auto size = cvar_lpv_resolution.Get();
-    const auto num_cascades = cvar_lpv_num_cascades.Get();
+    const auto num_cascades = static_cast<uint32_t>(cvar_lpv_num_cascades.Get());
 
     const auto texture_resolution = glm::uvec3{size * num_cascades, size, size};
 
@@ -318,8 +322,6 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
     cascades.resize(num_cascades);
     uint32_t cascade_index = 0;
     for(auto& cascade : cascades) {
-        cascade.create_render_targets(allocator);
-
         cascade.vpl_count_buffer = allocator.create_buffer(
             fmt::format("Cascade {} VPL count", cascade_index),
             sizeof(VkDrawIndirectCommand),
@@ -342,6 +344,38 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
         );
         cascade_index++;
     }
+
+    const auto resolution = glm::uvec2{ static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get()) };
+    rsm_flux_target = allocator.create_texture(
+        "RSM Flux",
+        {
+            .format = VK_FORMAT_R8G8B8A8_SRGB,
+            .resolution = resolution,
+            .num_mips = 1,
+            .usage = TextureUsage::RenderTarget,
+            .num_layers = num_cascades,
+        }
+    );
+    rsm_normals_target = allocator.create_texture(
+        "RSM Normals",
+        {
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .resolution = resolution,
+            .num_mips = 1,
+            .usage = TextureUsage::RenderTarget,
+            .num_layers = num_cascades,
+        }
+    );
+    rsm_depth_target = allocator.create_texture(
+        "RSM Depth",
+        {
+            .format = VK_FORMAT_D16_UNORM,
+            .resolution = resolution,
+            .num_mips = 1,
+            .usage = TextureUsage::RenderTarget,
+            .num_layers = num_cascades,
+        }
+    );
 }
 
 void LightPropagationVolume::update_cascade_transforms(const SceneView& view, const DirectionalLight& light) {
@@ -445,56 +479,66 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
     graph.begin_label("LPV indirect sun light injection");
 
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
+
+    auto view_mask = 0u;
+    auto matrices = std::vector<glm::mat4>{};
+    matrices.reserve(cascades.size());
+    for(const auto& cascade : cascades) {
+        view_mask |= 1 << matrices.size();
+        matrices.emplace_back(cascade.rsm_vp);
+    }
+    auto vp_matrix_buffer = allocator.create_buffer("rsm_vp_matrices", sizeof(glm::mat4) * matrices.size(), BufferUsage::StagingBuffer);
+    auto* write_ptr = allocator.map_buffer(vp_matrix_buffer);
+    std::memcpy(write_ptr, matrices.data(), sizeof(glm::mat4) * matrices.size());
+
     const auto& pipelines = scene.get_material_storage().get_pipelines();
     const auto rsm_pso = pipelines.get_rsm_pso();
     const auto rsm_masked_pso = pipelines.get_rsm_masked_pso();
     const auto set = backend.get_transient_descriptor_allocator()
                             .build_set(rsm_pso, 0)
-                            .bind(cascade_data_buffer)
+                            .bind(vp_matrix_buffer)
                             .bind(scene.get_sun_light().get_constant_buffer())
                             .bind(scene.get_primitive_buffer())
                             .bind(scene.get_material_storage().get_material_instance_buffer())
                             .build();
 
-    for(auto cascade_index = 0u; cascade_index < cascades.size(); cascade_index++) {
-        const auto& cascade = cascades[cascade_index];
-        graph.add_render_pass(
-            DynamicRenderingPass{
-                .name = "Render RSM",
-                .descriptor_sets = {set},
-                .color_attachments = {
-                    {
-                        .image = cascade.flux_target,
-                        .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                        .store_op = VK_ATTACHMENT_STORE_OP_STORE,
-                        .clear_value = {.color = {.float32 = {0, 0, 0, 0}}}
-                    },
-                    {
-                        .image = cascade.normals_target,
-                        .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                        .store_op = VK_ATTACHMENT_STORE_OP_STORE,
-                        .clear_value = {.color = {.float32 = {0.5, 0.5, 1.0, 0}}}
-                    }
-                },
-                .depth_attachment = RenderingAttachmentInfo{
-                    .image = cascade.depth_target,
+    graph.add_render_pass(
+        DynamicRenderingPass{
+            .name = "Render RSM",
+            .descriptor_sets = {set},
+            .color_attachments = {
+                {
+                    .image = rsm_flux_target,
                     .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .store_op = VK_ATTACHMENT_STORE_OP_STORE,
-                    .clear_value = {.depthStencil = {.depth = 1.f}}
+                    .clear_value = {.color = {.float32 = {0, 0, 0, 0}}}
                 },
-                .execute = [&](CommandBuffer& commands) {
-                    commands.bind_descriptor_set(0, set);
-
-                    commands.set_push_constant(1, cascade_index);
-
-                    scene.draw_opaque(commands, rsm_pso);
-
-                    scene.draw_masked(commands, rsm_masked_pso);
-
-                    commands.clear_descriptor_set(0);
+                {
+                    .image = rsm_normals_target,
+                    .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .store_op = VK_ATTACHMENT_STORE_OP_STORE,
+                    .clear_value = {.color = {.float32 = {0.5, 0.5, 1.0, 0}}}
                 }
-            });
-    }
+            },
+            .depth_attachment = RenderingAttachmentInfo{
+                .image = rsm_depth_target,
+                .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                .store_op = VK_ATTACHMENT_STORE_OP_STORE,
+                .clear_value = {.depthStencil = {.depth = 1.f}}
+            },
+            .view_mask = view_mask,
+            .execute = [&](CommandBuffer& commands) {
+                commands.bind_descriptor_set(0, set);
+
+                scene.draw_opaque(commands, rsm_pso);
+
+                scene.draw_masked(commands, rsm_masked_pso);
+
+                commands.clear_descriptor_set(0);
+            }
+        });
 
     for(auto cascade_index = 0u; cascade_index < cascades.size(); cascade_index++) {
         const auto& cascade = cascades[cascade_index];
@@ -516,9 +560,9 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
         auto descriptor_set = backend.get_transient_descriptor_allocator()
                                      .build_set(rsm_generate_vpls_pipeline, 0)
-                                     .bind(cascade.flux_target, backend.get_default_sampler())
-                                     .bind(cascade.normals_target, backend.get_default_sampler())
-                                     .bind(cascade.depth_target, backend.get_default_sampler())
+                                     .bind(rsm_flux_target, backend.get_default_sampler())
+                                     .bind(rsm_normals_target, backend.get_default_sampler())
+                                     .bind(rsm_depth_target, backend.get_default_sampler())
                                      .bind(cascade_data_buffer)
                                      .build();
 
@@ -1077,8 +1121,8 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
 
     const auto sampler = backend.get_default_sampler();
     const auto set = backend.get_transient_descriptor_allocator().build_set(inject_rsm_depth_into_gv_pipeline, 0)
-                            .bind(cascade.normals_target, sampler)
-                            .bind(cascade.depth_target, sampler)
+                            .bind(rsm_normals_target, sampler)
+                            .bind(rsm_depth_target, sampler)
                             .bind(cascade_data_buffer)
                             .bind(view_matrices)
                             .build();
@@ -1104,39 +1148,5 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
         });
 
     allocator.destroy_buffer(view_matrices);
-
-}
-
-void CascadeData::create_render_targets(ResourceAllocator& allocator) {
-    ZoneScoped;
-
-    const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
-    flux_target = allocator.create_texture(
-        "RSM Flux",
-        {
-            VK_FORMAT_R8G8B8A8_SRGB,
-            resolution,
-            1,
-            TextureUsage::RenderTarget
-        }
-    );
-    normals_target = allocator.create_texture(
-        "RSM Normals",
-        {
-            VK_FORMAT_R8G8B8A8_UNORM,
-            resolution,
-            1,
-            TextureUsage::RenderTarget
-        }
-    );
-    depth_target = allocator.create_texture(
-        "RSM Depth",
-        {
-            VK_FORMAT_D16_UNORM,
-            resolution,
-            1,
-            TextureUsage::RenderTarget
-        }
-    );
 
 }
