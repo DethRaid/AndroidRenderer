@@ -50,10 +50,12 @@ public:
 private:
     bool sun_buffer_dirty = true;
 
-    // Massive TODO: Replace this with the ViewDataGPU struct
     SunLightConstants constants = {};
 
     BufferHandle sun_buffer = {};
+
+    std::vector<glm::mat4> world_to_ndc_matrices;
+    BufferHandle world_to_ndc_matrices_buffer = nullptr;
 
     GraphicsPipelineHandle pipeline = {};
 

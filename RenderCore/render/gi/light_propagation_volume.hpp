@@ -61,11 +61,9 @@ enum class GvBuildMode {
  */
 class LightPropagationVolume {
 public:
-    explicit LightPropagationVolume(RenderBackend& backend_in);
+    explicit LightPropagationVolume();
 
     ~LightPropagationVolume();
-
-    void init_resources(ResourceAllocator& allocator);
 
     /**
      * Updates the transform of this LPV to match the scene view
@@ -123,8 +121,6 @@ public:
     );
 
 private:
-    RenderBackend& backend;
-
     // RSM render targets. Each is an array texture with one layer per cascade
     TextureHandle rsm_flux_target;
     TextureHandle rsm_normals_target;
@@ -162,6 +158,11 @@ private:
     BufferHandle cascade_data_buffer = {};
 
     /**
+     * Buffer of the cascade matrices in an array
+     */
+    BufferHandle vp_matrix_buffer = nullptr;
+
+    /**
      * Renders the LPV into the lighting buffer
      */
     GraphicsPipelineHandle lpv_render_shader;
@@ -176,6 +177,8 @@ private:
 
     GraphicsPipelineHandle inject_rsm_depth_into_gv_pipeline;
     GraphicsPipelineHandle inject_scene_depth_into_gv_pipeline;
+
+    void init_resources(ResourceAllocator& allocator);
 
     /**
      * \brief Injects the RSM depth and normals buffers for a given cascade into that cascade's geometry volume

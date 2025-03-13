@@ -22,6 +22,7 @@ The depth prepass rasterizes a depth buffer from a viewpoint. It only renders on
 ```cpp
 #define SAH_DEPTH_ONLY 1
 #define SAH_CSM 1
+#define SAH_MULTIVIEW 1
 ```
 
 The shadowmaps render a depth buffer from the directional light's point of view. We use multiview rendering to rasterize every shadow cascade at once
@@ -31,6 +32,7 @@ The shadowmaps render a depth buffer from the directional light's point of view.
 ```cpp
 #define SAH_THIN_GBUFFER 1
 #define SAH_RSM 1
+#define SAH_MULTIVIEW 1
 ```
 
 Reflective shadow maps rasterize a thin gbuffer from the light's point of view. They need base color and normals, but ignore data and emission. We do not use multiview rendering (but we should tbh)

@@ -130,6 +130,7 @@ void SceneRenderer::render() {
 
     if (cvar_anti_aliasing.Get() == AntiAliasingType::None) {
         set_render_resolution(output_resolution / glm::uvec2{2});
+        player_view.set_mip_bias(0);
     }
 
     if (cvar_anti_aliasing.Get() != AntiAliasingType::VRSAA) {
@@ -140,6 +141,7 @@ void SceneRenderer::render() {
         set_render_resolution(output_resolution * 2u);
 
         vrsaa->init(scene_render_resolution);
+        player_view.set_mip_bias(0);
     }
 
 #if SAH_USE_STREAMLINE
@@ -184,13 +186,13 @@ void SceneRenderer::render() {
 
     } else {
         fsr3 = nullptr;
+        player_view.set_mip_bias(0);
     }
 #endif
 
     if (cvar_gi_mode.Get() == GIMode::LPV) {
         if (lpv == nullptr) {
-            lpv = std::make_unique<LightPropagationVolume>(backend);
-            lpv->init_resources(backend.get_global_allocator());
+            lpv = std::make_unique<LightPropagationVolume>();
         }
     } else {
         lpv = nullptr;

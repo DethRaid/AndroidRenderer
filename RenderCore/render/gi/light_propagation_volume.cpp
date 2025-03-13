@@ -71,12 +71,14 @@ static auto cvar_lpv_vpl_visualization_size = AutoCVar_Float{
 
 static std::shared_ptr<spdlog::logger> logger;
 
-LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : backend{backend_in} {
+LightPropagationVolume::LightPropagationVolume() {
     ZoneScoped;
 
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("LightPropagationVolume");
     }
+
+    auto& backend = RenderBackend::get();
 
     auto& pipeline_cache = backend.get_pipeline_cache();
     clear_lpv_shader = pipeline_cache.create_pipeline("shaders/lpv/clear_lpv.comp.spv");
@@ -229,6 +231,8 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                         .set_fragment_shader("shaders/lpv/visualize_vpls.frag.spv")
                                         .set_depth_state({.enable_depth_write = false})
                                         .build();
+
+    init_resources(backend.get_global_allocator());
 }
 
 LightPropagationVolume::~LightPropagationVolume() {
@@ -248,6 +252,7 @@ LightPropagationVolume::~LightPropagationVolume() {
     allocator.destroy_texture(geometry_volume_handle);
 
     allocator.destroy_buffer(cascade_data_buffer);
+    allocator.destroy_buffer(vp_matrix_buffer);
 }
 
 void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
@@ -315,8 +320,14 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
         BufferUsage::UniformBuffer
     );
 
+    vp_matrix_buffer = allocator.create_buffer(
+        "rsm_vp_matrices",
+        sizeof(glm::mat4) * num_cascades,
+        BufferUsage::StagingBuffer);
+
     const auto num_vpls = cvar_lpv_rsm_resolution.Get() * cvar_lpv_rsm_resolution.Get() / 4;
 
+    auto& backend = RenderBackend::get();
     auto& upload_queue = backend.get_upload_queue();
 
     cascades.resize(num_cascades);
@@ -345,7 +356,7 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
         cascade_index++;
     }
 
-    const auto resolution = glm::uvec2{ static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get()) };
+    const auto resolution = glm::uvec2{static_cast<uint32_t>(cvar_lpv_rsm_resolution.Get())};
     rsm_flux_target = allocator.create_texture(
         "RSM Flux",
         {
@@ -459,6 +470,13 @@ void LightPropagationVolume::update_buffers(ResourceUploadQueue& queue) const {
     }
 
     queue.upload_to_buffer(cascade_data_buffer, std::span{cascade_matrices});
+
+    auto matrices = std::vector<glm::mat4>{};
+    matrices.reserve(cascades.size());
+    for(const auto& cascade : cascades) {
+        matrices.emplace_back(cascade.rsm_vp);
+    }
+    queue.upload_to_buffer(vp_matrix_buffer, std::span{matrices});
 }
 
 void LightPropagationVolume::inject_indirect_sun_light(
@@ -479,23 +497,16 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
     graph.begin_label("LPV indirect sun light injection");
 
-    auto& backend = RenderBackend::get();
-    auto& allocator = backend.get_global_allocator();
-
     auto view_mask = 0u;
-    auto matrices = std::vector<glm::mat4>{};
-    matrices.reserve(cascades.size());
-    for(const auto& cascade : cascades) {
-        view_mask |= 1 << matrices.size();
-        matrices.emplace_back(cascade.rsm_vp);
+    for(auto cascade_index = 0u; cascade_index < cascades.size(); cascade_index++) {
+        view_mask |= 1 << cascade_index;
     }
-    auto vp_matrix_buffer = allocator.create_buffer("rsm_vp_matrices", sizeof(glm::mat4) * matrices.size(), BufferUsage::StagingBuffer);
-    auto* write_ptr = allocator.map_buffer(vp_matrix_buffer);
-    std::memcpy(write_ptr, matrices.data(), sizeof(glm::mat4) * matrices.size());
 
     const auto& pipelines = scene.get_material_storage().get_pipelines();
     const auto rsm_pso = pipelines.get_rsm_pso();
     const auto rsm_masked_pso = pipelines.get_rsm_masked_pso();
+
+    auto& backend = RenderBackend::get();
     const auto set = backend.get_transient_descriptor_allocator()
                             .build_set(rsm_pso, 0)
                             .bind(vp_matrix_buffer)
@@ -625,6 +636,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
 ) {
     ZoneScoped;
 
+    auto& backend = RenderBackend::get();
     auto descriptor_set = backend.get_transient_descriptor_allocator()
                                  .build_set(vpl_injection_pipeline, 0)
                                  .bind(cascade_data_buffer)
@@ -684,13 +696,6 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
             DeviceAddress vpl_buffer_address;
             uint32_t cascade_index;
             uint32_t num_cascades;
-
-            VplInjectionConstants(
-                const ResourceAllocator& allocator, const BufferHandle vpl_buffer, const uint32_t cascade_index,
-                const uint32_t num_cascades
-            ) : cascade_index{cascade_index}, num_cascades{num_cascades} {
-                vpl_buffer_address = vpl_buffer->address;
-            }
         };
 
         graph.add_compute_dispatch<VplInjectionConstants>(
@@ -702,8 +707,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
                     {cascade.vpl_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT},
                 },
                 .push_constants = VplInjectionConstants{
-                    backend.get_global_allocator(),
-                    cascade.vpl_buffer,
+                    cascade.vpl_buffer->address,
                     cascade_index,
                     static_cast<uint32_t>(cvar_lpv_num_cascades.Get())
                 },
@@ -719,6 +723,7 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
     ZoneScoped;
 
     graph.begin_label("Emissive mesh injection");
+    auto& backend = RenderBackend::get();
 
     for(auto cascade_index = 0u; cascade_index < cvar_lpv_num_cascades.Get(); cascade_index++) {
         const auto& cascade = cascades[cascade_index];
@@ -783,6 +788,8 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
 
 void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
     ZoneScoped;
+
+    auto& backend = RenderBackend::get();
 
     render_graph.add_pass(
         {
@@ -878,6 +885,7 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
 ) const {
     ZoneScoped;
 
+    auto& backend = RenderBackend::get();
     const auto sampler = backend.get_default_sampler();
     const auto set = backend.get_transient_descriptor_allocator().build_set(inject_scene_depth_into_gv_pipeline, 0)
                             .bind(normal_target, sampler)
@@ -1016,6 +1024,7 @@ void LightPropagationVolume::add_lighting_to_scene(
 
     commands.bind_descriptor_set(0, gbuffers_descriptor);
 
+    auto& backend = RenderBackend::get();
     const auto lpv_descriptor = backend.get_transient_descriptor_allocator().build_set(lpv_render_shader, 1)
                                        .bind(lpv_a_red, linear_sampler)
                                        .bind(lpv_a_green, linear_sampler)
@@ -1062,6 +1071,7 @@ void LightPropagationVolume::visualize_vpls(
             });
     }
 
+    auto& backend = RenderBackend::get();
     const auto view_descriptor_set = backend.get_transient_descriptor_allocator()
                                             .build_set(vpl_visualization_pipeline, 0)
                                             .bind(scene_view_buffer)
@@ -1094,6 +1104,7 @@ void LightPropagationVolume::inject_rsm_depth_into_cascade_gv(
 ) const {
     ZoneScoped;
 
+    auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
     auto view_matrices = allocator.create_buffer(

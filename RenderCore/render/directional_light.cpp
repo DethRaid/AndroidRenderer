@@ -52,6 +52,10 @@ DirectionalLight::DirectionalLight() {
         sizeof(SunLightConstants),
         BufferUsage::UniformBuffer
     );
+    world_to_ndc_matrices_buffer = allocator.create_buffer(
+        "sun_world_to_ndc_matrices",
+        sizeof(glm::mat4) * cvar_num_shadow_cascades.Get(),
+        BufferUsage::UniformBuffer);
 
     auto& backend = RenderBackend::get();
     pipeline = backend.begin_building_pipeline("Sun Light")
@@ -216,6 +220,12 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
     constants.csm_resolution.x = csm_resolution;
     constants.csm_resolution.y = csm_resolution;
 
+    world_to_ndc_matrices.clear();
+    world_to_ndc_matrices.reserve(num_cascades);
+    for(const auto& matrix : constants.cascade_matrices) {
+        world_to_ndc_matrices.emplace_back(matrix);
+    }
+
     sun_buffer_dirty = true;
 }
 
@@ -243,6 +253,7 @@ void DirectionalLight::update_buffer(ResourceUploadQueue& queue) {
 
     if(sun_buffer_dirty) {
         queue.upload_to_buffer(sun_buffer, constants);
+        queue.upload_to_buffer(world_to_ndc_matrices_buffer, std::span{ world_to_ndc_matrices });
 
         sun_buffer_dirty = false;
     }
@@ -269,13 +280,13 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& sce
 
         const auto solid_set = backend.get_transient_descriptor_allocator()
                                       .build_set(shadow_pso, 0)
-                                      .bind(sun_buffer)
+                                      .bind(world_to_ndc_matrices_buffer)
                                       .bind(scene.get_primitive_buffer())
                                       .build();
 
         const auto masked_set = backend.get_transient_descriptor_allocator()
                                        .build_set(shadow_masked_pso, 0)
-                                       .bind(sun_buffer)
+                                       .bind(world_to_ndc_matrices_buffer)
                                        .bind(scene.get_primitive_buffer())
                                        .bind(scene.get_material_storage().get_material_instance_buffer())
                                        .build();

@@ -83,27 +83,27 @@ def compile_material(input_file, output_file, include_directories):
 
     shadow_stem = base_stem + '_shadow'
     shadow_filename = output_file.with_stem(shadow_stem).with_suffix('.vert.spv')
-    compile_slang_shader(input_file, shadow_filename, include_directories, ['SAH_DEPTH_ONLY=1', 'SAH_CSM=1'], 'main_vs')
+    compile_slang_shader(input_file, shadow_filename, include_directories, ['SAH_DEPTH_ONLY=1', 'SAH_CSM=1', 'SAH_MULTIVIEW=1'], 'main_vs')
     
     shadow_masked_stem = base_stem + '_shadow_masked'
     shadow_masked_vs_filename = output_file.with_stem(shadow_masked_stem).with_suffix('.vert.spv')
-    compile_slang_shader(input_file, shadow_masked_vs_filename, include_directories, ['SAH_DEPTH_ONLY=1', 'SAH_MASKED=1', 'SAH_CSM=1'], 'main_vs')
+    compile_slang_shader(input_file, shadow_masked_vs_filename, include_directories, ['SAH_DEPTH_ONLY=1', 'SAH_MASKED=1', 'SAH_CSM=1', 'SAH_MULTIVIEW=1'], 'main_vs')
     shadow_masked_fs_filename = output_file.with_stem(shadow_masked_stem).with_suffix('.frag.spv')
-    compile_slang_shader(input_file, shadow_masked_fs_filename, include_directories, ['SAH_DEPTH_ONLY=1', 'SAH_MASKED=1', 'SAH_CSM=1'], 'main_fs')
+    compile_slang_shader(input_file, shadow_masked_fs_filename, include_directories, ['SAH_DEPTH_ONLY=1', 'SAH_MASKED=1', 'SAH_CSM=1', 'SAH_MULTIVIEW=1'], 'main_fs')
 
     # RSM 
 
     rsm_stem = base_stem + '_rsm'
     rsm_vs_filename = output_file.with_stem(rsm_stem).with_suffix('.vert.spv')
-    compile_slang_shader(input_file, rsm_vs_filename, include_directories, ['SAH_RSM=1'], 'main_vs')    
+    compile_slang_shader(input_file, rsm_vs_filename, include_directories, ['SAH_RSM=1', 'SAH_MULTIVIEW=1'], 'main_vs')    
     rsm_fs_filename = output_file.with_stem(rsm_stem).with_suffix('.frag.spv')
-    compile_slang_shader(input_file, rsm_fs_filename, include_directories, ['SAH_RSM=1'], 'main_fs')
+    compile_slang_shader(input_file, rsm_fs_filename, include_directories, ['SAH_RSM=1', 'SAH_MULTIVIEW=1'], 'main_fs')
     
     rsm_masked_stem = base_stem + '_rsm_masked'
     rsm_masked_vs_filename = output_file.with_stem(rsm_masked_stem).with_suffix('.vert.spv')
-    compile_slang_shader(input_file, rsm_masked_vs_filename, include_directories, ['SAH_MASKED=1', 'SAH_RSM=1'], 'main_vs')    
+    compile_slang_shader(input_file, rsm_masked_vs_filename, include_directories, ['SAH_MASKED=1', 'SAH_RSM=1', 'SAH_MULTIVIEW=1'], 'main_vs')    
     rsm_masked_fs_filename = output_file.with_stem(rsm_masked_stem).with_suffix('.frag.spv')
-    compile_slang_shader(input_file, rsm_masked_fs_filename, include_directories, ['SAH_MASKED=1', 'SAH_RSM=1'], 'main_fs')
+    compile_slang_shader(input_file, rsm_masked_fs_filename, include_directories, ['SAH_MASKED=1', 'SAH_RSM=1', 'SAH_MULTIVIEW=1'], 'main_fs')
 
     # Depth prepass
 
