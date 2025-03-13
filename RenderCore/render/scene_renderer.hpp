@@ -15,7 +15,7 @@
 #include "render/gi/rtgi.hpp"
 #include "render/phase/ambient_occlusion_phase.hpp"
 #include "render/phase/depth_culling_phase.hpp"
-#include "render/phase/gbuffes_phase.hpp"
+#include "render/phase/gbuffer_phase.hpp"
 #include "render/phase/motion_vectors_phase.hpp"
 #include "render/phase/sampling_rate_calculator.hpp"
 #include "render/phase/ui_phase.hpp"
@@ -131,7 +131,7 @@ private:
 
     MotionVectorsPhase motion_vectors_phase;
 
-    GbuffersPhase gbuffers_phase;
+    GbufferPhase gbuffer_phase;
 
     AmbientOcclusionPhase ao_phase;
     

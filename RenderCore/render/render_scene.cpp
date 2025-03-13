@@ -184,6 +184,31 @@ void RenderScene::draw_opaque(
     }
 }
 
+void RenderScene::draw_masked(
+    CommandBuffer& commands, const IndirectDrawingBuffers& drawbuffers, const GraphicsPipelineHandle masked_pso
+) const {
+    meshes.bind_to_commands(commands);
+    commands.bind_vertex_buffer(2, drawbuffers.primitive_ids);
+
+    if (masked_pso->get_num_descriptor_sets() > 1) {
+        commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
+    }
+
+    commands.bind_pipeline(masked_pso);
+
+    commands.set_cull_mode(VK_CULL_MODE_NONE);
+    commands.set_front_face(VK_FRONT_FACE_CLOCKWISE);
+
+    commands.draw_indexed_indirect(
+        drawbuffers.commands,
+        drawbuffers.count,
+        static_cast<uint32_t>(masked_primitives.size()));
+
+    if (masked_pso->get_num_descriptor_sets() > 1) {
+        commands.clear_descriptor_set(1);
+    }
+}
+
 void RenderScene::draw_transparent(CommandBuffer& commands, GraphicsPipelineHandle pso) const {
     draw_primitives(commands, pso, translucent_primitives);
 }

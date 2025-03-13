@@ -236,3 +236,6 @@ main_fs(const VertexOutput vertex) {
     return output;
 #endif
 }
+
+[shader("closesthit")]
+void main_hit() {}

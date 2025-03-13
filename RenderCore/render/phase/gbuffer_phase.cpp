@@ -1,4 +1,4 @@
-#include "gbuffes_phase.hpp"
+#include "gbuffer_phase.hpp"
 
 #include "render/indirect_drawing_utils.hpp"
 #include "render/material_pipelines.hpp"
@@ -7,13 +7,13 @@
 #include "render/scene_view.hpp"
 #include "render/backend/render_backend.hpp"
 
-GbuffersPhase::GbuffersPhase() {}
+GbufferPhase::GbufferPhase() {}
 
-void GbuffersPhase::render(
+void GbufferPhase::render(
     RenderGraph& graph, const RenderScene& scene, const IndirectDrawingBuffers& buffers,
-    const TextureHandle gbuffer_depth, const TextureHandle gbuffer_color, const TextureHandle gbuffer_normals,
-    const TextureHandle gbuffer_data, const TextureHandle gbuffer_emission,
-    const std::optional<TextureHandle> shading_rate, const SceneView& player_view
+    const IndirectDrawingBuffers& visible_masked_buffers, const TextureHandle gbuffer_depth,
+    const TextureHandle gbuffer_color, const TextureHandle gbuffer_normals, const TextureHandle gbuffer_data,
+    const TextureHandle gbuffer_emission, const std::optional<TextureHandle> shading_rate, const SceneView& player_view
 ) {
     const auto& pipelines = scene.get_material_storage().get_pipelines();
     const auto solid_pso = pipelines.get_gbuffer_pso();
@@ -24,6 +24,8 @@ void GbuffersPhase::render(
                               .bind(scene.get_primitive_buffer())
                               .bind(scene.get_material_storage().get_material_instance_buffer())
                               .build();
+
+    const auto masked_pso = pipelines.get_gbuffer_masked_pso();
     graph.add_render_pass(
         DynamicRenderingPass{
             .name = "gbuffer",
@@ -74,6 +76,8 @@ void GbuffersPhase::render(
                 commands.bind_descriptor_set(0, gbuffer_set);
 
                 scene.draw_opaque(commands, buffers, solid_pso);
+
+                scene.draw_masked(commands, visible_masked_buffers, masked_pso);
 
                 commands.clear_descriptor_set(0);
             }

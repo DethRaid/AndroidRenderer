@@ -129,6 +129,12 @@ void DepthCullingPhase::render(
                                         .bind(view_data_buffer)
                                         .bind(primitive_buffer)
                                         .build();
+    const auto masked_view_descriptor = backend.get_transient_descriptor_allocator()
+                                               .build_set(pipelines.get_depth_masked_pso(), 0)
+                                               .bind(view_data_buffer)
+                                               .bind(primitive_buffer)
+                                               .bind(scene.get_material_storage().get_material_instance_buffer())
+                                               .build();
 
     const auto num_primitives = scene.get_total_num_primitives();
 
@@ -150,7 +156,7 @@ void DepthCullingPhase::render(
             primitive_buffer,
             num_primitives);
     } else {
-        draw_visible_objects(graph, scene, view_descriptor, primitive_buffer, num_primitives);
+        draw_visible_objects(graph, scene, view_descriptor, masked_view_descriptor, primitive_buffer, num_primitives);
     }
 
     // Build Hi-Z pyramid
@@ -232,7 +238,7 @@ void DepthCullingPhase::render(
     // Save the list of visible objects so we can use them next frame
     visible_objects = this_frame_visible_objects;
 
-    draw_visible_objects(graph, scene, view_descriptor, primitive_buffer, num_primitives);
+    draw_visible_objects(graph, scene, view_descriptor, masked_view_descriptor, primitive_buffer, num_primitives);
 
     graph.end_label();
 }
@@ -277,7 +283,8 @@ void DepthCullingPhase::draw_visible_objects_dgc(
             visible_objects,
             primitive_buffer,
             num_primitives,
-            scene.get_mesh_storage().get_draw_args_buffer()
+            scene.get_mesh_storage().get_draw_args_buffer(),
+            PRIMITIVE_TYPE_SOLID
         );
 
     BufferHandle indirect_commands_buffer;
@@ -391,44 +398,70 @@ std::optional<BufferHandle> DepthCullingPhase::create_preprocess_buffer(
 
 void DepthCullingPhase::draw_visible_objects(
     RenderGraph& graph, const RenderScene& scene, const DescriptorSet& view_descriptor,
-    const BufferHandle primitive_buffer, const uint32_t num_primitives
+    const DescriptorSet& masked_view_descriptor, const BufferHandle primitive_buffer, const uint32_t num_primitives
 ) const {
-    // Translate last frame's list of objects to indirect draw commands
+    // Translate the list of objects to indirect draw commands
 
-    const auto buffers = translate_visibility_list_to_draw_commands(
+    const auto solid_buffers = translate_visibility_list_to_draw_commands(
         graph,
         visible_objects,
         primitive_buffer,
         num_primitives,
-        scene.get_mesh_storage().get_draw_args_buffer()
+        scene.get_mesh_storage().get_draw_args_buffer(),
+        PRIMITIVE_TYPE_SOLID
+    );
+
+    const auto cutout_buffers = translate_visibility_list_to_draw_commands(
+        graph,
+        visible_objects,
+        primitive_buffer,
+        num_primitives,
+        scene.get_mesh_storage().get_draw_args_buffer(),
+        PRIMITIVE_TYPE_CUTOUT
     );
 
     const auto& pipelines = scene.get_material_storage().get_pipelines();
     const auto depth_pso = pipelines.get_depth_pso();
+    const auto& masked_pso = pipelines.get_depth_masked_pso();
 
-    // Draw last frame's visible objects
+    // Draw the visible objects
 
     graph.add_render_pass(
         {
-            .name = "Rasterize last frame's visible objects",
+            .name = "Rasterize visible objects",
             .buffers = {
                 {
-                    buffers.commands,
+                    solid_buffers.commands,
                     VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
                     VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
                 },
                 {
-                    buffers.count,
+                    solid_buffers.count,
                     VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
                     VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
                 },
                 {
-                    buffers.primitive_ids,
+                    solid_buffers.primitive_ids,
+                    VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_READ_BIT
+                },
+                {
+                    cutout_buffers.commands,
+                    VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
+                },
+                {
+                    cutout_buffers.count,
+                    VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
+                },
+                {
+                    cutout_buffers.primitive_ids,
                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
                     VK_ACCESS_2_SHADER_READ_BIT
                 },
             },
-            .descriptor_sets = std::vector{view_descriptor},
+            .descriptor_sets = std::vector{view_descriptor, masked_view_descriptor},
             .depth_attachment = RenderingAttachmentInfo{
                 .image = depth_buffer,
                 .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -437,13 +470,21 @@ void DepthCullingPhase::draw_visible_objects(
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_descriptor_set(0, view_descriptor);
 
-                scene.draw_opaque(commands, buffers, depth_pso);
+                scene.draw_opaque(commands, solid_buffers, depth_pso);
+
+                commands.bind_descriptor_set(0, masked_view_descriptor);
+                scene.draw_masked(commands, cutout_buffers, masked_pso);
+
+                commands.clear_descriptor_set(0);
             }
         });
 
     // cleanup
     auto& allocator = RenderBackend::get().get_global_allocator();
-    allocator.destroy_buffer(buffers.commands);
-    allocator.destroy_buffer(buffers.count);
-    allocator.destroy_buffer(buffers.primitive_ids);
+    allocator.destroy_buffer(solid_buffers.commands);
+    allocator.destroy_buffer(solid_buffers.count);
+    allocator.destroy_buffer(solid_buffers.primitive_ids);
+    allocator.destroy_buffer(cutout_buffers.commands);
+    allocator.destroy_buffer(cutout_buffers.count);
+    allocator.destroy_buffer(cutout_buffers.primitive_ids);
 }

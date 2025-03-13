@@ -316,12 +316,20 @@ void SceneRenderer::render() {
         player_view.get_buffer());
 
     const auto visible_objects_list = depth_culling_phase.get_visible_objects_buffer();
-    const auto visible_buffers = translate_visibility_list_to_draw_commands(
+    const auto visible_solids_buffers = translate_visibility_list_to_draw_commands(
         render_graph,
         visible_objects_list,
         scene->get_primitive_buffer(),
         scene->get_total_num_primitives(),
-        scene->get_meshes().get_draw_args_buffer());
+        scene->get_meshes().get_draw_args_buffer(),
+        PRIMITIVE_TYPE_SOLID);
+    const auto visible_masked_buffers = translate_visibility_list_to_draw_commands(
+        render_graph,
+        visible_objects_list,
+        scene->get_primitive_buffer(),
+        scene->get_total_num_primitives(),
+        scene->get_meshes().get_draw_args_buffer(),
+        PRIMITIVE_TYPE_CUTOUT);
 
     if (needs_motion_vectors) {
         motion_vectors_phase.render(
@@ -329,7 +337,8 @@ void SceneRenderer::render() {
             *scene,
             player_view.get_buffer(),
             depth_culling_phase.get_depth_buffer(),
-            visible_buffers);
+            visible_solids_buffers,
+            visible_masked_buffers);
     }
 
     // LPV
@@ -404,10 +413,11 @@ void SceneRenderer::render() {
 
     // Gbuffers, lighting, and translucency
 
-    gbuffers_phase.render(
+    gbuffer_phase.render(
         render_graph,
         *scene,
-        visible_buffers,
+        visible_solids_buffers,
+        visible_masked_buffers,
         gbuffer_depth_handle,
         gbuffer_color_handle,
         gbuffer_normals_handle,
@@ -500,9 +510,12 @@ void SceneRenderer::render() {
     last_frame_normal_usage = render_graph.get_last_usage_token(normal_target_mip_chain);
 
     auto& allocator = backend.get_global_allocator();
-    allocator.destroy_buffer(visible_buffers.commands);
-    allocator.destroy_buffer(visible_buffers.count);
-    allocator.destroy_buffer(visible_buffers.primitive_ids);
+    allocator.destroy_buffer(visible_solids_buffers.commands);
+    allocator.destroy_buffer(visible_solids_buffers.count);
+    allocator.destroy_buffer(visible_solids_buffers.primitive_ids);
+    allocator.destroy_buffer(visible_masked_buffers.commands);
+    allocator.destroy_buffer(visible_masked_buffers.count);
+    allocator.destroy_buffer(visible_masked_buffers.primitive_ids);
 
     backend.execute_graph(std::move(render_graph));
 }

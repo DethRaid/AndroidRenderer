@@ -29,7 +29,9 @@ public:
 
     void set_render_resolution(const glm::uvec2& resolution);
 
-    void render(RenderGraph& graph, const RenderScene& scene, MaterialStorage& materials, BufferHandle view_data_buffer);
+    void render(
+        RenderGraph& graph, const RenderScene& scene, MaterialStorage& materials, BufferHandle view_data_buffer
+    );
 
     TextureHandle get_depth_buffer() const;
 
@@ -62,7 +64,10 @@ private:
     /**
      * Draws visible objects using device-generated commands
      */
-    void draw_visible_objects_dgc(RenderGraph& graph, const RenderScene& scene, MaterialStorage& materials, const DescriptorSet& descriptors, BufferHandle primitive_buffer, uint32_t num_primitives);
+    void draw_visible_objects_dgc(
+        RenderGraph& graph, const RenderScene& scene, MaterialStorage& materials, const DescriptorSet& descriptors,
+        BufferHandle primitive_buffer, uint32_t num_primitives
+    );
 
     void create_command_signature();
 
@@ -74,8 +79,7 @@ private:
      * @see visible_objects
      */
     void draw_visible_objects(
-        RenderGraph& graph, const RenderScene& scene, const DescriptorSet& view_descriptor, BufferHandle primitive_buffer,
-        uint32_t num_primitives
+        RenderGraph& graph, const RenderScene& scene, const DescriptorSet& view_descriptor,
+        const DescriptorSet& masked_view_descriptor, BufferHandle primitive_buffer, uint32_t num_primitives
     ) const;
-
 };
