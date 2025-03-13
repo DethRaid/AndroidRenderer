@@ -4,18 +4,18 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 
-#include "material_pipelines.hpp"
-#include "material_storage.hpp"
-#include "backend/pipeline_builder.hpp"
-#include "backend/pipeline_cache.hpp"
-#include "backend/render_graph.hpp"
+#include "render/material_pipelines.hpp"
+#include "render/material_storage.hpp"
+#include "render/backend/pipeline_builder.hpp"
+#include "render/backend/pipeline_cache.hpp"
+#include "render/backend/render_graph.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 #include "render/scene_view.hpp"
 #include "render/render_scene.hpp"
-#include "sdf/voxel_cache.hpp"
+#include "render/sdf/voxel_cache.hpp"
 #include "shared/vpl.hpp"
 #include "shared/lpv.hpp"
 #include "shared/view_info.hpp"
@@ -232,6 +232,21 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
                                         .set_fragment_shader("shaders/lpv/visualize_vpls.frag.spv")
                                         .set_depth_state({.enable_depth_write = false})
                                         .build();
+}
+
+LightPropagationVolume::~LightPropagationVolume() {
+    auto& backend = RenderBackend::get();
+    auto& allocator = backend.get_global_allocator();
+
+    allocator.destroy_texture(lpv_a_red);
+    allocator.destroy_texture(lpv_a_green);
+    allocator.destroy_texture(lpv_a_blue);
+    allocator.destroy_texture(lpv_b_red);
+    allocator.destroy_texture(lpv_b_green);
+    allocator.destroy_texture(lpv_b_blue);
+    allocator.destroy_texture(geometry_volume_handle);
+
+    allocator.destroy_buffer(cascade_data_buffer);
 }
 
 void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {

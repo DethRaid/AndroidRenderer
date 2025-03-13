@@ -76,6 +76,8 @@ class LightPropagationVolume {
 public:
     explicit LightPropagationVolume(RenderBackend& backend_in);
 
+    ~LightPropagationVolume();
+
     void init_resources(ResourceAllocator& allocator);
 
     /**

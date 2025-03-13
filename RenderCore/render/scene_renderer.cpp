@@ -3,21 +3,26 @@
 
 #include "model_import/gltf_model.hpp"
 #include "render/scene_renderer.hpp"
-
-#include "antialiasing_type.hpp"
-#include "fsr3.hpp"
-#include "indirect_drawing_utils.hpp"
-#include "backend/blas_build_queue.hpp"
+#include "render/antialiasing_type.hpp"
+#include "render/fsr3.hpp"
+#include "render/indirect_drawing_utils.hpp"
+#include "render/backend/blas_build_queue.hpp"
 #include "render/backend/render_graph.hpp"
 #include "core/system_interface.hpp"
 #include "render/render_scene.hpp"
-#include "streamline_adapter/streamline_adapter.hpp"
+#include "render/streamline_adapter/streamline_adapter.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
+enum class GIMode {
+    Off,
+    LPV,
+    RT
+};
+
 // ReSharper disable CppDeclaratorNeverUsed
-static auto cvar_enable_sun_gi = AutoCVar_Int{
-    "r.EnableSunGI", "Whether or not to enable GI from the sun", 1
+static auto cvar_gi_mode = AutoCVar_Enum{
+    "r.GI.Mode", "How to calculate GI", GIMode::LPV
 };
 
 static auto cvar_enable_mesh_lights = AutoCVar_Int{
@@ -26,10 +31,6 @@ static auto cvar_enable_mesh_lights = AutoCVar_Int{
 
 static auto cvar_raytrace_mesh_lights = AutoCVar_Int{
     "r.MeshLight.Raytrace", "Whether or not to raytrace mesh lights", 0
-};
-
-static auto cvar_use_lpv = AutoCVar_Int{
-    "r.lpv.Enable", "Whether to enable the LPV", 1
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
@@ -57,16 +58,6 @@ SceneRenderer::SceneRenderer() {
     auto& backend = RenderBackend::get();
 
     logger->debug("Initialized render backend");
-
-    if (cvar_use_lpv.Get()) {
-        lpv = std::make_unique<LightPropagationVolume>(backend);
-        logger->debug("Created LPV");
-    }
-
-    if (lpv) {
-        lpv->init_resources(backend.get_global_allocator());
-        logger->debug("Initialized LPV");
-    }
 
     if (!backend.supports_shading_rate_image && cvar_anti_aliasing.Get() == AntiAliasingType::VRSAA) {
         logger->info("Backend does not support VRSAA, turning AA off");
@@ -201,6 +192,23 @@ void SceneRenderer::render() {
         fsr3 = nullptr;
     }
 #endif
+
+    if (cvar_gi_mode.Get() == GIMode::LPV) {
+        if (lpv == nullptr) {
+            lpv = std::make_unique<LightPropagationVolume>(backend);
+            lpv->init_resources(backend.get_global_allocator());
+        }
+    } else {
+        lpv = nullptr;
+    }
+
+    if(cvar_gi_mode.Get() == GIMode::RT) {
+        if(rtgi == nullptr) {
+            rtgi = std::make_unique<RayTracedGlobalIllumination>();
+        }
+    } else {
+        rtgi = nullptr;
+    }
 
     ui_phase.add_data_upload_passes(backend.get_upload_queue());
 
@@ -351,10 +359,8 @@ void SceneRenderer::render() {
 
         // VPL cloud generation
 
-        if (cvar_enable_sun_gi.Get()) {
-            lpv->inject_indirect_sun_light(render_graph, *scene);
-        }
-
+        lpv->inject_indirect_sun_light(render_graph, *scene);
+    
         if (cvar_enable_mesh_lights.Get()) {
             lpv->inject_emissive_point_clouds(render_graph, *scene);
         }

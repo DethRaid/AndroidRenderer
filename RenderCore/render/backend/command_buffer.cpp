@@ -237,7 +237,7 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) {
         shading_rate_info.imageView = info.shading_rate_image.value()->image_view;
         shading_rate_info.imageLayout = VK_IMAGE_LAYOUT_FRAGMENT_SHADING_RATE_ATTACHMENT_OPTIMAL_KHR;
 
-        const auto texel_size = glm::uvec2{ RenderBackend::get().get_max_shading_rate_texel_size() };
+        const auto texel_size = glm::uvec2{RenderBackend::get().get_max_shading_rate_texel_size()};
         shading_rate_info.shadingRateAttachmentTexelSize.width = texel_size.x;
         shading_rate_info.shadingRateAttachmentTexelSize.height = texel_size.y;
 
@@ -355,6 +355,20 @@ void CommandBuffer::draw_triangle() {
     commit_bindings();
 
     vkCmdDraw(commands, 3, 1, 0, 0);
+}
+
+void CommandBuffer::dispatch_rays(const glm::uvec2 dispatch_size) {
+    commit_bindings();
+
+    vkCmdTraceRaysKHR(
+        commands,
+        raygen_binding_table,
+        miss_binding_table,
+        hit_binding_table,
+        nullptr,
+        dispatch_size.x,
+        dispatch_size.y,
+        1);
 }
 
 void CommandBuffer::execute_commands() {

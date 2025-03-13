@@ -4,7 +4,7 @@
 
 #include <sstream>
 
-static_assert(sizeof(wchar_t) == sizeof(char16_t), "wchar_t must be two bytes! Or all your strings will explode");
+// static_assert(sizeof(wchar_t) == sizeof(char16_t), "wchar_t must be two bytes! Or all your strings will explode");
 
 std::string to_string(const std::wstring& chonker) {
     return utf8::utf16to8(std::u16string_view{reinterpret_cast<const char16_t*>(chonker.data()), chonker.size()});

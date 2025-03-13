@@ -184,6 +184,8 @@ public:
      */
     void draw_triangle();
 
+    void dispatch_rays(glm::uvec2 dispatch_size);
+
     /**
      * Executes a buffer of device-generated commands
      */

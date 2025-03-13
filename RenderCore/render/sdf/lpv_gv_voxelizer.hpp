@@ -6,7 +6,7 @@
 #include "render/mesh_handle.hpp"
 #include "render/backend/compute_shader.hpp"
 #include "render/backend/handles.hpp"
-#include "..\backend\graphics_pipeline.hpp"
+#include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/resource_allocator.hpp"
 
 class MeshStorage;

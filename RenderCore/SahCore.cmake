@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22.1)
+cmake_minimum_required(VERSION 3.26.1)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -92,7 +92,7 @@ target_link_libraries(SahCore PUBLIC
         )
         
 add_custom_command(TARGET SahCore POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different 
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
     ${CMAKE_CURRENT_LIST_DIR}/assets
     ${CMAKE_BINARY_DIR}/assets
     )

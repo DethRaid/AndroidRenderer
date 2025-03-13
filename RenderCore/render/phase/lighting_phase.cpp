@@ -4,6 +4,7 @@
 #include "render/procedural_sky.hpp"
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
+#include "render/gi/light_propagation_volume.hpp"
 #include "shared/view_data.hpp"
 
 enum class SkyOcclusionType {

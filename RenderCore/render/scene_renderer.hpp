@@ -2,16 +2,17 @@
 
 #include <imgui.h>
 
-#include "fsr3.hpp"
+#include "render/fsr3.hpp"
 #include "render/bloomer.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/scene_view.hpp"
 #include "render/material_storage.hpp"
 #include "render/texture_loader.hpp"
-#include "mesh_storage.hpp"
-#include "mip_chain_generator.hpp"
-#include "procedural_sky.hpp"
+#include "render/mesh_storage.hpp"
+#include "render/mip_chain_generator.hpp"
+#include "render/procedural_sky.hpp"
 #include "core/halton_sequence.hpp"
+#include "gi/rtgi.hpp"
 #include "phase/ambient_occlusion_phase.hpp"
 #include "phase/depth_culling_phase.hpp"
 #include "phase/gbuffes_phase.hpp"
@@ -19,7 +20,7 @@
 #include "phase/sampling_rate_calculator.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
-#include "render/sdf/lpv_gv_voxelizer.hpp"
+#include "render/gi/light_propagation_volume.hpp"
 #include "sdf/voxel_cache.hpp"
 #include "ui/debug_menu.hpp"
 #include "visualizers/visualizer_type.hpp"
@@ -91,6 +92,8 @@ private:
     NoiseTexture stbn_3d_cosine;
 
     std::unique_ptr<LightPropagationVolume> lpv;
+
+    std::unique_ptr<RayTracedGlobalIllumination> rtgi;
 
     TextureHandle gbuffer_color_handle = nullptr;
 
