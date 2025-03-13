@@ -87,12 +87,6 @@ void SceneRenderer::set_output_resolution(const glm::uvec2& new_output_resolutio
 void SceneRenderer::set_scene(RenderScene& scene_in) {
     scene = &scene_in;
     lighting_pass.set_scene(scene_in);
-
-    auto& backend = RenderBackend::get();
-
-    gbuffer_drawer = SceneDrawer{
-        ScenePassType::Gbuffer, *scene, meshes, material_storage, backend.get_global_allocator()
-    };
 }
 
 void SceneRenderer::set_render_resolution(const glm::uvec2 new_render_resolution) {
@@ -271,7 +265,7 @@ void SceneRenderer::render() {
 
     backend.get_blas_build_queue().flush_pending_builds(render_graph);
 
-    material_storage.flush_material_buffer(render_graph);
+    material_storage.flush_material_instance_buffer(render_graph);
 
     meshes.flush_mesh_draw_arg_uploads(render_graph);
 
@@ -342,10 +336,7 @@ void SceneRenderer::render() {
         lpv->clear_volume(render_graph);
 
         const auto build_mode = LightPropagationVolume::get_build_mode();
-
-        if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && build_mode == GvBuildMode::Voxels) {
-            lpv->build_geometry_volume_from_voxels(render_graph, *scene);
-        } else if (build_mode == GvBuildMode::DepthBuffers) {
+        if (build_mode == GvBuildMode::DepthBuffers) {
             lpv->build_geometry_volume_from_scene_view(
                 render_graph,
                 depth_buffer_mip_chain,
@@ -353,8 +344,6 @@ void SceneRenderer::render() {
                 player_view.get_buffer(),
                 scene_render_resolution / glm::uvec2{2}
             );
-        } else if (build_mode == GvBuildMode::PointClouds) {
-            lpv->build_geometry_volume_from_point_clouds(render_graph, *scene);
         }
 
         // VPL cloud generation
@@ -415,7 +404,7 @@ void SceneRenderer::render() {
 
     gbuffers_phase.render(
         render_graph,
-        gbuffer_drawer,
+        *scene,
         visible_buffers,
         gbuffer_depth_handle,
         gbuffer_color_handle,
@@ -853,17 +842,6 @@ void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
     switch (active_visualization) {
         case RenderVisualization::None:
             // Intentionally empty
-            break;
-
-        case RenderVisualization::VoxelizedMeshes:
-            if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 &&
-                *CVarSystem::Get()->GetIntCVar("r.voxel.Visualize") != 0) {
-                voxel_visualizer.render(
-                    render_graph,
-                    *scene,
-                    lit_scene_handle,
-                    player_view.get_buffer());
-            }
             break;
 
         case RenderVisualization::VPLs:

@@ -15,7 +15,6 @@
 #include "core/system_interface.hpp"
 #include "render/scene_view.hpp"
 #include "render/render_scene.hpp"
-#include "render/sdf/voxel_cache.hpp"
 #include "shared/vpl.hpp"
 #include "shared/lpv.hpp"
 #include "shared/view_info.hpp"
@@ -48,7 +47,7 @@ static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
 
 static auto cvar_lpv_build_gv_mode = AutoCVar_Enum{
     "r.LPV.GvBuildMode",
-    "How to build the geometry volume.\n0 = Disable\n1 = Use the RSM depth buffer and last frame's depth buffer\n2 = Use voxels from the renderer's voxel cache",
+    "How to build the geometry volume.\n0 = Disable\n1 = Use the RSM depth buffer and last frame's depth buffer",
     GvBuildMode::Off
 };
 
@@ -81,8 +80,6 @@ LightPropagationVolume::LightPropagationVolume(RenderBackend& backend_in) : back
 
     auto& pipeline_cache = backend.get_pipeline_cache();
     clear_lpv_shader = pipeline_cache.create_pipeline("shaders/lpv/clear_lpv.comp.spv");
-
-    inject_voxels_into_gv_shader = pipeline_cache.create_pipeline("shaders/lpv/inject_voxels_into_gv.comp.spv");
 
     propagation_shader = pipeline_cache.create_pipeline("shaders/lpv/lpv_propagate.comp.spv");
 
@@ -448,14 +445,15 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
     graph.begin_label("LPV indirect sun light injection");
 
-    const auto rsm_pso = MaterialPipelines::get().get_rsm_pso();
-    const auto rsm_masked_pso = MaterialPipelines::get().get_rsm_masked_pso();
+    const auto& pipelines = scene.get_material_storage().get_pipelines();
+    const auto rsm_pso = pipelines.get_rsm_pso();
+    const auto rsm_masked_pso = pipelines.get_rsm_masked_pso();
     const auto set = backend.get_transient_descriptor_allocator()
                             .build_set(rsm_pso, 0)
                             .bind(cascade_data_buffer)
                             .bind(scene.get_sun_light().get_constant_buffer())
                             .bind(scene.get_primitive_buffer())
-                            .bind(scene.get_material_storage().get_material_buffer())
+                            .bind(scene.get_material_storage().get_material_instance_buffer())
                             .build();
 
     for(auto cascade_index = 0u; cascade_index < cascades.size(); cascade_index++) {
@@ -830,134 +828,6 @@ GvBuildMode LightPropagationVolume::get_build_mode() {
     return cvar_lpv_build_gv_mode.Get();
 }
 
-void LightPropagationVolume::build_geometry_volume_from_voxels(
-    RenderGraph& render_graph, const RenderScene& scene
-) {
-    ZoneScoped;
-
-    /*
-     * For each cascade:
-     * - Get the static mesh primitives in the cascade
-     * - Dispatch a compute shader to add them to the GV
-     */
-
-    auto& allocator = backend.get_global_allocator();
-    auto& voxel_cache = scene.get_voxel_cache();
-
-    const auto num_cascades = cvar_lpv_num_cascades.Get();
-    for(auto cascade_idx = 0u; cascade_idx < num_cascades; cascade_idx++) {
-        const auto& cascade = cascades[cascade_idx];
-        const auto& primitives = scene.get_primitives_in_bounds(cascade.min_bounds, cascade.max_bounds);
-
-        if(primitives.empty()) {
-            continue;
-        }
-
-        // Two arrays: one for the voxels for each primitive, one that maps from thread ID to primitive ID
-        auto primitive_ids = std::vector<uint32_t>{};
-        auto textures = std::vector<vkutil::DescriptorBuilder::ImageInfo>{};
-        primitive_ids.reserve(primitives.size());
-        textures.reserve(primitives.size());
-
-        for(const auto& primitive : primitives) {
-            primitive_ids.push_back(primitive.index);
-            const auto& voxel = voxel_cache.get_voxel_for_primitive(primitive);
-            textures.emplace_back(
-                vkutil::DescriptorBuilder::ImageInfo{
-                    .sampler = backend.get_default_sampler(),
-                    .image = voxel.voxels_color,
-                    .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                }
-            );
-        }
-
-        const auto primitive_id_buffer = allocator.create_buffer(
-            "Primitive ID buffer",
-            primitive_ids.size() * sizeof(uint32_t),
-            BufferUsage::StagingBuffer
-        );
-
-        render_graph.add_pass(
-            {
-                .name = "Voxel injection",
-                .textures = {
-                    {
-                        geometry_volume_handle,
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                        VK_IMAGE_LAYOUT_GENERAL
-                    }
-                },
-                .buffers = {
-                    {cascade_data_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT},
-                    {primitive_id_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT}
-                },
-                .execute = [&, primitive_ids = std::move(primitive_ids), textures = std::move(textures),
-                    primitive_id_buffer = primitive_id_buffer](
-                CommandBuffer& commands
-            ) {
-                    commands.update_buffer_immediate(
-                        primitive_id_buffer,
-                        primitive_ids.data(),
-                        primitive_ids.size() * sizeof(uint32_t),
-                        0
-                    );
-
-                    const auto set = *vkutil::DescriptorBuilder::begin(
-                                          backend,
-                                          backend.get_transient_descriptor_allocator()
-                                      )
-                                      .bind_buffer(
-                                          0,
-                                          {.buffer = cascade_data_buffer},
-                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                          VK_SHADER_STAGE_COMPUTE_BIT
-                                      )
-                                      .bind_buffer(
-                                          1,
-                                          {.buffer = primitive_id_buffer},
-                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                          VK_SHADER_STAGE_COMPUTE_BIT
-                                      )
-                                      .bind_buffer(
-                                          2,
-                                          {.buffer = scene.get_primitive_buffer()},
-                                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                          VK_SHADER_STAGE_COMPUTE_BIT
-                                      )
-                                      .bind_image(
-                                          3,
-                                          {
-                                              .image = geometry_volume_handle,
-                                              .image_layout = VK_IMAGE_LAYOUT_GENERAL
-                                          },
-                                          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                                          VK_SHADER_STAGE_COMPUTE_BIT
-                                      )
-                                      .bind_image_array(
-                                          4,
-                                          textures,
-                                          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                          VK_SHADER_STAGE_COMPUTE_BIT
-                                      )
-                                      .build();
-
-                    commands.bind_descriptor_set(0, set);
-                    commands.set_push_constant(0, static_cast<uint32_t>(textures.size()));
-                    commands.set_push_constant(1, cascade_idx);
-                    commands.bind_pipeline(inject_voxels_into_gv_shader);
-
-                    commands.dispatch(32, 32, 32);
-
-                    commands.clear_descriptor_set(0);
-                }
-            }
-        );
-
-        allocator.destroy_buffer(primitive_id_buffer);
-    }
-}
-
 void LightPropagationVolume::build_geometry_volume_from_scene_view(
     RenderGraph& graph, const TextureHandle depth_buffer, const TextureHandle normal_target,
     const BufferHandle view_uniform_buffer, const glm::uvec2 resolution
@@ -993,119 +863,6 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
                 commands.clear_descriptor_set(0);
             }
         });
-}
-
-void LightPropagationVolume::build_geometry_volume_from_point_clouds(
-    RenderGraph& render_graph, const RenderScene& scene
-) {
-    // /*
-    //    * For each cascade:
-    //    * - Get the static mesh primitives in the cascade
-    //    * - Dispatch a compute shader to add them to the GV
-    //    */
-    // 
-    // auto& allocator = backend.get_global_allocator();
-    // 
-    // const auto num_cascades = cvar_lpv_num_cascades.Get();
-    // for (auto cascade_idx = 0u; cascade_idx < num_cascades; cascade_idx++) {
-    //     const auto& cascade = cascades[cascade_idx];
-    //     const auto& primitives = scene.get_primitives_in_bounds(cascade.min_bounds, cascade.max_bounds);
-    // 
-    //     if (primitives.empty()) {
-    //         continue;
-    //     }
-    // 
-    //     auto buffer_tokens = std::vector<BufferUsageToken>{};
-    //     buffer_tokens.reserve(primitives.size() + 1);
-    // 
-    // 
-    //     // Two arrays: one for the voxels for each primitive, one that maps from thread ID to primitive ID
-    //     auto primitive_ids = std::vector<uint32_t>{};
-    //     auto textures = std::vector<vkutil::DescriptorBuilder::ImageInfo>{};
-    //     primitive_ids.reserve(primitives.size());
-    //     textures.reserve(primitives.size());
-    // 
-    //     for (const auto& primitive : primitives) {
-    //         primitive_ids.push_back(primitive.index);
-    //         const auto& mesh = primitive->mesh;
-    //         mesh->
-    //         const auto& voxel = voxel_cache.get_voxel_for_mesh(mesh);
-    //         textures.emplace_back(
-    //             vkutil::DescriptorBuilder::ImageInfo{
-    //                 .sampler = backend.get_default_sampler(),
-    //                 .image = voxel.sh_texture,
-    //                 .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    //             }
-    //         );
-    //     }
-    // 
-    //     const auto primitive_id_buffer = allocator.create_buffer(
-    //         "Primitive ID buffer", primitive_ids.size() * sizeof(uint32_t), BufferUsage::StagingBuffer
-    //     );
-    // 
-    //     render_graph.add_compute_pass(
-    //         {
-    //             .name = "Voxel injection",
-    //             .textures = {
-    //                 {
-    //                     geometry_volume_handle,
-    //                     {
-    //                         VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-    //                         VK_IMAGE_LAYOUT_GENERAL
-    //                     },
-    //                 }
-    //             },
-    //             .buffers = {
-    //                 {cascade_data_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_UNIFORM_READ_BIT}},
-    //                 {primitive_id_buffer, {VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_READ_BIT}}
-    //             },
-    //             .execute = [&, primitive_ids = std::move(primitive_ids), textures = std::move(textures),
-    //                 primitive_id_buffer = primitive_id_buffer](
-    //             CommandBuffer& commands
-    //         ) {
-    //                 commands.update_buffer(
-    //                     primitive_id_buffer, primitive_ids.data(), primitive_ids.size() * sizeof(uint32_t), 0
-    //                 );
-    // 
-    //                 const auto set = *backend.create_frame_descriptor_builder()
-    //                                          .bind_buffer(
-    //                                              0, {.buffer = cascade_data_buffer}, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    //                                              VK_SHADER_STAGE_COMPUTE_BIT
-    //                                          )
-    //                                          .bind_buffer(
-    //                                              1, {.buffer = primitive_id_buffer}, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-    //                                              VK_SHADER_STAGE_COMPUTE_BIT
-    //                                          )
-    //                                          .bind_buffer(
-    //                                              2, {.buffer = scene.get_primitive_buffer()},
-    //                                              VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT
-    //                                          )
-    //                                          .bind_image(
-    //                                              3, {
-    //                                                  .image = geometry_volume_handle,
-    //                                                  .image_layout = VK_IMAGE_LAYOUT_GENERAL
-    //                                              }, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT
-    //                                          )
-    //                                          .bind_image_array(
-    //                                              4, textures, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-    //                                              VK_SHADER_STAGE_COMPUTE_BIT
-    //                                          )
-    //                                          .build();
-    // 
-    //                 commands.bind_descriptor_set(0, set);
-    //                 commands.set_push_constant(0, static_cast<uint32_t>(textures.size()));
-    //                 commands.set_push_constant(1, cascade_idx);
-    //                 commands.bind_shader(inject_voxels_into_gv_shader);
-    // 
-    //                 commands.dispatch(32, 32, 32);
-    // 
-    //                 commands.clear_descriptor_set(0);
-    //             }
-    //         }
-    //     );
-    // 
-    //     allocator.destroy_buffer(primitive_id_buffer);
-    // }
 }
 
 void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {

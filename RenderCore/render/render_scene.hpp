@@ -6,8 +6,8 @@
 #include "render/scene_primitive.hpp"
 #include "render/backend/scatter_upload_buffer.hpp"
 #include "render/directional_light.hpp"
-#include "sdf/voxel_cache.hpp"
 
+struct IndirectDrawingBuffers;
 class MaterialStorage;
 class MeshStorage;
 class GltfModel;
@@ -16,7 +16,7 @@ class RenderBackend;
 /**
  * A scene that can be rendered!
  *
- * Contains lots of wonderful things - meshes, materials, ray tracing acceleration structure, emissive point clouds, voxelized meshes, and more!
+ * Contains lots of wonderful things - meshes, materials, ray tracing acceleration structure, emissive point clouds, and more!
  */
 class RenderScene {
 public:
@@ -69,8 +69,6 @@ public:
 
     const RaytracingScene& get_raytracing_scene() const;
 
-    VoxelCache& get_voxel_cache() const;
-
     MaterialStorage& get_material_storage() const;
 
     MeshStorage& get_mesh_storage() const;
@@ -81,11 +79,6 @@ private:
     MaterialStorage& materials;
 
     tl::optional<RaytracingScene> raytracing_scene;
-
-    /**
-     * Cache of voxel representations of static meshes
-     */
-    std::unique_ptr<VoxelCache> voxel_cache = nullptr;
 
     DirectionalLight sun;
 
@@ -110,11 +103,7 @@ private:
 
     ComputePipelineHandle emissive_point_cloud_shader;
 
-    VkSampler voxel_sampler;
-
     std::vector<MeshPrimitiveHandle> new_primitives;
-
-    void create_voxel_cache();
 
     BufferHandle generate_vpls_for_primitive(RenderGraph& graph, const MeshPrimitiveHandle& primitive);
 

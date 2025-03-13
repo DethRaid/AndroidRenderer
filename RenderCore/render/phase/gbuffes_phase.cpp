@@ -1,46 +1,28 @@
 #include "gbuffes_phase.hpp"
 
 #include "render/indirect_drawing_utils.hpp"
+#include "render/material_pipelines.hpp"
 #include "render/material_storage.hpp"
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
 #include "render/backend/render_backend.hpp"
 
-GbuffersPhase::GbuffersPhase() {
-    auto& backend = RenderBackend::get();
-    const auto blend_state = VkPipelineColorBlendAttachmentState{
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
-        VK_COLOR_COMPONENT_A_BIT
-    };
-    opaque_pso = backend.begin_building_pipeline("gbuffer_opaque")
-                        .set_vertex_shader("shaders/deferred/basic.vert.spv")
-                        .set_fragment_shader("shaders/deferred/standard_pbr.frag.spv")
-                        .set_depth_state(
-                            {
-                                .enable_depth_test = true,
-                                .enable_depth_write = false,
-                                .compare_op = VK_COMPARE_OP_EQUAL
-                            }
-                        )
-                        .set_blend_state(0, blend_state)
-                        .set_blend_state(1, blend_state)
-                        .set_blend_state(2, blend_state)
-                        .set_blend_state(3, blend_state)
-                        .build();
-
-}
+GbuffersPhase::GbuffersPhase() {}
 
 void GbuffersPhase::render(
-    RenderGraph& graph, const SceneDrawer& drawer, const IndirectDrawingBuffers& buffers,
+    RenderGraph& graph, const RenderScene& scene, const IndirectDrawingBuffers& buffers,
     const TextureHandle gbuffer_depth, const TextureHandle gbuffer_color, const TextureHandle gbuffer_normals,
     const TextureHandle gbuffer_data, const TextureHandle gbuffer_emission,
     const std::optional<TextureHandle> shading_rate, const SceneView& player_view
 ) {
+    const auto& pipelines = scene.get_material_storage().get_pipelines();
+    const auto solid_pso = pipelines.get_gbuffer_pso();
+
     auto& backend = RenderBackend::get();
-    auto gbuffer_set = backend.get_transient_descriptor_allocator().build_set(opaque_pso, 0)
+    auto gbuffer_set = backend.get_transient_descriptor_allocator().build_set(solid_pso, 0)
                               .bind(player_view.get_buffer())
-                              .bind(drawer.get_scene().get_primitive_buffer())
-                              .bind(drawer.get_material_storage().get_material_buffer())
+                              .bind(scene.get_primitive_buffer())
+                              .bind(scene.get_material_storage().get_material_instance_buffer())
                               .build();
     graph.add_render_pass(
         DynamicRenderingPass{
@@ -91,7 +73,7 @@ void GbuffersPhase::render(
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_descriptor_set(0, gbuffer_set);
 
-                drawer.draw_indirect(commands, opaque_pso, buffers);
+                scene.draw_opaque(commands, buffers, solid_pso);
 
                 commands.clear_descriptor_set(0);
             }

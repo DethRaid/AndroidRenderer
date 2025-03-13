@@ -352,6 +352,8 @@ void CommandBuffer::draw_indexed_indirect(
 }
 
 void CommandBuffer::draw_triangle() {
+    set_cull_mode(VK_CULL_MODE_NONE);
+
     commit_bindings();
 
     vkCmdDraw(commands, 3, 1, 0, 0);
@@ -360,15 +362,15 @@ void CommandBuffer::draw_triangle() {
 void CommandBuffer::dispatch_rays(const glm::uvec2 dispatch_size) {
     commit_bindings();
 
-    vkCmdTraceRaysKHR(
-        commands,
-        raygen_binding_table,
-        miss_binding_table,
-        hit_binding_table,
-        nullptr,
-        dispatch_size.x,
-        dispatch_size.y,
-        1);
+   //vkCmdTraceRaysKHR(
+   //    commands,
+   //    raygen_binding_table,
+   //    miss_binding_table,
+   //    hit_binding_table,
+   //    nullptr,
+   //    dispatch_size.x,
+   //    dispatch_size.y,
+   //    1);
 }
 
 void CommandBuffer::execute_commands() {

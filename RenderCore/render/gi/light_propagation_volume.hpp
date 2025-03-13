@@ -3,16 +3,12 @@
 #include <vector>
 
 #include <glm/mat4x4.hpp>
+#include <vulkan/vulkan_core.h>
 
-#include "render/mesh_drawer.hpp"
-#include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
-#include "render/backend/compute_shader.hpp"
-#include "render/sdf/lpv_gv_voxelizer.hpp"
 
 class ResourceUploadQueue;
 struct DescriptorSet;
-class VoxelCache;
 class RenderGraph;
 class RenderBackend;
 class ResourceAllocator;
@@ -59,8 +55,6 @@ struct CascadeData {
 enum class GvBuildMode {
     Off,
     DepthBuffers,
-    Voxels,
-    PointClouds,
 };
 
 /**
@@ -91,10 +85,6 @@ public:
 
     static GvBuildMode get_build_mode();
 
-    void build_geometry_volume_from_voxels(
-        RenderGraph& render_graph, const RenderScene& scene
-    );
-
     /**
      * \brief Builds the geometry volume from last frame's depth buffer
      *
@@ -108,8 +98,6 @@ public:
         RenderGraph& graph, TextureHandle depth_buffer,
         TextureHandle normal_target, BufferHandle view_uniform_buffer, glm::uvec2 resolution
     ) const;
-
-    static void build_geometry_volume_from_point_clouds(RenderGraph& render_graph, const RenderScene& scene);
 
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
 
@@ -165,8 +153,6 @@ private:
     ComputePipelineHandle rsm_generate_vpls_pipeline;
 
     ComputePipelineHandle clear_lpv_shader;
-
-    ComputePipelineHandle inject_voxels_into_gv_shader;
 
     GraphicsPipelineHandle vpl_injection_pipeline;
 

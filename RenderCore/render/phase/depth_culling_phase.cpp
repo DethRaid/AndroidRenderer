@@ -121,7 +121,9 @@ void DepthCullingPhase::render(
 
     const auto primitive_buffer = scene.get_primitive_buffer();
 
-    const auto depth_pso = MaterialPipelines::get().get_depth_pso();
+    const auto& pipelines = scene.get_material_storage().get_pipelines();
+
+    const auto depth_pso = pipelines.get_depth_pso();
     const auto view_descriptor = backend.get_transient_descriptor_allocator()
                                         .build_set(depth_pso, 0)
                                         .bind(view_data_buffer)
@@ -401,6 +403,9 @@ void DepthCullingPhase::draw_visible_objects(
         scene.get_mesh_storage().get_draw_args_buffer()
     );
 
+    const auto& pipelines = scene.get_material_storage().get_pipelines();
+    const auto depth_pso = pipelines.get_depth_pso();
+
     // Draw last frame's visible objects
 
     graph.add_render_pass(
@@ -430,9 +435,6 @@ void DepthCullingPhase::draw_visible_objects(
                 .clear_value = {.depthStencil = {.depth = 1.0}}
             },
             .execute = [&](CommandBuffer& commands) {
-                const auto depth_pso = MaterialPipelines::get().get_depth_pso();
-                const auto depth_masked_pso = MaterialPipelines::get().get_depth_masked_pso();
-
                 commands.bind_descriptor_set(0, view_descriptor);
 
                 scene.draw_opaque(commands, buffers, depth_pso);

@@ -6,7 +6,6 @@
 #include "backend/pipeline_cache.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/render_backend.hpp"
-#include "console/cvars.hpp"
 #include "core/box.hpp"
 #include "model_import/gltf_model.hpp"
 
@@ -33,10 +32,6 @@ RenderScene::RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in)
 
     auto& pipeline_cache = backend.get_pipeline_cache();
     emissive_point_cloud_shader = pipeline_cache.create_pipeline("shaders/util/emissive_point_cloud.comp.spv");
-
-    if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
-        create_voxel_cache();
-    }
 }
 
 MeshPrimitiveHandle
@@ -84,30 +79,6 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
 
 void RenderScene::begin_frame(RenderGraph& graph) {
     graph.begin_label("RenderScene::pre_frame");
-
-    if(*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0) {
-        auto& backend = RenderBackend::get();
-        auto& texture_descriptors = backend.get_texture_descriptor_pool();
-
-        for(auto& handle : new_primitives) {
-            const auto obj = voxel_cache->build_voxels_for_mesh(
-                handle,
-                meshes,
-                primitive_data_buffer,
-                graph
-            );
-
-            handle->data.voxels_color_srv = texture_descriptors.create_texture_srv(
-                obj.voxels_color,
-                voxel_sampler
-            );
-            handle->data.voxels_normal_srv = texture_descriptors.create_texture_srv(obj.voxels_color, voxel_sampler);
-            handle->data.voxel_size_xy = glm::u16vec2{obj.worldspace_size.x, obj.worldspace_size.y};
-            handle->data.voxel_size_zw = glm::u16vec2{obj.worldspace_size.z, 0u};
-
-            primitive_upload_buffer.add_data(handle.index, handle->data);
-        }
-    }
 
     primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
 
@@ -228,37 +199,12 @@ RaytracingScene& RenderScene::get_raytracing_scene() {
 const RaytracingScene& RenderScene::get_raytracing_scene() const {
     return *raytracing_scene;
 }
-
-VoxelCache& RenderScene::get_voxel_cache() const {
-    return *voxel_cache;
-}
-
 MaterialStorage& RenderScene::get_material_storage() const {
     return materials;
 }
 
 MeshStorage& RenderScene::get_mesh_storage() const {
     return meshes;
-}
-
-void RenderScene::create_voxel_cache() {
-    auto& backend = RenderBackend::get();
-    voxel_cache = std::make_unique<VoxelCache>(backend);
-
-    voxel_sampler = backend.get_global_allocator().get_sampler(
-        {
-            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-            .magFilter = VK_FILTER_LINEAR,
-            .minFilter = VK_FILTER_LINEAR,
-            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .anisotropyEnable = VK_TRUE,
-            .maxAnisotropy = 16.f,
-            .maxLod = VK_LOD_CLAMP_NONE,
-        }
-    );
 }
 
 BufferHandle RenderScene::generate_vpls_for_primitive(

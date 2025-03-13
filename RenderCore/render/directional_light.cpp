@@ -263,8 +263,9 @@ glm::vec3 DirectionalLight::get_direction() const {
 void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& scene) const {
     auto& backend = RenderBackend::get();
     if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) == SunShadowMode::CSM) {
-        const auto shadow_pso = MaterialPipelines::get().get_shadow_pso();
-        const auto shadow_masked_pso = MaterialPipelines::get().get_shadow_masked_pso();
+        const auto& pipelines = scene.get_material_storage().get_pipelines();
+        const auto shadow_pso = pipelines.get_shadow_pso();
+        const auto shadow_masked_pso = pipelines.get_shadow_masked_pso();
 
         const auto solid_set = backend.get_transient_descriptor_allocator()
                                       .build_set(shadow_pso, 0)
@@ -276,7 +277,7 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& sce
                                        .build_set(shadow_masked_pso, 0)
                                        .bind(sun_buffer)
                                        .bind(scene.get_primitive_buffer())
-                                       .bind(scene.get_material_storage().get_material_buffer())
+                                       .bind(scene.get_material_storage().get_material_instance_buffer())
                                        .build();
 
         graph.add_render_pass(

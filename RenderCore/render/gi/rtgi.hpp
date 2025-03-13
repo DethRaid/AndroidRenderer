@@ -37,5 +37,5 @@ private:
      */
     TextureHandle ray_irradiance = nullptr;
 
-    RayTracingPipelineHandle rtgi_pipeline = nullptr;
+    // RayTracingPipelineHandle rtgi_pipeline = nullptr;
 };

@@ -2,6 +2,7 @@
 
 #include <imgui.h>
 
+#include "core/halton_sequence.hpp"
 #include "render/fsr3.hpp"
 #include "render/bloomer.hpp"
 #include "render/backend/render_backend.hpp"
@@ -11,20 +12,17 @@
 #include "render/mesh_storage.hpp"
 #include "render/mip_chain_generator.hpp"
 #include "render/procedural_sky.hpp"
-#include "core/halton_sequence.hpp"
-#include "gi/rtgi.hpp"
-#include "phase/ambient_occlusion_phase.hpp"
-#include "phase/depth_culling_phase.hpp"
-#include "phase/gbuffes_phase.hpp"
-#include "phase/motion_vectors_phase.hpp"
-#include "phase/sampling_rate_calculator.hpp"
+#include "render/gi/rtgi.hpp"
+#include "render/phase/ambient_occlusion_phase.hpp"
+#include "render/phase/depth_culling_phase.hpp"
+#include "render/phase/gbuffes_phase.hpp"
+#include "render/phase/motion_vectors_phase.hpp"
+#include "render/phase/sampling_rate_calculator.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
 #include "render/gi/light_propagation_volume.hpp"
-#include "sdf/voxel_cache.hpp"
 #include "ui/debug_menu.hpp"
 #include "visualizers/visualizer_type.hpp"
-#include "visualizers/voxel_visualizer.hpp"
 
 class GltfModel;
 
@@ -135,8 +133,6 @@ private:
 
     GbuffersPhase gbuffers_phase;
 
-    SceneDrawer gbuffer_drawer;
-
     AmbientOcclusionPhase ao_phase;
     
     LightingPhase lighting_pass;
@@ -146,8 +142,6 @@ private:
     UiPhase ui_phase;
 
     RenderVisualization active_visualization = RenderVisualization::None;
-
-    VoxelVisualizer voxel_visualizer;
 
 #if SAH_USE_FFX
     std::unique_ptr<FidelityFSSuperResolution3> fsr3;

@@ -14,7 +14,7 @@ enum class SkyOcclusionType {
 };
 
 static AutoCVar_Enum cvar_sky_occlusion_type{
-    "r.Sky.OcclusionType", "How to determine sky light occlusion", SkyOcclusionType::DepthMap
+    "r.Sky.OcclusionType", "How to determine sky light occlusion", SkyOcclusionType::Off
 };
 
 LightingPhase::LightingPhase() {
@@ -148,23 +148,23 @@ void LightingPhase::rasterize_sky_shadow(RenderGraph& render_graph, const SceneV
             {.format = VK_FORMAT_D16_UNORM, .resolution = {1024, 1024}, .usage = TextureUsage::RenderTarget });
     }
 
-    const auto sky_shadow_pso = MaterialPipelines::get().get_sky_shadow_pso();
-    const auto sky_shadow_masked_pso = MaterialPipelines::get().get_sky_shadow_masked_pso();
-
-    render_graph.add_render_pass(
-        {
-            .name = "sky_shadow",
-            .descriptor_sets = {},
-            .depth_attachment = RenderingAttachmentInfo{
-                .image = sky_occlusion_map,
-                .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .store_op = VK_ATTACHMENT_STORE_OP_STORE,
-                .clear_value = {.depthStencil = {.depth = 1.f}}
-            },
-            .execute = [&](CommandBuffer& commands) {
-                
-            }
-        });
+    // const auto sky_shadow_pso = MaterialPipelines::get().get_sky_shadow_pso();
+    // const auto sky_shadow_masked_pso = MaterialPipelines::get().get_sky_shadow_masked_pso();
+    // 
+    // render_graph.add_render_pass(
+    //     {
+    //         .name = "sky_shadow",
+    //         .descriptor_sets = {},
+    //         .depth_attachment = RenderingAttachmentInfo{
+    //             .image = sky_occlusion_map,
+    //             .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+    //             .store_op = VK_ATTACHMENT_STORE_OP_STORE,
+    //             .clear_value = {.depthStencil = {.depth = 1.f}}
+    //         },
+    //         .execute = [&](CommandBuffer& commands) {
+    //             
+    //         }
+    //     });
 }
 
 void LightingPhase::add_raytraced_mesh_lighting(

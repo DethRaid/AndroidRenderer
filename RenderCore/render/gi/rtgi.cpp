@@ -12,7 +12,7 @@ static AutoCVar_Int cvar_spatial_ray_reuse{
 
 RayTracedGlobalIllumination::RayTracedGlobalIllumination() {
     auto& backend = RenderBackend::get();
-
+    auto& pipelines = backend.get_pipeline_cache();
     // Create the whole RT pipeline? 
 }
 
@@ -60,7 +60,7 @@ void RayTracedGlobalIllumination::trace_global_illumination(
             .textures = {},
             .buffers = {},
             .execute = [&](CommandBuffer& commands) {
-                commands.bind_pipeline(rtgi_pipeline);
+               // commands.bind_pipeline(rtgi_pipeline);
                 commands.dispatch_rays(render_resolution);
             }
         });

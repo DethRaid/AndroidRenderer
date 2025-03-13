@@ -1,0 +1,116 @@
+#ifndef BRDF_GLSL
+#define BRDF_GLSL
+
+#ifndef PI
+#define PI 3.1415927h
+#endif
+
+struct SurfaceInfo {
+    half3 location;
+
+    half3 base_color;
+
+    half3 normal;
+
+    half metalness;
+
+    half roughness;
+
+    half3 emission;
+};
+
+half D_GGX(half NoH, half roughness) {
+    half k = roughness / (1.h - NoH * NoH + roughness * roughness);
+    return k * k * (1.h / PI);
+}
+
+half3 F_Schlick(half u, half3 f0, half f90) { return f0 + (f90 - f0) * pow(clamp(1.h - u, 0.h, 1.h), 5.h); }
+
+half V_SmithGGXCorrelated(half NoV, half NoL, half a) {
+    half a2 = a * a;
+    half GGXL = NoV * sqrt((-NoL * a2 + NoL) * NoL + a2);
+    half GGXV = NoL * sqrt((-NoV * a2 + NoV) * NoV + a2);
+
+    return 0.5h / (GGXV + GGXL);
+}
+
+half Fd_Lambert() { return 1.h / PI; }
+
+half3 Fd_Burley(half NoV, half NoL, half LoH, half roughness) {
+    half f90 = 0.5h + 2.h * roughness * LoH * LoH;
+    half3 lightScatter = F_Schlick(NoL, half3(1), f90);
+    half3 viewScatter = F_Schlick(NoV, half3(1), f90);
+
+    return lightScatter * viewScatter * (1.h / PI);
+}
+
+half PDF_GGX(const in half roughness, const in half3 n, const in half3 l, const in half3 v) {
+    half3 h = normalize(v + l);
+
+    const half VoH = clamp(dot(v, h), 0, 1);
+    const half NoH = clamp(dot(n, h), 0, 1);
+
+    // D_GGX(NoH, roughness) * NoH / (4.0 + VoH);
+
+    return 1 / (4 * VoH);
+}
+
+half3 Fd(in SurfaceInfo surface, half3 l, const half3 v) {
+    // Remapping from https://google.github.io/filament/Filament.html#materialsystem/parameterization/remapping
+    const half dielectric_f0 = 0.04h; // TODO: Get this from a texture
+    const half3 f0 = lerp(dielectric_f0.xxx, surface.base_color.rgb, surface.metalness);
+
+    const half3 diffuse_color = surface.base_color.rgb * (1 - dielectric_f0) * (1 - surface.metalness);
+
+    const half3 h = normalize(v + l);
+
+    half NoV = dot(surface.normal, v) + (half)1e-5;
+    half NoL = dot(surface.normal, l);
+    const half NoH = clamp(dot(surface.normal, h), 0, 1);
+    const half VoH = clamp(dot(v, h), 0, 1);
+
+    if(NoL <= 0) {
+        return half3(0);
+    }
+
+    NoV = abs(NoV);
+    NoL = clamp(NoL, 0, 1);
+
+    // diffuse BRDF
+    const half LoH = clamp(dot(l, h), 0, 1);
+    return diffuse_color * Fd_Burley(NoV, NoL, LoH, surface.roughness);
+}
+
+half3 Fr(in SurfaceInfo surface, half3 l, const half3 v) {
+    // Remapping from https://google.github.io/filament/Filament.html#materialsystem/parameterization/remapping
+    const half dielectric_f0 = 0.04h; // TODO: Get this from a texture
+    const half3 f0 = lerp(dielectric_f0.xxx, surface.base_color.rgb, surface.metalness);
+
+    const half3 h = normalize(v + l);
+
+    half NoV = dot(surface.normal, v) + (half)1e-5;
+    half NoL = dot(surface.normal, l);
+    const half NoH = clamp(dot(surface.normal, h), 0, 1);
+    const half VoH = clamp(dot(v, h), 0, 1);
+
+    if(NoL <= 0) {
+        return half3(0);
+    }
+
+    NoV = abs(NoV);
+    NoL = clamp(NoL, 0, 1);
+
+    const half D = D_GGX(NoH, surface.roughness);
+    const half3 F = F_Schlick(VoH, f0, 1.h);
+    const half V = V_SmithGGXCorrelated(NoV, NoL, surface.roughness);
+
+    // specular BRDF
+    return (D * V) * F;
+}
+
+half3 brdf(in SurfaceInfo surface, half3 l, const half3 v) {
+    // Rely on the optimizer to remove all the redundant instructions
+    return Fd(surface, l, v) + Fr(surface, l, v);
+}
+
+#endif
