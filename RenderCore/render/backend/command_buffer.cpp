@@ -237,7 +237,7 @@ void CommandBuffer::begin_rendering(const RenderingInfo& info) {
         shading_rate_info.imageView = info.shading_rate_image.value()->image_view;
         shading_rate_info.imageLayout = VK_IMAGE_LAYOUT_FRAGMENT_SHADING_RATE_ATTACHMENT_OPTIMAL_KHR;
 
-        const auto texel_size = glm::uvec2{ RenderBackend::get().get_max_shading_rate_texel_size() };
+        const auto texel_size = glm::uvec2{RenderBackend::get().get_max_shading_rate_texel_size()};
         shading_rate_info.shadingRateAttachmentTexelSize.width = texel_size.x;
         shading_rate_info.shadingRateAttachmentTexelSize.height = texel_size.y;
 
@@ -287,6 +287,14 @@ void CommandBuffer::bind_vertex_buffer(const uint32_t binding_index, const Buffe
     constexpr auto offset = VkDeviceSize{0};
 
     vkCmdBindVertexBuffers(commands, binding_index, 1, &buffer->buffer, &offset);
+}
+
+void CommandBuffer::set_cull_mode(const VkCullModeFlags cull_mode) const {
+    vkCmdSetCullMode(commands, cull_mode);
+}
+
+void CommandBuffer::set_front_face(const VkFrontFace front_face) const {
+    vkCmdSetFrontFace(commands, front_face);
 }
 
 void CommandBuffer::draw(
@@ -344,9 +352,25 @@ void CommandBuffer::draw_indexed_indirect(
 }
 
 void CommandBuffer::draw_triangle() {
+    set_cull_mode(VK_CULL_MODE_NONE);
+
     commit_bindings();
 
     vkCmdDraw(commands, 3, 1, 0, 0);
+}
+
+void CommandBuffer::dispatch_rays(const glm::uvec2 dispatch_size) {
+    commit_bindings();
+
+   //vkCmdTraceRaysKHR(
+   //    commands,
+   //    raygen_binding_table,
+   //    miss_binding_table,
+   //    hit_binding_table,
+   //    nullptr,
+   //    dispatch_size.x,
+   //    dispatch_size.y,
+   //    1);
 }
 
 void CommandBuffer::execute_commands() {
@@ -377,6 +401,8 @@ void CommandBuffer::bind_pipeline(const ComputePipelineHandle& pipeline) {
     num_push_constants_in_current_pipeline = pipeline->num_push_constants;
     push_constant_shader_stages = VK_SHADER_STAGE_COMPUTE_BIT;
 
+    num_descriptor_sets_in_current_pipeline = static_cast<uint32_t>(pipeline->descriptor_sets.size());
+
     vkCmdBindPipeline(commands, current_bind_point, pipeline->pipeline);
 
     are_bindings_dirty = true;
@@ -389,6 +415,8 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
 
     num_push_constants_in_current_pipeline = pipeline->get_num_push_constants();
     push_constant_shader_stages = pipeline->get_push_constant_shader_stages();
+
+    num_descriptor_sets_in_current_pipeline = pipeline->get_num_descriptor_sets();
 
     auto& cache = backend->get_pipeline_cache();
 
@@ -606,7 +634,7 @@ void CommandBuffer::commit_bindings() {
 
     auto has_any_descriptor_sets = false;
     for(uint32_t i = 0; i < descriptor_sets.size(); i++) {
-        if(descriptor_sets[i] != VK_NULL_HANDLE) {
+        if(descriptor_sets[i] != VK_NULL_HANDLE && num_descriptor_sets_in_current_pipeline >= i) {
             has_any_descriptor_sets = true;
             vkCmdBindDescriptorSets(
                 commands,
@@ -619,10 +647,6 @@ void CommandBuffer::commit_bindings() {
                 nullptr
             );
         }
-    }
-
-    for(auto& set : descriptor_sets) {
-        set = VK_NULL_HANDLE;
     }
 
     are_bindings_dirty = false;

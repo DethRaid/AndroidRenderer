@@ -3,16 +3,12 @@
 #include <vector>
 
 #include <glm/mat4x4.hpp>
+#include <vulkan/vulkan_core.h>
 
-#include "render/mesh_drawer.hpp"
-#include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
-#include "render/backend/compute_shader.hpp"
-#include "render/sdf/lpv_gv_voxelizer.hpp"
 
 class ResourceUploadQueue;
 struct DescriptorSet;
-class VoxelCache;
 class RenderGraph;
 class RenderBackend;
 class ResourceAllocator;
@@ -33,11 +29,6 @@ struct CascadeData {
      */
     glm::mat4 rsm_vp;
 
-    // Render targets and framebuffer to use
-    TextureHandle flux_target;
-    TextureHandle normals_target;
-    TextureHandle depth_target;
-
     /**
      * Buffer that stores the count of the VPLs in this cascade
      *
@@ -52,15 +43,11 @@ struct CascadeData {
 
     glm::vec3 min_bounds;
     glm::vec3 max_bounds;
-
-    void create_render_targets(ResourceAllocator& allocator);
 };
 
 enum class GvBuildMode {
     Off,
     DepthBuffers,
-    Voxels,
-    PointClouds,
 };
 
 /**
@@ -74,11 +61,9 @@ enum class GvBuildMode {
  */
 class LightPropagationVolume {
 public:
-    explicit LightPropagationVolume(RenderBackend& backend_in);
+    explicit LightPropagationVolume();
 
-    void init_resources(ResourceAllocator& allocator);
-
-    void set_scene_drawer(SceneDrawer&& drawer);
+    ~LightPropagationVolume();
 
     /**
      * Updates the transform of this LPV to match the scene view
@@ -90,10 +75,6 @@ public:
     void clear_volume(RenderGraph& render_graph);
 
     static GvBuildMode get_build_mode();
-
-    void build_geometry_volume_from_voxels(
-        RenderGraph& render_graph, const RenderScene& scene
-    );
 
     /**
      * \brief Builds the geometry volume from last frame's depth buffer
@@ -108,8 +89,6 @@ public:
         RenderGraph& graph, TextureHandle depth_buffer,
         TextureHandle normal_target, BufferHandle view_uniform_buffer, glm::uvec2 resolution
     ) const;
-
-    static void build_geometry_volume_from_point_clouds(RenderGraph& render_graph, const RenderScene& scene);
 
     void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
 
@@ -142,7 +121,10 @@ public:
     );
 
 private:
-    RenderBackend& backend;
+    // RSM render targets. Each is an array texture with one layer per cascade
+    TextureHandle rsm_flux_target;
+    TextureHandle rsm_normals_target;
+    TextureHandle rsm_depth_target;
 
     // We have a A and B LPV, to allow for ping-ponging during the propagation step
 
@@ -166,8 +148,6 @@ private:
 
     ComputePipelineHandle clear_lpv_shader;
 
-    ComputePipelineHandle inject_voxels_into_gv_shader;
-
     GraphicsPipelineHandle vpl_injection_pipeline;
 
     ComputePipelineHandle vpl_injection_compute_pipeline;
@@ -176,6 +156,11 @@ private:
 
     std::vector<CascadeData> cascades;
     BufferHandle cascade_data_buffer = {};
+
+    /**
+     * Buffer of the cascade matrices in an array
+     */
+    BufferHandle vp_matrix_buffer = nullptr;
 
     /**
      * Renders the LPV into the lighting buffer
@@ -190,10 +175,10 @@ private:
      */
     GraphicsPipelineHandle vpl_visualization_pipeline;
 
-    SceneDrawer rsm_drawer = {};
-
     GraphicsPipelineHandle inject_rsm_depth_into_gv_pipeline;
     GraphicsPipelineHandle inject_scene_depth_into_gv_pipeline;
+
+    void init_resources(ResourceAllocator& allocator);
 
     /**
      * \brief Injects the RSM depth and normals buffers for a given cascade into that cascade's geometry volume

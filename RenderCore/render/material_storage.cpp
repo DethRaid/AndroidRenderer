@@ -1,17 +1,17 @@
 #include "material_storage.hpp"
 #include "render/backend/render_backend.hpp"
 
-MaterialStorage::MaterialStorage() {
+MaterialStorage::MaterialStorage() : basic_bpr_material_pipelines{ "gltf_basic_pbr" } {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
-    material_buffer_handle = allocator.create_buffer(
+    material_instance_buffer_handle = allocator.create_buffer(
         "Materials buffer",
         sizeof(BasicPbrMaterialGpu) * 65536,
         BufferUsage::StorageBuffer
     );
 }
 
-PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMaterial&& new_material) {
+PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material_instance(BasicPbrMaterial&& new_material) {
     ZoneScoped;
     auto& backend = RenderBackend::get();
     auto& texture_descriptor_pool = backend.get_texture_descriptor_pool();
@@ -33,10 +33,10 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
         new_material.emission_sampler
     );
 
-    const auto handle = material_pool.add_object(std::make_pair(new_material, MaterialProxy{}));
+    const auto handle = material_instance_pool.add_object(std::make_pair(new_material, MaterialProxy{}));
     auto& proxy = handle->second;
 
-    material_upload.add_data(handle.index, new_material.gpu_data);
+    material_instance_upload_buffer.add_data(handle.index, new_material.gpu_data);
 
     // Pipelines......
 
@@ -80,116 +80,21 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material(BasicPbrMateri
         break;
     }
 
-    // RSM
-    const auto rsm_pipeline = backend.begin_building_pipeline(fmt::format("{} RSM", new_material.name))
-                                     .set_vertex_shader("shaders/lpv/rsm.vert.spv")
-                                     .set_fragment_shader("shaders/lpv/rsm.frag.spv")
-                                     .set_blend_state(0, blend_state)
-                                     .set_blend_state(1, blend_state)
-                                     .set_raster_state(
-                                         {
-                                             .cull_mode = cull_mode,
-                                             .front_face = front_face
-                                         }
-                                     )
-                                     .build();
-    proxy.pipelines[ScenePassType::RSM] = rsm_pipeline;
-
-    // Shadow
-    const auto shadow_pipeline = backend.begin_building_pipeline(fmt::format("{} SHADOW", new_material.name))
-                                        .set_vertex_shader("shaders/lighting/shadow.vert.spv")
-                                        .set_raster_state(
-                                            {
-                                                .cull_mode = cull_mode,
-                                                .front_face = front_face,
-                                                .depth_clamp_enable = true
-                                            }
-                                        )
-                                        .build();
-    proxy.pipelines[ScenePassType::Shadow] = shadow_pipeline;
-
-    // Voxelization
-    auto voxel_blend_state = blend_state;
-    voxel_blend_state.colorWriteMask = 0;
-    const auto voxelization_pipeline = backend.begin_building_pipeline(
-                                                  fmt::format("{} VOXELIZATION", new_material.name)
-                                              )
-                                              .set_vertex_shader("shaders/voxelizer/voxelizer.vert.spv")
-                                              .set_geometry_shader("shaders/voxelizer/voxelizer.geom.spv")
-                                              .set_fragment_shader("shaders/voxelizer/voxelizer.frag.spv")
-                                              .set_depth_state(
-                                                  {
-                                                      .enable_depth_test = false,
-                                                      .enable_depth_write = false
-                                                  }
-                                              )
-                                              .set_raster_state({.cull_mode = VK_CULL_MODE_NONE})
-                                              .set_blend_state(0, voxel_blend_state)
-                                              .build();
-    proxy.pipelines[ScenePassType::Vozelization] = voxelization_pipeline;
-
-    if(backend.supports_device_generated_commands()) {
-        ZoneScopedN("Create VkPipelines");
-        // [[maybe_unused]] const auto forced_depth_prepass_pipeline = backend
-        //                                                             .get_pipeline_cache()
-        //                                                             .get_pipeline_for_dynamic_rendering(
-        //                                                                 depth_prepass_pipeline,
-        //                                                                 {},
-        //                                                                 VK_FORMAT_D32_SFLOAT,
-        //                                                                 0);
-        // [[maybe_unused]] const auto forced_gbuffer_pipeline = backend
-        //                                                       .get_pipeline_cache()
-        //                                                       .get_pipeline_for_dynamic_rendering(
-        //                                                           gbuffer_pipeline,
-        //                                                           std::array{
-        //                                                               VK_FORMAT_R8G8B8A8_SRGB,
-        //                                                               VK_FORMAT_R16G16B16A16_SFLOAT,
-        //                                                               VK_FORMAT_R8G8B8A8_UNORM,
-        //                                                               VK_FORMAT_R8G8B8A8_SRGB
-        //                                                           },
-        //                                                           VK_FORMAT_D32_SFLOAT,
-        //                                                           0);
-        [[maybe_unused]] const auto forced_rsm_pipeline = backend
-                                                          .get_pipeline_cache()
-                                                          .get_pipeline_for_dynamic_rendering(
-                                                              rsm_pipeline,
-                                                              std::array{
-                                                                  VK_FORMAT_R8G8B8A8_SRGB,
-                                                                  VK_FORMAT_R8G8B8A8_UNORM,
-                                                              },
-                                                              VK_FORMAT_D16_UNORM,
-                                                              0);
-        [[maybe_unused]] const auto forced_shadow_pipeline = backend
-                                                             .get_pipeline_cache()
-                                                             .get_pipeline_for_dynamic_rendering(
-                                                                 shadow_pipeline,
-                                                                 {},
-                                                                 VK_FORMAT_D16_UNORM,
-                                                                 0);
-        [[maybe_unused]] const auto forced_voxelization_pipeline = backend
-                                                                   .get_pipeline_cache()
-                                                                   .get_pipeline_for_dynamic_rendering(
-                                                                       voxelization_pipeline,
-                                                                       {},
-                                                                       VK_FORMAT_D32_SFLOAT,
-                                                                       0);
-    }
-
     is_pipeline_group_dirty = true;
 
     return handle;
 }
 
-void MaterialStorage::destroy_material(PooledObject<BasicPbrMaterialProxy>&& proxy) {
-    material_pool.free_object(proxy);
+void MaterialStorage::destroy_material_instance(PooledObject<BasicPbrMaterialProxy>&& proxy) {
+    material_instance_pool.free_object(proxy);
 }
 
-void MaterialStorage::flush_material_buffer(RenderGraph& graph) {
-    material_upload.flush_to_buffer(graph, material_buffer_handle);
+void MaterialStorage::flush_material_instance_buffer(RenderGraph& graph) {
+    material_instance_upload_buffer.flush_to_buffer(graph, material_instance_buffer_handle);
 }
 
-BufferHandle MaterialStorage::get_material_buffer() const {
-    return material_buffer_handle;
+BufferHandle MaterialStorage::get_material_instance_buffer() const {
+    return material_instance_buffer_handle;
 }
 
 GraphicsPipelineHandle MaterialStorage::get_pipeline_group() {
@@ -202,9 +107,9 @@ GraphicsPipelineHandle MaterialStorage::get_pipeline_group() {
 
     auto pipelines_in_group = std::vector<GraphicsPipelineHandle>{};
     pipelines_in_group.reserve(1024);
-    const auto& material_proxies = material_pool.get_data();
+    const auto& material_proxies = material_instance_pool.get_data();
     for(auto i = 0; i < material_proxies.size(); i++) {
-        const auto& proxy = material_pool.make_handle(i);
+        const auto& proxy = material_instance_pool.make_handle(i);
         pipelines_in_group.insert(
             pipelines_in_group.end(),
             proxy->second.pipelines.begin(),
@@ -217,3 +122,5 @@ GraphicsPipelineHandle MaterialStorage::get_pipeline_group() {
 
     return pipeline_group;
 }
+
+const MaterialPipelines& MaterialStorage::get_pipelines() const { return basic_bpr_material_pipelines; }

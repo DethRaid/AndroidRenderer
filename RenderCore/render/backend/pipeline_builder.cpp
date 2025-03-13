@@ -127,13 +127,11 @@ static VkDescriptorType to_vk_type(SpvReflectDescriptorType type);
  * Collects the descriptor sets from the provided list of descriptor sets. Performs basic validation that the sets
  * match the sets that have already been collected
  *
- * @param shader_path Path to the shader that the descriptor sets came from. Used for logging
  * @param sets The descriptor sets to collect
  * @param shader_stage The shader stage these descriptor sets came from
  * @return True if there was an error, false if everything's fine
  */
 static bool collect_descriptor_sets(
-    const std::filesystem::path& shader_path,
     const std::vector<SpvReflectDescriptorSet*>& sets,
     VkShaderStageFlagBits shader_stage,
     std::vector<DescriptorSetInfo>& descriptor_sets
@@ -157,7 +155,7 @@ static void collect_vertex_attributes(
 
 static void init_logger() {
     logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
-    logger->set_level(spdlog::level::debug);
+    logger->set_level(spdlog::level::info);
 }
 
 GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cache{cache_in} {
@@ -337,8 +335,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_raster_state(const RasterS
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .depthClampEnable = raster_state_in.depth_clamp_enable,
         .polygonMode = raster_state_in.polygon_mode,
-        .cullMode = raster_state_in.cull_mode,
-        .frontFace = raster_state_in.front_face,
+        // Cull mode and front face are dynamic
         .lineWidth = raster_state_in.line_width,
     };
 
@@ -400,7 +397,6 @@ GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
 }
 
 bool collect_descriptor_sets(
-    const std::filesystem::path& shader_path,
     const std::vector<SpvReflectDescriptorSet*>& sets,
     const VkShaderStageFlagBits shader_stage,
     std::vector<DescriptorSetInfo>& descriptor_sets
@@ -530,7 +526,7 @@ bool collect_bindings(
     result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
-    has_error |= collect_descriptor_sets(shader_name, sets, shader_stage, descriptor_sets);
+    has_error |= collect_descriptor_sets(sets, shader_stage, descriptor_sets);
 
     // Collect push constant info
     uint32_t constant_count;
@@ -561,6 +557,9 @@ void collect_vertex_attributes(
     needs_position_buffer = false;
     needs_data_buffer = false;
     for(const auto* input : inputs) {
+        if(input->name == nullptr) {
+            continue;   // UGH
+        }
         if(auto itr = vertex_layout.attributes.find(input->name); itr != vertex_layout.attributes.end()) {
             auto& attribute = vertex_attributes.emplace_back(itr->second);
             attribute.location = input->location;

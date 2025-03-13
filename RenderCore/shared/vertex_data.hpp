@@ -13,7 +13,7 @@ struct StandardVertex {
     uint color;
 };
 
-#if __cplusplus
+#if defined(__cplusplus)
 using VertexPosition = glm::vec3;
 #endif
 

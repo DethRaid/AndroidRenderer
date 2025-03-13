@@ -145,6 +145,10 @@ public:
     template <typename IndexType = uint32_t>
     void bind_index_buffer(BufferHandle buffer) const;
 
+    void set_cull_mode(VkCullModeFlags cull_mode) const;
+
+    void set_front_face(VkFrontFace front_face) const;
+
     void draw(
         uint32_t num_vertices, uint32_t num_instances = 1, uint32_t first_vertex = 0, uint32_t first_instance = 0
     );
@@ -179,6 +183,8 @@ public:
      * shader
      */
     void draw_triangle();
+
+    void dispatch_rays(glm::uvec2 dispatch_size);
 
     /**
      * Executes a buffer of device-generated commands
@@ -282,6 +288,7 @@ private:
      * should handle that noise
      */
     std::unordered_map<VkEvent, std::vector<VkBufferMemoryBarrier2>> event_buffer_barriers;
+    uint32_t num_descriptor_sets_in_current_pipeline = 0;
 
     void bind_index_buffer(BufferHandle buffer, VkIndexType index_type) const;
 

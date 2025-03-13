@@ -552,7 +552,7 @@ void RenderBackend::create_swapchain() {
                          .add_fallback_format(
                              {.format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR}
                          )
-                         .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+                         .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
                          .set_image_usage_flags(
                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
                          )

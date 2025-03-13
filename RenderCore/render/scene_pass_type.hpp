@@ -20,12 +20,6 @@ namespace ScenePassType {
         Gbuffer,
 
         /**
-         * Vozelization pass. The pipeline must position its triangle within a 3D texture, and the pipeline must output
-         * spherical harmonics to represent the surface
-         */
-        Vozelization,
-
-        /**
          * \brief Depth-only prepass
          */
         DepthPrepass,
@@ -42,8 +36,6 @@ inline bool is_color_pass(const ScenePassType::Type pass_type) {
         return true;
 
     case ScenePassType::Shadow:
-        [[fallthrough]];
-    case ScenePassType::Vozelization:
         [[fallthrough]];
     case ScenePassType::DepthPrepass:
         return false;

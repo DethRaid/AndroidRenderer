@@ -21,9 +21,9 @@
  * This CS atmonically adds lights to a UAV
  */
 
-layout(set = 0, binding = 0) uniform sampler2D rsm_flux;
-layout(set = 0, binding = 1) uniform sampler2D rsm_normal;
-layout(set = 0, binding = 2) uniform sampler2D rsm_depth;
+layout(set = 0, binding = 0) uniform sampler2DArray rsm_flux;
+layout(set = 0, binding = 1) uniform sampler2DArray rsm_normal;
+layout(set = 0, binding = 2) uniform sampler2DArray rsm_depth;
 
 layout(set = 0, binding = 3, scalar) uniform LPVCascadesBuffer {
     LPVCascadeMatrices cascade_matrices[4];
@@ -46,7 +46,7 @@ layout(push_constant) uniform Constants {
 };
 
 vec4 get_worldspace_position(ivec2 texel) {
-    float depth = texelFetch(rsm_depth, texel, 0).r;
+    float depth = texelFetch(rsm_depth, ivec3(texel, cascade_index), 0).r;
     vec2 texcoord = vec2(vec2(texel) / float(rsm_resolution));
     vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
     vec4 worldspace_position = cascade_matrices[cascade_index].inverse_rsm_vp * ndc_position;
@@ -72,8 +72,8 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 VPL load_rsm_vpl(ivec2 texel) {
     VPL light;
     light.position = get_worldspace_position(texel.xy).xyz;
-    light.color = texelFetch(rsm_flux, texel.xy, 0).rgb;
-    light.normal = texelFetch(rsm_normal, texel.xy, 0).rgb * 2.f - 1.f;
+    light.color = texelFetch(rsm_flux, ivec3(texel.xy, cascade_index), 0).rgb;
+    light.normal = texelFetch(rsm_normal, ivec3(texel.xy, cascade_index), 0).rgb * 2.f - 1.f;
 
     return light;
 }

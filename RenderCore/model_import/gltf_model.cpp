@@ -196,6 +196,7 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
         );
         material.gpu_data.metalness_factor = static_cast<float>(gltf_material.pbrData->metallicFactor);
         material.gpu_data.roughness_factor = static_cast<float>(gltf_material.pbrData->roughnessFactor);
+        material.gpu_data.opacity_threshold = gltf_material.alphaCutoff;
 
         const auto emissive_factor = glm::make_vec3(gltf_material.emissiveFactor.data());
         material.gpu_data.emission_factor = glm::vec4(emissive_factor, 1.f);
@@ -268,7 +269,7 @@ GltfModel::import_materials(MaterialStorage& material_storage, TextureLoader& te
             material.emission_sampler = backend.get_default_sampler();
         }
 
-        const auto material_handle = material_storage.add_material(std::move(material));
+        const auto material_handle = material_storage.add_material_instance(std::move(material));
         gltf_material_to_material_handle.emplace_back(material_handle);
     }
 

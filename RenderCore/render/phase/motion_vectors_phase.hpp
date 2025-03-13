@@ -7,7 +7,7 @@
 
 struct IndirectDrawingBuffers;
 class RenderGraph;
-class SceneDrawer;
+class RenderScene;
 
 class MotionVectorsPhase {
 public:
@@ -16,7 +16,7 @@ public:
     void set_render_resolution(const glm::uvec2& resolution);
 
     void render(
-        RenderGraph& graph, const SceneDrawer& drawer, BufferHandle view_data_buffer, TextureHandle depth_buffer,
+        RenderGraph& graph, const RenderScene& scene, BufferHandle view_data_buffer, TextureHandle depth_buffer,
         const IndirectDrawingBuffers& buffers
     );
 

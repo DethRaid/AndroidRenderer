@@ -186,7 +186,6 @@ void UiPhase::create_pipelines() {
                      .set_vertex_shader("shaders/ui/imgui.vert.spv")
                      .set_fragment_shader("shaders/ui/imgui.frag.spv")
                      .set_depth_state({.enable_depth_test = false, .enable_depth_write = false})
-                     .set_raster_state({.cull_mode = VK_CULL_MODE_NONE})
                      .set_blend_state(
                          0,
                          {

@@ -13,8 +13,8 @@
 #include "shared/lpv.hpp"
 #include "shared/view_info.hpp"
 
-layout(set = 0, binding = 0) uniform sampler2D normal_target;
-layout(set = 0, binding = 1) uniform sampler2D depth_target;
+layout(set = 0, binding = 0) uniform sampler2DArray normal_target;
+layout(set = 0, binding = 1) uniform sampler2DArray depth_target;
 
 layout(set = 0, binding = 2, scalar) uniform LpvCascadeBuffer {
     LPVCascadeMatrices cascade_matrices[4];
@@ -45,7 +45,7 @@ void main() {
     float texcoord_x = (0.5 + float(x)) / float(resolution_x);
     float texcoord_y = (0.5 + float(y)) / float(resolution_y);
 
-    float depth = texture(depth_target, vec2(texcoord_x, texcoord_y)).x;
+    float depth = texture(depth_target, vec3(texcoord_x, texcoord_y, cascade_index)).x;
 
     vec2 screenspace = vec2(x, y) / vec2(resolution_x, resolution_y);
     vec4 ndc_position = vec4(screenspace * 2.f - 1.f, depth, 1);
@@ -61,7 +61,7 @@ void main() {
         return;
     }
 
-    mediump vec3 normal = texture(normal_target, vec2(texcoord_x, texcoord_y)).xyz;
+    mediump vec3 normal = texture(normal_target, vec3(texcoord_x, texcoord_y, cascade_index)).xyz;
     sh = dir_to_cosine_lobe(normal);
 
     // Add a half-cell offset to the GV

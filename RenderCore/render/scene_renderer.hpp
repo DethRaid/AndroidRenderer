@@ -2,28 +2,27 @@
 
 #include <imgui.h>
 
-#include "fsr3.hpp"
+#include "core/halton_sequence.hpp"
+#include "render/fsr3.hpp"
 #include "render/bloomer.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/scene_view.hpp"
 #include "render/material_storage.hpp"
 #include "render/texture_loader.hpp"
-#include "mesh_storage.hpp"
-#include "mip_chain_generator.hpp"
-#include "procedural_sky.hpp"
-#include "core/halton_sequence.hpp"
-#include "phase/ambient_occlusion_phase.hpp"
-#include "phase/depth_culling_phase.hpp"
-#include "phase/gbuffes_phase.hpp"
-#include "phase/motion_vectors_phase.hpp"
-#include "phase/sampling_rate_calculator.hpp"
+#include "render/mesh_storage.hpp"
+#include "render/mip_chain_generator.hpp"
+#include "render/procedural_sky.hpp"
+#include "render/gi/rtgi.hpp"
+#include "render/phase/ambient_occlusion_phase.hpp"
+#include "render/phase/depth_culling_phase.hpp"
+#include "render/phase/gbuffes_phase.hpp"
+#include "render/phase/motion_vectors_phase.hpp"
+#include "render/phase/sampling_rate_calculator.hpp"
 #include "render/phase/ui_phase.hpp"
 #include "render/phase/lighting_phase.hpp"
-#include "render/sdf/lpv_gv_voxelizer.hpp"
-#include "sdf/voxel_cache.hpp"
+#include "render/gi/light_propagation_volume.hpp"
 #include "ui/debug_menu.hpp"
 #include "visualizers/visualizer_type.hpp"
-#include "visualizers/voxel_visualizer.hpp"
 
 class GltfModel;
 
@@ -92,6 +91,8 @@ private:
 
     std::unique_ptr<LightPropagationVolume> lpv;
 
+    std::unique_ptr<RayTracedGlobalIllumination> rtgi;
+
     TextureHandle gbuffer_color_handle = nullptr;
 
     TextureHandle gbuffer_normals_handle = nullptr;
@@ -115,8 +116,6 @@ private:
 
     std::vector<TextureHandle> swapchain_images;
 
-    SceneDrawer sun_shadow_drawer;
-
     ProceduralSky sky;
 
     HaltonSequence jitter_sequence_x = HaltonSequence{ 2 };
@@ -130,13 +129,9 @@ private:
 
     DepthCullingPhase depth_culling_phase;
 
-    SceneDrawer depth_prepass_drawer;
-
     MotionVectorsPhase motion_vectors_phase;
 
     GbuffersPhase gbuffers_phase;
-
-    SceneDrawer gbuffer_drawer;
 
     AmbientOcclusionPhase ao_phase;
     
@@ -147,8 +142,6 @@ private:
     UiPhase ui_phase;
 
     RenderVisualization active_visualization = RenderVisualization::None;
-
-    VoxelVisualizer voxel_visualizer;
 
 #if SAH_USE_FFX
     std::unique_ptr<FidelityFSSuperResolution3> fsr3;

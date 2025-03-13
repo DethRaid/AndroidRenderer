@@ -4,7 +4,6 @@
 
 #include "render/backend/handles.hpp"
 #include "render/backend/command_buffer.hpp"
-#include "light_propagation_volume.hpp"
 #include "backend/resource_upload_queue.hpp"
 #include "shared/view_data.hpp"
 

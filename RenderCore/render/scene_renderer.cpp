@@ -3,21 +3,26 @@
 
 #include "model_import/gltf_model.hpp"
 #include "render/scene_renderer.hpp"
-
-#include "antialiasing_type.hpp"
-#include "fsr3.hpp"
-#include "indirect_drawing_utils.hpp"
-#include "backend/blas_build_queue.hpp"
+#include "render/antialiasing_type.hpp"
+#include "render/fsr3.hpp"
+#include "render/indirect_drawing_utils.hpp"
+#include "render/backend/blas_build_queue.hpp"
 #include "render/backend/render_graph.hpp"
 #include "core/system_interface.hpp"
 #include "render/render_scene.hpp"
-#include "streamline_adapter/streamline_adapter.hpp"
+#include "render/streamline_adapter/streamline_adapter.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
 
+enum class GIMode {
+    Off,
+    LPV,
+    RT
+};
+
 // ReSharper disable CppDeclaratorNeverUsed
-static auto cvar_enable_sun_gi = AutoCVar_Int{
-    "r.EnableSunGI", "Whether or not to enable GI from the sun", 1
+static auto cvar_gi_mode = AutoCVar_Enum{
+    "r.GI.Mode", "How to calculate GI", GIMode::LPV
 };
 
 static auto cvar_enable_mesh_lights = AutoCVar_Int{
@@ -26,10 +31,6 @@ static auto cvar_enable_mesh_lights = AutoCVar_Int{
 
 static auto cvar_raytrace_mesh_lights = AutoCVar_Int{
     "r.MeshLight.Raytrace", "Whether or not to raytrace mesh lights", 0
-};
-
-static auto cvar_use_lpv = AutoCVar_Int{
-    "r.lpv.Enable", "Whether to enable the LPV", 1
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
@@ -57,16 +58,6 @@ SceneRenderer::SceneRenderer() {
     auto& backend = RenderBackend::get();
 
     logger->debug("Initialized render backend");
-
-    if (cvar_use_lpv.Get()) {
-        lpv = std::make_unique<LightPropagationVolume>(backend);
-        logger->debug("Created LPV");
-    }
-
-    if (lpv) {
-        lpv->init_resources(backend.get_global_allocator());
-        logger->debug("Initialized LPV");
-    }
 
     if (!backend.supports_shading_rate_image && cvar_anti_aliasing.Get() == AntiAliasingType::VRSAA) {
         logger->info("Backend does not support VRSAA, turning AA off");
@@ -96,27 +87,6 @@ void SceneRenderer::set_output_resolution(const glm::uvec2& new_output_resolutio
 void SceneRenderer::set_scene(RenderScene& scene_in) {
     scene = &scene_in;
     lighting_pass.set_scene(scene_in);
-
-    auto& backend = RenderBackend::get();
-
-    sun_shadow_drawer = SceneDrawer{
-        ScenePassType::Shadow, *scene, meshes, material_storage, backend.get_global_allocator()
-    };
-    depth_prepass_drawer = SceneDrawer{
-        ScenePassType::DepthPrepass, *scene, meshes, material_storage,
-        backend.get_global_allocator()
-    };
-    gbuffer_drawer = SceneDrawer{
-        ScenePassType::Gbuffer, *scene, meshes, material_storage, backend.get_global_allocator()
-    };
-
-    if (lpv) {
-        lpv->set_scene_drawer(
-            SceneDrawer{
-                ScenePassType::RSM, *scene, meshes, material_storage, backend.get_global_allocator()
-            }
-        );
-    }
 }
 
 void SceneRenderer::set_render_resolution(const glm::uvec2 new_render_resolution) {
@@ -160,6 +130,7 @@ void SceneRenderer::render() {
 
     if (cvar_anti_aliasing.Get() == AntiAliasingType::None) {
         set_render_resolution(output_resolution / glm::uvec2{2});
+        player_view.set_mip_bias(0);
     }
 
     if (cvar_anti_aliasing.Get() != AntiAliasingType::VRSAA) {
@@ -170,6 +141,7 @@ void SceneRenderer::render() {
         set_render_resolution(output_resolution * 2u);
 
         vrsaa->init(scene_render_resolution);
+        player_view.set_mip_bias(0);
     }
 
 #if SAH_USE_STREAMLINE
@@ -214,8 +186,25 @@ void SceneRenderer::render() {
 
     } else {
         fsr3 = nullptr;
+        player_view.set_mip_bias(0);
     }
 #endif
+
+    if (cvar_gi_mode.Get() == GIMode::LPV) {
+        if (lpv == nullptr) {
+            lpv = std::make_unique<LightPropagationVolume>();
+        }
+    } else {
+        lpv = nullptr;
+    }
+
+    if(cvar_gi_mode.Get() == GIMode::RT) {
+        if(rtgi == nullptr) {
+            rtgi = std::make_unique<RayTracedGlobalIllumination>();
+        }
+    } else {
+        rtgi = nullptr;
+    }
 
     ui_phase.add_data_upload_passes(backend.get_upload_queue());
 
@@ -278,7 +267,7 @@ void SceneRenderer::render() {
 
     backend.get_blas_build_queue().flush_pending_builds(render_graph);
 
-    material_storage.flush_material_buffer(render_graph);
+    material_storage.flush_material_instance_buffer(render_graph);
 
     meshes.flush_mesh_draw_arg_uploads(render_graph);
 
@@ -322,7 +311,7 @@ void SceneRenderer::render() {
 
     depth_culling_phase.render(
         render_graph,
-        depth_prepass_drawer,
+        *scene,
         material_storage,
         player_view.get_buffer());
 
@@ -337,7 +326,7 @@ void SceneRenderer::render() {
     if (needs_motion_vectors) {
         motion_vectors_phase.render(
             render_graph,
-            depth_prepass_drawer,
+            *scene,
             player_view.get_buffer(),
             depth_culling_phase.get_depth_buffer(),
             visible_buffers);
@@ -349,10 +338,7 @@ void SceneRenderer::render() {
         lpv->clear_volume(render_graph);
 
         const auto build_mode = LightPropagationVolume::get_build_mode();
-
-        if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 && build_mode == GvBuildMode::Voxels) {
-            lpv->build_geometry_volume_from_voxels(render_graph, *scene);
-        } else if (build_mode == GvBuildMode::DepthBuffers) {
+        if (build_mode == GvBuildMode::DepthBuffers) {
             lpv->build_geometry_volume_from_scene_view(
                 render_graph,
                 depth_buffer_mip_chain,
@@ -360,16 +346,12 @@ void SceneRenderer::render() {
                 player_view.get_buffer(),
                 scene_render_resolution / glm::uvec2{2}
             );
-        } else if (build_mode == GvBuildMode::PointClouds) {
-            lpv->build_geometry_volume_from_point_clouds(render_graph, *scene);
         }
 
         // VPL cloud generation
 
-        if (cvar_enable_sun_gi.Get()) {
-            lpv->inject_indirect_sun_light(render_graph, *scene);
-        }
-
+        lpv->inject_indirect_sun_light(render_graph, *scene);
+    
         if (cvar_enable_mesh_lights.Get()) {
             lpv->inject_emissive_point_clouds(render_graph, *scene);
         }
@@ -379,7 +361,7 @@ void SceneRenderer::render() {
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
     {
         const auto& sun = scene->get_sun_light();
-        sun.render_shadows(render_graph, sun_shadow_drawer);
+        sun.render_shadows(render_graph, *scene);
     }
 
     if (lpv) {
@@ -424,7 +406,7 @@ void SceneRenderer::render() {
 
     gbuffers_phase.render(
         render_graph,
-        gbuffer_drawer,
+        *scene,
         visible_buffers,
         gbuffer_depth_handle,
         gbuffer_color_handle,
@@ -862,17 +844,6 @@ void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
     switch (active_visualization) {
         case RenderVisualization::None:
             // Intentionally empty
-            break;
-
-        case RenderVisualization::VoxelizedMeshes:
-            if (*CVarSystem::Get()->GetIntCVar("r.voxel.Enable") != 0 &&
-                *CVarSystem::Get()->GetIntCVar("r.voxel.Visualize") != 0) {
-                voxel_visualizer.render(
-                    render_graph,
-                    *scene,
-                    lit_scene_handle,
-                    player_view.get_buffer());
-            }
             break;
 
         case RenderVisualization::VPLs:

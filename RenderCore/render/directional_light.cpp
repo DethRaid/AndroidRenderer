@@ -4,6 +4,8 @@
 #include <glm/ext/matrix_clip_space.hpp>
 
 #include "material_pipelines.hpp"
+#include "material_storage.hpp"
+#include "mesh_storage.hpp"
 #include "render_scene.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
@@ -31,7 +33,7 @@ static auto cvar_num_shadow_cascades = AutoCVar_Int{"r.Shadow.NumCascades", "Num
 
 static auto cvar_shadow_cascade_resolution = AutoCVar_Int{
     "r.Shadow.CascadeResolution",
-    "Resolution of one cascade in the shadowmap", 1024
+    "Resolution of one cascade in the shadowmap", 4096
 };
 
 static auto cvar_max_shadow_distance = AutoCVar_Float{"r.Shadow.Distance", "Maximum distance of shadows", 128};
@@ -50,6 +52,10 @@ DirectionalLight::DirectionalLight() {
         sizeof(SunLightConstants),
         BufferUsage::UniformBuffer
     );
+    world_to_ndc_matrices_buffer = allocator.create_buffer(
+        "sun_world_to_ndc_matrices",
+        sizeof(glm::mat4) * cvar_num_shadow_cascades.Get(),
+        BufferUsage::UniformBuffer);
 
     auto& backend = RenderBackend::get();
     pipeline = backend.begin_building_pipeline("Sun Light")
@@ -214,6 +220,12 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
     constants.csm_resolution.x = csm_resolution;
     constants.csm_resolution.y = csm_resolution;
 
+    world_to_ndc_matrices.clear();
+    world_to_ndc_matrices.reserve(num_cascades);
+    for(const auto& matrix : constants.cascade_matrices) {
+        world_to_ndc_matrices.emplace_back(matrix);
+    }
+
     sun_buffer_dirty = true;
 }
 
@@ -241,6 +253,7 @@ void DirectionalLight::update_buffer(ResourceUploadQueue& queue) {
 
     if(sun_buffer_dirty) {
         queue.upload_to_buffer(sun_buffer, constants);
+        queue.upload_to_buffer(world_to_ndc_matrices_buffer, std::span{ world_to_ndc_matrices });
 
         sun_buffer_dirty = false;
     }
@@ -258,20 +271,30 @@ glm::vec3 DirectionalLight::get_direction() const {
     return glm::normalize(glm::vec3{constants.direction_and_size});
 }
 
-void DirectionalLight::render_shadows(RenderGraph& graph, const SceneDrawer& sun_shadow_drawer) const {
+void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& scene) const {
     auto& backend = RenderBackend::get();
     if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) == SunShadowMode::CSM) {
-        const auto shadow_pso = MaterialPipelines::get().get_shadow_pso();
+        const auto& pipelines = scene.get_material_storage().get_pipelines();
+        const auto shadow_pso = pipelines.get_shadow_pso();
+        const auto shadow_masked_pso = pipelines.get_shadow_masked_pso();
 
-        auto set = backend.get_transient_descriptor_allocator().build_set(shadow_pso, 0)
-                          .bind(sun_buffer)
-                          .bind(sun_shadow_drawer.get_scene().get_primitive_buffer())
-                          .build();
+        const auto solid_set = backend.get_transient_descriptor_allocator()
+                                      .build_set(shadow_pso, 0)
+                                      .bind(world_to_ndc_matrices_buffer)
+                                      .bind(scene.get_primitive_buffer())
+                                      .build();
+
+        const auto masked_set = backend.get_transient_descriptor_allocator()
+                                       .build_set(shadow_masked_pso, 0)
+                                       .bind(world_to_ndc_matrices_buffer)
+                                       .bind(scene.get_primitive_buffer())
+                                       .bind(scene.get_material_storage().get_material_instance_buffer())
+                                       .build();
 
         graph.add_render_pass(
             {
                 .name = "Sun shadow",
-                .descriptor_sets = {set},
+                .descriptor_sets = {masked_set},
                 .depth_attachment = RenderingAttachmentInfo{
                     .image = shadowmap_handle,
                     .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -279,9 +302,12 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const SceneDrawer& sun
                 },
                 .view_mask = 0x000F,
                 .execute = [&](CommandBuffer& commands) {
-                    commands.bind_descriptor_set(0, set);
+                    commands.bind_descriptor_set(0, solid_set);
 
-                    sun_shadow_drawer.draw(commands, shadow_pso);
+                    scene.draw_opaque(commands, shadow_pso);
+
+                    commands.bind_descriptor_set(0, masked_set);
+                    scene.draw_masked(commands, shadow_masked_pso);
 
                     commands.clear_descriptor_set(0);
                 }

@@ -8,7 +8,7 @@
 #include "shared/sun_light_constants.hpp"
 
 class ResourceUploadQueue;
-class SceneDrawer;
+class RenderScene;
 class RenderGraph;
 struct DescriptorSet;
 class ResourceAllocator;
@@ -38,7 +38,7 @@ public:
 
     glm::vec3 get_direction() const;
 
-    void render_shadows(RenderGraph& graph, const SceneDrawer& sun_shadow_drawer) const;
+    void render_shadows(RenderGraph& graph, const RenderScene& scene) const;
 
     void render(
         CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneView& view,
@@ -50,10 +50,12 @@ public:
 private:
     bool sun_buffer_dirty = true;
 
-    // Massive TODO: Replace this with the ViewDataGPU struct
     SunLightConstants constants = {};
 
     BufferHandle sun_buffer = {};
+
+    std::vector<glm::mat4> world_to_ndc_matrices;
+    BufferHandle world_to_ndc_matrices_buffer = nullptr;
 
     GraphicsPipelineHandle pipeline = {};
 

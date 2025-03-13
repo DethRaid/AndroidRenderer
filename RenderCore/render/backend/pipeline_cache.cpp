@@ -421,6 +421,8 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
     const auto dynamic_states = std::array{
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR,
+        VK_DYNAMIC_STATE_FRONT_FACE,
+        VK_DYNAMIC_STATE_CULL_MODE
     };
 
     const auto dynamic_state = VkPipelineDynamicStateCreateInfo{
