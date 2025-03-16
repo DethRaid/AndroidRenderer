@@ -42,7 +42,7 @@ void MotionVectorsPhase::set_render_resolution(const glm::uvec2& resolution) {
 
 void MotionVectorsPhase::render(
     RenderGraph& graph, const RenderScene& scene, const BufferHandle view_data_buffer,
-    const TextureHandle depth_buffer, const IndirectDrawingBuffers& buffers
+    const TextureHandle depth_buffer, const IndirectDrawingBuffers& buffers, const IndirectDrawingBuffers& masked_buffers
 ) {
     auto& allocator = RenderBackend::get().get_transient_descriptor_allocator();
     const auto set = allocator.build_set(motion_vectors_pso, 0)

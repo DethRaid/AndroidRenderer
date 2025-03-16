@@ -6,6 +6,7 @@
 #include <VkBootstrap.h>
 #include <tracy/TracyVulkan.hpp>
 
+#include "hit_group_builder.hpp"
 #include "render/noise_texture.hpp"
 #include "render/backend/descriptor_set_allocator.hpp"
 #include "render/backend/render_graph.hpp"
@@ -64,9 +65,11 @@ public:
 
     glm::vec2 get_max_shading_rate_texel_size() const;
 
+    uint32_t get_shader_record_size() const;
+
     RenderGraph create_render_graph();
 
-    void execute_graph(RenderGraph&& render_graph);
+    void execute_graph(RenderGraph& render_graph);
 
     VkInstance get_instance() const;
 
@@ -91,6 +94,8 @@ public:
     void add_transfer_barrier(const VkImageMemoryBarrier2& barrier);
 
     GraphicsPipelineBuilder begin_building_pipeline(std::string_view name) const;
+
+    HitGroupBuilder create_hit_group(std::string_view name) const;
 
     uint32_t get_current_gpu_frame() const;
 
@@ -202,7 +207,7 @@ private:
     bool is_first_frame = true;
 
     uint32_t cur_frame_idx = 0;
-    uint64_t total_num_frames = 0;
+    uint32_t total_num_frames = 0;
 
     bool supports_raytracing = false;
 
@@ -214,6 +219,8 @@ private:
     vkb::Device device;
 
     bool supports_rt = false;
+
+    uint32_t shader_record_size = 0;
 
     bool supports_dgc = false;
 
@@ -290,6 +297,9 @@ private:
     };
     VkPhysicalDeviceFeatures2 device_features = {};
 
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR  ray_tracing_pipeline_properties = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR
+    };
     VkPhysicalDeviceFragmentShadingRatePropertiesKHR shading_rate_properties = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_PROPERTIES_KHR
     };

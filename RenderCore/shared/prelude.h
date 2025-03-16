@@ -7,6 +7,8 @@
 
 #include <glm/glm.hpp>
 
+using unorm4 = uint32_t;
+
 using u16vec2 = glm::u16vec2;
 
 using uint = uint32_t;
@@ -18,7 +20,7 @@ using vec3 = glm::vec3;
 using vec4 = glm::vec4;
 using mat4 = glm::mat4;
 
-#else
+#elif defined(GL_core_profile)
 
 // A couple useful things for GLSL
 
@@ -26,10 +28,12 @@ using mat4 = glm::mat4;
 #define PI 3.1415927
 #endif
 
-#endif
+// Bad
+#define unorm4 uint
 
+#else
+#define unorm4 unorm float4
 
-#if !defined(__cplusplus) && !defined(GL_core_profile)
 #define u16vec2 uint16_t2
 
 #define uvec2 uint2

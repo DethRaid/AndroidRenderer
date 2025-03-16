@@ -16,31 +16,28 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-enum class SunShadowMode {
-    Off,
-    CSM,
-    RayQuery,
-    RayPipeline
-};
-
-static auto cvar_sun_shadow_mode = AutoCVar_Int{
+static auto cvar_sun_shadow_mode = AutoCVar_Enum{
     "r.Shadow.SunShadowMode",
-    "How to calculate shadows for the sun.\n\t0 = off\n\t1 = Cascade Shadow Maps\n\t2 = Hardware ray queries\n\t3 = Hardware ray pipelines",
-    1
+    "How to calculate shadows for the sun.\n\t0 = off\n\t1 = Cascade Shadow Maps\n\t2 = Hardware ray pipelines",
+    SunShadowMode::CascadedShadowMaps
 };
 
 static auto cvar_num_shadow_cascades = AutoCVar_Int{"r.Shadow.NumCascades", "Number of shadow cascades", 4};
 
 static auto cvar_shadow_cascade_resolution = AutoCVar_Int{
-    "r.Shadow.CascadeResolution",
+    "r.Shadow.CSM.CascadeResolution",
     "Resolution of one cascade in the shadowmap", 4096
 };
 
 static auto cvar_max_shadow_distance = AutoCVar_Float{"r.Shadow.Distance", "Maximum distance of shadows", 128};
 
 static auto cvar_shadow_cascade_split_lambda = AutoCVar_Float{
-    "r.Shadow.CascadeSplitLambda",
+    "r.Shadow.CSM.CascadeSplitLambda",
     "Factor to use when calculating shadow cascade splits", 0.95
+};
+
+static auto cvar_shadow_samples = AutoCVar_Int{
+    "r.Shadow.RT.NumSamples", "Number of rays to send for ray traced shadows", 1
 };
 
 DirectionalLight::DirectionalLight() {
@@ -85,7 +82,7 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
     const auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
-    if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) != SunShadowMode::CSM) {
+    if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) != SunShadowMode::CascadedShadowMaps) {
         if(shadowmap_handle != nullptr) {
             allocator.destroy_texture(shadowmap_handle);
             shadowmap_handle = nullptr;
@@ -216,7 +213,7 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
         last_split_distance = cascade_splits[i];
     }
 
-    const auto csm_resolution = static_cast<uint32_t>(*CVarSystem::Get()->GetIntCVar("r.Shadow.CascadeResolution"));
+    const auto csm_resolution = static_cast<uint32_t>(cvar_shadow_cascade_resolution.Get());
     constants.csm_resolution.x = csm_resolution;
     constants.csm_resolution.y = csm_resolution;
 
@@ -253,7 +250,7 @@ void DirectionalLight::update_buffer(ResourceUploadQueue& queue) {
 
     if(sun_buffer_dirty) {
         queue.upload_to_buffer(sun_buffer, constants);
-        queue.upload_to_buffer(world_to_ndc_matrices_buffer, std::span{ world_to_ndc_matrices });
+        queue.upload_to_buffer(world_to_ndc_matrices_buffer, std::span{world_to_ndc_matrices});
 
         sun_buffer_dirty = false;
     }
@@ -271,9 +268,13 @@ glm::vec3 DirectionalLight::get_direction() const {
     return glm::normalize(glm::vec3{constants.direction_and_size});
 }
 
+SunShadowMode DirectionalLight::get_shadow_mode() {
+    return cvar_sun_shadow_mode.Get();
+}
+
 void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& scene) const {
     auto& backend = RenderBackend::get();
-    if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) == SunShadowMode::CSM) {
+    if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) == SunShadowMode::CascadedShadowMaps) {
         const auto& pipelines = scene.get_material_storage().get_pipelines();
         const auto shadow_pso = pipelines.get_shadow_pso();
         const auto shadow_masked_pso = pipelines.get_shadow_masked_pso();
@@ -316,8 +317,7 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& sce
 }
 
 void DirectionalLight::render(
-    CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneView& view,
-    const AccelerationStructureHandle rtas
+    CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneView& view
 ) const {
     ZoneScoped;
 
@@ -363,6 +363,49 @@ void DirectionalLight::render(
     commands.clear_descriptor_set(1);
 
     commands.end_label();
+}
+
+void DirectionalLight::raytrace(
+    RenderGraph& graph, const SceneView& view, const DescriptorSet& gbuffers_set, const RenderScene& scene,
+    const TextureHandle lit_scene
+) {
+    auto& backend = RenderBackend::get();
+
+    if(rt_pipeline == nullptr) {
+        rt_pipeline = backend.get_pipeline_cache()
+                             .create_ray_tracing_pipeline(
+                                 "shaders/lighting/directional_light.raygen.spv",
+                                 "shaders/lighting/directional_light.miss.spv");
+    }
+
+    auto set = backend.get_transient_descriptor_allocator()
+                      .build_set(rt_pipeline, 1)
+                      .bind(view.get_buffer())
+                      .bind(sun_buffer)
+                      .bind(scene.get_primitive_buffer())
+                      .bind(scene.get_material_storage().get_material_instance_buffer())
+                      .bind(scene.get_raytracing_scene().get_acceleration_structure())
+                      .bind(lit_scene)
+                      .build();
+
+    graph.add_pass(
+        {
+            .name = "ray_traced_sun",
+            .descriptor_sets = {gbuffers_set, set},
+            .execute = [&](CommandBuffer& commands) {
+                commands.bind_pipeline(rt_pipeline);
+
+                commands.bind_descriptor_set(0, gbuffers_set);
+                commands.bind_descriptor_set(1, set);
+
+                commands.set_push_constant(0, static_cast<uint32_t>(cvar_shadow_samples.Get()));
+
+                commands.dispatch_rays({lit_scene->create_info.extent.width, lit_scene->create_info.extent.height});
+
+                commands.clear_descriptor_set(0);
+                commands.clear_descriptor_set(1);
+            }
+        });
 }
 
 TextureHandle DirectionalLight::get_shadowmap_handle() const {

@@ -159,3 +159,4 @@ get_target_property(SAH_INCLUDES SahCore INCLUDE_DIRECTORIES)
 foreach(dir ${SAH_INCLUDES})
   message(STATUS "include='${dir}'")
 endforeach()
+

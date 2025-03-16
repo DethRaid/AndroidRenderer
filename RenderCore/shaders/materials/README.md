@@ -49,6 +49,7 @@ Geometry buffers store BRDF inputs - base color, surface normal, roughness, meta
 ### Ray Traced Occlusion
 
 ```cpp
+#define SAH_RT 1
 #define SAH_RT_OCCLUSION 1
 ```
 
@@ -57,6 +58,7 @@ Ray traced occlusion uses rays to determine if anything lies in a given directio
 ### Ray Traced Global Illumination
 
 ```cpp
+#define SAH_RT 1
 #define SAH_RT_GI 1
 ```
 Ray traced global illumination is the GOAT
@@ -66,7 +68,7 @@ Ray traced global illumination is the GOAT
 We also have masked vs not-masked variants for most of these contexts
 
 ```cpp
-#define SAH_MASKED
+#define SAH_MASKED 1
 ```
 
 Masked materials perform an alpha-test and may discard a fragment, non-masked may not

@@ -31,7 +31,7 @@ struct CompiledRenderPass {
      * VkRenderPass for this renderpass. if empty, this compiled render pass is a subpass. If not empty, this compiled
      * render pass should beg a new render pass
      */
-    tl::optional<VkRenderPass> render_pass;
+    std::optional<VkRenderPass> render_pass;
 
     /**
      * Adds a barrier to take the texture_handle from the before state to the after state

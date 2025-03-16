@@ -128,15 +128,15 @@ private:
     /**
      * Vertex shader SPIR-V code. If this is present, you may not load another vertex shader
      */
-    tl::optional<std::vector<uint8_t>> vertex_shader;
+    std::optional<std::vector<uint8_t>> vertex_shader;
 
     std::string vertex_shader_name;
 
-    tl::optional<std::vector<uint8_t>> geometry_shader;
+    std::optional<std::vector<uint8_t>> geometry_shader;
 
     std::string geometry_shader_name;
 
-    tl::optional<std::vector<uint8_t>> fragment_shader;
+    std::optional<std::vector<uint8_t>> fragment_shader;
 
     std::string fragment_shader_name;
 

@@ -170,7 +170,7 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
         auto graph = backend.create_render_graph();
         flush_mesh_draw_arg_uploads(graph);
         graph.finish();
-        backend.execute_graph(std::move(graph));
+        backend.execute_graph(graph);
     }
 
     mesh_draw_args_upload_buffer.add_data(

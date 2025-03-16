@@ -155,6 +155,8 @@ void UiPhase::render_imgui_items(CommandBuffer& commands) const {
         first_index += imgui_command_list->IdxBuffer.size();
         first_vertex += imgui_command_list->VtxBuffer.size();
     }
+
+    commands.clear_descriptor_set(0);
 }
 
 void UiPhase::create_pipelines() {

@@ -1,17 +1,14 @@
 #pragma once
 
-#include <array>
 #include <string>
 #include <functional>
+#include <optional>
 #include <vector>
 
-#include <tl/optional.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 
-#include "framebuffer.hpp"
 #include "rendering_attachment_info.hpp"
-#include "render/backend/buffer_state.hpp"
 #include "render/backend/texture_state.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/buffer_usage_token.hpp"
@@ -24,7 +21,7 @@ class CommandBuffer;
 struct AttachmentBinding {
     TextureHandle texture;
     TextureState state;
-    tl::optional<glm::vec4> clear_color;
+    std::optional<glm::vec4> clear_color;
 };
 
 struct ComputePass {
@@ -33,6 +30,8 @@ struct ComputePass {
     std::vector<TextureUsageToken> textures;
 
     std::vector<BufferUsageToken> buffers;
+
+    std::vector<DescriptorSet> descriptor_sets;
 
     /**
      * Executes this render pass
@@ -155,7 +154,7 @@ struct Subpass {
     /**
      * Index of the depth attachment. This index refers to the render targets in the parent render pass
      */
-    tl::optional<uint32_t> depth_attachment = tl::nullopt;
+    std::optional<uint32_t> depth_attachment = std::nullopt;
 
     std::function<void(CommandBuffer&)> execute;
 };
@@ -178,7 +177,7 @@ struct RenderPassBeginInfo {
 
     std::vector<VkClearValue> clear_values;
 
-    tl::optional<uint32_t> view_mask;
+    std::optional<uint32_t> view_mask;
 };
 
 struct RenderPass {
@@ -194,7 +193,7 @@ struct RenderPass {
 
     std::vector<VkClearValue> clear_values;
 
-    tl::optional<uint32_t> view_mask;
+    std::optional<uint32_t> view_mask;
 
     std::vector<Subpass> subpasses;
 };
@@ -219,7 +218,7 @@ struct DynamicRenderingPass {
 
     std::optional<TextureHandle> shading_rate_image;
 
-    tl::optional<uint32_t> view_mask;
+    std::optional<uint32_t> view_mask;
 
     std::function<void(CommandBuffer&)> execute;    
 };

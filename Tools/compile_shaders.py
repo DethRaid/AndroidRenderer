@@ -131,6 +131,39 @@ def compile_material(input_file, output_file, include_directories):
     gbuffer_masked_fs_filename = output_file.with_stem(gbuffer_masked_stem).with_suffix('.frag.spv')
     compile_slang_shader(input_file, gbuffer_masked_fs_filename, include_directories, ['SAH_MASKED=1', 'SAH_MAIN_VIEW=1'], 'main_fs')
 
+    # Ray traced occlusion
+
+    rt_occlusion_stem = base_stem + "_occlusion"
+    rt_occlusion_closesthit_filename = output_file.with_stem(rt_occlusion_stem).with_suffix(".closesthit.spv")
+    compile_slang_shader(input_file, rt_occlusion_closesthit_filename, include_directories, ['SAH_RT=1', 'SAH_RT_OCCLUSION=1'], 'main_closesthit')
+    
+    rt_occlusion_masked_stem = base_stem + "_occlusion_masked"
+    rt_occlusion_masked_anyhit_filename = output_file.with_stem(rt_occlusion_masked_stem).with_suffix(".anyhit.spv")
+    compile_slang_shader(input_file, rt_occlusion_masked_anyhit_filename, include_directories, ['SAH_RT=1', 'SAH_RT_OCCLUSION=1', 'SAH_MASKED=1'], 'main_anyhit')
+    rt_occlusion_masked_closesthit_filename = output_file.with_stem(rt_occlusion_masked_stem).with_suffix(".closesthit.spv")
+    compile_slang_shader(input_file, rt_occlusion_masked_closesthit_filename, include_directories, ['SAH_RT=1', 'SAH_RT_OCCLUSION=1', 'SAH_MASKED=1'], 'main_closesthit')
+
+    # Ray traced GI
+
+    rt_gi_stem = base_stem + "_gi"
+    rt_gi_closesthit_filename = output_file.with_stem(rt_gi_stem).with_suffix(".closesthit.spv")
+    compile_slang_shader(input_file, rt_gi_closesthit_filename, include_directories, ['SAH_RT=1', 'SAH_RT_GI=1'], 'main_closesthit')
+    
+    rt_gi_masked_stem = base_stem + "_gi_masked"
+    rt_gi_masked_anyhit_filename = output_file.with_stem(rt_gi_masked_stem).with_suffix(".anyhit.spv")
+    compile_slang_shader(input_file, rt_gi_masked_anyhit_filename, include_directories, ['SAH_RT=1', 'SAH_RT_GI=1', 'SAH_MASKED=1'], 'main_anyhit')
+    rt_gi_masked_closesthit_filename = output_file.with_stem(rt_gi_masked_stem).with_suffix(".closesthit.spv")
+    compile_slang_shader(input_file, rt_gi_masked_closesthit_filename, include_directories, ['SAH_RT=1', 'SAH_RT_GI=1', 'SAH_MASKED=1'], 'main_closesthit')
+
+
+def compile_rt_pipeline(input_file, output_file, include_directories):
+    # Compile a raygen and miss shader from the pipeline
+    raygen_filename = output_file.with_suffix('.raygen.spv')
+    compile_slang_shader(input_file, raygen_filename, include_directories, ['SAH_RT=1'], 'main_raygen')
+
+    miss_filename = output_file.with_suffix('.miss.spv')
+    compile_slang_shader(input_file, miss_filename, include_directories, ['SAH_RT=1'], 'main_miss')
+
 
 def compile_glsl_shader(input_file, output_file, include_directories):
     if output_file.exists() and input_file.stat().st_mtime < output_file.stat().st_mtime:
@@ -168,7 +201,10 @@ def compile_shaders_in_path(path, root_dir, output_dir):
             output_parent = output_file.parent
             output_parent.mkdir(parents=True, exist_ok=True)
 
-            if child_path.suffix == '.slang':
+            if '.rt' in child_path.suffixes:
+                compile_rt_pipeline(child_path, output_file, include_paths)
+                
+            elif child_path.suffix == '.slang':
                 if child_path.match('materials/*'):
                     compile_material(child_path, output_file, include_paths)
                 else:                    

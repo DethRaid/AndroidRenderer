@@ -9,10 +9,7 @@ struct DrawCommand {
 };
 
 struct DrawCountBuffer {
-    uint opaque_draw_count;
-    uint opaque_draw_offset;
-    uint masked_draw_count;
-    uint masked_draw_offset;
+    uint draw_count;
 };
 
 StructuredBuffer<PrimitiveDataGPU> primitive_datas;
@@ -25,6 +22,7 @@ RWStructuredBuffer<uint> primitive_ids;
 [[vk::push_constant]]
 cbuffer Constants {
     uint num_primitives;
+    uint primitive_type;
 };
 
 [require(SPV_KHR_non_semantic_info)]
@@ -43,17 +41,14 @@ void main(uint thread_id: SV_DispatchThreadID) {
         PrimitiveDataGPU primitive_data = primitive_datas[primitive_id];
 
         uint draw_id;
-        if (primitive_data.type == PRIMITIVE_TYPE_SOLID) {
-            InterlockedAdd(draw_count_buffer[0].opaque_draw_count, 1, draw_id);
-        } else {
-            InterlockedAdd(draw_count_buffer[0].masked_draw_count, 1);
-            InterlockedAdd(draw_count_buffer[0].masked_draw_offset, -1, draw_id);
+        if (primitive_data.type == primitive_type) {
+            InterlockedAdd(draw_count_buffer[0].draw_count, 1, draw_id);
+            
+            primitive_ids[draw_id] = primitive_id;
+
+            draw_commands[draw_id] = meshes[primitive_data.mesh_id];
+            draw_commands[draw_id].firstInstance = draw_id;
         }
-
-        primitive_ids[draw_id] = primitive_id;
-
-        draw_commands[draw_id] = meshes[primitive_data.mesh_id];
-        draw_commands[draw_id].firstInstance = draw_id;
     }
 }
 

@@ -1,6 +1,7 @@
 #include "material_pipelines.hpp"
 
-#include "backend/render_backend.hpp"
+#include "render/backend/render_backend.hpp"
+#include "render/backend/hit_group_builder.hpp"
 
 MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 #if TRACY_ENABLE
@@ -79,38 +80,38 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
     {
         const auto variant_name = fmt::format("{}_gbuffer", material_name);
         gbuffer_pso = backend.begin_building_pipeline(variant_name)
-                              .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
-                              .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
-                              .set_depth_state(
-                                  {
-                                      .enable_depth_test = true,
-                                      .enable_depth_write = false,
-                                      .compare_op = VK_COMPARE_OP_EQUAL
-                                  }
-                              )
-                              .set_blend_state(0, blend_state)
-                              .set_blend_state(1, blend_state)
-                              .set_blend_state(2, blend_state)
-                              .set_blend_state(3, blend_state)
-                              .build();
+                             .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
+                             .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
+                             .set_depth_state(
+                                 {
+                                     .enable_depth_test = true,
+                                     .enable_depth_write = false,
+                                     .compare_op = VK_COMPARE_OP_EQUAL
+                                 }
+                             )
+                             .set_blend_state(0, blend_state)
+                             .set_blend_state(1, blend_state)
+                             .set_blend_state(2, blend_state)
+                             .set_blend_state(3, blend_state)
+                             .build();
     }
     {
         const auto variant_name = fmt::format("{}_gbuffer_masked", material_name);
         gbuffer_masked_pso = backend.begin_building_pipeline(variant_name)
-                                     .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
-                                     .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
-                                     .set_depth_state(
-                                         {
-                                             .enable_depth_test = true,
-                                             .enable_depth_write = false,
-                                             .compare_op = VK_COMPARE_OP_EQUAL
-                                         }
-                                     )
-                                     .set_blend_state(0, blend_state)
-                                     .set_blend_state(1, blend_state)
-                                     .set_blend_state(2, blend_state)
-                                     .set_blend_state(3, blend_state)
-                                     .build();
+                                    .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
+                                    .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
+                                    .set_depth_state(
+                                        {
+                                            .enable_depth_test = true,
+                                            .enable_depth_write = false,
+                                            .compare_op = VK_COMPARE_OP_EQUAL
+                                        }
+                                    )
+                                    .set_blend_state(0, blend_state)
+                                    .set_blend_state(1, blend_state)
+                                    .set_blend_state(2, blend_state)
+                                    .set_blend_state(3, blend_state)
+                                    .build();
     }
 
     //transparent_pso = backend.begin_building_pipeline("transparent")
@@ -131,6 +132,21 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
     //                             })
     //                         .build();
 
+    // Opaque hit group
+    opaque_hit_group = backend.create_hit_group(material_name)
+           .add_gi_closesthit_shader(fmt::format("shaders/materials/{}_gi.closesthit.spv", material_name))
+           .add_occlusion_closesthit_shader(fmt::format("shaders/materials/{}_occlusion.closesthit.spv", material_name))
+           .build();
+
+    // Masked hit group
+
+    masked_hit_group = backend.create_hit_group(material_name)
+           .add_gi_anyhit_shader(fmt::format("shaders/materials/{}_gi_masked.anyhit.spv", material_name))
+           .add_gi_closesthit_shader(fmt::format("shaders/materials/{}_gi_masked.closesthit.spv", material_name))
+           .add_occlusion_anyhit_shader(fmt::format("shaders/materials/{}_occlusion_masked.anyhit.spv", material_name))
+           .add_occlusion_closesthit_shader(
+               fmt::format("shaders/materials/{}_occlusion_masked.closesthit.spv", material_name))
+           .build();
 }
 
 GraphicsPipelineHandle MaterialPipelines::get_depth_pso() const {

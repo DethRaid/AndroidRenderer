@@ -17,7 +17,7 @@ public:
 
     void render(
         RenderGraph& graph, const RenderScene& scene, BufferHandle view_data_buffer, TextureHandle depth_buffer,
-        const IndirectDrawingBuffers& buffers
+        const IndirectDrawingBuffers& buffers, const IndirectDrawingBuffers& masked_buffers
     );
 
     TextureHandle get_motion_vectors() const;

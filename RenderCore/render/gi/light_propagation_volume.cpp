@@ -733,33 +733,20 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
             continue;
         }
 
-        graph.begin_render_pass(
-            {
-                .name = "VPL Injection",
-                .buffers = {
-                    {cascade_data_buffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT},
-                    {cascade.vpl_buffer, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT},
-                },
-                .attachments = {lpv_a_red, lpv_a_green, lpv_a_blue},
-            }
-        );
-        graph.add_subpass(
-            {
-                .name = "VPL Injection",
-                .color_attachments = {0, 1, 2},
-                .execute = [&](CommandBuffer& commands) {
-                    const auto set = *vkutil::DescriptorBuilder::begin(
-                                          backend,
-                                          backend.get_transient_descriptor_allocator()
-                                      )
-                                      .bind_buffer(
-                                          0,
-                                          {.buffer = cascade_data_buffer},
-                                          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                          VK_SHADER_STAGE_VERTEX_BIT
-                                      )
-                                      .build();
+        const auto set = backend.get_transient_descriptor_allocator().build_set(vpl_injection_pipeline, 0)
+                                .bind(cascade_data_buffer)
+                                .build();
 
+        graph.add_render_pass(
+            {
+                .name = "emissive_mesh_injection",
+                .descriptor_sets = {set},
+                .color_attachments = {
+                    {.image = lpv_a_red,},
+                    {.image = lpv_a_green},
+                    {.image = lpv_a_blue}
+                },
+                .execute = [&](CommandBuffer& commands) {
                     commands.bind_descriptor_set(0, set);
 
                     commands.set_push_constant(2, cascade_index);
@@ -778,9 +765,7 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
 
                     commands.clear_descriptor_set(0);
                 }
-            }
-        );
-        graph.end_render_pass();
+            });
     }
 
     graph.end_label();

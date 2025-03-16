@@ -61,6 +61,10 @@ public:
         CommandBuffer& commands, const IndirectDrawingBuffers& drawbuffers, GraphicsPipelineHandle solid_pso
     ) const;
 
+    void draw_masked(
+        CommandBuffer& commands, const IndirectDrawingBuffers& drawbuffers, GraphicsPipelineHandle masked_pso
+    ) const;
+
     void draw_transparent(CommandBuffer& commands, GraphicsPipelineHandle pso) const;
 
     const MeshStorage& get_meshes() const;

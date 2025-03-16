@@ -376,7 +376,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
     switch(usage) {
     case BufferUsage::StagingBuffer:
         vk_usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-        if (backend.supports_ray_tracing()) {
+        if(backend.supports_ray_tracing()) {
             vk_usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
         }
         vma_flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -395,7 +395,7 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
     case BufferUsage::IndexBuffer:
         vk_usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-        if (backend.supports_ray_tracing()) {
+        if(backend.supports_ray_tracing()) {
             vk_usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
         }
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
@@ -408,7 +408,8 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
         break;
 
     case BufferUsage::UniformBuffer:
-        vk_usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        vk_usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         vma_flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
@@ -515,7 +516,7 @@ void ResourceAllocator::destroy_acceleration_structure(AccelerationStructureHand
 }
 
 void* ResourceAllocator::map_buffer(const BufferHandle buffer_handle) {
-    if (buffer_handle->allocation_info.pMappedData == nullptr) {
+    if(buffer_handle->allocation_info.pMappedData == nullptr) {
         vmaMapMemory(vma, buffer_handle->allocation, &buffer_handle->allocation_info.pMappedData);
     }
 
@@ -570,19 +571,19 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
     {
         auto attachment_index = 0u;
 
-        for (const auto& render_target : pass.attachments) {
+        for(const auto& render_target : pass.attachments) {
             auto load_action = VK_ATTACHMENT_LOAD_OP_LOAD;
             auto store_action = VK_ATTACHMENT_STORE_OP_STORE;
-            if (render_target->is_transient) {
+            if(render_target->is_transient) {
                 load_action = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
                 store_action = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             }
-            if (pass.clear_values.size() > attachment_index) {
+            if(pass.clear_values.size() > attachment_index) {
                 load_action = VK_ATTACHMENT_LOAD_OP_CLEAR;
             }
 
             auto layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            if (is_depth_format(render_target->create_info.format)) {
+            if(is_depth_format(render_target->create_info.format)) {
                 layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             }
 
@@ -608,7 +609,7 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
                     .initialLayout = layout,
                     .finalLayout = layout,
                 }
-                );
+            );
 
             attachment_index++;
         }
@@ -691,11 +692,9 @@ VkRenderPass ResourceAllocator::get_render_pass(const RenderPass& pass) {
             description.pDepthStencilAttachment = depth_attachment_references.data();
         }
 
-        pass.view_mask.map(
-            [&](const uint32_t view_mask) {
-                description.viewMask = view_mask;
-            }
-        );
+        if(pass.view_mask) {
+            description.viewMask = *pass.view_mask;
+        }
 
         subpasses.emplace_back(description);
 

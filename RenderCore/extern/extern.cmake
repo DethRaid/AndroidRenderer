@@ -78,7 +78,9 @@ FetchContent_Declare(
 FetchContent_Declare(
         vk-bootstrap
         GIT_REPOSITORY  https://github.com/charles-lunarg/vk-bootstrap.git
-        GIT_TAG         v1.3.302
+        GIT_TAG         c73b793387e739b9abdf952c52cde40d1b0e7db0
+        #GIT_REPOSITORY  https://github.com/DethRaid/vk-bootstrap.git
+        #GIT_TAG         vk_14_features
 )
 FetchContent_Declare(
         fetch_vma

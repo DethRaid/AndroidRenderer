@@ -137,7 +137,7 @@ void GltfModel::add_to_scene(RenderScene& scene) {
     add_primitives(scene, graph);
 
     graph.finish();
-    backend.execute_graph(std::move(graph));
+    backend.execute_graph(graph);
 }
 
 void GltfModel::import_resources_for_model(SceneRenderer& renderer) {

@@ -46,22 +46,13 @@ public:
      * 
      * @param pass The compute pass to add to the graph
      */
-    void add_pass(const ComputePass& pass);
+    void add_pass(ComputePass pass);
 
     template <typename PushConstantsType = uint32_t>
     void add_compute_dispatch(const ComputeDispatch<PushConstantsType>& dispatch_info);
 
     template <typename PushConstantsType = uint32_t>
     void add_compute_dispatch(const IndirectComputeDispatch<PushConstantsType>& dispatch_info);
-
-    [[deprecated("Use add_render_pass instead")]]
-    void begin_render_pass(const RenderPassBeginInfo& begin_info);
-
-    [[deprecated("Use add_render_pass instead")]]
-    void add_subpass(Subpass&& subpass);
-
-    [[deprecated("Use add_render_pass instead")]]
-    void end_render_pass();
 
     void add_render_pass(DynamicRenderingPass pass);
 
@@ -101,11 +92,7 @@ private:
 
     std::vector<std::function<void()>> post_submit_lambdas;
 
-    std::optional<RenderPass> current_render_pass;
-
     uint32_t num_passes = 0;
-
-    void add_render_pass_internal(RenderPass pass);
 
     void update_accesses_and_issues_barriers(
         const std::vector<TextureUsageToken>& textures,
@@ -149,6 +136,10 @@ void RenderGraph::add_compute_dispatch(const ComputeDispatch<PushConstantsType>&
 
     cmds.dispatch(dispatch_info.num_workgroups.x, dispatch_info.num_workgroups.y, dispatch_info.num_workgroups.z);
 
+    for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+        cmds.clear_descriptor_set(i);
+    }
+
     if(!dispatch_info.name.empty()) {
         cmds.end_label();
     }
@@ -183,6 +174,10 @@ void RenderGraph::add_compute_dispatch(const IndirectComputeDispatch<PushConstan
     }
 
     cmds.dispatch_indirect(dispatch_info.dispatch);
+
+    for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+        cmds.clear_descriptor_set(i);
+    }
 
     if(!dispatch_info.name.empty()) {
         cmds.end_label();

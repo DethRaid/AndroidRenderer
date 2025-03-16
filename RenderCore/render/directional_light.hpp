@@ -17,11 +17,19 @@ class CommandBuffer;
 class SceneView;
 class RenderBackend;
 
+enum class SunShadowMode {
+    Off,
+    CascadedShadowMaps,
+    RayTracing
+};
+
 /**
  * Represents a directional light
  */
 class DirectionalLight {
 public:
+    static SunShadowMode get_shadow_mode();
+
     explicit DirectionalLight();
 
     void update_shadow_cascades(const SceneView& view);
@@ -38,12 +46,25 @@ public:
 
     glm::vec3 get_direction() const;
 
+    /**
+     * Rasterizes the cascaded shadow maps for this light
+     */
     void render_shadows(RenderGraph& graph, const RenderScene& scene) const;
 
+    /**
+     * Renders this light's contribution to the scene, using a fullscreen triangle and additive blending
+     */
     void render(
-        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneView& view,
-        AccelerationStructureHandle rtas
+        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneView& view
     ) const;
+
+    /**
+     * Renders this light's contribution to the scene, using ray tracing to compute shadows
+     */
+    void raytrace(
+        RenderGraph& graph, const SceneView& view, const DescriptorSet& gbuffers_set, const RenderScene& scene,
+        TextureHandle lit_scene
+    );
 
     TextureHandle get_shadowmap_handle() const;
 
@@ -60,4 +81,6 @@ private:
     GraphicsPipelineHandle pipeline = {};
 
     TextureHandle shadowmap_handle = nullptr;
+
+    RayTracingPipelineHandle rt_pipeline = nullptr;
 };

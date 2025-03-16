@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <span>
+#include <unordered_map>
 
 #include <volk.h>
 #include <glm/vec2.hpp>
@@ -17,7 +18,7 @@
 #include "render/backend/framebuffer.hpp"
 
 struct DescriptorSet;
-struct ComputeShader;
+struct ComputePipeline;
 class RenderBackend;
 
 struct RenderingInfo {
@@ -100,29 +101,6 @@ public:
     ) const;
 
     /**
-     * Begins a render pass, which implicitly begins the first subpass
-     *
-     * @param render_pass The render pass to begin
-     * @param framebuffer The framebuffer to use with this render pass. Must have the same number of attachments
-     * @param clears The clear values for the framebuffer attachments. Must have one entry for every attachment that the
-     * render pass clears
-     */
-    void begin_render_pass(
-        VkRenderPass render_pass, const Framebuffer& framebuffer,
-        const std::vector<VkClearValue>& clears
-    );
-
-    /**
-     * Ends the current subpass and begins the next subpass
-     */
-    void advance_subpass();
-
-    /**
-     * Ends the current render pass
-     */
-    void end_render_pass();
-
-    /**
      * Begins rendering with dynamic rendering
      */
     void begin_rendering(const RenderingInfo& info);
@@ -194,6 +172,8 @@ public:
     void bind_pipeline(const ComputePipelineHandle& pipeline);
 
     void bind_pipeline(const GraphicsPipelineHandle& pipeline);
+
+    void bind_pipeline(RayTracingPipelineHandle pipeline);
 
     void set_push_constant(uint32_t index, uint32_t data);
 
@@ -289,6 +269,8 @@ private:
      */
     std::unordered_map<VkEvent, std::vector<VkBufferMemoryBarrier2>> event_buffer_barriers;
     uint32_t num_descriptor_sets_in_current_pipeline = 0;
+
+    void save_pipeline_layout_info(const PipelineBase& pipeline);
 
     void bind_index_buffer(BufferHandle buffer, VkIndexType index_type) const;
 

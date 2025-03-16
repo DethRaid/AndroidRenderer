@@ -98,6 +98,10 @@ void LightingPhase::render(
             });
     }
 
+    if(DirectionalLight::get_shadow_mode() == SunShadowMode::RayTracing) {
+        sun.raytrace(render_graph, view, gbuffers_descriptor_set, *scene, lit_scene_texture);
+    }
+
     render_graph.add_render_pass(
         {
             .name = "Lighting",
@@ -107,12 +111,9 @@ void LightingPhase::render(
                 RenderingAttachmentInfo{.image = lit_scene_texture, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR}
             },
             .execute = [&](CommandBuffer& commands) {
-                AccelerationStructureHandle rtas = {};
-                if(RenderBackend::get().supports_ray_tracing()) {
-                    rtas = scene->get_raytracing_scene().get_acceleration_structure();
+                if(DirectionalLight::get_shadow_mode() == SunShadowMode::CascadedShadowMaps) {
+                    sun.render(commands, gbuffers_descriptor_set, view);
                 }
-
-                sun.render(commands, gbuffers_descriptor_set, view, rtas);
 
                 if(lpv) {
                     lpv->add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer(), ao_texture);
@@ -145,7 +146,7 @@ void LightingPhase::rasterize_sky_shadow(RenderGraph& render_graph, const SceneV
     if(sky_occlusion_map == nullptr) {
         sky_occlusion_map = allocator.create_texture(
             "sky_shadowmap",
-            {.format = VK_FORMAT_D16_UNORM, .resolution = {1024, 1024}, .usage = TextureUsage::RenderTarget });
+            {.format = VK_FORMAT_D16_UNORM, .resolution = {1024, 1024}, .usage = TextureUsage::RenderTarget});
     }
 
     // const auto sky_shadow_pso = MaterialPipelines::get().get_sky_shadow_pso();

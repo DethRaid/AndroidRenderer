@@ -34,53 +34,8 @@ PooledObject<BasicPbrMaterialProxy> MaterialStorage::add_material_instance(Basic
     );
 
     const auto handle = material_instance_pool.add_object(std::make_pair(new_material, MaterialProxy{}));
-    auto& proxy = handle->second;
 
     material_instance_upload_buffer.add_data(handle.index, new_material.gpu_data);
-
-    // Pipelines......
-
-    // I have some dream that objects can specify their own mesh functions and material functions, and that we can
-    // dynamically build those into the vertex and fragment shaders that these pipelines need. Will take a while to
-    // realize that dream
-
-    // Animations wil be handled with a compute shader that runs before the other passes and which writes skinned
-    // meshes to a new vertex buffer. Skinned objects will therefore need their own vertex buffers
-
-    const auto cull_mode = static_cast<VkCullModeFlags>(new_material.double_sided
-        ? VK_CULL_MODE_NONE
-        : VK_CULL_MODE_BACK_BIT);
-    const auto front_face = static_cast<VkFrontFace>(new_material.front_face_ccw
-        ? VK_FRONT_FACE_COUNTER_CLOCKWISE
-        : VK_FRONT_FACE_CLOCKWISE);
-
-    VkPipelineColorBlendAttachmentState blend_state;
-    switch(new_material.transparency_mode) {
-    case TransparencyMode::Solid:
-        [[fallthrough]];
-    case TransparencyMode::Cutout:
-        blend_state = {
-                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
-                VK_COLOR_COMPONENT_A_BIT
-        };
-        break;
-
-    case TransparencyMode::Translucent:
-        blend_state = {
-                .blendEnable = VK_TRUE,
-                .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .colorBlendOp = VK_BLEND_OP_ADD,
-                .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .alphaBlendOp = VK_BLEND_OP_ADD,
-                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-        };
-        break;
-    }
-
-    is_pipeline_group_dirty = true;
 
     return handle;
 }
