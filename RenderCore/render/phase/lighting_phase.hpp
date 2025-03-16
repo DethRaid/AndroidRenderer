@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 

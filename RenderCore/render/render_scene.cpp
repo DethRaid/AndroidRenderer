@@ -165,7 +165,7 @@ void RenderScene::draw_opaque(
     meshes.bind_to_commands(commands);
     commands.bind_vertex_buffer(2, drawbuffers.primitive_ids);
 
-    if(solid_pso->get_num_descriptor_sets() > 1) {
+    if(solid_pso->descriptor_sets.size() > 1) {
         commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
     }
 
@@ -179,7 +179,7 @@ void RenderScene::draw_opaque(
         drawbuffers.count,
         static_cast<uint32_t>(solid_primitives.size()));
 
-    if(solid_pso->get_num_descriptor_sets() > 1) {
+    if(solid_pso->descriptor_sets.size() > 1) {
         commands.clear_descriptor_set(1);
     }
 }
@@ -190,7 +190,7 @@ void RenderScene::draw_masked(
     meshes.bind_to_commands(commands);
     commands.bind_vertex_buffer(2, drawbuffers.primitive_ids);
 
-    if (masked_pso->get_num_descriptor_sets() > 1) {
+    if (masked_pso->descriptor_sets.size() > 1) {
         commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
     }
 
@@ -204,7 +204,7 @@ void RenderScene::draw_masked(
         drawbuffers.count,
         static_cast<uint32_t>(masked_primitives.size()));
 
-    if (masked_pso->get_num_descriptor_sets() > 1) {
+    if (masked_pso->descriptor_sets.size() > 1) {
         commands.clear_descriptor_set(1);
     }
 }
@@ -292,7 +292,7 @@ void RenderScene::draw_primitives(
 ) const {
     meshes.bind_to_commands(commands);
 
-    if(pso->get_num_descriptor_sets() > 1) {
+    if(pso->descriptor_sets.size() > 1) {
         commands.bind_descriptor_set(1, commands.get_backend().get_texture_descriptor_pool().get_descriptor_set());
     }
 
@@ -321,7 +321,7 @@ void RenderScene::draw_primitives(
             0);
     }
 
-    if(pso->get_num_descriptor_sets() > 1) {
+    if(pso->descriptor_sets.size() > 1) {
         commands.clear_descriptor_set(1);
     }
 }

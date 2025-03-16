@@ -45,6 +45,21 @@ void GbufferPhase::render(
                     VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
                     VK_ACCESS_2_SHADER_READ_BIT
                 },
+                {
+                    visible_masked_buffers.commands,
+                    VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
+                },
+                {
+                    visible_masked_buffers.count,
+                    VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                    VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT
+                },
+                {
+                    visible_masked_buffers.primitive_ids,
+                    VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
+                    VK_ACCESS_2_SHADER_READ_BIT
+                },
             },
             .descriptor_sets = {gbuffer_set},
             .color_attachments = {

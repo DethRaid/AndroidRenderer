@@ -36,42 +36,6 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-VkBool32 VKAPI_ATTR debug_callback(
-    const VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
-    const VkDebugUtilsMessageTypeFlagsEXT message_type,
-    const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
-    void* pUserData
-) {
-    const auto severity = vkb::to_string_message_severity(message_severity);
-    const auto type = vkb::to_string_message_type(message_type);
-    switch(message_severity) {
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-        spdlog::debug("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-        break;
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-        spdlog::info("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-        break;
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-        if(
-            // This ID is for a warning that you should only have validation layers enabled in debug builds
-            callback_data->messageIdNumber != 0x822806fa &&
-            // Warning about the command buffer being resettable. Tracy requires a resettable command buffer
-            callback_data->messageIdNumber != 0x8728e724
-        ) {
-            spdlog::warn("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-        }
-        break;
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-        spdlog::error("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-        break;
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_FLAG_BITS_MAX_ENUM_EXT:
-        spdlog::info("[{}: {}](user defined)\n{}\n", severity, type, callback_data->pMessage);
-        break;
-    }
-
-    return VK_FALSE;
-}
-
 RenderBackend& RenderBackend::get() {
     if(g_render_backend == nullptr) {
         g_render_backend = std::make_unique<RenderBackend>();
@@ -84,7 +48,7 @@ RenderBackend& RenderBackend::get() {
 /**
  * Android driver replacement - possibly useful?
  */
-void* replace_driver(const std::string& path, const char* hooksDir, const char* driverName) {
+static void* replace_driver(const std::string& path, const char* hooksDir, const char* driverName) {
     void* lib_vulkan = nullptr;
 #if defined(__ANDROID__)
     const auto temp_path = path + "temp";
@@ -125,6 +89,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
     if(vk_get_instance_proc != nullptr) {
         volkInitializeCustom(vk_get_instance_proc);
     } else {
+        logger->warn("Could not load Streamline Vulkan loader");
         volk_result = volkInitialize();
     }
 
@@ -232,8 +197,8 @@ void RenderBackend::create_instance_and_device() {
     auto instance_builder = vkb::InstanceBuilder{vkGetInstanceProcAddr}
                             .set_app_name("Renderer")
                             .set_engine_name("Sarah's Artisanal Handcrafted Renderer")
-                            .set_app_version(0, 8, 0)
-                            .require_api_version(1, 3, 0)
+                            .set_app_version(0, 12, 0)
+                            .require_api_version(1, 4, 0)
 #if defined(_WIN32 )
             .enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
 #endif
@@ -346,6 +311,10 @@ void RenderBackend::create_instance_and_device() {
         .maintenance4 = VK_TRUE,
     };
 
+    auto required_1_4_features = VkPhysicalDeviceVulkan14Features{
+        .maintenance5 = VK_TRUE,
+    };
+
     auto phys_device_builder = vkb::PhysicalDeviceSelector{instance}
                                .set_surface(surface)
                                .add_required_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME)
@@ -355,7 +324,8 @@ void RenderBackend::create_instance_and_device() {
                                .set_required_features_11(required_1_1_features)
                                .set_required_features_12(required_1_2_features)
                                .set_required_features_13(required_1_3_features)
-                               .set_minimum_version(1, 1);
+                               .set_required_features_14(required_1_4_features)
+                               .set_minimum_version(1, 4);
 
     auto phys_device_ret = phys_device_builder.select();
     if(!phys_device_ret) {
@@ -536,6 +506,10 @@ void RenderBackend::query_physical_device_properties() {
         physical_device_properties.add_extension(&shading_rate_properties);
     }
 
+    if(supports_raytracing) {
+        physical_device_properties.add_extension(&ray_tracing_pipeline_properties);
+    }
+
     vkGetPhysicalDeviceProperties2(physical_device, *physical_device_properties);
 
     logger->debug(
@@ -589,16 +563,18 @@ glm::vec2 RenderBackend::get_max_shading_rate_texel_size() const {
         shading_rate_properties.maxFragmentShadingRateAttachmentTexelSize.height
     };
 
-    const auto supported_max = glm::vec2{4};
-
     return properties_max;
+}
+
+uint32_t RenderBackend::get_shader_record_size() const {
+    return ray_tracing_pipeline_properties.shaderGroupHandleSize;
 }
 
 RenderGraph RenderBackend::create_render_graph() {
     return RenderGraph{*this};
 }
 
-void RenderBackend::execute_graph(RenderGraph&& render_graph) {
+void RenderBackend::execute_graph(RenderGraph& render_graph) {
     submit_command_buffer(render_graph.extract_command_buffer());
 
     render_graph.execute_post_submit_tasks();
@@ -668,6 +644,9 @@ void RenderBackend::advance_frame() {
             &frame_fences[cur_frame_idx],
             VK_TRUE,
             std::numeric_limits<uint64_t>::max());
+        if(result != VK_SUCCESS) {
+            logger->error("Could not wait for frame fence: {}", string_VkResult(result));
+        }
     }
 
     swapchain_semaphore = create_transient_semaphore("Acquire swapchain semaphore");
@@ -710,7 +689,7 @@ void RenderBackend::flush_batched_command_buffers() {
 
     if(!queued_transfer_command_buffers.empty()) {
         const auto submission_semaphore = create_transient_semaphore("Transfer commands submission");
-        const auto mask = static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+        constexpr auto mask = static_cast<VkPipelineStageFlags>(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
         const auto transfer_submit = VkSubmitInfo{
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             .waitSemaphoreCount = static_cast<uint32_t>(last_submission_semaphores.size()),
@@ -911,7 +890,7 @@ void RenderBackend::create_tracy_context() {
         device.device,
         graphics_queue,
         tracy_command_buffer
-    );
+    )
 }
 
 ResourceAllocator& RenderBackend::get_global_allocator() const {
@@ -920,6 +899,10 @@ ResourceAllocator& RenderBackend::get_global_allocator() const {
 
 GraphicsPipelineBuilder RenderBackend::begin_building_pipeline(const std::string_view name) const {
     return GraphicsPipelineBuilder{*pipeline_cache}.set_name(name);
+}
+
+HitGroupBuilder RenderBackend::create_hit_group(const std::string_view name) const {
+    return HitGroupBuilder{*pipeline_cache}.set_name(name);
 }
 
 uint32_t RenderBackend::get_current_gpu_frame() const {
@@ -1112,7 +1095,7 @@ void RenderBackend::create_default_resources() {
         TextureUploadJob{
             .destination = white_texture_handle,
             .mip = 0,
-            .data = std::vector<uint8_t>(64 * 4, 0xFF)
+            .data = std::vector<uint8_t>(static_cast<size_t>(64 * 4), 0xFF)
         }
     );
     upload_queue->enqueue(

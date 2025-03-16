@@ -2,6 +2,7 @@
 #include "pipeline_cache.hpp"
 
 #include "pipeline_builder.hpp"
+#include "ray_tracing_pipeline.hpp"
 #include "render_backend.hpp"
 #include "core/system_interface.hpp"
 
@@ -68,101 +69,23 @@ PipelineCache::~PipelineCache() {
 }
 
 GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuilder& pipeline_builder) {
-    const auto& device = backend.get_device();
-
     auto pipeline = GraphicsPipeline{};
 
-    pipeline.pipeline_name = pipeline_builder.name;
+    pipeline.name = pipeline_builder.name;
 
     if(pipeline_builder.should_enable_dgc && backend.supports_device_generated_commands()) {
         pipeline.flags |= VK_PIPELINE_CREATE_INDIRECT_BINDABLE_BIT_NV;
     }
 
-    if(pipeline_builder.vertex_shader) {
-        ZoneScopedN("Compile vertex shader");
-
-        const auto module_create_info = VkShaderModuleCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = static_cast<uint32_t>(pipeline_builder.vertex_shader->size()),
-            .pCode = reinterpret_cast<const uint32_t*>(pipeline_builder.vertex_shader->data()),
-        };
-        auto vertex_module = VkShaderModule{};
-        const auto result = vkCreateShaderModule(
-            device,
-            &module_create_info,
-            nullptr,
-            &vertex_module
-        );
-        if(result != VK_SUCCESS) {
-            throw std::runtime_error{"Could not create vertex module"};
-        }
-
-        pipeline.vertex_shader_name = pipeline_builder.vertex_shader_name;
-
-        backend.set_object_name(vertex_module, pipeline_builder.vertex_shader_name);
-
-        pipeline.vertex_stage = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = vertex_module,
-            .pName = "main",
-        };
-    } else {
-        throw std::runtime_error{"Missing vertex shader"};
+    if(!pipeline_builder.vertex_shader) {
+        throw std::runtime_error{"Vertex shader is required!"};
     }
-
+    pipeline.vertex_shader = *pipeline_builder.vertex_shader;
     if(pipeline_builder.geometry_shader) {
-        ZoneScopedN("Compile geometry shader");
-
-        const auto module_create_info = VkShaderModuleCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = static_cast<uint32_t>(pipeline_builder.geometry_shader->size()),
-            .pCode = reinterpret_cast<const uint32_t*>(pipeline_builder.geometry_shader->data()),
-        };
-        auto geometry_module = VkShaderModule{};
-        vkCreateShaderModule(device, &module_create_info, nullptr, &geometry_module);
-
-        pipeline.geometry_shader_name = pipeline_builder.geometry_shader_name;
-
-        backend.set_object_name(geometry_module, pipeline_builder.geometry_shader_name);
-
-        pipeline.geometry_stage = VkPipelineShaderStageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_GEOMETRY_BIT,
-            .module = geometry_module,
-            .pName = "main",
-        };
+        pipeline.geometry_shader = *pipeline_builder.geometry_shader;
     }
-
     if(pipeline_builder.fragment_shader) {
-        ZoneScopedN("Compile fragment shader");
-
-        const auto module_create_info = VkShaderModuleCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = static_cast<uint32_t>(pipeline_builder.fragment_shader->size()),
-            .pCode = reinterpret_cast<const uint32_t*>(pipeline_builder.fragment_shader->data()),
-        };
-        auto fragment_module = VkShaderModule{};
-        vkCreateShaderModule(device, &module_create_info, nullptr, &fragment_module);
-
-        pipeline.fragment_shader_name = pipeline_builder.fragment_shader_name;
-
-        if(vkSetDebugUtilsObjectNameEXT != nullptr) {
-            const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_SHADER_MODULE,
-                .objectHandle = reinterpret_cast<uint64_t>(fragment_module),
-                .pObjectName = pipeline_builder.fragment_shader_name.c_str()
-            };
-            vkSetDebugUtilsObjectNameEXT(device, &name_info);
-        }
-
-        pipeline.fragment_stage = VkPipelineShaderStageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .module = fragment_module,
-            .pName = "main",
-        };
+        pipeline.fragment_shader = *pipeline_builder.fragment_shader;
     }
 
     pipeline.depth_stencil_state = pipeline_builder.depth_stencil_state;
@@ -199,91 +122,27 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         .codeSize = instructions.size(),
         .pCode = reinterpret_cast<const uint32_t*>(instructions.data()),
     };
-    VkShaderModule module;
-    auto result = vkCreateShaderModule(backend.get_device(), &module_create_info, nullptr, &module);
-    if(result != VK_SUCCESS) {
-        logger->error("Could not create compute shader {}: Vulkan error {}", shader_file_path, result);
-        return {};
-    }
 
-    std::vector<DescriptorSetInfo> descriptor_sets;
+    auto pipeline = ComputePipeline{};
+
+    pipeline.name = shader_file_path;
+    pipeline.push_constant_stages = VK_SHADER_STAGE_COMPUTE_BIT;
+
     std::vector<VkPushConstantRange> push_constants;
-    collect_bindings(instructions, shader_file_path, VK_SHADER_STAGE_COMPUTE_BIT, descriptor_sets, push_constants);
+    collect_bindings(
+        instructions,
+        shader_file_path,
+        VK_SHADER_STAGE_COMPUTE_BIT,
+        pipeline.descriptor_sets,
+        push_constants);
 
     // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
-    uint32_t num_push_constants = 0;
     for(const auto& range : push_constants) {
         const auto max_used_byte = range.offset + range.size;
-        num_push_constants = std::max(num_push_constants, max_used_byte / 4u);
+        pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
     }
 
-    auto layouts = std::vector<VkDescriptorSetLayout>{};
-    layouts.reserve(descriptor_sets.size());
-
-    for(const auto& set_info : descriptor_sets) {
-        auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
-        bindings.resize(set_info.bindings.size());
-
-        for(const auto& binding : set_info.bindings) {
-            bindings[binding.binding] = static_cast<VkDescriptorSetLayoutBinding>(binding);
-        }
-
-        auto create_info = VkDescriptorSetLayoutCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-            .bindingCount = static_cast<uint32_t>(bindings.size()),
-            .pBindings = bindings.data(),
-        };
-
-        // If the last binding is un unsized texture array, tell Vulkan about it
-        auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
-        auto flags = std::vector<VkDescriptorBindingFlags>{};
-        if(set_info.has_variable_count_binding) {
-            flags.resize(bindings.size());
-            flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
-                VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
-            flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-                .bindingCount = static_cast<uint32_t>(flags.size()),
-                .pBindingFlags = flags.data(),
-            };
-            create_info.pNext = &flags_create_info;
-            bindings.back().stageFlags = VK_SHADER_STAGE_ALL;
-        }
-
-        auto dsl = VkDescriptorSetLayout{};
-        result = vkCreateDescriptorSetLayout(backend.get_device(), &create_info, nullptr, &dsl);
-        if(result != VK_SUCCESS) {
-            logger->error(
-                "Could not create descriptor set layout for shader {}: Vulkan error {}",
-                shader_file_path,
-                result
-            );
-            return {};
-        }
-
-        layouts.push_back(dsl);
-    }
-
-    logger->trace("About to create pipeline layout");
-    const auto pipeline_layout_create_info = VkPipelineLayoutCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = static_cast<uint32_t>(layouts.size()),
-        .pSetLayouts = layouts.data(),
-        .pushConstantRangeCount = static_cast<uint32_t>(push_constants.size()),
-        .pPushConstantRanges = push_constants.data(),
-    };
-    auto pipeline_layout = VkPipelineLayout{};
-    result = vkCreatePipelineLayout(backend.get_device(), &pipeline_layout_create_info, nullptr, &pipeline_layout);
-    if(result != VK_SUCCESS) {
-        vkDestroyShaderModule(backend.get_device(), module, nullptr);
-        for(const auto layout : layouts) {
-            vkDestroyDescriptorSetLayout(backend.get_device(), layout, nullptr);
-        }
-
-        logger->error("Could not create pipeline layout for shader {}: Vulkan error {}", shader_file_path, result);
-        return {};
-    }
+    pipeline.create_pipeline_layout(backend, pipeline.descriptor_sets, push_constants);
 
     logger->trace("Created pipeline layout");
 
@@ -291,50 +150,35 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
         .stage = VkPipelineShaderStageCreateInfo{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .pNext = &module_create_info,
             .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-            .module = module,
             .pName = "main",
         },
-        .layout = pipeline_layout
+        .layout = pipeline.layout
     };
-    auto pipeline = VkPipeline{};
-    result = vkCreateComputePipelines(backend.get_device(), VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline);
+
+    auto result = vkCreateComputePipelines(
+        backend.get_device(),
+        VK_NULL_HANDLE,
+        1,
+        &create_info,
+        nullptr,
+        &pipeline.pipeline);
     if(result != VK_SUCCESS) {
-        vkDestroyShaderModule(backend.get_device(), module, nullptr);
-        for(const auto layout : layouts) {
-            vkDestroyDescriptorSetLayout(backend.get_device(), layout, nullptr);
-        }
-
-        vkDestroyPipelineLayout(backend.get_device(), pipeline_layout, nullptr);
-
         logger->error("Could not create pipeline {}: Vulkan error {}", shader_file_path, result);
         return {};
     }
 
     logger->trace("Created pipeline");
 
-    vkDestroyShaderModule(backend.get_device(), module, nullptr);
-    for(const auto layout : layouts) {
-        vkDestroyDescriptorSetLayout(backend.get_device(), layout, nullptr);
-    }
-
-    logger->trace("Cleaned up DSLs");
-
     const auto layout_name = fmt::format("{} Layout", shader_file_path);
 
-    backend.set_object_name(pipeline, shader_file_path);
-    backend.set_object_name(pipeline_layout, layout_name);
+    backend.set_object_name(pipeline.pipeline, shader_file_path);
+    backend.set_object_name(pipeline.layout, layout_name);
 
     logger->trace("Named pipeline and pipeline layout");
 
-    return &(*compute_pipelines.emplace(
-        ComputeShader{
-            .name = shader_file_path,
-            .layout = pipeline_layout,
-            .pipeline = pipeline,
-            .num_push_constants = num_push_constants,
-            .descriptor_sets = descriptor_sets
-        }));
+    return &(*compute_pipelines.emplace(std::move(pipeline)));
 }
 
 GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<GraphicsPipelineHandle> pipelines_in) {
@@ -377,12 +221,55 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         return pipeline->pipeline;
     }
 
-    auto stages = std::vector{pipeline->vertex_stage};
-    if(pipeline->geometry_stage) {
-        stages.emplace_back(*pipeline->geometry_stage);
+    auto stages = std::vector<VkPipelineShaderStageCreateInfo>{};
+    stages.reserve(3);
+
+    const auto vertex_module = VkShaderModuleCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = static_cast<uint32_t>(pipeline->vertex_shader.size()),
+        .pCode = reinterpret_cast<const uint32_t*>(pipeline->vertex_shader.data()),
+    };
+
+    stages.emplace_back(
+        VkPipelineShaderStageCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .pNext = &vertex_module,
+            .stage = VK_SHADER_STAGE_VERTEX_BIT,
+            .pName = "main",
+        });
+
+    VkShaderModuleCreateInfo geometry_module;
+    if(!pipeline->geometry_shader.empty()) {
+        geometry_module = VkShaderModuleCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = static_cast<uint32_t>(pipeline->geometry_shader.size()),
+            .pCode = reinterpret_cast<const uint32_t*>(pipeline->geometry_shader.data()),
+        };
+
+        stages.emplace_back(
+            VkPipelineShaderStageCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .pNext = &geometry_module,
+                .stage = VK_SHADER_STAGE_GEOMETRY_BIT,
+                .pName = "main",
+            });
     }
-    if(pipeline->fragment_stage) {
-        stages.emplace_back(*pipeline->fragment_stage);
+
+    VkShaderModuleCreateInfo fragment_module;
+    if(!pipeline->fragment_shader.empty()) {
+        fragment_module = VkShaderModuleCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = static_cast<uint32_t>(pipeline->fragment_shader.size()),
+            .pCode = reinterpret_cast<const uint32_t*>(pipeline->fragment_shader.data()),
+        };
+
+        stages.emplace_back(
+            VkPipelineShaderStageCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .pNext = &fragment_module,
+                .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .pName = "main",
+            });
     }
 
     // ReSharper disable CppVariableCanBeMadeConstexpr
@@ -463,7 +350,7 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
 
         .pDynamicState = &dynamic_state,
 
-        .layout = pipeline->pipeline_layout
+        .layout = pipeline->layout
     };
 
     auto shading_rate_create_info = VkPipelineFragmentShadingRateStateCreateInfoKHR{};
@@ -482,7 +369,7 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
     }
 
     const auto& device = backend.get_device();
-    logger->trace("About to compile PSO {}", pipeline->pipeline_name);
+    logger->trace("About to compile PSO {}", pipeline->name);
     const auto result = vkCreateGraphicsPipelines(
         device,
         vk_pipeline_cache,
@@ -492,11 +379,11 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         &pipeline->pipeline
     );
     if(result != VK_SUCCESS) {
-        logger->error("Could not create pipeline {}: {}", pipeline->pipeline_name, string_VkResult(result));
+        logger->error("Could not create pipeline {}: {}", pipeline->name, string_VkResult(result));
     }
 
-    if(!pipeline->pipeline_name.empty()) {
-        backend.set_object_name(pipeline->pipeline, pipeline->pipeline_name);
+    if(!pipeline->name.empty()) {
+        backend.set_object_name(pipeline->pipeline, pipeline->name);
     }
 
     return pipeline->pipeline;
@@ -515,12 +402,55 @@ VkPipeline PipelineCache::get_pipeline(
         // logger->warn("Recompiling pipeline. {} This is cringe", pipeline->pipeline_name);
     }
 
-    auto stages = std::vector{pipeline->vertex_stage};
-    if(pipeline->geometry_stage) {
-        stages.emplace_back(*pipeline->geometry_stage);
+    auto stages = std::vector<VkPipelineShaderStageCreateInfo>{};
+    stages.reserve(3);
+
+    const auto vertex_module = VkShaderModuleCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = static_cast<uint32_t>(pipeline->vertex_shader.size()),
+        .pCode = reinterpret_cast<const uint32_t*>(pipeline->vertex_shader.data()),
+    };
+
+    stages.emplace_back(
+        VkPipelineShaderStageCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .pNext = &vertex_module,
+            .stage = VK_SHADER_STAGE_VERTEX_BIT,
+            .pName = "main",
+        });
+
+    VkShaderModuleCreateInfo geometry_module;
+    if (!pipeline->geometry_shader.empty()) {
+        geometry_module = VkShaderModuleCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = static_cast<uint32_t>(pipeline->geometry_shader.size()),
+            .pCode = reinterpret_cast<const uint32_t*>(pipeline->geometry_shader.data()),
+        };
+
+        stages.emplace_back(
+            VkPipelineShaderStageCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .pNext = &geometry_module,
+                .stage = VK_SHADER_STAGE_GEOMETRY_BIT,
+                .pName = "main",
+            });
     }
-    if(pipeline->fragment_stage) {
-        stages.emplace_back(*pipeline->fragment_stage);
+
+    VkShaderModuleCreateInfo fragment_module;
+    if (!pipeline->fragment_shader.empty()) {
+        fragment_module = VkShaderModuleCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = static_cast<uint32_t>(pipeline->fragment_shader.size()),
+            .pCode = reinterpret_cast<const uint32_t*>(pipeline->fragment_shader.data()),
+        };
+
+        stages.emplace_back(
+            VkPipelineShaderStageCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .pNext = &fragment_module,
+                .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .pName = "main",
+            });
     }
 
     const auto vertex_input_stage = VkPipelineVertexInputStateCreateInfo{
@@ -558,6 +488,8 @@ VkPipeline PipelineCache::get_pipeline(
     const auto dynamic_states = std::array{
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR,
+        VK_DYNAMIC_STATE_FRONT_FACE,
+        VK_DYNAMIC_STATE_CULL_MODE
     };
 
     const auto dynamic_state = VkPipelineDynamicStateCreateInfo{
@@ -588,7 +520,7 @@ VkPipeline PipelineCache::get_pipeline(
 
         .pDynamicState = &dynamic_state,
 
-        .layout = pipeline->pipeline_layout,
+        .layout = pipeline->layout,
 
         .renderPass = active_render_pass,
         .subpass = active_subpass,
@@ -604,12 +536,12 @@ VkPipeline PipelineCache::get_pipeline(
         &pipeline->pipeline
     );
 
-    if(!pipeline->pipeline_name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
+    if(!pipeline->name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
         const auto name_info = VkDebugUtilsObjectNameInfoEXT{
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .objectType = VK_OBJECT_TYPE_PIPELINE,
             .objectHandle = reinterpret_cast<uint64_t>(pipeline->pipeline),
-            .pObjectName = pipeline->pipeline_name.c_str()
+            .pObjectName = pipeline->name.c_str()
         };
         vkSetDebugUtilsObjectNameEXT(device, &name_info);
     }
@@ -617,7 +549,260 @@ VkPipeline PipelineCache::get_pipeline(
     pipeline->last_renderpass = active_render_pass;
     pipeline->last_subpass_index = active_subpass;
 
-    // logger->warn("Compiling pipeline {}", pipeline->pipeline_name);
-
     return pipeline->pipeline;
+}
+
+HitGroupHandle PipelineCache::add_hit_group(const HitGroupBuilder& shader_group) {
+    return &(*shader_groups.emplace(
+        HitGroup{
+            .name = shader_group.name,
+            .index = static_cast<uint32_t>(shader_groups.size()),
+            .occlusion_anyhit_shader = shader_group.occlusion_anyhit_shader,
+            .occlusion_closesthit_shader = shader_group.occlusion_closesthit_shader,
+            .gi_anyhit_shader = shader_group.gi_anyhit_shader,
+            .gi_closesthit_shader = shader_group.gi_closesthit_shader
+        }));
+}
+
+RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
+    const std::filesystem::path& raygen_shader_path, const std::filesystem::path& miss_shader_path
+) {
+    ZoneScoped;
+
+    auto pipeline = RayTracingPipeline{};
+
+    const auto& device = backend.get_device();
+
+    // Reserve enough space for both a closesthit and anyhit for both GI and occlusion - but non-masked materials don't
+    // have anyhit shaders
+    auto stages = std::vector<VkPipelineShaderStageCreateInfo>{};
+    stages.reserve(shader_groups.size() * 4 + 2);
+
+    auto groups = std::vector<VkRayTracingShaderGroupCreateInfoKHR>{};
+    groups.reserve(shader_groups.size() * 2 + 2);
+
+    auto modules = std::vector<VkShaderModuleCreateInfo>{};
+    modules.reserve(stages.capacity());
+
+    // Add stages for each shader group, and add two groups for each shader group. Occlusion is first, GI is second
+    for(const auto& shader_group : shader_groups) {
+        // Occlusion 
+        {
+            auto occlusion_closesthit_index = VK_SHADER_UNUSED_KHR;
+            auto occlusion_anyhit_index = VK_SHADER_UNUSED_KHR;
+
+            // Occlusion stages
+            const auto& occlusion_anyhit_shader = shader_group.occlusion_anyhit_shader;
+            if(!occlusion_anyhit_shader.empty()) {
+                occlusion_anyhit_index = static_cast<uint32_t>(stages.size());
+
+                const auto& module_create_info = modules.emplace_back(
+                    VkShaderModuleCreateInfo{
+                        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                        .codeSize = occlusion_anyhit_shader.size() * sizeof(uint8_t),
+                        .pCode = reinterpret_cast<const uint32_t*>(occlusion_anyhit_shader.data())
+                    });
+
+                stages.emplace_back(
+                    VkPipelineShaderStageCreateInfo{
+                        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                        .pNext = &module_create_info,
+                        .stage = VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+                        .pName = "main_anyhit"
+                    });
+            }
+
+            const auto& occlusion_closesthit_shader = shader_group.occlusion_closesthit_shader;
+            if(!occlusion_closesthit_shader.empty()) {
+                occlusion_closesthit_index = static_cast<uint32_t>(stages.size());
+
+                const auto& module_create_info = modules.emplace_back(
+                    VkShaderModuleCreateInfo{
+                        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                        .codeSize = occlusion_closesthit_shader.size() * sizeof(uint8_t),
+                        .pCode = reinterpret_cast<const uint32_t*>(occlusion_closesthit_shader.data())
+                    });
+
+                stages.emplace_back(
+                    VkPipelineShaderStageCreateInfo{
+                        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                        .pNext = &module_create_info,
+                        .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                        .pName = "main_closesthit"
+                    });
+            }
+
+            // Occlusion group
+            groups.emplace_back(
+                VkRayTracingShaderGroupCreateInfoKHR{
+                    .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+                    .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,
+                    .generalShader = VK_SHADER_UNUSED_KHR,
+                    .closestHitShader = occlusion_closesthit_index,
+                    .anyHitShader = occlusion_anyhit_index,
+                    .intersectionShader = VK_SHADER_UNUSED_KHR,
+                });
+        }
+
+        // GI
+        {
+            // GI stages
+
+            auto gi_closesthit_index = VK_SHADER_UNUSED_KHR;
+            auto gi_anyhit_index = VK_SHADER_UNUSED_KHR;
+
+            const auto& gi_anyhit_shader = shader_group.gi_anyhit_shader;
+            if(!gi_anyhit_shader.empty()) {
+                gi_anyhit_index = static_cast<uint32_t>(stages.size());
+
+                const auto& module_create_info = modules.emplace_back(
+                    VkShaderModuleCreateInfo{
+                        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                        .codeSize = gi_anyhit_shader.size() * sizeof(uint8_t),
+                        .pCode = reinterpret_cast<const uint32_t*>(gi_anyhit_shader.data())
+                    });
+
+                stages.emplace_back(
+                    VkPipelineShaderStageCreateInfo{
+                        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                        .pNext = &module_create_info,
+                        .stage = VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+                        .pName = "main_anyhit"
+                    });
+            }
+
+            const auto& gi_closesthit_shader = shader_group.gi_closesthit_shader;
+            if(!gi_closesthit_shader.empty()) {
+                gi_closesthit_index = static_cast<uint32_t>(stages.size());
+
+                const auto& module_create_info = modules.emplace_back(
+                    VkShaderModuleCreateInfo{
+                        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                        .codeSize = gi_closesthit_shader.size() * sizeof(uint8_t),
+                        .pCode = reinterpret_cast<const uint32_t*>(gi_closesthit_shader.data())
+                    });
+
+                stages.emplace_back(
+                    VkPipelineShaderStageCreateInfo{
+                        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                        .pNext = &module_create_info,
+                        .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                        .pName = "main_closesthit"
+                    });
+            }
+
+            // GI group
+            groups.emplace_back(
+                VkRayTracingShaderGroupCreateInfoKHR{
+                    .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+                    .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,
+                    .generalShader = VK_SHADER_UNUSED_KHR,
+                    .closestHitShader = gi_closesthit_index,
+                    .anyHitShader = gi_anyhit_index,
+                    .intersectionShader = VK_SHADER_UNUSED_KHR,
+                });
+        }
+    }
+
+    const auto miss_shader_index = static_cast<uint32_t>(stages.size());
+    const auto raygen_shader_index = miss_shader_index + 1;
+
+    pipeline.miss_group_index = static_cast<uint32_t>(groups.size());
+    {
+        const auto miss_shader_maybe = SystemInterface::get().load_file(miss_shader_path);
+        if(!miss_shader_maybe) {
+            throw std::runtime_error{fmt::format("Could not load miss shader {}", miss_shader_path.string())};
+        }
+        const auto& module_create_info = modules.emplace_back(
+            VkShaderModuleCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                .codeSize = miss_shader_maybe->size() * sizeof(uint8_t),
+                .pCode = reinterpret_cast<const uint32_t*>(miss_shader_maybe->data())
+            });
+
+        stages.emplace_back(
+            VkPipelineShaderStageCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .pNext = &module_create_info,
+                .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                .pName = "main_miss"
+            });
+
+        groups.emplace_back(
+            VkRayTracingShaderGroupCreateInfoKHR{
+                .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+                .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+                .generalShader = miss_shader_index,
+                .closestHitShader = VK_SHADER_UNUSED_KHR,
+                .anyHitShader = VK_SHADER_UNUSED_KHR,
+                .intersectionShader = VK_SHADER_UNUSED_KHR,
+            });
+    }
+
+    pipeline.raygen_group_index = static_cast<uint32_t>(groups.size());
+    {
+
+        const auto raygen_shader_maybe = SystemInterface::get().load_file(raygen_shader_path);
+        if(!raygen_shader_maybe) {
+            throw std::runtime_error{fmt::format("Could not load raygen shader {}", raygen_shader_path.string())};
+        }
+        const auto& module_create_info = modules.emplace_back(
+            VkShaderModuleCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                .codeSize = raygen_shader_maybe->size() * sizeof(uint8_t),
+                .pCode = reinterpret_cast<const uint32_t*>(raygen_shader_maybe->data())
+            });
+
+        stages.emplace_back(
+            VkPipelineShaderStageCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .pNext = &module_create_info,
+                .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                .pName = "main_raygen"
+            });
+
+        groups.emplace_back(
+            VkRayTracingShaderGroupCreateInfoKHR{
+                .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+                .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+                .generalShader = raygen_shader_index,
+                .closestHitShader = VK_SHADER_UNUSED_KHR,
+                .anyHitShader = VK_SHADER_UNUSED_KHR,
+                .intersectionShader = VK_SHADER_UNUSED_KHR,
+            });
+    }
+
+    /*
+     * TODO: Create the pipeline layout through some mechanism
+     *
+     * We need to have the primitive buffer bound... right? But it might be worth going back to BDAs for materials
+     */
+
+    constexpr auto lib_interface = VkRayTracingPipelineInterfaceCreateInfoKHR{
+        .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_INTERFACE_CREATE_INFO_KHR,
+        .maxPipelineRayPayloadSize = 32,
+        .maxPipelineRayHitAttributeSize = sizeof(glm::vec2)
+    };
+
+    const auto create_info = VkRayTracingPipelineCreateInfoKHR{
+        .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
+        .stageCount = static_cast<uint32_t>(stages.size()),
+        .pStages = stages.data(),
+        .groupCount = static_cast<uint32_t>(groups.size()),
+        .pGroups = groups.data(),
+        .maxPipelineRayRecursionDepth = 8,
+        .pLibraryInterface = &lib_interface,
+        .layout = pipeline.layout
+    };
+
+    vkCreateRayTracingPipelinesKHR(
+        device,
+        VK_NULL_HANDLE,
+        vk_pipeline_cache,
+        1,
+        &create_info,
+        nullptr,
+        &pipeline.pipeline);
+
+    return &(*ray_tracing_pipelines.emplace(std::move(pipeline)));
 }

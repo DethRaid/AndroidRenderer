@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "backend/handles.hpp"
 
 class RenderGraph;

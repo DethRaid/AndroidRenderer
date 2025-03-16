@@ -36,5 +36,8 @@ private:
 
     GraphicsPipelineHandle gbuffer_pso = nullptr;
     GraphicsPipelineHandle gbuffer_masked_pso = nullptr;
+
+    HitGroupHandle opaque_hit_group = nullptr;
+    HitGroupHandle masked_hit_group = nullptr;
 };
 

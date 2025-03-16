@@ -1,13 +1,15 @@
 #pragma once
 
-#include <cstdint>
-
 using BufferHandle = struct GpuBuffer*;
 
 using TextureHandle = struct GpuTexture*;
 
 using AccelerationStructureHandle = struct AccelerationStructure*;
 
-using GraphicsPipelineHandle = class GraphicsPipeline*;
+using GraphicsPipelineHandle = struct GraphicsPipeline*;
 
-using ComputePipelineHandle = struct ComputeShader*;
+using ComputePipelineHandle = struct ComputePipeline*;
+
+using HitGroupHandle = struct HitGroup*;
+
+using RayTracingPipelineHandle = struct RayTracingPipeline*;

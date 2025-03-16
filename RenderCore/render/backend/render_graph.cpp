@@ -30,7 +30,7 @@ RenderGraph::RenderGraph(RenderBackend& backend_in) : backend{backend_in},
 void RenderGraph::add_transition_pass(const TransitionPass& pass) {
     add_pass(
         {
-            .name = "Transition pass", .textures = pass.textures, .buffers = pass.buffers,
+            .name = "transition_pass", .textures = pass.textures, .buffers = pass.buffers,
             .execute = [](CommandBuffer&) {}
         }
     );
@@ -81,12 +81,16 @@ void RenderGraph::add_copy_pass(const ImageCopyPass& pass) {
     }
 }
 
-void RenderGraph::add_pass(const ComputePass& pass) {
+void RenderGraph::add_pass(ComputePass pass) {
     num_passes++;
     if(!pass.name.empty()) {
         logger->trace("Adding compute pass {}", pass.name);
 
         cmds.begin_label(pass.name);
+    }
+
+    for (const auto& set : pass.descriptor_sets) {
+        set.get_resource_usage_information(pass.textures, pass.buffers);
     }
 
     for(const auto& buffer_token : pass.buffers) {
@@ -188,7 +192,6 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
             }
         );
     }
-
 
     cmds.begin_label(pass.name);
     {

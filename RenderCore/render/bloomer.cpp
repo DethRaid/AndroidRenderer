@@ -145,6 +145,8 @@ void Bloomer::fill_bloom_tex(RenderGraph& graph, const TextureHandle scene_color
                     commands.bind_descriptor_set(0, set);
 
                     commands.dispatch((dispatch_size.x + 7) / 8, (dispatch_size.y + 7) / 8, 1);
+
+                    commands.clear_descriptor_set(0);
                 }
 
                 // And then we take it higher

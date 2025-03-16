@@ -1,14 +1,9 @@
 #pragma once
 
-#include <filesystem>
 #include <vector>
 #include <cstdint>
-#include <unordered_map>
 
-#include <volk.h>
-#include <tl/optional.hpp>
-
-#include "render/backend/descriptor_set_info.hpp"
+#include "render/backend/pipeline_interface.hpp"
 
 class RenderBackend;
 
@@ -20,33 +15,12 @@ class RenderBackend;
  * We can't make the PSO immediately because subpasses, but we can (and do) fill out the pipeline create info and
  * allocate descriptor sets
  */
-class GraphicsPipeline {
-    friend class PipelineCache;
-    friend class GraphicsPipelineBuilder;
-
-public:
-    VkPipelineLayout get_layout() const;
-
-    uint32_t get_num_push_constants() const;
-
-    VkShaderStageFlags get_push_constant_shader_stages() const;
-
-    uint32_t get_num_descriptor_sets() const;
-
-    const DescriptorSetInfo& get_descriptor_set_info(uint32_t set_index) const;
-
+struct GraphicsPipeline : PipelineBase {
     VkPipeline get_pipeline() const;
-
-    std::string_view get_name() const;
-
-private:
-    std::string pipeline_name;
 
     VkPipelineCreateFlags flags;
 
-    std::string vertex_shader_name;
-
-    VkPipelineShaderStageCreateInfo vertex_stage = {};
+    std::vector<uint8_t> vertex_shader;
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
@@ -54,13 +28,9 @@ private:
 
     std::vector<VkVertexInputAttributeDescription> vertex_attributes;
 
-    std::string geometry_shader_name;
+    std::vector<uint8_t> geometry_shader;
 
-    tl::optional<VkPipelineShaderStageCreateInfo> geometry_stage = tl::nullopt;
-
-    std::string fragment_shader_name;
-
-    tl::optional<VkPipelineShaderStageCreateInfo> fragment_stage = tl::nullopt;
+    std::vector<uint8_t> fragment_shader;
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
 
@@ -70,28 +40,11 @@ private:
 
     std::vector<VkPipelineColorBlendAttachmentState> blends = {};
 
-    VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
-
     // Renderpass and subpass index that this pipeline was most recently used with
 
     VkRenderPass last_renderpass = VK_NULL_HANDLE;
 
     uint32_t last_subpass_index;
 
-    VkPipeline pipeline = VK_NULL_HANDLE;
-
-    uint32_t num_push_constants = 0;
-
-    VkShaderStageFlags push_constant_stages = 0;
-
-    std::vector<DescriptorSetInfo> descriptor_sets;
-
-    std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
-
     uint32_t group_index;
-
-    void create_pipeline_layout(
-        RenderBackend& backend, const std::vector<DescriptorSetInfo>& descriptor_set_infos,
-        const std::vector<VkPushConstantRange>& push_constants
-    );
 };

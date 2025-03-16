@@ -21,7 +21,7 @@ struct StandardVertexData {
     vec3 normal;
     vec3 tangent;
     vec2 texcoord;
-    uint color;
+    unorm4 color;
 };
 
 #endif

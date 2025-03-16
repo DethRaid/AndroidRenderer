@@ -1,4 +1,7 @@
 #pragma once
+
+#include <optional>
+
 #include <glm/vec2.hpp>
 
 #include "render/mip_chain_generator.hpp"

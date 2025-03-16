@@ -59,7 +59,7 @@ SceneRenderer::SceneRenderer() {
 
     logger->debug("Initialized render backend");
 
-    if (!backend.supports_shading_rate_image && cvar_anti_aliasing.Get() == AntiAliasingType::VRSAA) {
+    if(!backend.supports_shading_rate_image && cvar_anti_aliasing.Get() == AntiAliasingType::VRSAA) {
         logger->info("Backend does not support VRSAA, turning AA off");
         cvar_anti_aliasing.Set(AntiAliasingType::None);
     }
@@ -69,11 +69,12 @@ SceneRenderer::SceneRenderer() {
                             .set_fragment_shader("shaders/util/copy_with_sampler.frag.spv")
                             .set_depth_state({.enable_depth_test = false, .enable_depth_write = false})
                             .build();
-    linear_sampler = backend.get_global_allocator().get_sampler({
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter = VK_FILTER_LINEAR,
-        .minFilter = VK_FILTER_LINEAR,
-    });
+    linear_sampler = backend.get_global_allocator().get_sampler(
+        {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+        });
 
     stbn_3d_cosine = NoiseTexture::create("assets/stbn/stbn_unitvec3_2Dx1D_128x128x64", 64, texture_loader);
 
@@ -90,7 +91,7 @@ void SceneRenderer::set_scene(RenderScene& scene_in) {
 }
 
 void SceneRenderer::set_render_resolution(const glm::uvec2 new_render_resolution) {
-    if (new_render_resolution == scene_render_resolution) {
+    if(new_render_resolution == scene_render_resolution) {
         return;
     }
 
@@ -128,14 +129,14 @@ void SceneRenderer::render() {
 
     auto needs_motion_vectors = false;
 
-    if (cvar_anti_aliasing.Get() == AntiAliasingType::None) {
+    if(cvar_anti_aliasing.Get() == AntiAliasingType::None) {
         set_render_resolution(output_resolution / glm::uvec2{2});
         player_view.set_mip_bias(0);
     }
 
-    if (cvar_anti_aliasing.Get() != AntiAliasingType::VRSAA) {
+    if(cvar_anti_aliasing.Get() != AntiAliasingType::VRSAA) {
         vrsaa = nullptr;
-    } else if (vrsaa == nullptr) {
+    } else if(vrsaa == nullptr) {
         vrsaa = std::make_unique<VRSAA>();
 
         set_render_resolution(output_resolution * 2u);
@@ -178,8 +179,8 @@ void SceneRenderer::render() {
 
         set_render_resolution(optimal_render_resolution);
 
-        const auto d_output_resolution = glm::vec2{ output_resolution };
-        const auto d_render_resolution = glm::vec2{ optimal_render_resolution };
+        const auto d_output_resolution = glm::vec2{output_resolution};
+        const auto d_render_resolution = glm::vec2{optimal_render_resolution};
         player_view.set_mip_bias(log2(d_render_resolution.x / d_output_resolution.x) - 1.0f);
 
         needs_motion_vectors = true;
@@ -190,8 +191,8 @@ void SceneRenderer::render() {
     }
 #endif
 
-    if (cvar_gi_mode.Get() == GIMode::LPV) {
-        if (lpv == nullptr) {
+    if(cvar_gi_mode.Get() == GIMode::LPV) {
+        if(lpv == nullptr) {
             lpv = std::make_unique<LightPropagationVolume>();
         }
     } else {
@@ -225,7 +226,7 @@ void SceneRenderer::render() {
     player_view.update_transforms(backend.get_upload_queue());
 
 #if SAH_USE_STREAMLINE
-    if (streamline) {
+    if(streamline) {
         streamline->set_constants(player_view, scene_render_resolution);
     }
 #endif
@@ -237,10 +238,10 @@ void SceneRenderer::render() {
 
     auto render_graph = backend.create_render_graph();
 
-    if (last_frame_depth_usage.texture != nullptr) {
+    if(last_frame_depth_usage.texture != nullptr) {
         render_graph.set_resource_usage(last_frame_depth_usage, true);
     }
-    if (last_frame_normal_usage.texture != nullptr) {
+    if(last_frame_normal_usage.texture != nullptr) {
         render_graph.set_resource_usage(last_frame_normal_usage, true);
     }
 
@@ -255,11 +256,13 @@ void SceneRenderer::render() {
 
     {
         ZoneScopedN("Begin Frame");
-        auto& sun = scene->get_sun_light();
-        sun.update_shadow_cascades(player_view);
-        sun.update_buffer(backend.get_upload_queue());
+        if(DirectionalLight::get_shadow_mode() == SunShadowMode::CascadedShadowMaps) {
+            auto& sun = scene->get_sun_light();
+            sun.update_shadow_cascades(player_view);
+            sun.update_buffer(backend.get_upload_queue());
+        }
 
-        if (lpv) {
+        if(lpv) {
             lpv->update_cascade_transforms(player_view, scene->get_sun_light());
             lpv->update_buffers(backend.get_upload_queue());
         }
@@ -277,8 +280,8 @@ void SceneRenderer::render() {
                 {
                     .buffer = scene->get_primitive_buffer(),
                     .stage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                     .access = VK_ACCESS_SHADER_READ_BIT
 
                 },
@@ -331,7 +334,7 @@ void SceneRenderer::render() {
         scene->get_meshes().get_draw_args_buffer(),
         PRIMITIVE_TYPE_CUTOUT);
 
-    if (needs_motion_vectors) {
+    if(needs_motion_vectors) {
         motion_vectors_phase.render(
             render_graph,
             *scene,
@@ -343,11 +346,11 @@ void SceneRenderer::render() {
 
     // LPV
 
-    if (lpv) {
+    if(lpv) {
         lpv->clear_volume(render_graph);
 
         const auto build_mode = LightPropagationVolume::get_build_mode();
-        if (build_mode == GvBuildMode::DepthBuffers) {
+        if(build_mode == GvBuildMode::DepthBuffers) {
             lpv->build_geometry_volume_from_scene_view(
                 render_graph,
                 depth_buffer_mip_chain,
@@ -360,20 +363,20 @@ void SceneRenderer::render() {
         // VPL cloud generation
 
         lpv->inject_indirect_sun_light(render_graph, *scene);
-    
-        if (cvar_enable_mesh_lights.Get()) {
+
+        if(cvar_enable_mesh_lights.Get()) {
             lpv->inject_emissive_point_clouds(render_graph, *scene);
         }
     }
 
     // Shadows
     // Render shadow pass after RSM so the shadow VS can overlap with the VPL FS
-    {
+    if(DirectionalLight::get_shadow_mode() == SunShadowMode::CascadedShadowMaps) {
         const auto& sun = scene->get_sun_light();
         sun.render_shadows(render_graph, *scene);
     }
 
-    if (lpv) {
+    if(lpv) {
         lpv->propagate_lighting(render_graph);
     }
 
@@ -406,7 +409,7 @@ void SceneRenderer::render() {
      */
 
     std::optional<TextureHandle> vrsaa_shading_rate_image = std::nullopt;
-    if (vrsaa) {
+    if(vrsaa) {
         vrsaa->generate_shading_rate_image(render_graph);
         vrsaa_shading_rate_image = vrsaa->get_shading_rate_image();
     }
@@ -458,7 +461,7 @@ void SceneRenderer::render() {
 
     // Debug
 
-    if (active_visualization != RenderVisualization::None) {
+    if(active_visualization != RenderVisualization::None) {
         draw_debug_visualizers(render_graph);
     }
 
@@ -517,133 +520,133 @@ void SceneRenderer::render() {
     allocator.destroy_buffer(visible_masked_buffers.count);
     allocator.destroy_buffer(visible_masked_buffers.primitive_ids);
 
-    backend.execute_graph(std::move(render_graph));
+    backend.execute_graph(render_graph);
 }
 
 void SceneRenderer::evaluate_antialiasing(RenderGraph& render_graph, const TextureHandle gbuffer_depth_handle) const {
     auto& backend = RenderBackend::get();
 
-    switch (cvar_anti_aliasing.Get()) {
-        case AntiAliasingType::None: {
-            const auto set = backend.get_transient_descriptor_allocator()
-                                    .build_set(copy_scene_pso, 0)
-                                    .bind(lit_scene_handle, linear_sampler)
-                                    .build();
-            render_graph.add_render_pass(
+    switch(cvar_anti_aliasing.Get()) {
+    case AntiAliasingType::None: {
+        const auto set = backend.get_transient_descriptor_allocator()
+                                .build_set(copy_scene_pso, 0)
+                                .bind(lit_scene_handle, linear_sampler)
+                                .build();
+        render_graph.add_render_pass(
+            {
+                .name = "Copy scene",
+                .descriptor_sets = {set},
+                .color_attachments = {
+                    {
+                        .image = antialiased_scene_handle,
+                        .load_op = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+                    }
+                },
+                .execute = [&](CommandBuffer& commands) {
+                    commands.set_push_constant(0, 1.f / static_cast<float>(output_resolution.x));
+                    commands.set_push_constant(1, 1.f / static_cast<float>(output_resolution.y));
+                    commands.bind_descriptor_set(0, set);
+                    commands.bind_pipeline(copy_scene_pso);
+                    commands.draw_triangle();
+
+                    commands.clear_descriptor_set(0);
+                }
+            });
+    }
+    break;
+
+    case AntiAliasingType::VRSAA:
+        if(vrsaa) {
+            vrsaa->measure_aliasing(render_graph, gbuffer_color_handle, gbuffer_depth_handle);
+            // TODO: Perform a proper VSR resolve, and also do VRS in lighting
+        }
+        break;
+
+    case AntiAliasingType::FSR3:
+#if SAH_USE_FFX
+        if(fsr3) {
+            const auto motion_vectors_handle = motion_vectors_phase.get_motion_vectors();
+            render_graph.add_pass(
                 {
-                    .name = "Copy scene",
-                    .descriptor_sets = {set},
-                    .color_attachments = {
+                    .name = "FSR3",
+                    .textures = {
                         {
-                            .image = antialiased_scene_handle,
-                            .load_op = VK_ATTACHMENT_LOAD_OP_DONT_CARE
-                        }
+                            .texture = lit_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        },
+                        {
+                            .texture = antialiased_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                            .layout = VK_IMAGE_LAYOUT_GENERAL
+                        },
+                        {
+                            .texture = gbuffer_depth_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        },
+                        {
+                            .texture = motion_vectors_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        },
                     },
                     .execute = [&](CommandBuffer& commands) {
-                        commands.set_push_constant(0, 1.f / static_cast<float>(output_resolution.x));
-                        commands.set_push_constant(1, 1.f / static_cast<float>(output_resolution.y));
-                        commands.bind_descriptor_set(0, set);
-                        commands.bind_pipeline(copy_scene_pso);
-                        commands.draw_triangle();
-
-                        commands.clear_descriptor_set(0);
+                        fsr3->dispatch(
+                            commands,
+                            lit_scene_handle,
+                            antialiased_scene_handle,
+                            gbuffer_depth_handle,
+                            motion_vectors_handle);
                     }
                 });
         }
-            break;
-
-        case AntiAliasingType::VRSAA:
-            if (vrsaa) {
-                vrsaa->measure_aliasing(render_graph, gbuffer_color_handle, gbuffer_depth_handle);
-                // TODO: Perform a proper VSR resolve, and also do VRS in lighting
-            }
-            break;
-
-        case AntiAliasingType::FSR3:
-#if SAH_USE_FFX
-            if(fsr3) {
-                const auto motion_vectors_handle = motion_vectors_phase.get_motion_vectors();
-                render_graph.add_pass(
-                    {
-                        .name = "FSR3",
-                        .textures = {
-                            {
-                                .texture = lit_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                                .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                            },
-                            {
-                                .texture = antialiased_scene_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                                .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
-                                .layout = VK_IMAGE_LAYOUT_GENERAL
-                            },
-                            {
-                                .texture = gbuffer_depth_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                                .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                            },
-                            {
-                                .texture = motion_vectors_handle, .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                                .access = VK_ACCESS_2_SHADER_READ_BIT, .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                            },
-                        },
-                        .execute = [&](CommandBuffer& commands) {
-                            fsr3->dispatch(
-                                commands,
-                                lit_scene_handle,
-                                antialiased_scene_handle,
-                                gbuffer_depth_handle,
-                                motion_vectors_handle);
-                        }
-                    });
-            }
 #endif
-            break;
+        break;
 
-        case AntiAliasingType::DLSS:
+    case AntiAliasingType::DLSS:
 #if SAH_USE_STREAMLINE
-            auto* streamline = backend.get_streamline();
-            if(streamline) {
-                const auto motion_vectors_handle = motion_vectors_phase.get_motion_vectors();
-                render_graph.add_pass(
-                    {
-                        .name = "DLSS",
-                        .textures = {
-                            {
-                                .texture = lit_scene_handle,
-                                .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                                .access = VK_ACCESS_2_SHADER_READ_BIT,
-                                .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                            },
-                            {
-                                .texture = antialiased_scene_handle,
-                                .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                                .access = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-                                .layout = VK_IMAGE_LAYOUT_GENERAL
-                            },
-                            {
-                                .texture = gbuffer_depth_handle,
-                                .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                                .access = VK_ACCESS_2_SHADER_READ_BIT,
-                                .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                            },
-                            {
-                                .texture = motion_vectors_handle,
-                                .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                                .access = VK_ACCESS_2_SHADER_READ_BIT,
-                                .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                            },
+        auto* streamline = backend.get_streamline();
+        if(streamline) {
+            const auto motion_vectors_handle = motion_vectors_phase.get_motion_vectors();
+            render_graph.add_pass(
+                {
+                    .name = "DLSS",
+                    .textures = {
+                        {
+                            .texture = lit_scene_handle,
+                            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT,
+                            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                         },
-                        .execute = [&](CommandBuffer& commands) {
-                            streamline->evaluate_dlss(
-                                commands,
-                                lit_scene_handle,
-                                antialiased_scene_handle,
-                                gbuffer_depth_handle,
-                                motion_vectors_handle);
-                        }
-                    });
-            }
+                        {
+                            .texture = antialiased_scene_handle,
+                            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                            .layout = VK_IMAGE_LAYOUT_GENERAL
+                        },
+                        {
+                            .texture = gbuffer_depth_handle,
+                            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT,
+                            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        },
+                        {
+                            .texture = motion_vectors_handle,
+                            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                            .access = VK_ACCESS_2_SHADER_READ_BIT,
+                            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        },
+                    },
+                    .execute = [&](CommandBuffer& commands) {
+                        streamline->evaluate_dlss(
+                            commands,
+                            lit_scene_handle,
+                            antialiased_scene_handle,
+                            gbuffer_depth_handle,
+                            motion_vectors_handle);
+                    }
+                });
+        }
 #endif
-            break;
+        break;
     }
 }
 
@@ -663,39 +666,39 @@ void SceneRenderer::create_scene_render_targets() {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
-    if (gbuffer_color_handle != nullptr) {
+    if(gbuffer_color_handle != nullptr) {
         allocator.destroy_texture(gbuffer_color_handle);
     }
 
-    if (gbuffer_normals_handle != nullptr) {
+    if(gbuffer_normals_handle != nullptr) {
         allocator.destroy_texture(gbuffer_normals_handle);
     }
 
-    if (gbuffer_data_handle != nullptr) {
+    if(gbuffer_data_handle != nullptr) {
         allocator.destroy_texture(gbuffer_data_handle);
     }
 
-    if (gbuffer_emission_handle != nullptr) {
+    if(gbuffer_emission_handle != nullptr) {
         allocator.destroy_texture(gbuffer_emission_handle);
     }
 
-    if (depth_buffer_mip_chain != nullptr) {
+    if(depth_buffer_mip_chain != nullptr) {
         allocator.destroy_texture(depth_buffer_mip_chain);
     }
 
-    if (normal_target_mip_chain != nullptr) {
+    if(normal_target_mip_chain != nullptr) {
         allocator.destroy_texture(normal_target_mip_chain);
     }
 
-    if (ao_handle != nullptr) {
+    if(ao_handle != nullptr) {
         allocator.destroy_texture(ao_handle);
     }
 
-    if (lit_scene_handle != nullptr) {
+    if(lit_scene_handle != nullptr) {
         allocator.destroy_texture(lit_scene_handle);
     }
 
-    if (antialiased_scene_handle != nullptr) {
+    if(antialiased_scene_handle != nullptr) {
         allocator.destroy_texture(antialiased_scene_handle);
     }
 
@@ -800,8 +803,8 @@ void SceneRenderer::create_scene_render_targets() {
     auto& swapchain = backend.get_swapchain();
     const auto& images = swapchain.get_images();
     const auto& image_views = swapchain.get_image_views();
-    for (auto swapchain_image_index = 0u ; swapchain_image_index < swapchain.image_count ;
-         swapchain_image_index++) {
+    for(auto swapchain_image_index = 0u; swapchain_image_index < swapchain.image_count;
+        swapchain_image_index++) {
         const auto swapchain_image = allocator.emplace_texture(
             GpuTexture{
                 .name = fmt::format("Swapchain image {}", swapchain_image_index),
@@ -833,39 +836,39 @@ void SceneRenderer::create_scene_render_targets() {
 void SceneRenderer::update_jitter() {
     previous_jitter = jitter;
 
-    switch (cvar_anti_aliasing.Get()) {
-        case AntiAliasingType::FSR3:
+    switch(cvar_anti_aliasing.Get()) {
+    case AntiAliasingType::FSR3:
 #if SAH_USE_FFX
-            jitter = fsr3->get_jitter();
+        jitter = fsr3->get_jitter();
 #endif
-            break;
+        break;
 
-        case AntiAliasingType::DLSS:
-            jitter = glm::vec2{jitter_sequence_x.get_next_value(), jitter_sequence_y.get_next_value()} - 0.5f;
-            jitter /= glm::vec2{scene_render_resolution};
-            break;
+    case AntiAliasingType::DLSS:
+        jitter = glm::vec2{jitter_sequence_x.get_next_value(), jitter_sequence_y.get_next_value()} - 0.5f;
+        jitter /= glm::vec2{scene_render_resolution};
+        break;
 
-        default:
-            jitter = {};
-            break;
+    default:
+        jitter = {};
+        break;
     }
 
     player_view.set_jitter(jitter);
 }
 
 void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
-    switch (active_visualization) {
-        case RenderVisualization::None:
-            // Intentionally empty
-            break;
+    switch(active_visualization) {
+    case RenderVisualization::None:
+        // Intentionally empty
+        break;
 
-        case RenderVisualization::VPLs:
-            lpv->visualize_vpls(
-                render_graph,
-                player_view.get_buffer(),
-                lit_scene_handle,
-                depth_culling_phase.get_depth_buffer());
-            break;
+    case RenderVisualization::VPLs:
+        lpv->visualize_vpls(
+            render_graph,
+            player_view.get_buffer(),
+            lit_scene_handle,
+            depth_culling_phase.get_depth_buffer());
+        break;
     }
 }
 

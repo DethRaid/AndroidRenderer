@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <span>
+#include <unordered_map>
 
 #include <volk.h>
 #include <glm/vec2.hpp>
@@ -17,7 +18,7 @@
 #include "render/backend/framebuffer.hpp"
 
 struct DescriptorSet;
-struct ComputeShader;
+struct ComputePipeline;
 class RenderBackend;
 
 struct RenderingInfo {
@@ -195,6 +196,8 @@ public:
 
     void bind_pipeline(const GraphicsPipelineHandle& pipeline);
 
+    void bind_pipeline(RayTracingPipelineHandle pipeline);
+
     void set_push_constant(uint32_t index, uint32_t data);
 
     void set_push_constant(uint32_t index, float data);
@@ -289,6 +292,8 @@ private:
      */
     std::unordered_map<VkEvent, std::vector<VkBufferMemoryBarrier2>> event_buffer_barriers;
     uint32_t num_descriptor_sets_in_current_pipeline = 0;
+
+    void save_pipeline_layout_info(const PipelineBase& pipeline);
 
     void bind_index_buffer(BufferHandle buffer, VkIndexType index_type) const;
 

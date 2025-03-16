@@ -15,6 +15,8 @@ public:
 
     DescriptorSetBuilder build_set(const DescriptorSetInfo& info, std::string_view name);
 
+    DescriptorSetBuilder build_set(RayTracingPipelineHandle pipeline, uint32_t set_index);
+
 private:
     RenderBackend* backend;
 };

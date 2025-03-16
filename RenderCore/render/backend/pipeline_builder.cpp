@@ -1,9 +1,10 @@
 #include "pipeline_builder.hpp"
 
-#include <imgui.h>
 #include <algorithm>
-#include <magic_enum.hpp>
 #include <span>
+
+#include <imgui.h>
+#include <spdlog/spdlog.h>
 #include <spirv_reflect.h>
 #include <tracy/Tracy.hpp>
 #include <vulkan/vk_enum_string_helper.h>
@@ -155,7 +156,7 @@ static void collect_vertex_attributes(
 
 static void init_logger() {
     logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
-    logger->set_level(spdlog::level::info);
+    logger->set_level(spdlog::level::trace);
 }
 
 GraphicsPipelineBuilder::GraphicsPipelineBuilder(PipelineCache& cache_in) : cache{cache_in} {
@@ -422,7 +423,7 @@ bool collect_descriptor_sets(
                 binding->binding,
                 string_VkDescriptorType(to_vk_type(binding->descriptor_type)),
                 binding->count,
-                magic_enum::enum_name(shader_stage)
+                string_VkShaderStageFlagBits(shader_stage)
             );
             if(set_info.bindings.size() <= binding->binding) {
                 set_info.bindings.resize(binding->binding + 1);
@@ -579,7 +580,7 @@ void collect_vertex_attributes(
             needs_data_buffer = true;
         } else if(string_name.find(PRIMITIVE_ID_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
             needs_primitive_id_buffer = true;
-        } else if(input->location != -1) {
+        } else if(input->location != 0xFFFFFFFF) {
             // -1 is used for some builtin things i guess
             // I can't
             logger->error("Vertex input {} unrecognized", input->location);

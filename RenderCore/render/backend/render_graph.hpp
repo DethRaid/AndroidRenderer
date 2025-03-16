@@ -46,7 +46,7 @@ public:
      * 
      * @param pass The compute pass to add to the graph
      */
-    void add_pass(const ComputePass& pass);
+    void add_pass(ComputePass pass);
 
     template <typename PushConstantsType = uint32_t>
     void add_compute_dispatch(const ComputeDispatch<PushConstantsType>& dispatch_info);
@@ -149,6 +149,10 @@ void RenderGraph::add_compute_dispatch(const ComputeDispatch<PushConstantsType>&
 
     cmds.dispatch(dispatch_info.num_workgroups.x, dispatch_info.num_workgroups.y, dispatch_info.num_workgroups.z);
 
+    for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+        cmds.clear_descriptor_set(i);
+    }
+
     if(!dispatch_info.name.empty()) {
         cmds.end_label();
     }
@@ -183,6 +187,10 @@ void RenderGraph::add_compute_dispatch(const IndirectComputeDispatch<PushConstan
     }
 
     cmds.dispatch_indirect(dispatch_info.dispatch);
+
+    for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+        cmds.clear_descriptor_set(i);
+    }
 
     if(!dispatch_info.name.empty()) {
         cmds.end_label();

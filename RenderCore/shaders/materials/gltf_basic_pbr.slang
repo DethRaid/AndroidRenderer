@@ -38,6 +38,10 @@
 #define SAH_RSM 0
 #endif
 
+#ifndef SAH_RT
+#define SAH_RT 0
+#endif
+
 #ifndef SAH_RT_OCCLUSION
 #define SAH_RT_OCCLUSION 0
 #endif
@@ -87,6 +91,19 @@ struct VertexOutput {
 #endif
 };
 
+struct GbufferOutput {
+    half4 base_color;
+    half4 normal;
+    half4 data;
+    half4 emission;
+};
+
+struct RsmOutput {
+    half4 flux;
+    half4 normal;
+};
+
+#if !SAH_RT
 [shader("vertex")]
 VertexOutput main_vs(
     const float3 position_in,
@@ -126,18 +143,6 @@ VertexOutput main_vs(
 
     return output;
 }
-
-struct GbufferOutput {
-    half4 base_color;
-    half4 normal;
-    half4 data;
-    half4 emission;
-};
-
-struct RsmOutput {
-    half4 flux;
-    half4 normal;
-};
 
 float3x3 cotangent_frame(float3 N, float3 p, float2 uv) {
     // get edge vectors of the pixel triangle
@@ -193,7 +198,7 @@ main_fs(const VertexOutput vertex) {
 #if SAH_MAIN_VIEW
     float3x3 tbn = cotangent_frame(vertex.normal, vertex.viewspace_position, vertex.texcoord);
     Sampler2D normals_texture = textures[material.normal_texture_index];
-    half3 normal_sample = (half3)normals_texture.SampleBias(vertex.texcoord, mip_bias).xyz * 2.0 - 1.0;
+    half3 normal_sample = (half3)normals_texture.SampleBias(vertex.texcoord, mip_bias).xyz * 2.h - 1.h;
     half3 normal = mul(normal_sample, tbn);
     gbuffer.normal = half4(normal, 0);
 #else
@@ -228,7 +233,7 @@ main_fs(const VertexOutput vertex) {
     surface.metalness = gbuffer.data.b;
     surface.roughness = gbuffer.data.g;
 
-    const half3 brdf_result = Fd(surface, -sun_light.direction_and_size.xyz, surface.normal);
+    const half3 brdf_result = Fd(surface, (half3)-sun_light.direction_and_size.xyz, surface.normal);
 
     RsmOutput output;
     output.flux = half4(brdf_result, 1);
@@ -237,5 +242,150 @@ main_fs(const VertexOutput vertex) {
 #endif
 }
 
+#else // SAH_RT
+
+StandardVertexData interpolate_vertex(const StandardVertexData v0, const StandardVertexData v1, const StandardVertexData v2, const float2 bary)
+{
+    StandardVertexData v = (StandardVertexData)0;
+    v.normal = v0.normal + bary.x * (v1.normal - v0.normal) + bary.y * (v2.normal - v0.normal);
+    v.tangent = v0.tangent + bary.x * (v1.tangent - v0.tangent) + bary.y * (v2.tangent - v0.tangent);
+    v.texcoord = v0.texcoord + bary.x * (v1.texcoord - v0.texcoord) + bary.y * (v2.texcoord - v0.texcoord);
+    v.color = v0.color + (unorm float4)bary.xxxx * (v1.color - v0.color) + (unorm float4)bary.yyyy * (v2.color - v0.color);
+
+    return v;
+}
+
+StructuredBuffer<float3> vertex_positions;
+StructuredBuffer<StandardVertexData> vertex_data;
+StructuredBuffer<uint> index_buffer;
+
+#if SAH_RT_OCCLUSION
+#if SAH_MASKED
+[shader("anyhit")]
+void main_anyhit(inout uint payload, in float2 barycentrics) {
+    const uint primitive_id = InstanceID();
+    const uint triangle_id = PrimitiveIndex();
+
+    const uint index = triangle_id * 3;
+
+    const uint i0 = index_buffer[index];
+    const uint i1 = index_buffer[index + 1];    
+    const uint i2 = index_buffer[index + 2];
+
+    const StandardVertexData v0 = vertex_data[i0];
+    const StandardVertexData v1 = vertex_data[i1];
+    const StandardVertexData v2 = vertex_data[i2];
+
+    const StandardVertexData v = interpolate_vertex(v0, v1, v2, barycentrics);
+
+    const PrimitiveDataGPU primitive = primitive_datas[primitive_id];
+    const BasicPbrMaterialGpu material = materials[primitive.material_id];
+
+    Sampler2D base_color_texture = textures[material.base_color_texture_index];
+    const float4 base_color_sample = base_color_texture.SampleLevel(v.texcoord, 0);
+    const float4 base_color = base_color_sample * material.base_color_tint;
+
+    if (base_color_sample.a < material.opacity_threshold) {
+        IgnoreHit();
+    }
+}
+#endif // SAH_MASKED
+
 [shader("closesthit")]
-void main_hit() {}
+void main_closesthit(inout uint payload) {
+    payload = 0;
+}
+#endif // SAH_RT_OCCLUSION
+
+#if SAH_RT_GI
+ConstantBuffer<SunLightConstants> sun_light;
+
+#if SAH_MASKED
+[shader("anyhit")]
+void main_anyhit(inout uint payload, in float2 barycentrics) {
+    const uint primitive_id = InstanceID();
+    const uint triangle_id = PrimitiveIndex();
+
+    const uint index = triangle_id * 3;
+
+    const uint i0 = index_buffer[index];
+    const uint i1 = index_buffer[index + 1];
+    const uint i2 = index_buffer[index + 2];
+
+    const StandardVertexData v0 = vertex_data[i0];
+    const StandardVertexData v1 = vertex_data[i1];
+    const StandardVertexData v2 = vertex_data[i2];
+
+    const StandardVertexData v = interpolate_vertex(v0, v1, v2, barycentrics);
+
+    const PrimitiveDataGPU primitive = primitive_datas[primitive_id];
+    const BasicPbrMaterialGpu material = materials[primitive.material_id];
+
+    Sampler2D base_color_texture = textures[material.base_color_texture_index];
+    const float4 base_color_sample = base_color_texture.SampleLevel(v.texcoord, 0);
+    const float4 base_color = base_color_sample * material.base_color_tint;
+
+    if (base_color_sample.a < material.opacity_threshold) {
+        IgnoreHit();
+    }
+}
+#endif // SAH_MASKED
+
+[shader("closesthit")]
+void main_closesthit(inout half3 payload, in float2 barycentrics) {
+    const uint primitive_id = InstanceID();
+    const uint triangle_id = PrimitiveIndex();
+
+    const uint index = triangle_id * 3;
+
+    const uint i0 = index_buffer[index];
+    const uint i1 = index_buffer[index + 1];
+    const uint i2 = index_buffer[index + 2];
+
+    const StandardVertexData v0 = vertex_data[i0];
+    const StandardVertexData v1 = vertex_data[i1];
+    const StandardVertexData v2 = vertex_data[i2];
+
+    const StandardVertexData vertex = interpolate_vertex(v0, v1, v2, barycentrics);
+
+    const PrimitiveDataGPU primitive = primitive_datas[primitive_id];
+    const BasicPbrMaterialGpu material = materials[primitive.material_id];
+
+    GbufferOutput gbuffer = (GbufferOutput)0;
+
+    // Base color
+    Sampler2D base_color_texture = textures[material.base_color_texture_index];
+    const float4 base_color_sample = base_color_texture.SampleLevel(vertex.texcoord, 0);
+    gbuffer.base_color = base_color_sample * material.base_color_tint;
+
+    // Normal
+    // TODO
+    // float3x3 tbn = cotangent_frame(vertex.normal, vertex.viewspace_position, vertex.texcoord);
+    // Sampler2D normals_texture = textures[material.normal_texture_index];
+    // half3 normal_sample = (half3)normals_texture.SampleLevel(vertex.texcoord, 0).xyz * 2.h - 1.h;
+    // half3 normal = mul(normal_sample, tbn);
+    gbuffer.normal = half4(vertex.normal, 0);
+
+    // Data
+    Sampler2D data_texture = textures[material.data_texture_index];
+    half4 data_sample = (half4)data_texture.SampleLevel(vertex.texcoord, 0);
+    gbuffer.data = data_sample * half4(0, (half)material.roughness_factor, (half)material.metalness_factor, 0);
+
+    // Emission
+    Sampler2D emission_texture = textures[material.emission_texture_index];
+    half4 emission_sample = (half4)emission_texture.SampleLevel(vertex.texcoord, 0);
+    gbuffer.emission = emission_sample * (half4)material.emission_factor;
+
+    SurfaceInfo surface = (SurfaceInfo)0;
+    surface.base_color = gbuffer.base_color.rgb;
+    surface.normal = gbuffer.normal.xyz;
+    surface.metalness = gbuffer.data.b;
+    surface.roughness = gbuffer.data.g;
+
+    // TODO: RT sun occlusion, proper pathtracing
+    const half3 brdf_result = Fd(surface, (half3)-sun_light.direction_and_size.xyz, surface.normal);
+
+    payload = brdf_result;
+}
+#endif  // SAH_RT_GI
+#endif // SAH_RT
