@@ -54,15 +54,6 @@ public:
     template <typename PushConstantsType = uint32_t>
     void add_compute_dispatch(const IndirectComputeDispatch<PushConstantsType>& dispatch_info);
 
-    [[deprecated("Use add_render_pass instead")]]
-    void begin_render_pass(const RenderPassBeginInfo& begin_info);
-
-    [[deprecated("Use add_render_pass instead")]]
-    void add_subpass(Subpass&& subpass);
-
-    [[deprecated("Use add_render_pass instead")]]
-    void end_render_pass();
-
     void add_render_pass(DynamicRenderingPass pass);
 
     void add_finish_frame_and_present_pass(const PresentPass& pass);
@@ -101,11 +92,7 @@ private:
 
     std::vector<std::function<void()>> post_submit_lambdas;
 
-    std::optional<RenderPass> current_render_pass;
-
     uint32_t num_passes = 0;
-
-    void add_render_pass_internal(RenderPass pass);
 
     void update_accesses_and_issues_barriers(
         const std::vector<TextureUsageToken>& textures,

@@ -7,7 +7,7 @@
 
 #include <glm/glm.hpp>
 
-using unorm4 = glm::u8vec4;
+using unorm4 = uint32_t;
 
 using u16vec2 = glm::u16vec2;
 

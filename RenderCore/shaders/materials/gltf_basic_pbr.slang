@@ -46,6 +46,10 @@
 #define SAH_RT_OCCLUSION 0
 #endif
 
+#ifndef SAH_RT_GI
+#define SAH_RT_GI 0
+#endif
+
 #if SAH_MAIN_VIEW
 ConstantBuffer<ViewDataGPU> camera_data;
 #endif

@@ -101,29 +101,6 @@ public:
     ) const;
 
     /**
-     * Begins a render pass, which implicitly begins the first subpass
-     *
-     * @param render_pass The render pass to begin
-     * @param framebuffer The framebuffer to use with this render pass. Must have the same number of attachments
-     * @param clears The clear values for the framebuffer attachments. Must have one entry for every attachment that the
-     * render pass clears
-     */
-    void begin_render_pass(
-        VkRenderPass render_pass, const Framebuffer& framebuffer,
-        const std::vector<VkClearValue>& clears
-    );
-
-    /**
-     * Ends the current subpass and begins the next subpass
-     */
-    void advance_subpass();
-
-    /**
-     * Ends the current render pass
-     */
-    void end_render_pass();
-
-    /**
      * Begins rendering with dynamic rendering
      */
     void begin_rendering(const RenderingInfo& info);

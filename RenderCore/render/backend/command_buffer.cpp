@@ -130,53 +130,6 @@ void CommandBuffer::build_acceleration_structures(
         build_range_info_ptrs.data());
 }
 
-void CommandBuffer::begin_render_pass(
-    const VkRenderPass render_pass, const Framebuffer& framebuffer,
-    const std::vector<VkClearValue>& clears
-) {
-    current_render_pass = render_pass;
-    current_framebuffer = framebuffer;
-
-    current_subpass = 0;
-
-    const auto begin_info = VkRenderPassBeginInfo{
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = render_pass,
-        .framebuffer = framebuffer.framebuffer,
-        .renderArea = framebuffer.render_area,
-        .clearValueCount = static_cast<uint32_t>(clears.size()),
-        .pClearValues = clears.data()
-    };
-    vkCmdBeginRenderPass(commands, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
-
-    const auto viewport = VkViewport{
-        .x = 0,
-        .y = 0,
-        .width = static_cast<float>(framebuffer.render_area.extent.width),
-        .height = static_cast<float>(framebuffer.render_area.extent.height),
-        .minDepth = 0.f,
-        .maxDepth = 1.f,
-    };
-    vkCmdSetViewport(commands, 0, 1, &viewport);
-
-    vkCmdSetScissor(commands, 0, 1, &framebuffer.render_area);
-}
-
-void CommandBuffer::advance_subpass() {
-    current_subpass++;
-
-    vkCmdNextSubpass(commands, VK_SUBPASS_CONTENTS_INLINE);
-}
-
-void CommandBuffer::end_render_pass() {
-    current_render_pass = VK_NULL_HANDLE;
-    current_framebuffer = {};
-
-    current_subpass = 0;
-
-    vkCmdEndRenderPass(commands);
-}
-
 void CommandBuffer::begin_rendering(const RenderingInfo& info) {
     auto attachment_infos = std::vector<VkRenderingAttachmentInfo>{};
     attachment_infos.reserve(

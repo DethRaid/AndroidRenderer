@@ -113,7 +113,7 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
                 .normal = vertex.normal,
                 .tangent = vertex.tangent,
                 .texcoord = vertex.texcoord,
-                .color = glm::unpackUnorm4x8(vertex.color),
+                .color = vertex.color,
             }
         );
     }
