@@ -3,18 +3,29 @@
 #include "shared/view_data.hpp"
 
 // Generates rays for the sun shadow. Uses ray tracing pipelines to get pretty shadows
+// The primitive data buffer is bound at 0.0, the other bindings in this file work around it. Check out 
+// gltf_basic_pbr.slang for other resources we use
 
-ConstantBuffer<ViewDataGPU> view_data;
+[vk::binding(1, 0)]
 ConstantBuffer<SunLightConstants> sun_light;
 
-Texture2D<half4> gbuffer_base_color;
-Texture2D<half4> gbuffer_normals;
-Texture2D<half4> gbuffer_data;
-Texture2D<float> gbuffer_depth;
+[vk::binding(2, 0)]
+ConstantBuffer<ViewDataGPU> view_data;
 
+[vk::binding(3, 0)]
 RaytracingAccelerationStructure rtas;
 
+[vk::binding(4, 0)]
 RWTexture2D<half4> lit_scene;
+
+[vk::binding(0, 1)]
+Texture2D<half4> gbuffer_base_color;
+[vk::binding(1, 1)]
+Texture2D<half4> gbuffer_normals;
+[vk::binding(2, 1)]
+Texture2D<half4> gbuffer_data;
+[vk::binding(4, 1)]
+Texture2D<float> gbuffer_depth;
 
 #define RAY_TYPE_OCCLUSION 0
 #define RAY_TYPE_GI 1

@@ -27,7 +27,7 @@ static auto standard_vertex_layout = VertexLayout{
     .input_bindings = {
         {
             .binding = 0,
-            .stride = sizeof(VertexPosition),
+            .stride = sizeof(StandardVertexPosition),
             .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
         },
         {

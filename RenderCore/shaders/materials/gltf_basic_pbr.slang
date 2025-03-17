@@ -50,6 +50,9 @@
 #define SAH_RT_GI 0
 #endif
 
+[vk::binding(0, 0)]
+StructuredBuffer<PrimitiveDataGPU> primitive_datas;
+
 #if SAH_MAIN_VIEW
 ConstantBuffer<ViewDataGPU> view_data;
 #endif
@@ -73,8 +76,6 @@ cbuffer Constants {
     uint primitive_id_in;
 }
 #endif
-
-StructuredBuffer<PrimitiveDataGPU> primitive_datas;
 
 [vk::binding(0, 1)]
 Sampler2D textures[];
@@ -330,6 +331,7 @@ void main_anyhit(inout uint payload, in float2 barycentrics) {
 }
 #endif // SAH_MASKED
 
+[vk::binding(1, 0)]
 ConstantBuffer<SunLightConstants> sun_light;
 
 [shader("closesthit")]

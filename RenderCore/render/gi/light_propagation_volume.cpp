@@ -509,9 +509,9 @@ void LightPropagationVolume::inject_indirect_sun_light(
     auto& backend = RenderBackend::get();
     const auto set = backend.get_transient_descriptor_allocator()
                             .build_set(rsm_pso, 0)
+                            .bind(scene.get_primitive_buffer())
                             .bind(vp_matrix_buffer)
                             .bind(scene.get_sun_light().get_constant_buffer())
-                            .bind(scene.get_primitive_buffer())
                             .build();
 
     graph.add_render_pass(

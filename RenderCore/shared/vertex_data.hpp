@@ -14,7 +14,7 @@ struct StandardVertex {
 };
 
 #if defined(__cplusplus)
-using VertexPosition = glm::vec3;
+using StandardVertexPosition = glm::vec3;
 #endif
 
 struct StandardVertexData {

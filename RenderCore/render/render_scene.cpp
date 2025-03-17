@@ -41,6 +41,15 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
     primitive.data.mesh_id = primitive.mesh.index;
     primitive.data.type = static_cast<uint32_t>(primitive.material->first.transparency_mode);
 
+    const auto index_buffer_address = meshes.get_index_buffer()->address;
+    primitive.data.indices = index_buffer_address + primitive.mesh->first_index * sizeof(uint32_t);
+
+    const auto positions_buffer_address = meshes.get_vertex_position_buffer()->address;
+    primitive.data.vertex_positions = positions_buffer_address + primitive.mesh->first_vertex * sizeof(StandardVertexPosition);
+
+    const auto data_buffer_address = meshes.get_vertex_data_buffer()->address;
+    primitive.data.vertex_data = data_buffer_address + primitive.mesh->first_vertex * sizeof(StandardVertexData);
+
     auto handle = mesh_primitives.add_object(std::move(primitive));
 
     total_num_primitives++;

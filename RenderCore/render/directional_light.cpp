@@ -281,14 +281,14 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& sce
 
         const auto solid_set = backend.get_transient_descriptor_allocator()
                                       .build_set(shadow_pso, 0)
-                                      .bind(world_to_ndc_matrices_buffer)
                                       .bind(scene.get_primitive_buffer())
+                                      .bind(world_to_ndc_matrices_buffer)
                                       .build();
 
         const auto masked_set = backend.get_transient_descriptor_allocator()
                                        .build_set(shadow_masked_pso, 0)
-                                       .bind(world_to_ndc_matrices_buffer)
                                        .bind(scene.get_primitive_buffer())
+                                       .bind(world_to_ndc_matrices_buffer)
                                        .build();
 
         graph.add_render_pass(
@@ -379,10 +379,9 @@ void DirectionalLight::raytrace(
 
     auto set = backend.get_transient_descriptor_allocator()
                       .build_set(rt_pipeline, 1)
+                      .bind(scene.get_primitive_buffer())
                       .bind(view.get_buffer())
                       .bind(sun_buffer)
-                      .bind(scene.get_primitive_buffer())
-                      .bind(scene.get_material_storage().get_material_instance_buffer())
                       .bind(scene.get_raytracing_scene().get_acceleration_structure())
                       .bind(lit_scene)
                       .build();
@@ -394,8 +393,8 @@ void DirectionalLight::raytrace(
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_pipeline(rt_pipeline);
 
-                commands.bind_descriptor_set(0, gbuffers_set);
-                commands.bind_descriptor_set(1, set);
+                commands.bind_descriptor_set(0, set);
+                commands.bind_descriptor_set(1, gbuffers_set);
 
                 commands.set_push_constant(0, static_cast<uint32_t>(cvar_shadow_samples.Get()));
 
