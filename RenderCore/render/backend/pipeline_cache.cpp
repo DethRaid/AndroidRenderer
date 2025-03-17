@@ -743,8 +743,8 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
     {
 
         const auto raygen_shader_maybe = SystemInterface::get().load_file(raygen_shader_path);
-        if(!raygen_shader_maybe) {
-            throw std::runtime_error{fmt::format("Could not load raygen shader {}", raygen_shader_path.string())};
+        if (!raygen_shader_maybe) {
+            throw std::runtime_error{ fmt::format("Could not load raygen shader {}", raygen_shader_path.string()) };
         }
         const auto& module_create_info = modules.emplace_back(
             VkShaderModuleCreateInfo{
@@ -770,13 +770,25 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
                 .anyHitShader = VK_SHADER_UNUSED_KHR,
                 .intersectionShader = VK_SHADER_UNUSED_KHR,
             });
-    }
 
-    /*
-     * TODO: Create the pipeline layout through some mechanism
-     *
-     * We need to have the primitive buffer bound... right? But it might be worth going back to BDAs for materials
-     */
+        // Use the raygen shader for reflection. It MUST have all the bindings that hit shaders need
+
+        std::vector<VkPushConstantRange> push_constants;
+        collect_bindings(
+            *raygen_shader_maybe,
+            raygen_shader_path.string(),
+            VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+            pipeline.descriptor_sets,
+            push_constants);
+
+        // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
+        for (const auto& range : push_constants) {
+            const auto max_used_byte = range.offset + range.size;
+            pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
+        }
+
+        pipeline.create_pipeline_layout(backend, pipeline.descriptor_sets, push_constants);
+    }
 
     constexpr auto lib_interface = VkRayTracingPipelineInterfaceCreateInfoKHR{
         .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_INTERFACE_CREATE_INFO_KHR,

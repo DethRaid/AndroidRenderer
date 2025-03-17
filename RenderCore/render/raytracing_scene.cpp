@@ -135,6 +135,11 @@ void RaytracingScene::commit_tlas_builds(RenderGraph& graph) {
                     .buffer = scratch_buffer,
                     .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
                     .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
+                },
+                {
+                    .buffer = acceleration_structure->buffer,
+                    .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                    .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
                 }
             },
             .execute = [=](const CommandBuffer& commands) {

@@ -93,13 +93,7 @@ void RenderGraph::add_pass(ComputePass pass) {
         set.get_resource_usage_information(pass.textures, pass.buffers);
     }
 
-    for(const auto& buffer_token : pass.buffers) {
-        access_tracker.set_resource_usage(buffer_token);
-    }
-
-    for(const auto& texture_token : pass.textures) {
-        access_tracker.set_resource_usage(texture_token);
-    }
+    update_accesses_and_issues_barriers(pass.textures, pass.buffers);
 
     access_tracker.issue_barriers(cmds);
 
@@ -124,14 +118,7 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
         set.get_resource_usage_information(pass.textures, pass.buffers);
     }
 
-    // Update state tracking, accumulating barrier for buffers and non-attachment images
-    for(const auto& buffer_token : pass.buffers) {
-        access_tracker.set_resource_usage(buffer_token);
-    }
-
-    for(const auto& texture_token : pass.textures) {
-        access_tracker.set_resource_usage(texture_token);
-    }
+    update_accesses_and_issues_barriers(pass.textures, pass.buffers);
 
     auto num_layers = 0u;
     for(const auto& attachment_token : pass.color_attachments) {

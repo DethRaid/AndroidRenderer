@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 
+#include "render/backend/acceleration_structure_usage_token.hpp"
 #include "render/backend/acceleration_structure.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/texture_usage_token.hpp"
@@ -25,7 +26,7 @@ namespace detail {
             BufferHandle buffer;
             TextureHandle texture;
             CombinedImageSampler combined_image_sampler;
-            AccelerationStructureHandle address = {};
+            AccelerationStructureHandle acceleration_structure = {};
         };
     };
 }

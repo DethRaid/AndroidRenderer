@@ -19,9 +19,13 @@ struct SpvReflectDescriptorSet;
 struct SpvReflectBlockVariable;
 struct SpvReflectInterfaceVariable;
 
-bool collect_bindings(const std::vector<uint8_t>& shader_instructions, const std::string& shader_name,
-    VkShaderStageFlagBits shader_stage, std::vector<DescriptorSetInfo>&
-    descriptor_sets, std::vector<VkPushConstantRange>& push_constants);
+bool collect_bindings(
+    const std::vector<uint8_t>& shader_instructions,
+    const std::string& shader_name,
+    VkShaderStageFlags shader_stage,
+    std::vector<DescriptorSetInfo>& descriptor_sets,
+    std::vector<VkPushConstantRange>& push_constants
+);
 
 struct VertexLayout {
     std::vector<VkVertexInputBindingDescription> input_bindings;
@@ -111,7 +115,9 @@ public:
 
     GraphicsPipelineBuilder& add_blend_flag(VkPipelineColorBlendStateCreateFlagBits flag);
 
-    GraphicsPipelineBuilder& set_blend_state(uint32_t color_target_index, const VkPipelineColorBlendAttachmentState& blend);
+    GraphicsPipelineBuilder& set_blend_state(
+        uint32_t color_target_index, const VkPipelineColorBlendAttachmentState& blend
+    );
 
     /**
      * Enables using the pipeline in a pipeline group
@@ -171,4 +177,3 @@ private:
 
     bool should_enable_dgc;
 };
-

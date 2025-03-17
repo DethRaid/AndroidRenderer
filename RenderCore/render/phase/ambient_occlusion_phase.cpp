@@ -13,7 +13,7 @@
 #include "render/backend/render_backend.hpp"
 
 static AutoCVar_Enum cvar_ao_technique{
-    "r.AO", "What kind of AO to use", AoTechnique::Off
+    "r.AO", "What kind of AO to use", AoTechnique::RTAO
 };
 
 static AutoCVar_Int cvar_rtao_samples{

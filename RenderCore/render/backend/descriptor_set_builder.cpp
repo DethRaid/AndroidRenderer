@@ -85,6 +85,26 @@ void DescriptorSet::get_resource_usage_information(
                         .layout = to_image_layout(binding_info.descriptorType)
                     });
             }
+
+            // Acceleration structures are just spicy buffers
+        } else if(is_acceleration_structure(binding_info.descriptorType)) {
+            const auto& as_handle = resource.acceleration_structure;
+            if(auto itr = std::ranges::find_if(
+                buffer_usages,
+                [=](const auto& usage) {
+                    return usage.buffer == as_handle->buffer;
+                }); itr != buffer_usages.end()) {
+                itr->access |= to_vk_access(binding_info.descriptorType, binding_info.is_read_only);
+                itr->stage |= to_pipeline_stage(binding_info.stageFlags);
+
+            } else {
+                buffer_usages.emplace_back(
+                    BufferUsageToken{
+                        .buffer = as_handle->buffer,
+                        .stage = to_pipeline_stage(binding_info.stageFlags),
+                        .access = to_vk_access(binding_info.descriptorType, binding_info.is_read_only),
+                    });
+            }
         }
 
         binding_idx++;
@@ -183,7 +203,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const AccelerationStructureHand
     }
 #endif
 
-    bindings[binding_index].address = acceleration_structure;
+    bindings[binding_index].acceleration_structure = acceleration_structure;
 
     binding_index++;
 
@@ -229,7 +249,10 @@ DescriptorSet DescriptorSetBuilder::build() {
             );
 
         } else if(is_acceleration_structure(binding_info.descriptorType)) {
-            builder.bind_acceleration_structure(binding_idx, {.as = resource.address}, binding_info.stageFlags);
+            builder.bind_acceleration_structure(
+                binding_idx,
+                {.as = resource.acceleration_structure},
+                binding_info.stageFlags);
 
         } else {
             throw std::runtime_error{"Unknown descriptor type!"};
@@ -370,5 +393,6 @@ bool is_combined_image_sampler(const VkDescriptorType vk_type) {
 
 bool is_acceleration_structure(const VkDescriptorType vk_type) {
     return
-        vk_type == VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+        vk_type == VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR ||
+        vk_type == VK_DESCRIPTOR_TYPE_PARTITIONED_ACCELERATION_STRUCTURE_NV;
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "acceleration_structure_usage_token.hpp"
 #include "render/backend/command_buffer.hpp"
 #include "render/backend/render_pass.hpp"
 

@@ -134,14 +134,14 @@ static VkDescriptorType to_vk_type(SpvReflectDescriptorType type);
  */
 static bool collect_descriptor_sets(
     const std::vector<SpvReflectDescriptorSet*>& sets,
-    VkShaderStageFlagBits shader_stage,
+    VkShaderStageFlags shader_stage,
     std::vector<DescriptorSetInfo>& descriptor_sets
 );
 
 static bool collect_push_constants(
     const std::filesystem::path& shader_path,
     const std::vector<SpvReflectBlockVariable*>& spv_push_constants,
-    VkShaderStageFlagBits shader_stage,
+    VkShaderStageFlags shader_stage,
     std::vector<VkPushConstantRange>& push_constants
 );
 
@@ -399,7 +399,7 @@ GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
 
 bool collect_descriptor_sets(
     const std::vector<SpvReflectDescriptorSet*>& sets,
-    const VkShaderStageFlagBits shader_stage,
+    const VkShaderStageFlags shader_stage,
     std::vector<DescriptorSetInfo>& descriptor_sets
 ) {
     if(logger == nullptr) {
@@ -423,7 +423,7 @@ bool collect_descriptor_sets(
                 binding->binding,
                 string_VkDescriptorType(to_vk_type(binding->descriptor_type)),
                 binding->count,
-                string_VkShaderStageFlagBits(shader_stage)
+                string_VkShaderStageFlags(shader_stage)
             );
             if(set_info.bindings.size() <= binding->binding) {
                 set_info.bindings.resize(binding->binding + 1);
@@ -454,7 +454,7 @@ bool collect_descriptor_sets(
 bool collect_push_constants(
     const std::filesystem::path& shader_path,
     const std::vector<SpvReflectBlockVariable*>& spv_push_constants,
-    VkShaderStageFlagBits shader_stage,
+    const VkShaderStageFlags shader_stage,
     std::vector<VkPushConstantRange>& push_constants
 ) {
     bool has_error = false;
@@ -501,7 +501,7 @@ bool collect_push_constants(
 
 bool collect_bindings(
     const std::vector<uint8_t>& shader_instructions, const std::string& shader_name,
-    const VkShaderStageFlagBits shader_stage,
+    const VkShaderStageFlags shader_stage,
     std::vector<DescriptorSetInfo>& descriptor_sets,
     std::vector<VkPushConstantRange>& push_constants
 ) {
