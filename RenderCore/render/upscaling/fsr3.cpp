@@ -67,6 +67,7 @@ void FidelityFSSuperResolution3::initialize(const glm::uvec2 output_resolution_i
     if(!has_context) {
         ffx::CreateContextDescUpscale create_upscaling;
         create_upscaling.flags = FFX_UPSCALE_ENABLE_HIGH_DYNAMIC_RANGE |
+            FFX_UPSCALE_ENABLE_MOTION_VECTORS_JITTER_CANCELLATION |
             FFX_UPSCALE_ENABLE_AUTO_EXPOSURE |
             FFX_UPSCALE_ENABLE_DEPTH_INFINITE |
             FFX_UPSCALE_ENABLE_DEBUG_CHECKING;
@@ -114,9 +115,8 @@ void FidelityFSSuperResolution3::initialize(const glm::uvec2 output_resolution_i
 }
 
 void FidelityFSSuperResolution3::set_constants(const SceneView& scene_transform, const glm::uvec2 render_resolution) {
-    const auto f_render_resolution = glm::vec2{render_resolution};
-    const auto scaled_jitter = scene_transform.get_jitter();// *f_render_resolution* glm::vec2{ 0.5f, -0.5f };
-    dispatch_desc.jitterOffset = {-scaled_jitter.x, -scaled_jitter.y};
+    const auto jitter = scene_transform.get_jitter();
+    dispatch_desc.jitterOffset = {-jitter.x, -jitter.y};
     dispatch_desc.motionVectorScale = {1.f, 1.f};
     dispatch_desc.renderSize = {render_resolution.x, render_resolution.y};
     dispatch_desc.upscaleSize = {output_resolution.x, output_resolution.y};
