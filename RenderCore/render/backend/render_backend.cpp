@@ -26,6 +26,7 @@
 #include "render/backend/pipeline_cache.hpp"
 #include "render/backend/resource_upload_queue.hpp"
 #include "core/issue_breakpoint.hpp"
+#include "render/upscaling/xess.hpp"
 
 [[maybe_unused]] static auto cvar_use_dgc = AutoCVar_Int{
     "r.RHI.DGC.Enable",
@@ -204,6 +205,13 @@ void RenderBackend::create_instance_and_device() {
     instance_builder.enable_layer("VK_LAYER_KHRONOS_validation");
 #endif
 
+#if SAH_USE_XESS
+    const auto xess_extensions = XeSSAdapter::get_instance_extensions();
+    for(const auto& extension : xess_extensions) {
+        instance_builder.enable_extension(extension.c_str());
+    }
+#endif
+
     auto instance_ret = instance_builder.build();
     if(!instance_ret) {
         const auto error_message = fmt::format(
@@ -279,7 +287,7 @@ void RenderBackend::create_instance_and_device() {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .drawIndirectCount = VK_TRUE,
         .shaderFloat16 = VK_TRUE,
-        // Extension VK_KHR_shader_float16_int8 in 1.1. Add VkPhysicalDeviceShaderFloat16Int8Features to Physical Device pNext
+        .shaderInt8 = VK_TRUE,
         .descriptorIndexing = VK_TRUE,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
         .descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
@@ -301,6 +309,7 @@ void RenderBackend::create_instance_and_device() {
         .textureCompressionASTC_HDR = VK_TRUE,
 #endif
         .dynamicRendering = VK_TRUE,
+        .shaderIntegerDotProduct = VK_TRUE,
         .maintenance4 = VK_TRUE,
     };
 
@@ -362,11 +371,31 @@ void RenderBackend::create_instance_and_device() {
     const auto supports_dr = physical_device.enable_extension_if_present(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
     logger->info("Supports DR extension: {}", supports_dr);
 
+#if SAH_USE_XESS
+    const auto xess_device_extensions = XeSSAdapter::get_device_extensions(instance, physical_device);
+    for(const auto& extension : xess_device_extensions) {
+        physical_device.enable_extension_if_present(extension.c_str());
+    }
+#endif
+
     query_physical_device_features();
 
     query_physical_device_properties();
 
     auto device_builder = vkb::DeviceBuilder{physical_device};
+
+#if SAH_USE_XESS
+    auto xess_features = VkPhysicalDeviceFeatures2{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2
+    };
+    XeSSAdapter::add_required_features(instance, physical_device, xess_features);
+    // TODO: Merge their requests properly
+    auto mutable_descriptor = VkPhysicalDeviceMutableDescriptorTypeFeaturesEXT{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MUTABLE_DESCRIPTOR_TYPE_FEATURES_EXT,
+        .mutableDescriptorType = VK_TRUE,
+    };
+    device_builder.add_pNext(&mutable_descriptor);
+#endif
 
     if(supports_ray_tracing()) {
         device_builder.add_pNext(&acceleration_structure_features);

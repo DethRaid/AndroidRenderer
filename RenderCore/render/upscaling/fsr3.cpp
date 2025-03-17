@@ -11,7 +11,7 @@
 #include "core/string_conversion.hpp"
 
 static auto cvar_fsr3_quality = AutoCVar_Enum{
-    "r.FSR3.Quality", "FSR3 Quality", FFX_UPSCALE_QUALITY_MODE_PERFORMANCE
+    "r.FSR3.Quality", "FSR3 Quality", FFX_UPSCALE_QUALITY_MODE_QUALITY
 };
 
 static std::string to_string(FfxApiUpscaleQualityMode quality_mode);

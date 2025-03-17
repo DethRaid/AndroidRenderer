@@ -323,7 +323,7 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
     vp_matrix_buffer = allocator.create_buffer(
         "rsm_vp_matrices",
         sizeof(glm::mat4) * num_cascades,
-        BufferUsage::StagingBuffer);
+        BufferUsage::UniformBuffer);
 
     const auto num_vpls = cvar_lpv_rsm_resolution.Get() * cvar_lpv_rsm_resolution.Get() / 4;
 
