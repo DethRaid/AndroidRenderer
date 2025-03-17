@@ -2,10 +2,9 @@
 
 #include <imgui.h>
 
-#include "core/halton_sequence.hpp"
-#include "render/fsr3.hpp"
+#include "render/antialiasing_type.hpp"
+#include "render/noise_texture.hpp"
 #include "render/bloomer.hpp"
-#include "render/backend/render_backend.hpp"
 #include "render/scene_view.hpp"
 #include "render/material_storage.hpp"
 #include "render/texture_loader.hpp"
@@ -22,6 +21,7 @@
 #include "render/phase/lighting_phase.hpp"
 #include "render/gi/light_propagation_volume.hpp"
 #include "ui/debug_menu.hpp"
+#include "render/upscaling/upscaler.hpp"
 #include "visualizers/visualizer_type.hpp"
 
 class GltfModel;
@@ -87,7 +87,7 @@ private:
     /**
      * Spatio-temporal blue noise texture, containing 3D vectors in a cosine-weighted hemisphere
      */
-    NoiseTexture stbn_3d_cosine;
+    NoiseTexture stbn_3d_unitvec;
 
     std::unique_ptr<LightPropagationVolume> lpv;
 
@@ -118,9 +118,6 @@ private:
 
     ProceduralSky sky;
 
-    HaltonSequence jitter_sequence_x = HaltonSequence{ 2 };
-    HaltonSequence jitter_sequence_y = HaltonSequence{ 3 };
-
     /**
      * \brief Screen-space camera jitter applied to this frame
      */
@@ -143,9 +140,11 @@ private:
 
     RenderVisualization active_visualization = RenderVisualization::None;
 
-#if SAH_USE_FFX
-    std::unique_ptr<FidelityFSSuperResolution3> fsr3;
-#endif
+    std::unique_ptr<IUpscaler> upscaler;
+
+    AntiAliasingType cached_aa = AntiAliasingType::None;
+
+    uint32_t frame_count = 0;
 
     void set_render_resolution(glm::uvec2 new_render_resolution);
 

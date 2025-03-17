@@ -26,7 +26,6 @@
 #include "render/backend/pipeline_cache.hpp"
 #include "render/backend/resource_upload_queue.hpp"
 #include "core/issue_breakpoint.hpp"
-#include "render/streamline_adapter/streamline_adapter.hpp"
 
 [[maybe_unused]] static auto cvar_use_dgc = AutoCVar_Int{
     "r.RHI.DGC.Enable",
@@ -79,13 +78,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
 
     VkResult volk_result = VK_SUCCESS;
 #if SAH_USE_STREAMLINE
-    try {
-        streamline = std::make_unique<StreamlineAdapter>();
-    } catch(const std::exception& e) {
-        logger->error("Could not initialize Streamline: {}!", e.what());
-    }
-
-    const PFN_vkGetInstanceProcAddr vk_get_instance_proc = StreamlineAdapter::try_load_streamline();
+    const PFN_vkGetInstanceProcAddr vk_get_instance_proc = streamline.try_load_interposer();
     if(vk_get_instance_proc != nullptr) {
         volkInitializeCustom(vk_get_instance_proc);
     } else {
@@ -412,6 +405,10 @@ void RenderBackend::create_instance_and_device() {
     }
     device = *device_ret;
     volkLoadDevice(device.device);
+
+#if SAH_USE_STREAMLINE
+    //DLSSAdapter::set_devices_from_backend(*this);
+#endif
 }
 
 void RenderBackend::query_physical_device_features() {
@@ -909,14 +906,6 @@ uint32_t RenderBackend::get_current_gpu_frame() const {
     return cur_frame_idx;
 }
 
-void RenderBackend::mark_simulation_begin() const {
-#if SAH_USE_STREAMLINE
-    if(streamline) {
-        streamline->update_frame_token(total_num_frames + 1);
-    }
-#endif
-}
-
 ResourceUploadQueue& RenderBackend::get_upload_queue() const {
     return *upload_queue;
 }
@@ -998,12 +987,6 @@ DescriptorSetAllocator& RenderBackend::get_persistent_descriptor_allocator() {
 DescriptorSetAllocator& RenderBackend::get_transient_descriptor_allocator() {
     return frame_descriptor_allocators[cur_frame_idx];
 }
-
-#if SAH_USE_STREAMLINE
-StreamlineAdapter* RenderBackend::get_streamline() const {
-    return streamline.get();
-}
-#endif
 
 VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
     auto semaphore = VkSemaphore{};

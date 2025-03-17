@@ -3,6 +3,7 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtc/reciprocal.hpp>
+#include <numbers>
 
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/render_backend.hpp"
@@ -128,7 +129,7 @@ const glm::mat4& SceneView::get_last_frame_projection() const { return last_fram
 
 void SceneView::refresh_view_matrices() {
     forward = glm::vec3{cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw)};
-    const auto right = glm::vec3{sin(yaw - 3.1415927f / 2.0), 0, cos(yaw - 3.14159f / 2.0)};
+    const auto right = glm::vec3{sin(yaw - std::numbers::pi_v<float> / 2.0), 0, cos(yaw - std::numbers::pi_v<float> / 2.0)};
     const auto up = cross(right, forward);
 
     gpu_data.last_frame_view = gpu_data.view;
@@ -151,8 +152,8 @@ void SceneView::refresh_projection_matrices() {
     gpu_data.last_frame_projection = gpu_data.projection;
     gpu_data.projection = projection;
 
-    gpu_data.projection[2][0] += jitter.x;
-    gpu_data.projection[2][1] += jitter.y;
+    gpu_data.projection[2][0] += jitter.x * 2.f / gpu_data.render_resolution.x;
+    gpu_data.projection[2][1] -= jitter.y * 2.f / gpu_data.render_resolution.y;
 
     gpu_data.inverse_projection = glm::inverse(gpu_data.projection);
 

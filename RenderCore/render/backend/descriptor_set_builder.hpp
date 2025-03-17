@@ -4,7 +4,6 @@
 #include <string>
 #include <string_view>
 
-#include "render/backend/acceleration_structure_usage_token.hpp"
 #include "render/backend/acceleration_structure.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/texture_usage_token.hpp"
