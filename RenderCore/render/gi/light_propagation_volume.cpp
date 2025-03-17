@@ -512,7 +512,6 @@ void LightPropagationVolume::inject_indirect_sun_light(
                             .bind(vp_matrix_buffer)
                             .bind(scene.get_sun_light().get_constant_buffer())
                             .bind(scene.get_primitive_buffer())
-                            .bind(scene.get_material_storage().get_material_instance_buffer())
                             .build();
 
     graph.add_render_pass(

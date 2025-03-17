@@ -116,7 +116,7 @@ static std::vector<std::shared_ptr<spdlog::logger>> all_loggers{};
 std::shared_ptr<spdlog::logger> Win32SystemInterface::get_logger(const std::string& name) {
     auto sinks = std::vector<spdlog::sink_ptr>{
         std::make_shared<spdlog::sinks::stdout_color_sink_mt>(),
-        std::make_shared<spdlog::sinks::basic_file_sink_mt>("sah.log"),
+        std::make_shared<spdlog::sinks::basic_file_sink_mt>("sah.log", true),
     };
     sinks[0]->set_pattern("[%n] [%^%l%$] %v");
     auto new_logger = std::make_shared<spdlog::logger>(name, sinks.begin(), sinks.end());

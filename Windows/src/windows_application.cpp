@@ -10,7 +10,7 @@
 #include <tracy/Tracy.hpp>
 
 int main(const int argc, const char** argv) {
-    try {
+    //try {
         glfwInit();
 
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -45,7 +45,7 @@ int main(const int argc, const char** argv) {
         }
 
         glfwTerminate();
-    } catch(const std::exception& e) {
-        spdlog::error("Unable to execute application: {}", e.what());
-    }
+    //} catch(const std::exception& e) {
+    //    spdlog::error("Unable to execute application: {}", e.what());
+    //}
 }

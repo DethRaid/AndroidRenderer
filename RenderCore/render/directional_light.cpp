@@ -289,7 +289,6 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& sce
                                        .build_set(shadow_masked_pso, 0)
                                        .bind(world_to_ndc_matrices_buffer)
                                        .bind(scene.get_primitive_buffer())
-                                       .bind(scene.get_material_storage().get_material_instance_buffer())
                                        .build();
 
         graph.add_render_pass(
@@ -374,8 +373,8 @@ void DirectionalLight::raytrace(
     if(rt_pipeline == nullptr) {
         rt_pipeline = backend.get_pipeline_cache()
                              .create_ray_tracing_pipeline(
-                                 "shaders/lighting/directional_light.raygen.spv",
-                                 "shaders/lighting/directional_light.miss.spv");
+                                 "shaders/lighting/directional_light.rt.raygen.spv",
+                                 "shaders/lighting/directional_light.rt.miss.spv");
     }
 
     auto set = backend.get_transient_descriptor_allocator()

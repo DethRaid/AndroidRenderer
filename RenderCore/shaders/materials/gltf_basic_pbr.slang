@@ -51,7 +51,7 @@
 #endif
 
 #if SAH_MAIN_VIEW
-ConstantBuffer<ViewDataGPU> camera_data;
+ConstantBuffer<ViewDataGPU> view_data;
 #endif
 
 #if SAH_MULTIVIEW
@@ -75,8 +75,6 @@ cbuffer Constants {
 #endif
 
 StructuredBuffer<PrimitiveDataGPU> primitive_datas;
-
-StructuredBuffer<BasicPbrMaterialGpu> materials;
 
 [vk::binding(0, 1)]
 Sampler2D textures[];
@@ -130,8 +128,8 @@ VertexOutput main_vs(
     PrimitiveDataGPU data = primitive_datas[primitive_id];
 
 #if SAH_MAIN_VIEW
-    float4 viewspace_position = mul(camera_data.view, mul(data.model, float4(position_in, 1.f)));
-    output.position = mul(camera_data.projection, viewspace_position);
+    float4 viewspace_position = mul(view_data.view, mul(data.model, float4(position_in, 1.f)));
+    output.position = mul(view_data.projection, viewspace_position);
     output.viewspace_position = viewspace_position.xyz;
 #elif SAH_MULTIVIEW
     output.position = mul(world_to_ndc_matrices[view_id], mul(data.model, float4(position_in, 1.f)));
@@ -175,13 +173,13 @@ GbufferOutput
 main_fs(const VertexOutput vertex) {
 
     PrimitiveDataGPU primitive = primitive_datas[vertex.primitive_id];
-    BasicPbrMaterialGpu material = materials[primitive.material_id];
+    BasicPbrMaterialGpu material = *primitive.material;
 
     GbufferOutput gbuffer = (GbufferOutput)0;
 
     float mip_bias = 0;
 #if SAH_MAIN_VIEW
-    mip_bias = camera_data.material_texture_mip_bias;
+    mip_bias = view_data.material_texture_mip_bias;
 #endif
 
     // Base color
@@ -259,10 +257,6 @@ StandardVertexData interpolate_vertex(const StandardVertexData v0, const Standar
     return v;
 }
 
-StructuredBuffer<float3> vertex_positions;
-StructuredBuffer<StandardVertexData> vertex_data;
-StructuredBuffer<uint> index_buffer;
-
 #if SAH_RT_OCCLUSION
 #if SAH_MASKED
 [shader("anyhit")]
@@ -270,20 +264,21 @@ void main_anyhit(inout uint payload, in float2 barycentrics) {
     const uint primitive_id = InstanceID();
     const uint triangle_id = PrimitiveIndex();
 
+    const PrimitiveDataGPU primitive = primitive_datas[primitive_id];
+
     const uint index = triangle_id * 3;
 
-    const uint i0 = index_buffer[index];
-    const uint i1 = index_buffer[index + 1];    
-    const uint i2 = index_buffer[index + 2];
+    const uint i0 = primitive.indices[index];
+    const uint i1 = primitive.indices[index + 1];
+    const uint i2 = primitive.indices[index + 2];
 
-    const StandardVertexData v0 = vertex_data[i0];
-    const StandardVertexData v1 = vertex_data[i1];
-    const StandardVertexData v2 = vertex_data[i2];
+    const StandardVertexData v0 = primitive.vertex_data[i0];
+    const StandardVertexData v1 = primitive.vertex_data[i1];
+    const StandardVertexData v2 = primitive.vertex_data[i2];
 
     const StandardVertexData v = interpolate_vertex(v0, v1, v2, barycentrics);
 
-    const PrimitiveDataGPU primitive = primitive_datas[primitive_id];
-    const BasicPbrMaterialGpu material = materials[primitive.material_id];
+    const BasicPbrMaterialGpu material = *primitive.material;
 
     Sampler2D base_color_texture = textures[material.base_color_texture_index];
     const float4 base_color_sample = base_color_texture.SampleLevel(v.texcoord, 0);
@@ -302,7 +297,6 @@ void main_closesthit(inout uint payload) {
 #endif // SAH_RT_OCCLUSION
 
 #if SAH_RT_GI
-ConstantBuffer<SunLightConstants> sun_light;
 
 #if SAH_MASKED
 [shader("anyhit")]
@@ -310,20 +304,21 @@ void main_anyhit(inout uint payload, in float2 barycentrics) {
     const uint primitive_id = InstanceID();
     const uint triangle_id = PrimitiveIndex();
 
+    const PrimitiveDataGPU primitive = primitive_datas[primitive_id];
+
     const uint index = triangle_id * 3;
 
-    const uint i0 = index_buffer[index];
-    const uint i1 = index_buffer[index + 1];
-    const uint i2 = index_buffer[index + 2];
+    const uint i0 = primitive.indices[index];
+    const uint i1 = primitive.indices[index + 1];
+    const uint i2 = primitive.indices[index + 2];
 
-    const StandardVertexData v0 = vertex_data[i0];
-    const StandardVertexData v1 = vertex_data[i1];
-    const StandardVertexData v2 = vertex_data[i2];
+    const StandardVertexData v0 = primitive.vertex_data[i0];
+    const StandardVertexData v1 = primitive.vertex_data[i1];
+    const StandardVertexData v2 = primitive.vertex_data[i2];
 
     const StandardVertexData v = interpolate_vertex(v0, v1, v2, barycentrics);
 
-    const PrimitiveDataGPU primitive = primitive_datas[primitive_id];
-    const BasicPbrMaterialGpu material = materials[primitive.material_id];
+    const BasicPbrMaterialGpu material = *primitive.material;
 
     Sampler2D base_color_texture = textures[material.base_color_texture_index];
     const float4 base_color_sample = base_color_texture.SampleLevel(v.texcoord, 0);
@@ -335,25 +330,28 @@ void main_anyhit(inout uint payload, in float2 barycentrics) {
 }
 #endif // SAH_MASKED
 
+ConstantBuffer<SunLightConstants> sun_light;
+
 [shader("closesthit")]
 void main_closesthit(inout half3 payload, in float2 barycentrics) {
     const uint primitive_id = InstanceID();
     const uint triangle_id = PrimitiveIndex();
 
+    const PrimitiveDataGPU primitive = primitive_datas[primitive_id];
+
     const uint index = triangle_id * 3;
 
-    const uint i0 = index_buffer[index];
-    const uint i1 = index_buffer[index + 1];
-    const uint i2 = index_buffer[index + 2];
+    const uint i0 = primitive.indices[index];
+    const uint i1 = primitive.indices[index + 1];
+    const uint i2 = primitive.indices[index + 2];
 
-    const StandardVertexData v0 = vertex_data[i0];
-    const StandardVertexData v1 = vertex_data[i1];
-    const StandardVertexData v2 = vertex_data[i2];
+    const StandardVertexData v0 = primitive.vertex_data[i0];
+    const StandardVertexData v1 = primitive.vertex_data[i1];
+    const StandardVertexData v2 = primitive.vertex_data[i2];
 
     const StandardVertexData vertex = interpolate_vertex(v0, v1, v2, barycentrics);
 
-    const PrimitiveDataGPU primitive = primitive_datas[primitive_id];
-    const BasicPbrMaterialGpu material = materials[primitive.material_id];
+    const BasicPbrMaterialGpu material = *primitive.material;
 
     GbufferOutput gbuffer = (GbufferOutput)0;
 

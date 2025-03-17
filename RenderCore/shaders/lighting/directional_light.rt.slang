@@ -4,13 +4,13 @@
 
 // Generates rays for the sun shadow. Uses ray tracing pipelines to get pretty shadows
 
+ConstantBuffer<ViewDataGPU> view_data;
+ConstantBuffer<SunLightConstants> sun_light;
+
 Texture2D<half4> gbuffer_base_color;
 Texture2D<half4> gbuffer_normals;
 Texture2D<half4> gbuffer_data;
 Texture2D<float> gbuffer_depth;
-
-ConstantBuffer<ViewDataGPU> view_data;
-ConstantBuffer<SunLightConstants> sun_light;
 
 RaytracingAccelerationStructure rtas;
 

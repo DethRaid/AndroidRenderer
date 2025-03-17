@@ -129,11 +129,11 @@ void DepthCullingPhase::render(
                                         .bind(view_data_buffer)
                                         .bind(primitive_buffer)
                                         .build();
+    // Masked view needs the primitive buffer in the fragment shader ugh
     const auto masked_view_descriptor = backend.get_transient_descriptor_allocator()
                                                .build_set(pipelines.get_depth_masked_pso(), 0)
                                                .bind(view_data_buffer)
                                                .bind(primitive_buffer)
-                                               .bind(scene.get_material_storage().get_material_instance_buffer())
                                                .build();
 
     const auto num_primitives = scene.get_total_num_primitives();
