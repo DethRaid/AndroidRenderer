@@ -420,7 +420,7 @@ VkPipeline PipelineCache::get_pipeline(
         });
 
     VkShaderModuleCreateInfo geometry_module;
-    if (!pipeline->geometry_shader.empty()) {
+    if(!pipeline->geometry_shader.empty()) {
         geometry_module = VkShaderModuleCreateInfo{
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
             .codeSize = static_cast<uint32_t>(pipeline->geometry_shader.size()),
@@ -437,7 +437,7 @@ VkPipeline PipelineCache::get_pipeline(
     }
 
     VkShaderModuleCreateInfo fragment_module;
-    if (!pipeline->fragment_shader.empty()) {
+    if(!pipeline->fragment_shader.empty()) {
         fragment_module = VkShaderModuleCreateInfo{
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
             .codeSize = static_cast<uint32_t>(pipeline->fragment_shader.size()),
@@ -569,6 +569,8 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
 ) {
     ZoneScoped;
 
+    logger->debug("Creating RT PSO {}", raygen_shader_path.string());
+
     auto pipeline = RayTracingPipeline{};
 
     const auto& device = backend.get_device();
@@ -583,6 +585,8 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
 
     auto modules = std::vector<VkShaderModuleCreateInfo>{};
     modules.reserve(stages.capacity());
+
+    std::vector<VkPushConstantRange> push_constants;
 
     // Add stages for each shader group, and add two groups for each shader group. Occlusion is first, GI is second
     for(const auto& shader_group : shader_groups) {
@@ -608,8 +612,21 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
                         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                         .pNext = &module_create_info,
                         .stage = VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
-                        .pName = "main_anyhit"
+                        .pName = "main"
                     });
+
+                collect_bindings(
+                    occlusion_anyhit_shader,
+                    shader_group.name,
+                    VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+                    pipeline.descriptor_sets,
+                    push_constants);
+
+                // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
+                for(const auto& range : push_constants) {
+                    const auto max_used_byte = range.offset + range.size;
+                    pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
+                }
             }
 
             const auto& occlusion_closesthit_shader = shader_group.occlusion_closesthit_shader;
@@ -628,8 +645,21 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
                         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                         .pNext = &module_create_info,
                         .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                        .pName = "main_closesthit"
+                        .pName = "main"
                     });
+
+                collect_bindings(
+                    occlusion_closesthit_shader,
+                    shader_group.name,
+                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                    pipeline.descriptor_sets,
+                    push_constants);
+
+                // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
+                for(const auto& range : push_constants) {
+                    const auto max_used_byte = range.offset + range.size;
+                    pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
+                }
             }
 
             // Occlusion group
@@ -667,8 +697,21 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
                         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                         .pNext = &module_create_info,
                         .stage = VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
-                        .pName = "main_anyhit"
+                        .pName = "main"
                     });
+
+                collect_bindings(
+                    gi_anyhit_shader,
+                    shader_group.name,
+                    VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+                    pipeline.descriptor_sets,
+                    push_constants);
+
+                // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
+                for(const auto& range : push_constants) {
+                    const auto max_used_byte = range.offset + range.size;
+                    pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
+                }
             }
 
             const auto& gi_closesthit_shader = shader_group.gi_closesthit_shader;
@@ -687,8 +730,21 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
                         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                         .pNext = &module_create_info,
                         .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-                        .pName = "main_closesthit"
+                        .pName = "main"
                     });
+
+                collect_bindings(
+                    gi_closesthit_shader,
+                    shader_group.name,
+                    VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                    pipeline.descriptor_sets,
+                    push_constants);
+
+                // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
+                for(const auto& range : push_constants) {
+                    const auto max_used_byte = range.offset + range.size;
+                    pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
+                }
             }
 
             // GI group
@@ -724,7 +780,7 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
             VkPipelineShaderStageCreateInfo{
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                 .pNext = &module_create_info,
-                .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                .stage = VK_SHADER_STAGE_MISS_BIT_KHR,
                 .pName = "main_miss"
             });
 
@@ -737,14 +793,27 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
                 .anyHitShader = VK_SHADER_UNUSED_KHR,
                 .intersectionShader = VK_SHADER_UNUSED_KHR,
             });
+
+        collect_bindings(
+            *miss_shader_maybe,
+            miss_shader_path.string(),
+            VK_SHADER_STAGE_MISS_BIT_KHR,
+            pipeline.descriptor_sets,
+            push_constants);
+
+        // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
+        for(const auto& range : push_constants) {
+            const auto max_used_byte = range.offset + range.size;
+            pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
+        }
     }
 
     pipeline.raygen_group_index = static_cast<uint32_t>(groups.size());
     {
 
         const auto raygen_shader_maybe = SystemInterface::get().load_file(raygen_shader_path);
-        if (!raygen_shader_maybe) {
-            throw std::runtime_error{ fmt::format("Could not load raygen shader {}", raygen_shader_path.string()) };
+        if(!raygen_shader_maybe) {
+            throw std::runtime_error{fmt::format("Could not load raygen shader {}", raygen_shader_path.string())};
         }
         const auto& module_create_info = modules.emplace_back(
             VkShaderModuleCreateInfo{
@@ -757,7 +826,7 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
             VkPipelineShaderStageCreateInfo{
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                 .pNext = &module_create_info,
-                .stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                .stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
                 .pName = "main_raygen"
             });
 
@@ -771,24 +840,21 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
                 .intersectionShader = VK_SHADER_UNUSED_KHR,
             });
 
-        // Use the raygen shader for reflection. It MUST have all the bindings that hit shaders need
-
-        std::vector<VkPushConstantRange> push_constants;
         collect_bindings(
             *raygen_shader_maybe,
             raygen_shader_path.string(),
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+            VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             pipeline.descriptor_sets,
             push_constants);
 
         // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
-        for (const auto& range : push_constants) {
+        for(const auto& range : push_constants) {
             const auto max_used_byte = range.offset + range.size;
             pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
         }
-
-        pipeline.create_pipeline_layout(backend, pipeline.descriptor_sets, push_constants);
     }
+
+    pipeline.create_pipeline_layout(backend, pipeline.descriptor_sets, push_constants);
 
     constexpr auto lib_interface = VkRayTracingPipelineInterfaceCreateInfoKHR{
         .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_INTERFACE_CREATE_INFO_KHR,

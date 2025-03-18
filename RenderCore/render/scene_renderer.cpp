@@ -35,7 +35,7 @@ static auto cvar_raytrace_mesh_lights = AutoCVar_Int{
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
-    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::XeSS
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::DLSS
 };
 
 /*
@@ -716,7 +716,8 @@ void SceneRenderer::create_scene_render_targets() {
     lit_scene_handle = allocator.create_texture(
         "lit_scene",
         {
-            VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            //VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            VK_FORMAT_R16G16B16A16_SFLOAT,
             scene_render_resolution,
             1,
             TextureUsage::RenderTarget
@@ -726,7 +727,7 @@ void SceneRenderer::create_scene_render_targets() {
     antialiased_scene_handle = allocator.create_texture(
         "antialiased_scene",
         {
-            .format = VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            .format = VK_FORMAT_R16G16B16A16_SFLOAT,//VK_FORMAT_B10G11R11_UFLOAT_PACK32,
             .resolution = output_resolution,
             .usage = TextureUsage::RenderTarget,
             .usage_flags = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT

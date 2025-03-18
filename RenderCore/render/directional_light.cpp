@@ -394,14 +394,12 @@ void DirectionalLight::raytrace(
                 commands.bind_pipeline(rt_pipeline);
 
                 commands.bind_descriptor_set(0, set);
-                commands.bind_descriptor_set(1, gbuffers_set);
 
                 commands.set_push_constant(0, static_cast<uint32_t>(cvar_shadow_samples.Get()));
 
                 commands.dispatch_rays({lit_scene->create_info.extent.width, lit_scene->create_info.extent.height});
 
                 commands.clear_descriptor_set(0);
-                commands.clear_descriptor_set(1);
             }
         });
 }

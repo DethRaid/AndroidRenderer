@@ -7,8 +7,6 @@
 // The primitive data buffer is bound at 0.0, the other bindings in this file work around it. Check out
 // gltf_basic_pbr.slang for other resources we use
 
-[vk::binding(0, 0)]
-StructuredBuffer<PrimitiveDataGPU> primitive_datas;
 
 [vk::binding(1, 0)]
 ConstantBuffer<SunLightConstants> sun_light;
@@ -22,15 +20,13 @@ RaytracingAccelerationStructure rtas;
 [vk::binding(4, 0)]
 RWTexture2D<half4> lit_scene;
 
-[vk::binding(0, 1)]
+[vk::binding(5, 0)]
 Texture2D<half4> gbuffer_base_color;
-[vk::binding(1, 1)]
+[vk::binding(6, 0)]
 Texture2D<half4> gbuffer_normals;
-[vk::binding(2, 1)]
+[vk::binding(7, 0)]
 Texture2D<half4> gbuffer_data;
-[vk::binding(3, 1)]
-Texture2D<half4> gbuffer_emission;
-[vk::binding(4, 1)]
+[vk::binding(8, 0)]
 Texture2D<float> gbuffer_depth;
 
 #define RAY_TYPE_OCCLUSION 0

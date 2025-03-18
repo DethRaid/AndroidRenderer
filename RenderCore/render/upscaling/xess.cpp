@@ -98,7 +98,7 @@ static void xess_log(const char* message, xess_logging_level_t loggingLevel) {
 XeSSAdapter::XeSSAdapter() {
     ZoneScoped;
 
-    if (logger == nullptr) {
+    if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("XeSS");
     }
 
@@ -108,7 +108,7 @@ XeSSAdapter::XeSSAdapter() {
         backend.get_physical_device(),
         backend.get_device(),
         &context);
-    if (result != XESS_RESULT_SUCCESS) {
+    if(result != XESS_RESULT_SUCCESS) {
         logger->error("Could not create XeSS context: {}", result);
     }
 
@@ -129,7 +129,7 @@ void XeSSAdapter::initialize(const glm::uvec2 output_resolution, const uint32_t 
         auto init_params = xess_vk_init_params_t{
             .outputResolution = {cached_output_resolution.x, cached_output_resolution.y},
             .qualitySetting = cvar_xess_mode.Get(),
-            .initFlags = XESS_INIT_FLAG_NONE
+            .initFlags = XESS_INIT_FLAG_JITTERED_MV
         };
 
         auto init_result = xessVKInit(context, &init_params);
@@ -138,7 +138,7 @@ void XeSSAdapter::initialize(const glm::uvec2 output_resolution, const uint32_t 
         }
     }
 
-    const auto x_output_resolution = xess_2d_t{ output_resolution.x, output_resolution.y };
+    const auto x_output_resolution = xess_2d_t{output_resolution.x, output_resolution.y};
     xessGetOptimalInputResolution(
         context,
         &x_output_resolution,
@@ -167,31 +167,47 @@ void XeSSAdapter::evaluate(
     RenderGraph& graph, const TextureHandle color_in, const TextureHandle color_out, const TextureHandle depth_in,
     const TextureHandle motion_vectors_in
 ) {
+    if(r32_depth == nullptr) {
+        r32_depth = RenderBackend::get().get_global_allocator().create_texture(
+            "r32_depth",
+            {
+                .format = VK_FORMAT_R32_SFLOAT,
+                .resolution = {depth_in->create_info.extent.width, depth_in->create_info.extent.height},
+                .usage = TextureUsage::StorageImage
+            });
+    }
+
+    graph.add_copy_pass(ImageCopyPass{
+        .name = "r32_depth_copy",
+        .dst = r32_depth,
+        .src = depth_in
+    });
+
     graph.add_pass(
         {
             .name = "xess",
             .textures = {
                 {
                     .texture = color_in,
-                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                     .access = VK_ACCESS_2_SHADER_READ_BIT,
                     .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
                 {
                     .texture = color_out,
-                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                     .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
                     .layout = VK_IMAGE_LAYOUT_GENERAL
                 },
                 {
                     .texture = depth_in,
-                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                     .access = VK_ACCESS_2_SHADER_READ_BIT,
                     .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
                 {
                     .texture = motion_vectors_in,
-                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                    .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                     .access = VK_ACCESS_2_SHADER_READ_BIT,
                     .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 },
@@ -202,7 +218,10 @@ void XeSSAdapter::evaluate(
                 params.depthTexture = wrap_image(depth_in);
                 params.outputTexture = wrap_image(color_out);
 
-                xessVKExecute(context, commands.get_vk_commands(), &params);
+                auto result = xessVKExecute(context, commands.get_vk_commands(), &params);
+                if(result != XESS_RESULT_SUCCESS) {
+                    logger->error("Could not evaluate XeSS: {}", result);
+                }
             }
         });
 }

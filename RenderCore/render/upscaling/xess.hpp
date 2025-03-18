@@ -59,6 +59,8 @@ private:
     xess_2d_t optimal_input_resolution = {};
     xess_2d_t min_input_resolution = {};
     xess_2d_t max_input_resolution = {};
+
+    TextureHandle r32_depth = nullptr;
 };
 
 #endif
