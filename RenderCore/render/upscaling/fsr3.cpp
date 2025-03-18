@@ -1,5 +1,7 @@
 #include "fsr3.hpp"
 
+#include "render/phase/motion_vectors_phase.hpp"
+
 #if SAH_USE_FFX
 
 #include <utf8.h>
@@ -32,6 +34,7 @@ FidelityFSSuperResolution3::FidelityFSSuperResolution3() {
 
 FidelityFSSuperResolution3::~FidelityFSSuperResolution3() {
     if(has_context) {
+        RenderBackend::get().wait_for_idle();
         ffx::DestroyContext(upscaling_context);
         has_context = false;
     }
@@ -71,6 +74,9 @@ void FidelityFSSuperResolution3::initialize(const glm::uvec2 output_resolution_i
             FFX_UPSCALE_ENABLE_AUTO_EXPOSURE |
             FFX_UPSCALE_ENABLE_DEPTH_INFINITE |
             FFX_UPSCALE_ENABLE_DEBUG_CHECKING;
+        if(MotionVectorsPhase::render_full_res()) {
+            create_upscaling.flags |= FFX_UPSCALE_ENABLE_DISPLAY_RESOLUTION_MOTION_VECTORS;
+        }
         create_upscaling.maxRenderSize = {.width = optimal_render_resolution.x, .height = optimal_render_resolution.y};
         create_upscaling.maxUpscaleSize = {.width = output_resolution.x, .height = output_resolution.y};
         create_upscaling.fpMessage = +[](const uint32_t type, const wchar_t* c_message) {

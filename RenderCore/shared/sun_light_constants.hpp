@@ -31,7 +31,7 @@ struct SunLightConstants {
      */
     uint shadow_mode;
 
-    uint padding0;
+    float num_shadow_samples;
     uint padding1;
     uint padding2;
 };

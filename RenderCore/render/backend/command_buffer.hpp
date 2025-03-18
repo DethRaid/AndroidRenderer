@@ -222,20 +222,12 @@ public:
 
     VkCommandBuffer get_vk_commands() const;
 
-    VkRenderPass get_current_renderpass() const;
-
-    uint32_t get_current_subpass() const;
-
     RenderBackend& get_backend() const;
 
 private:
     VkCommandBuffer commands;
 
     RenderBackend* backend;
-
-    VkRenderPass current_render_pass = VK_NULL_HANDLE;
-
-    Framebuffer current_framebuffer = {};
 
     uint32_t bound_view_mask = 0;
 
@@ -244,8 +236,6 @@ private:
     std::optional<VkFormat> bound_depth_attachment_format;
 
     bool using_fragment_shading_rate_attachment = false;
-
-    uint32_t current_subpass = 0;
 
     std::array<uint32_t, 128> push_constants = {};
 
@@ -269,6 +259,8 @@ private:
      */
     std::unordered_map<VkEvent, std::vector<VkBufferMemoryBarrier2>> event_buffer_barriers;
     uint32_t num_descriptor_sets_in_current_pipeline = 0;
+
+    RayTracingPipelineHandle current_ray_pipeline = nullptr;
 
     void save_pipeline_layout_info(const PipelineBase& pipeline);
 

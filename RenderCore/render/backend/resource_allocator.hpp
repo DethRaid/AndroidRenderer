@@ -92,6 +92,11 @@ enum class BufferUsage {
      * Ray tracing acceleration structure
      */
     AccelerationStructure,
+
+    /**
+     * Shader binding table, useful for ray tracing 
+     */
+    ShaderBindingTable,
 };
 
 inline const char* to_string(const BufferUsage e) {
@@ -103,6 +108,7 @@ inline const char* to_string(const BufferUsage e) {
     case BufferUsage::UniformBuffer: return "UniformBuffer";
     case BufferUsage::StorageBuffer: return "StorageBuffer";
     case BufferUsage::AccelerationStructure: return "AccelerationStructure";
+    case BufferUsage::ShaderBindingTable: return "ShaderBindingTable";
     default: return "unknown";
     }
 }

@@ -424,6 +424,12 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
             VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT_KHR | VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT_KHR;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
+
+    case BufferUsage::ShaderBindingTable:
+        vk_usage |= VK_BUFFER_USAGE_2_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT_KHR |
+            VK_BUFFER_USAGE_2_TRANSFER_DST_BIT | VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT_KHR;
+        memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        break;
     }
     const auto create_info = VkBufferCreateInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,

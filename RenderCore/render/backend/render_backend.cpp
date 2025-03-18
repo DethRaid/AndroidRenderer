@@ -568,7 +568,7 @@ void RenderBackend::create_swapchain() {
 }
 
 RenderBackend::~RenderBackend() {
-    vkDeviceWaitIdle(device.device);
+    wait_for_idle();
 }
 
 bool RenderBackend::supports_ray_tracing() const {
@@ -592,8 +592,12 @@ glm::vec2 RenderBackend::get_max_shading_rate_texel_size() const {
     return properties_max;
 }
 
-uint32_t RenderBackend::get_shader_record_size() const {
+uint32_t RenderBackend::get_shader_group_handle_size() const {
     return ray_tracing_pipeline_properties.shaderGroupHandleSize;
+}
+
+uint32_t RenderBackend::get_shader_group_alignment() const {
+    return ray_tracing_pipeline_properties.shaderGroupBaseAlignment;
 }
 
 RenderGraph RenderBackend::create_render_graph() {
@@ -1007,6 +1011,10 @@ void RenderBackend::present() {
     }
 
     last_submission_semaphores.clear();
+}
+
+void RenderBackend::wait_for_idle() const {
+    vkDeviceWaitIdle(device);
 }
 
 DescriptorSetAllocator& RenderBackend::get_persistent_descriptor_allocator() {

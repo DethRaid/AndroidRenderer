@@ -255,11 +255,12 @@ void SceneRenderer::render() {
 
     {
         ZoneScopedN("Begin Frame");
+        auto& sun = scene->get_sun_light();
         if(DirectionalLight::get_shadow_mode() == SunShadowMode::CascadedShadowMaps) {
-            auto& sun = scene->get_sun_light();
             sun.update_shadow_cascades(player_view);
-            sun.update_buffer(backend.get_upload_queue());
         }
+
+        sun.update_buffer(backend.get_upload_queue());
 
         if(lpv) {
             lpv->update_cascade_transforms(player_view, scene->get_sun_light());
@@ -444,7 +445,8 @@ void SceneRenderer::render() {
         ao_handle,
         lpv.get(),
         sky,
-        vrsaa_shading_rate_image);
+        vrsaa_shading_rate_image,
+        stbn_3d_unitvec);
 
     // Anti-aliasing/upscaling
 
@@ -636,7 +638,7 @@ void SceneRenderer::create_scene_render_targets() {
 
     depth_culling_phase.set_render_resolution(scene_render_resolution);
 
-    motion_vectors_phase.set_render_resolution(scene_render_resolution);
+    motion_vectors_phase.set_render_resolution(scene_render_resolution, output_resolution);
 
     // gbuffer and lighting render targets
     gbuffer_color_handle = allocator.create_texture(
@@ -717,17 +719,17 @@ void SceneRenderer::create_scene_render_targets() {
         "lit_scene",
         {
             //VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-            VK_FORMAT_R16G16B16A16_SFLOAT,
-            scene_render_resolution,
-            1,
-            TextureUsage::RenderTarget
+            .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+            .resolution = scene_render_resolution,
+            .usage = TextureUsage::RenderTarget,
+            .usage_flags = VK_IMAGE_USAGE_STORAGE_BIT
         }
     );
 
     antialiased_scene_handle = allocator.create_texture(
         "antialiased_scene",
         {
-            .format = VK_FORMAT_R16G16B16A16_SFLOAT,//VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            .format = VK_FORMAT_R16G16B16A16_SFLOAT, //VK_FORMAT_B10G11R11_UFLOAT_PACK32,
             .resolution = output_resolution,
             .usage = TextureUsage::RenderTarget,
             .usage_flags = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT

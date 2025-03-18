@@ -64,7 +64,9 @@ public:
 
     glm::vec2 get_max_shading_rate_texel_size() const;
 
-    uint32_t get_shader_record_size() const;
+    uint32_t get_shader_group_handle_size() const;
+
+    uint32_t get_shader_group_alignment() const;
 
     RenderGraph create_render_graph();
 
@@ -171,6 +173,8 @@ public:
      * The caller is responsible for synchronizing access to the swapchain image. See RenderGraph::add_present_pass
      */
     void present();
+
+    void wait_for_idle() const;
 
     vkb::Swapchain& get_swapchain();
 

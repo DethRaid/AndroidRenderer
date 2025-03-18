@@ -7,6 +7,8 @@
 #include "backend/graphics_pipeline.hpp"
 #include "shared/sun_light_constants.hpp"
 
+struct NoiseTexture;
+struct GBuffer;
 class ResourceUploadQueue;
 class RenderScene;
 class RenderGraph;
@@ -62,8 +64,8 @@ public:
      * Renders this light's contribution to the scene, using ray tracing to compute shadows
      */
     void raytrace(
-        RenderGraph& graph, const SceneView& view, const DescriptorSet& gbuffers_set, const RenderScene& scene,
-        TextureHandle lit_scene
+        RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, const RenderScene& scene,
+        TextureHandle lit_scene, const NoiseTexture& noise
     );
 
     TextureHandle get_shadowmap_handle() const;
@@ -83,4 +85,6 @@ private:
     TextureHandle shadowmap_handle = nullptr;
 
     RayTracingPipelineHandle rt_pipeline = nullptr;
+
+    uint32_t frame_index = 0;
 };

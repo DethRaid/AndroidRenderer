@@ -1,9 +1,9 @@
 #include <vulkan/vk_enum_string_helper.h>
-#include "pipeline_cache.hpp"
 
-#include "pipeline_builder.hpp"
-#include "ray_tracing_pipeline.hpp"
-#include "render_backend.hpp"
+#include "render/backend/pipeline_cache.hpp"
+#include "render/backend/pipeline_builder.hpp"
+#include "render/backend/ray_tracing_pipeline.hpp"
+#include "render/backend/render_backend.hpp"
 #include "core/system_interface.hpp"
 
 static std::shared_ptr<spdlog::logger> logger;
@@ -564,6 +564,19 @@ HitGroupHandle PipelineCache::add_hit_group(const HitGroupBuilder& shader_group)
         }));
 }
 
+static uint32_t round_up(const uint32_t num, const uint32_t multiple) {
+    if(multiple == 0) {
+        return num;
+    }
+
+    auto remainder = num % multiple;
+    if(remainder == 0) {
+        return num;
+    }
+
+    return num + multiple - remainder;
+}
+
 RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
     const std::filesystem::path& raygen_shader_path, const std::filesystem::path& miss_shader_path
 ) {
@@ -621,12 +634,6 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
                     VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
                     pipeline.descriptor_sets,
                     push_constants);
-
-                // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
-                for(const auto& range : push_constants) {
-                    const auto max_used_byte = range.offset + range.size;
-                    pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
-                }
             }
 
             const auto& occlusion_closesthit_shader = shader_group.occlusion_closesthit_shader;
@@ -654,12 +661,6 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
                     VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
                     pipeline.descriptor_sets,
                     push_constants);
-
-                // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
-                for(const auto& range : push_constants) {
-                    const auto max_used_byte = range.offset + range.size;
-                    pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
-                }
             }
 
             // Occlusion group
@@ -706,12 +707,6 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
                     VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
                     pipeline.descriptor_sets,
                     push_constants);
-
-                // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
-                for(const auto& range : push_constants) {
-                    const auto max_used_byte = range.offset + range.size;
-                    pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
-                }
             }
 
             const auto& gi_closesthit_shader = shader_group.gi_closesthit_shader;
@@ -739,12 +734,6 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
                     VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
                     pipeline.descriptor_sets,
                     push_constants);
-
-                // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
-                for(const auto& range : push_constants) {
-                    const auto max_used_byte = range.offset + range.size;
-                    pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
-                }
             }
 
             // GI group
@@ -764,94 +753,86 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
     const auto raygen_shader_index = miss_shader_index + 1;
 
     pipeline.miss_group_index = static_cast<uint32_t>(groups.size());
-    {
-        const auto miss_shader_maybe = SystemInterface::get().load_file(miss_shader_path);
-        if(!miss_shader_maybe) {
-            throw std::runtime_error{fmt::format("Could not load miss shader {}", miss_shader_path.string())};
-        }
-        const auto& module_create_info = modules.emplace_back(
-            VkShaderModuleCreateInfo{
-                .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-                .codeSize = miss_shader_maybe->size() * sizeof(uint8_t),
-                .pCode = reinterpret_cast<const uint32_t*>(miss_shader_maybe->data())
-            });
 
-        stages.emplace_back(
-            VkPipelineShaderStageCreateInfo{
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                .pNext = &module_create_info,
-                .stage = VK_SHADER_STAGE_MISS_BIT_KHR,
-                .pName = "main_miss"
-            });
-
-        groups.emplace_back(
-            VkRayTracingShaderGroupCreateInfoKHR{
-                .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
-                .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
-                .generalShader = miss_shader_index,
-                .closestHitShader = VK_SHADER_UNUSED_KHR,
-                .anyHitShader = VK_SHADER_UNUSED_KHR,
-                .intersectionShader = VK_SHADER_UNUSED_KHR,
-            });
-
-        collect_bindings(
-            *miss_shader_maybe,
-            miss_shader_path.string(),
-            VK_SHADER_STAGE_MISS_BIT_KHR,
-            pipeline.descriptor_sets,
-            push_constants);
-
-        // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
-        for(const auto& range : push_constants) {
-            const auto max_used_byte = range.offset + range.size;
-            pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
-        }
+    const auto miss_shader_maybe = SystemInterface::get().load_file(miss_shader_path);
+    if(!miss_shader_maybe) {
+        throw std::runtime_error{fmt::format("Could not load miss shader {}", miss_shader_path.string())};
     }
+    const auto& miss_module_create_info = modules.emplace_back(
+        VkShaderModuleCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = miss_shader_maybe->size() * sizeof(uint8_t),
+            .pCode = reinterpret_cast<const uint32_t*>(miss_shader_maybe->data())
+        });
+
+    stages.emplace_back(
+        VkPipelineShaderStageCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .pNext = &miss_module_create_info,
+            .stage = VK_SHADER_STAGE_MISS_BIT_KHR,
+            .pName = "main"
+        });
+
+    groups.emplace_back(
+        VkRayTracingShaderGroupCreateInfoKHR{
+            .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+            .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+            .generalShader = miss_shader_index,
+            .closestHitShader = VK_SHADER_UNUSED_KHR,
+            .anyHitShader = VK_SHADER_UNUSED_KHR,
+            .intersectionShader = VK_SHADER_UNUSED_KHR,
+        });
+
+    collect_bindings(
+        *miss_shader_maybe,
+        miss_shader_path.string(),
+        VK_SHADER_STAGE_MISS_BIT_KHR,
+        pipeline.descriptor_sets,
+        push_constants);
 
     pipeline.raygen_group_index = static_cast<uint32_t>(groups.size());
-    {
 
-        const auto raygen_shader_maybe = SystemInterface::get().load_file(raygen_shader_path);
-        if(!raygen_shader_maybe) {
-            throw std::runtime_error{fmt::format("Could not load raygen shader {}", raygen_shader_path.string())};
-        }
-        const auto& module_create_info = modules.emplace_back(
-            VkShaderModuleCreateInfo{
-                .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-                .codeSize = raygen_shader_maybe->size() * sizeof(uint8_t),
-                .pCode = reinterpret_cast<const uint32_t*>(raygen_shader_maybe->data())
-            });
+    const auto raygen_shader_maybe = SystemInterface::get().load_file(raygen_shader_path);
+    if(!raygen_shader_maybe) {
+        throw std::runtime_error{fmt::format("Could not load raygen shader {}", raygen_shader_path.string())};
+    }
+    const auto& raygen_module_create_info = modules.emplace_back(
+        VkShaderModuleCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = raygen_shader_maybe->size() * sizeof(uint8_t),
+            .pCode = reinterpret_cast<const uint32_t*>(raygen_shader_maybe->data())
+        });
 
-        stages.emplace_back(
-            VkPipelineShaderStageCreateInfo{
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                .pNext = &module_create_info,
-                .stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-                .pName = "main_raygen"
-            });
+    stages.emplace_back(
+        VkPipelineShaderStageCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .pNext = &raygen_module_create_info,
+            .stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+            .pName = "main"
+        });
 
-        groups.emplace_back(
-            VkRayTracingShaderGroupCreateInfoKHR{
-                .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
-                .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
-                .generalShader = raygen_shader_index,
-                .closestHitShader = VK_SHADER_UNUSED_KHR,
-                .anyHitShader = VK_SHADER_UNUSED_KHR,
-                .intersectionShader = VK_SHADER_UNUSED_KHR,
-            });
+    groups.emplace_back(
+        VkRayTracingShaderGroupCreateInfoKHR{
+            .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+            .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+            .generalShader = raygen_shader_index,
+            .closestHitShader = VK_SHADER_UNUSED_KHR,
+            .anyHitShader = VK_SHADER_UNUSED_KHR,
+            .intersectionShader = VK_SHADER_UNUSED_KHR,
+        });
 
-        collect_bindings(
-            *raygen_shader_maybe,
-            raygen_shader_path.string(),
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-            pipeline.descriptor_sets,
-            push_constants);
+    collect_bindings(
+        *raygen_shader_maybe,
+        raygen_shader_path.string(),
+        VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+        pipeline.descriptor_sets,
+        push_constants);
 
-        // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
-        for(const auto& range : push_constants) {
-            const auto max_used_byte = range.offset + range.size;
-            pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
-        }
+    // Find the greatest offset + size in the push constant ranges, assume that every other push constant is used
+    for(auto& range : push_constants) {
+        range.stageFlags = VK_SHADER_STAGE_ALL;
+        const auto max_used_byte = range.offset + range.size;
+        pipeline.num_push_constants = std::max(pipeline.num_push_constants, max_used_byte / 4u);
     }
 
     pipeline.create_pipeline_layout(backend, pipeline.descriptor_sets, push_constants);
@@ -873,7 +854,7 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
         .layout = pipeline.layout
     };
 
-    vkCreateRayTracingPipelinesKHR(
+    auto result = vkCreateRayTracingPipelinesKHR(
         device,
         VK_NULL_HANDLE,
         vk_pipeline_cache,
@@ -881,6 +862,92 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
         &create_info,
         nullptr,
         &pipeline.pipeline);
+    if(result != VK_SUCCESS) {
+        logger->error(
+            "Could not create ray tracing pipeline {}: {}",
+            raygen_shader_path.string(),
+            string_VkResult(result));
+        return nullptr;
+    }
+
+    const auto shader_group_handle_size = backend.get_shader_group_handle_size();
+    const auto shader_group_alignment = backend.get_shader_group_alignment();
+
+    auto shader_group_handles = std::vector<uint8_t>{};
+
+    const auto hit_table_size = round_up(groups.size() * shader_group_handle_size, shader_group_alignment);
+    const auto miss_table_size = round_up(shader_group_handle_size, shader_group_alignment);
+    const auto raygen_table_size = round_up(shader_group_handle_size, shader_group_alignment);
+
+    shader_group_handles.resize(hit_table_size + miss_table_size + raygen_table_size);
+
+    auto* write_ptr = shader_group_handles.data();
+
+    // Hit groups shader groups
+    result = vkGetRayTracingShaderGroupHandlesKHR(
+        device,
+        pipeline.pipeline,
+        0,
+        static_cast<uint32_t>(groups.size()),
+        hit_table_size,
+        write_ptr);
+    if(result != VK_SUCCESS) {
+        logger->error("Could not retrieve hit groups handles");
+    }
+
+    write_ptr += hit_table_size;
+
+    // Raygen shader handles
+    result = vkGetRayTracingShaderGroupHandlesKHR(
+        device,
+        pipeline.pipeline,
+        pipeline.raygen_group_index,
+        1,
+        raygen_table_size,
+        write_ptr);
+    if(result != VK_SUCCESS) {
+        logger->error("Could not retrieve raygen groups handles");
+    }
+
+    write_ptr += raygen_table_size;
+
+    // Miss shader handles
+    result = vkGetRayTracingShaderGroupHandlesKHR(
+        device,
+        pipeline.pipeline,
+        pipeline.miss_group_index,
+        1,
+        miss_table_size,
+        write_ptr);
+    if(result != VK_SUCCESS) {
+        logger->error("Could not retrieve miss groups handles");
+    }
+
+    pipeline.shader_tables_buffer = backend.get_global_allocator().create_buffer(
+        fmt::format("{} shader tables", raygen_shader_path.string()),
+        shader_group_handles.size(),
+        BufferUsage::ShaderBindingTable
+    );
+
+    backend.get_upload_queue().upload_to_buffer(pipeline.shader_tables_buffer, std::span{shader_group_handles});
+
+    pipeline.raygen_table = {
+        .deviceAddress = pipeline.shader_tables_buffer->address + hit_table_size,
+        .stride = shader_group_handle_size,
+        .size = shader_group_handle_size
+    };
+
+    pipeline.hit_table = {
+        .deviceAddress = pipeline.shader_tables_buffer->address,
+        .stride = shader_group_handle_size,
+        .size = groups.size() * shader_group_handle_size
+    };
+
+    pipeline.miss_table = {
+        .deviceAddress = pipeline.shader_tables_buffer->address + hit_table_size + raygen_table_size,
+        .stride = shader_group_handle_size,
+        .size = shader_group_handle_size
+    };
 
     return &(*ray_tracing_pipelines.emplace(std::move(pipeline)));
 }

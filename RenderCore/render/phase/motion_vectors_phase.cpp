@@ -1,9 +1,14 @@
 #include "motion_vectors_phase.hpp"
 
 #include "render/indirect_drawing_utils.hpp"
-#include "render/mesh_drawer.hpp"
 #include "render/render_scene.hpp"
 #include "render/backend/render_backend.hpp"
+
+static auto cvar_full_res_motion_vectors = AutoCVar_Int{
+    "r.MotionVectors.FullRes", "Whether to render motion vectors at output resolution, or at render resolution", 0
+};
+
+bool MotionVectorsPhase::render_full_res() { return cvar_full_res_motion_vectors.Get() == 1; }
 
 MotionVectorsPhase::MotionVectorsPhase() {
     motion_vectors_pso = RenderBackend::get()
@@ -20,13 +25,15 @@ MotionVectorsPhase::MotionVectorsPhase() {
                          .build();
 }
 
-void MotionVectorsPhase::set_render_resolution(const glm::uvec2& resolution) {
+void MotionVectorsPhase::set_render_resolution(const glm::uvec2& resolution, const glm::uvec2& output_resolution) {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
+    const auto mv_resolution = cvar_full_res_motion_vectors.Get() == 0 ? resolution : output_resolution;
+
     if(motion_vectors) {
-        if(motion_vectors->create_info.extent.width != resolution.x || motion_vectors->create_info.extent.height !=
-            resolution.y) {
+        if(motion_vectors->create_info.extent.width != mv_resolution.x || motion_vectors->create_info.extent.height !=
+            mv_resolution.y) {
             allocator.destroy_texture(motion_vectors);
             motion_vectors = nullptr;
         }
@@ -35,14 +42,19 @@ void MotionVectorsPhase::set_render_resolution(const glm::uvec2& resolution) {
     if(motion_vectors == nullptr) {
         motion_vectors = allocator.create_texture(
             "motion_vectors",
-            {.format = VK_FORMAT_R16G16_SFLOAT, .resolution = resolution, .usage = TextureUsage::RenderTarget}
+            {
+                .format = VK_FORMAT_R16G16_SFLOAT,
+                .resolution = mv_resolution,
+                .usage = TextureUsage::RenderTarget
+            }
         );
     }
 }
 
 void MotionVectorsPhase::render(
     RenderGraph& graph, const RenderScene& scene, const BufferHandle view_data_buffer,
-    const TextureHandle depth_buffer, const IndirectDrawingBuffers& buffers, const IndirectDrawingBuffers& masked_buffers
+    const TextureHandle depth_buffer, const IndirectDrawingBuffers& buffers,
+    const IndirectDrawingBuffers& masked_buffers
 ) {
     auto& allocator = RenderBackend::get().get_transient_descriptor_allocator();
     const auto set = allocator.build_set(motion_vectors_pso, 0)

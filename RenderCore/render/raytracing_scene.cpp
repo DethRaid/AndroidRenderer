@@ -17,7 +17,7 @@ void RaytracingScene::add_primitive(const MeshPrimitiveHandle primitive) {
     const auto blas_flags = primitive->material->first.transparency_mode == TransparencyMode::Solid ? VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR : VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
 
     // Multiply by two because each shader group has a GI and occlusion variant
-    const auto sbt_offset = static_cast<uint32_t>(primitive->material->first.transparency_mode) * RenderBackend::get().get_shader_record_size() * 2;
+    const auto sbt_offset = static_cast<uint32_t>(primitive->material->first.transparency_mode) * 2;
     placed_blases.emplace_back(
         VkAccelerationStructureInstanceKHR{
             .transform = {

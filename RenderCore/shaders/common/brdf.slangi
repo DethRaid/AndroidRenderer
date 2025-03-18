@@ -6,7 +6,7 @@
 #endif
 
 struct SurfaceInfo {
-    half3 location;
+    float3 location;
 
     half3 base_color;
 

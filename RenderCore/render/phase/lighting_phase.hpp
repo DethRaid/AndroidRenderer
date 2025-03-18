@@ -2,9 +2,11 @@
 
 #include <optional>
 
+#include "render/gbuffer.hpp"
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
+struct NoiseTexture;
 class ProceduralSky;
 struct DescriptorSet;
 class RenderGraph;
@@ -13,14 +15,6 @@ class RenderScene;
 class RenderBackend;
 class SceneView;
 class LightPropagationVolume;
-
-struct GBuffer {
-    TextureHandle color = nullptr;
-    TextureHandle normal = nullptr;
-    TextureHandle data = nullptr;
-    TextureHandle emission = nullptr;
-    TextureHandle depth = nullptr;
-};
 
 /**
  * Computes the lighting form the gbuffers
@@ -43,7 +37,8 @@ public:
         TextureHandle ao_texture,
         const LightPropagationVolume* lpv, 
         const ProceduralSky& sky, 
-        std::optional<TextureHandle> vrsaa_shading_rate_image
+        std::optional<TextureHandle> vrsaa_shading_rate_image, 
+        const NoiseTexture& noise
     );
 
 private:

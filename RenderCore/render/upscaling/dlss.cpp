@@ -36,6 +36,8 @@ DLSSAdapter::DLSSAdapter() {
 }
 
 DLSSAdapter::~DLSSAdapter() {
+    RenderBackend::get().wait_for_idle();
+
     slSetFeatureLoaded(sl::kFeatureDLSS, false);
 }
 

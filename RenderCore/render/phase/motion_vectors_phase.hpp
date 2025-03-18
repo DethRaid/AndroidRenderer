@@ -11,9 +11,11 @@ class RenderScene;
 
 class MotionVectorsPhase {
 public:
+    static bool render_full_res();
+
     MotionVectorsPhase();
 
-    void set_render_resolution(const glm::uvec2& resolution);
+    void set_render_resolution(const glm::uvec2& resolution, const glm::uvec2& output_resolution);
 
     void render(
         RenderGraph& graph, const RenderScene& scene, BufferHandle view_data_buffer, TextureHandle depth_buffer,

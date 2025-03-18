@@ -49,7 +49,8 @@ void LightingPhase::render(
     TextureHandle ao_texture,
     const LightPropagationVolume* lpv,
     const ProceduralSky& sky,
-    const std::optional<TextureHandle> vrsaa_shading_rate_image
+    const std::optional<TextureHandle> vrsaa_shading_rate_image,
+    const NoiseTexture& noise
 ) {
     ZoneScoped;
 
@@ -98,10 +99,6 @@ void LightingPhase::render(
             });
     }
 
-    if(DirectionalLight::get_shadow_mode() == SunShadowMode::RayTracing) {
-        sun.raytrace(render_graph, view, gbuffers_descriptor_set, *scene, lit_scene_texture);
-    }
-
     render_graph.add_render_pass(
         {
             .name = "Lighting",
@@ -128,6 +125,10 @@ void LightingPhase::render(
                 sky.render_sky(commands, view.get_buffer(), sun.get_direction(), gbuffers_descriptor_set);
             }
         });
+
+    if (DirectionalLight::get_shadow_mode() == SunShadowMode::RayTracing) {
+        sun.raytrace(render_graph, view, gbuffer, *scene, lit_scene_texture, noise);
+    }
 }
 
 void LightingPhase::set_gbuffer(const GBuffer& gbuffer_in) {

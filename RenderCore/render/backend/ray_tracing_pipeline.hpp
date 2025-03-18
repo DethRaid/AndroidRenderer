@@ -2,9 +2,11 @@
 
 #include <string>
 #include <vector>
+
 #include <vulkan/vulkan_core.h>
 
 #include "render/backend/pipeline_interface.hpp"
+#include "render/backend/handles.hpp"
 
 struct HitGroup {
     std::string name;
@@ -41,5 +43,11 @@ struct RayTracingPipeline : PipelineBase
 {
     uint32_t miss_group_index;
     uint32_t raygen_group_index;
+
+    BufferHandle shader_tables_buffer = nullptr;
+
+    VkStridedDeviceAddressRegionKHR raygen_table = {};
+    VkStridedDeviceAddressRegionKHR hit_table = {};
+    VkStridedDeviceAddressRegionKHR miss_table = {};
 };
 

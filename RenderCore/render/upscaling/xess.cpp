@@ -4,6 +4,7 @@
 #include "render/scene_view.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/utils.hpp"
+#include "render/phase/motion_vectors_phase.hpp"
 
 #if SAH_USE_XESS
 #include <xess/xess_vk.h>
@@ -118,18 +119,27 @@ XeSSAdapter::XeSSAdapter() {
 }
 
 XeSSAdapter::~XeSSAdapter() {
+    RenderBackend::get().wait_for_idle();
+
     xessDestroyContext(context);
 }
 
 void XeSSAdapter::initialize(const glm::uvec2 output_resolution, const uint32_t frame_index) {
     if(output_resolution != cached_output_resolution || cvar_xess_mode.Get() != cached_quality_mode) {
+        RenderBackend::get().wait_for_idle();
+
         cached_output_resolution = output_resolution;
         cached_quality_mode = cvar_xess_mode.Get();
+
+        uint32_t flags = XESS_INIT_FLAG_JITTERED_MV;
+        if(MotionVectorsPhase::render_full_res()) {
+            flags |= XESS_INIT_FLAG_HIGH_RES_MV;
+        }
 
         auto init_params = xess_vk_init_params_t{
             .outputResolution = {cached_output_resolution.x, cached_output_resolution.y},
             .qualitySetting = cvar_xess_mode.Get(),
-            .initFlags = XESS_INIT_FLAG_JITTERED_MV
+            .initFlags = flags
         };
 
         auto init_result = xessVKInit(context, &init_params);
