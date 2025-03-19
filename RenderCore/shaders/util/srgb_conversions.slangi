@@ -1,0 +1,29 @@
+#pragma once
+
+// Code hrom https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ToneMapping.hlsl
+
+half3 linear_to_srgb(in half3 color)
+{
+    half3 x = color * 12.92h;
+    half3 y = 1.055h * pow(saturate(color), 1.0h / 2.4h) - 0.055h;
+
+    half3 clr = color;
+    clr.r = color.r < 0.0031308h ? x.r : y.r;
+    clr.g = color.g < 0.0031308h ? x.g : y.g;
+    clr.b = color.b < 0.0031308h ? x.b : y.b;
+
+    return clr;
+}
+
+half3 srgb_to_linear(in half3 color)
+{
+    half3 x = color / 12.92h;
+    half3 y = pow(max((color + 0.055h) / 1.055h, 0.0h), 2.4h);
+
+    half3 clr = color;
+    clr.r = color.r <= 0.04045h ? x.r : y.r;
+    clr.g = color.g <= 0.04045h ? x.g : y.g;
+    clr.b = color.b <= 0.04045h ? x.b : y.b;
+
+    return clr;
+}

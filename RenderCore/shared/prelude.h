@@ -32,7 +32,7 @@ using mat4 = glm::mat4;
 #define unorm4 uint
 
 #else
-#define unorm4 unorm float4
+#define unorm4 uint
 
 #define u16vec2 uint16_t2
 

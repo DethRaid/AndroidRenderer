@@ -145,14 +145,14 @@ void main() {
     bool visible = is_in_frustum(center, radius);
     if(!visible) {
         newly_visible_objects.visible[primitive_id] = 0;
-        this_frame_visible_objects.visible[primitive_id] = 0;
+        this_frame_visible_objects.visible[primitive_id] = 1;
         return;
     }
     
     visible = is_not_occluded(center, radius);
     if(!visible) {
         newly_visible_objects.visible[primitive_id] = 0;
-        this_frame_visible_objects.visible[primitive_id] = 0;
+        this_frame_visible_objects.visible[primitive_id] = 1;
         return;
     }
  

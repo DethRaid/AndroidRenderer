@@ -189,7 +189,7 @@ main_fs(const VertexOutput vertex) {
     half4 tinted_base_color = base_color_sample * vertex.color * (half4)material.base_color_tint;
 
 #if SAH_MASKED
-    if (tinted_base_color.a < material.opacity_threshold) {
+    if (tinted_base_color.a <= material.opacity_threshold) {
         discard;
     }
 #endif  // SAH_MASKED
@@ -247,13 +247,34 @@ main_fs(const VertexOutput vertex) {
 
 #else // SAH_RT
 
+half4 unpackUnorm4x8ToHalf(in uint packed) {
+    half4 value;
+    value.x = (half)(packed & 0xff) / 255.h;
+    value.y = (half)((packed >> 8) & 0xff) / 255.h;
+    value.z = (half)((packed >> 16) & 0xff) / 255.h;
+    value.w = (half)((packed >> 24) & 0xff) / 255.h;
+
+    return value;
+}
+
+uint packUnorm4x8(in half4 value) {
+    uint packed = 0;
+    packed |= (uint)(value.x * 255.h);
+    packed |= (uint)(value.y * 255.h) << 8;
+    packed |= (uint)(value.z * 255.h) << 16;
+    packed |= (uint)(value.w * 255.h) << 24;
+
+    return packed;
+}
+
 StandardVertexData interpolate_vertex(const StandardVertexData v0, const StandardVertexData v1, const StandardVertexData v2, const float2 bary)
 {
+    float3 barycentrics = float3(1.f - bary.x - bary.y, bary.x, bary.y);
     StandardVertexData v = (StandardVertexData)0;
-    v.normal = v0.normal + bary.x * (v1.normal - v0.normal) + bary.y * (v2.normal - v0.normal);
-    v.tangent = v0.tangent + bary.x * (v1.tangent - v0.tangent) + bary.y * (v2.tangent - v0.tangent);
-    v.texcoord = v0.texcoord + bary.x * (v1.texcoord - v0.texcoord) + bary.y * (v2.texcoord - v0.texcoord);
-    v.color = v0.color + (unorm float4)bary.xxxx * (v1.color - v0.color) + (unorm float4)bary.yyyy * (v2.color - v0.color);
+    v.normal = barycentrics.x * v0.normal + barycentrics.y * v1.normal + barycentrics.z * v2.normal;
+    v.tangent = barycentrics.x * v0.tangent + barycentrics.y * v1.tangent + barycentrics.z * v2.tangent;
+    v.texcoord = barycentrics.x * v0.texcoord + barycentrics.y * v1.texcoord + barycentrics.z * v2.texcoord;
+    v.color = packUnorm4x8(barycentrics.x * unpackUnorm4x8ToHalf(v0.color) + barycentrics.y * unpackUnorm4x8ToHalf(v1.color) + barycentrics.z * unpackUnorm4x8ToHalf(v2.color));
 
     return v;
 }
@@ -283,9 +304,9 @@ void main_anyhit(inout uint payload, in float2 barycentrics) {
 
     Sampler2D base_color_texture = textures[material.base_color_texture_index];
     const float4 base_color_sample = base_color_texture.SampleLevel(v.texcoord, 0);
-    const float4 base_color = base_color_sample * material.base_color_tint;
+    const float4 base_color = base_color_sample * material.base_color_tint * unpackUnorm4x8ToHalf(v.color);
 
-    if (base_color_sample.a < material.opacity_threshold) {
+    if (base_color.a <= material.opacity_threshold) {
         IgnoreHit();
     }
 }
@@ -323,9 +344,9 @@ void main_anyhit(inout uint payload, in float2 barycentrics) {
 
     Sampler2D base_color_texture = textures[material.base_color_texture_index];
     const float4 base_color_sample = base_color_texture.SampleLevel(v.texcoord, 0);
-    const float4 base_color = base_color_sample * material.base_color_tint;
+    const float4 base_color = base_color_sample * material.base_color_tint * unpackUnorm4x8ToHalf(v.color);
 
-    if (base_color_sample.a < material.opacity_threshold) {
+    if (base_color.a <= material.opacity_threshold) {
         IgnoreHit();
     }
 }
@@ -351,7 +372,7 @@ void main_closesthit(inout half3 payload, in float2 barycentrics) {
     const StandardVertexData v1 = primitive.vertex_data[i1];
     const StandardVertexData v2 = primitive.vertex_data[i2];
 
-    const StandardVertexData vertex = interpolate_vertex(v0, v1, v2, barycentrics);
+    const StandardVertexData v = interpolate_vertex(v0, v1, v2, barycentrics);
 
     const BasicPbrMaterialGpu material = *primitive.material;
 
@@ -359,8 +380,8 @@ void main_closesthit(inout half3 payload, in float2 barycentrics) {
 
     // Base color
     Sampler2D base_color_texture = textures[material.base_color_texture_index];
-    const float4 base_color_sample = base_color_texture.SampleLevel(vertex.texcoord, 0);
-    gbuffer.base_color = base_color_sample * material.base_color_tint;
+    const float4 base_color_sample = base_color_texture.SampleLevel(v.texcoord, 0);
+    gbuffer.base_color = base_color_sample * material.base_color_tint * unpackUnorm4x8ToHalf(v.color);
 
     // Normal
     // TODO
@@ -368,16 +389,16 @@ void main_closesthit(inout half3 payload, in float2 barycentrics) {
     // Sampler2D normals_texture = textures[material.normal_texture_index];
     // half3 normal_sample = (half3)normals_texture.SampleLevel(vertex.texcoord, 0).xyz * 2.h - 1.h;
     // half3 normal = mul(normal_sample, tbn);
-    gbuffer.normal = half4(vertex.normal, 0);
+    gbuffer.normal = half4(v.normal, 0);
 
     // Data
     Sampler2D data_texture = textures[material.data_texture_index];
-    half4 data_sample = (half4)data_texture.SampleLevel(vertex.texcoord, 0);
+    half4 data_sample = (half4)data_texture.SampleLevel(v.texcoord, 0);
     gbuffer.data = data_sample * half4(0, (half)material.roughness_factor, (half)material.metalness_factor, 0);
 
     // Emission
     Sampler2D emission_texture = textures[material.emission_texture_index];
-    half4 emission_sample = (half4)emission_texture.SampleLevel(vertex.texcoord, 0);
+    half4 emission_sample = (half4)emission_texture.SampleLevel(v.texcoord, 0);
     gbuffer.emission = emission_sample * (half4)material.emission_factor;
 
     SurfaceInfo surface = (SurfaceInfo)0;

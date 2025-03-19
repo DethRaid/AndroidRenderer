@@ -2,6 +2,7 @@
 #include "shared/sun_light_constants.hpp"
 #include "shared/view_data.hpp"
 #include "shared/primitive_data.hpp"
+#include "util/srgb_conversions.slangi"
 
 // Generates rays for the sun shadow. Uses ray tracing pipelines to get pretty shadows
 // The primitive data buffer is bound at 0.0, the other bindings in this file work around it. Check out
@@ -78,7 +79,7 @@ void main_raygen() {
 
     const float3 light_vector = normalize(-sun_light.direction_and_size.xyz);
 
-    const half ndotl = (half)dot(light_vector, surface.normal);
+    const half ndotl = (half)clamp(dot(light_vector, surface.normal), 0.h, 1.h);
 
     const float3 view_position = vec3(-view_data.view[3].xyz);
     const float3 worldspace_view_position = surface.location - view_position;
@@ -101,7 +102,7 @@ void main_raygen() {
             RayDesc ray;
             ray.Origin = surface.location;
             ray.Direction = ray_direction;
-            ray.TMin = 0.1f;
+            ray.TMin = 0.05f;
             ray.TMax = 100000.f;
 
             // 0 if we hit something, 1 if not
@@ -124,13 +125,18 @@ void main_raygen() {
     }
 
     // Number chosen based on what happened to look fine
-    const float exposure_factor = 0.00015;
+    const float exposure_factor = 0.00031415927f;
 
     //if (any(isnan(sun_radiance)) || any(isinf(sun_radiance))) {
     //    sun_radiance = 0;
     //}
 
-    lit_scene[thread_id] += half4(sun_radiance * exposure_factor, 1);
+    half4 color = lit_scene[thread_id];
+    //color.rgb = srgb_to_linear(color.rgb);
+    color.rgb += sun_radiance * exposure_factor;
+    // color.rgb = linear_to_srgb(color.rgb);
+    //color.rgb = sun_radiance * exposure_factor;
+    lit_scene[thread_id] = color;
 }
 
 [shader("miss")]

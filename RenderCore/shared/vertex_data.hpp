@@ -24,4 +24,8 @@ struct StandardVertexData {
     unorm4 color;
 };
 
+#if defined(__cplusplus)
+//static_assert(sizeof(StandardVertexData) == 48);
+#endif
+
 #endif

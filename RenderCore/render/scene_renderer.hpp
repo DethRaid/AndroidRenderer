@@ -2,6 +2,7 @@
 
 #include <imgui.h>
 
+#include "phase/ray_tracing_debug_phase.hpp"
 #include "render/antialiasing_type.hpp"
 #include "render/noise_texture.hpp"
 #include "render/bloomer.hpp"
@@ -41,6 +42,7 @@ public:
     void set_output_resolution(const glm::uvec2& new_output_resolution);
 
     void set_scene(RenderScene& scene_in);
+
     /**
      * Do the thing!
      */
@@ -133,6 +135,8 @@ private:
     AmbientOcclusionPhase ao_phase;
     
     LightingPhase lighting_pass;
+
+    RayTracingDebugPhase rt_debug_phase;
 
     std::unique_ptr<VRSAA> vrsaa;
 

@@ -35,6 +35,7 @@ int main(const int argc, const char** argv) {
             // application.load_scene("assets/Small_City_LVL/Small_City_LVL.compressed.glb");
             // application.load_scene("assets/BoomBoxWithAxes/gltf/BoomBoxWithAxes.gltf");
             // application.load_scene("assets/NormalTangentTest/gltf/NormalTangentTest.gltf");
+            // application.load_scene("assets/AlphaTest.gltf");
             application.update_resolution();
         }
 

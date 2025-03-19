@@ -74,11 +74,14 @@ void main(uint2 thread_id: SV_DispatchThreadID) {
     half3x3 tbn = make_rotation_matrix(normal, noise_axis);
 
     for (uint ray_index = 0; ray_index < samples_per_pixel; ray_index++) {
-        const float3 noise = normalize(noisetex[noisetex_pixel] * 2.f - 1.f);
+        float3 noise = normalize(noisetex[noisetex_pixel] * 2.f - 1.f);
+        if (dot(noise, normal) < 0) {
+            noise *= -1;
+        }
 
         RayDesc ray = (RayDesc)0;
         ray.Origin = worldspace_position;
-        ray.Direction = normalize(normal + noise);
+        ray.Direction = noise;
         ray.TMin = 0.05;
         ray.TMax = max_ray_distance;
 

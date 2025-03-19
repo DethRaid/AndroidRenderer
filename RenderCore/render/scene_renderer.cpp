@@ -448,6 +448,8 @@ void SceneRenderer::render() {
         vrsaa_shading_rate_image,
         stbn_3d_unitvec);
 
+    //rt_debug_phase.raytrace(render_graph, player_view, *scene, gbuffer_phase);
+
     // Anti-aliasing/upscaling
 
     evaluate_antialiasing(render_graph, gbuffer_depth_handle);

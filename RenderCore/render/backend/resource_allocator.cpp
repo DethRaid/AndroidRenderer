@@ -153,11 +153,12 @@ TextureHandle ResourceAllocator::create_texture(const std::string& name, const T
             },
         };
         result = vkCreateImageView(device, &rtv_create_info, nullptr, &texture.attachment_view);
+
+        backend.set_object_name(texture.attachment_view, fmt::format("{} RTV", name));
     }
 
     backend.set_object_name(texture.image, name);
     backend.set_object_name(texture.image_view, image_view_name);
-    backend.set_object_name(texture.attachment_view, fmt::format("{} RTV", name));
 
     texture.mip_views.reserve(create_info.num_mips);
     for(auto i = 0u; i < create_info.num_mips; i++) {
