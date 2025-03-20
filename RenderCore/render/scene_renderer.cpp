@@ -23,7 +23,7 @@ enum class GIMode {
 
 // ReSharper disable CppDeclaratorNeverUsed
 static auto cvar_gi_mode = AutoCVar_Enum{
-    "r.GI.Mode", "How to calculate GI", GIMode::LPV
+    "r.GI.Mode", "How to calculate GI", GIMode::RT
 };
 
 static auto cvar_enable_mesh_lights = AutoCVar_Int{
@@ -35,7 +35,7 @@ static auto cvar_raytrace_mesh_lights = AutoCVar_Int{
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
-    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::DLSS
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::None
 };
 
 /*
@@ -139,7 +139,7 @@ void SceneRenderer::render() {
     case AntiAliasingType::None:
         vrsaa = nullptr;
         upscaler = nullptr;
-        set_render_resolution(output_resolution / glm::uvec2{2});
+        set_render_resolution(output_resolution );
         player_view.set_mip_bias(0);
         break;
 
@@ -264,7 +264,6 @@ void SceneRenderer::render() {
 
         if(lpv) {
             lpv->update_cascade_transforms(player_view, scene->get_sun_light());
-            lpv->update_buffers(backend.get_upload_queue());
         }
     }
 
@@ -283,7 +282,6 @@ void SceneRenderer::render() {
                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
                     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                     .access = VK_ACCESS_SHADER_READ_BIT
-
                 },
                 {
                     .buffer = meshes.get_index_buffer(),
@@ -305,10 +303,6 @@ void SceneRenderer::render() {
     );
 
     scene->begin_frame(render_graph);
-
-    scene->generate_emissive_point_clouds(render_graph);
-
-    sky.update_sky_luts(render_graph, scene->get_sun_light().get_direction());
 
     // Depth and stuff
 
@@ -429,6 +423,16 @@ void SceneRenderer::render() {
         vrsaa_shading_rate_image,
         player_view);
 
+    if(rtgi) {
+        rtgi->trace_global_illumination(
+            render_graph,
+            player_view,
+            *scene,
+            gbuffer_normals_handle,
+            gbuffer_depth_handle,
+            stbn_3d_unitvec.layers[frame_count % stbn_3d_unitvec.num_layers]);
+    }
+
     ao_phase.generate_ao(
         render_graph,
         player_view,
@@ -444,11 +448,9 @@ void SceneRenderer::render() {
         lit_scene_handle,
         ao_handle,
         lpv.get(),
-        sky,
+        rtgi.get(),
         vrsaa_shading_rate_image,
         stbn_3d_unitvec);
-
-    //rt_debug_phase.raytrace(render_graph, player_view, *scene, gbuffer_phase);
 
     // Anti-aliasing/upscaling
 

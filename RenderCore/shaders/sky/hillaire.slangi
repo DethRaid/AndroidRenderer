@@ -1,24 +1,23 @@
-#version 460
-
-#extension GL_GOOGLE_include_directive : enable
-
-#include "sky/common.glsl"
-#include "shared/view_data.hpp"
-
-#ifndef medfloat
-#define medfloat mediump float
-#define medvec2 mediump vec2
-#define medvec3 mediump vec3
-#define medvec4 mediump vec4
-#endif
+#pragma once 
 
 // Implementation of the Hillaire 2020 sky from ShaderToy. This shader applies the sky to any pixel with depth = 1
+
+#ifndef PI
+#define PI 3.14159265358
+#endif
+
+// Units are in megameters.
+static const float groundRadiusMM = 6.360;
+static const float atmosphereRadiusMM = 6.460;
+
+// 200M above the ground.
+static const float3 viewPos = float3(0.0, groundRadiusMM + 0.0002, 0.0);
 
 /*
  * Partial implementation of
  *    "A Scalable and Production Ready Sky and Atmosphere Rendering Technique"
  *    by S�bastien Hillaire (2020).
- * Very much referenced and copied S�bastien's provided code: 
+ * Very much referenced and copied S�bastien's provided code:
  *    https://github.com/sebh/UnrealEngineSkyAtmosphere
  *
  * This basically implements the generation of a sky-view LUT, so it doesn't
@@ -28,40 +27,43 @@
  * the edge of the atmosphere to the ground (rather than the camera position
  * to either the ground or edge of the atmosphere).
  *
- * Also want to cite: 
+ * Also want to cite:
  *    https://www.shadertoy.com/view/tdSXzD
  * Used the jodieReinhardTonemap from there, but that also made
  * me realize that the paper switched the Mie and Rayleigh height densities
  * (which was confirmed after reading S�bastien's code more closely).
  */
 
-layout(set = 1, binding = 0) uniform sampler2D transmittance_lut;
-layout(set = 1, binding = 1) uniform sampler2D sky_view_lut;
+float safeacos(const float x) {
+    return acos(clamp(x, -1.0, 1.0));
+}
 
-layout(set = 1, binding = 2) uniform ViewUniformBuffer {
-    ViewDataGPU view_info;
-};
-
-layout(set = 0, binding = 0) uniform sampler2D gbuffer_base_color;
-layout(set = 0, binding = 1) uniform sampler2D gbuffer_normal;
-layout(set = 0, binding = 2) uniform sampler2D gbuffer_data;
-layout(set = 0, binding = 3) uniform sampler2D gbuffer_emission;
-layout(set = 0, binding = 4) uniform sampler2D gbuffer_depth;
-
-layout(push_constant) uniform Constants {
-    vec3 sun_direction;
-} constants;
-
-layout(location = 0) out vec3 color;
+// From https://gamedev.stackexchange.com/questions/96459/fast-ray-sphere-collision-code.
+float rayIntersectSphere(float3 ro, float3 rd, float rad) {
+    float b = dot(ro, rd);
+    float c = dot(ro, ro) - rad * rad;
+    if (c > 0.0f && b > 0.0) {
+        return -1.0;
+    }
+    float discr = b * b - c;
+    if (discr < 0.0) {
+        return -1.0;
+    }
+    // Special case: inside sphere, use far discriminant
+    if (discr > b * b) {
+        return (-b + sqrt(discr));
+    }
+    return -b - sqrt(discr);
+}
 
 /*
  * Final output basically looks up the value from the skyLUT, and then adds a sun on top,
  * does some tonemapping.
  */
-vec3 getValFromSkyLUT(vec3 rayDir, vec3 sunDir)
+float3 getValFromSkyLUT(float3 rayDir, float3 sunDir, Sampler2D sky_view_lut)
 {
     float height = length(viewPos);
-    vec3 up = viewPos / height;
+    float3 up = viewPos / height;
     
     float horizonAngle = safeacos(sqrt(height * height - groundRadiusMM * groundRadiusMM) / height);
     float altitudeAngle = horizonAngle - acos(dot(rayDir, up)); // Between -PI/2 and PI/2
@@ -73,23 +75,32 @@ vec3 getValFromSkyLUT(vec3 rayDir, vec3 sunDir)
     }
     else
     {
-        vec3 right = cross(sunDir, up);
-        vec3 forward = cross(up, right);
+        float3 right = cross(sunDir, up);
+        float3 forward = cross(up, right);
         
-        vec3 projectedDir = normalize(rayDir - up * (dot(rayDir, up)));
+        float3 projectedDir = normalize(rayDir - up * (dot(rayDir, up)));
         float sinTheta = dot(projectedDir, right);
         float cosTheta = dot(projectedDir, forward);
-        azimuthAngle = atan(sinTheta, cosTheta) + PI;
+        azimuthAngle = atan(cosTheta / sinTheta) + PI;
     }
     
     // Non-linear mapping of altitude angle. See Section 5.3 of the paper.
     float v = 0.5 + 0.5 * sign(altitudeAngle) * sqrt(abs(altitudeAngle) * 2.0 / PI);
-    vec2 uv = vec2(azimuthAngle / (2.0 * PI), v);
+    float2 uv = float2(azimuthAngle / (2.0 * PI), v);
         
-    return texture(sky_view_lut, uv).rgb;
+    return sky_view_lut.SampleLevel(uv, 0).rgb;
 }
 
-float sunWithBloom(vec3 rayDir, vec3 sunDir)
+float3 getValFromTLUT(Sampler2D tex, float3 pos, float3 sunDir) {
+    float height = length(pos);
+    float3 up = pos / height;
+    float sunCosZenithAngle = dot(sunDir, up);
+    float2 uv = float2(clamp(0.5 + 0.5 * sunCosZenithAngle, 0.0, 1.0),
+                   max(0.0, min(1.0, (height - groundRadiusMM) / (atmosphereRadiusMM - groundRadiusMM))));
+    return tex.SampleLevel(uv, 0).rgb;
+}
+
+float sunWithBloom(float3 rayDir, float3 sunDir)
 {
     const float sunSolidAngle = 0.53 * PI / 180.0;
     const float minSunCosTheta = cos(sunSolidAngle);
@@ -106,34 +117,18 @@ float sunWithBloom(vec3 rayDir, vec3 sunDir)
     return gaussianBloom + invBloom;
 }
 
-void main() {
-    const float depth = texelFetch(gbuffer_depth, ivec2(gl_FragCoord.xy), 0).r;
-    if(depth != 1.f) {
-        discard;
-    }
-
-    // Screen position for the ray
-    vec2 location_screen = gl_FragCoord.xy / view_info.render_resolution.xy;
- 
-    vec4 location_clipspace = vec4(location_screen, 0.f, 1.f);
-    vec4 location_viewspace = view_info.inverse_projection * location_clipspace;
-    location_viewspace /= location_viewspace.w;
-    vec3 view_vector_worldspace = -normalize((view_info.inverse_view * vec4(location_viewspace.xyz, 0)).xyz);
-    view_vector_worldspace.y *= -1;
-
-    vec3 sunDir = -constants.sun_direction;
-        
-    vec3 lum = getValFromSkyLUT(view_vector_worldspace, sunDir);
+float3 get_sky_color(in float3 view_vector_worldspace, in float3 sunDir, Sampler2D sky_view_lut, Sampler2D transmittance_lut) {        
+    float3 lum = getValFromSkyLUT(view_vector_worldspace, sunDir, sky_view_lut);
 
     // Bloom should be added at the end, but this is subtle and works well.
-    vec3 sunLum = vec3(sunWithBloom(view_vector_worldspace, sunDir));
+    float3 sunLum = float3(sunWithBloom(view_vector_worldspace, sunDir));
     // Use smoothstep to limit the effect, so it drops off to actual zero.
-    sunLum = smoothstep(0.002, 1.0, sunLum);
+    sunLum = smoothstep(0.002h, 1.0h, sunLum);
     if (length(sunLum) > 0.0)
     {
         if (rayIntersectSphere(viewPos, view_vector_worldspace, groundRadiusMM) >= 0.0)
         {
-            sunLum *= 0.0;
+            sunLum = 0;
         }
         else
         {
@@ -143,14 +138,12 @@ void main() {
     }
     lum += sunLum;
 
-    lum *= 20.f;
+    lum *= 20.h;
     
     // Number chosen based on what happened to look fine
-    const medfloat exposure_factor = 1.f;
+    const float exposure_factor = 1.h;
 
     lum *= exposure_factor;
 
-    color = lum;
-
-    //color = vec3(view_vector_worldspace);
+    return lum;
 }

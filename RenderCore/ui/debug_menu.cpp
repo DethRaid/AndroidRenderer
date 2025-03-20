@@ -2,6 +2,16 @@
 
 #include <imgui.h>
 #include <magic_enum.hpp>
+#if SAH_USE_STREAMLINE
+#include <sl.h>
+#include <sl_dlss.h>
+#endif
+#if SAH_USE_FFX
+#include <ffx_api/ffx_upscale.h>
+#endif
+#if SAH_USE_XESS
+#include <xess/xess.h>
+#endif
 
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
@@ -31,17 +41,17 @@ static void set_clipboard_text(void* user_data, const char* text) {
 }
 
 void mouse_button_callback(GLFWwindow* window, const int button, const int action, const int mods) {
-    if (prev_mouse_button_callback != nullptr) {
+    if(prev_mouse_button_callback != nullptr) {
         prev_mouse_button_callback(window, button, action, mods);
     }
 
-    if (action == GLFW_PRESS && button >= 0 && button < IM_ARRAYSIZE(g_MouseJustPressed)) {
+    if(action == GLFW_PRESS && button >= 0 && button < IM_ARRAYSIZE(g_MouseJustPressed)) {
         g_MouseJustPressed[button] = true;
     }
 }
 
 void scroll_callback(GLFWwindow* window, const double x_offset, const double y_offset) {
-    if (prev_scroll_callback != nullptr) {
+    if(prev_scroll_callback != nullptr) {
         prev_scroll_callback(window, x_offset, y_offset);
     }
 
@@ -51,15 +61,15 @@ void scroll_callback(GLFWwindow* window, const double x_offset, const double y_o
 }
 
 void key_callback(GLFWwindow* window, const int key, const int scancode, const int action, const int mods) {
-    if (prev_key_callback != nullptr) {
+    if(prev_key_callback != nullptr) {
         prev_key_callback(window, key, scancode, action, mods);
     }
 
     auto& io = ImGui::GetIO();
-    if (action == GLFW_PRESS) {
+    if(action == GLFW_PRESS) {
         io.KeysDown[key] = true;
     }
-    if (action == GLFW_RELEASE) {
+    if(action == GLFW_RELEASE) {
         io.KeysDown[key] = false;
     }
 
@@ -71,19 +81,19 @@ void key_callback(GLFWwindow* window, const int key, const int scancode, const i
     io.KeyAlt = io.KeysDown[GLFW_KEY_LEFT_ALT] || io.KeysDown[GLFW_KEY_RIGHT_ALT];
     io.KeySuper = false;
 
-    if (io.KeyCtrl) {
+    if(io.KeyCtrl) {
         io.KeyMods |= ImGuiModFlags_Ctrl;
     }
-    if (io.KeyShift) {
+    if(io.KeyShift) {
         io.KeyMods |= ImGuiModFlags_Shift;
     }
-    if (io.KeyAlt) {
+    if(io.KeyAlt) {
         io.KeyMods |= ImGuiModFlags_Alt;
     }
 }
 
 void char_callback(GLFWwindow* window, const unsigned int c) {
-    if (prev_char_callback != nullptr) {
+    if(prev_char_callback != nullptr) {
         prev_char_callback(window, c);
     }
 
@@ -153,6 +163,20 @@ DebugUI::DebugUI(SceneRenderer& renderer_in) : renderer{renderer_in},
 #endif
 
     create_font_texture();
+
+    switch(*CVarSystem::Get()->GetIntCVar("r.AntiAliasing")) {
+    case 2:
+        current_taa = 2;
+        break;
+    case 3: 
+        current_taa = 0;
+        break;
+    case 4:
+        current_taa = 1;
+        break;
+    default:
+        current_taa = 3;
+    }
 }
 
 void DebugUI::draw() {
@@ -170,7 +194,7 @@ void DebugUI::draw() {
     glfwGetFramebufferSize(window, &display_w, &display_h);
 #endif
     io.DisplaySize = ImVec2(static_cast<float>(w), static_cast<float>(h));
-    if (w > 0 && h > 0) {
+    if(w > 0 && h > 0) {
         io.DisplayFramebufferScale = ImVec2(
             static_cast<float>(display_w) / static_cast<float>(w),
             static_cast<float>(display_h) / static_cast<float>(h)
@@ -209,7 +233,8 @@ void DebugUI::create_font_texture() {
     io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
 
     font_atlas_handle = allocator.create_texture(
-        "Dear ImGUI Font Atlas", { VK_FORMAT_R8_UNORM, {width, height}, 1, TextureUsage::StaticImage }
+        "Dear ImGUI Font Atlas",
+        {VK_FORMAT_R8_UNORM, {width, height}, 1, TextureUsage::StaticImage}
     );
 
     auto& backend = RenderBackend::get();
@@ -222,14 +247,17 @@ void DebugUI::create_font_texture() {
     );
 
     font_atlas_descriptor_set = *vkutil::DescriptorBuilder::begin(
-                                     backend, backend.get_persistent_descriptor_allocator()
+                                     backend,
+                                     backend.get_persistent_descriptor_allocator()
                                  )
                                  .bind_image(
-                                     0, {
+                                     0,
+                                     {
                                          .sampler = backend.get_default_sampler(),
                                          .image = font_atlas_handle,
                                          .image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                     }, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                     },
+                                     VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                                      VK_SHADER_STAGE_FRAGMENT_BIT
                                  )
                                  .build();
@@ -241,7 +269,7 @@ void DebugUI::create_font_texture() {
 void DebugUI::update_mouse_pos_and_buttons() const {
     // Update buttons
     auto& io = ImGui::GetIO();
-    for (auto i = 0; i < IM_ARRAYSIZE(io.MouseDown); i++) {
+    for(auto i = 0; i < IM_ARRAYSIZE(io.MouseDown); i++) {
         // If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are
         // shorter than 1 frame.
         io.MouseDown[i] = g_MouseJustPressed[i] || glfwGetMouseButton(window, i) != 0;
@@ -253,8 +281,8 @@ void DebugUI::update_mouse_pos_and_buttons() const {
     io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
 
     const auto focused = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
-    if (focused) {
-        if (io.WantSetMousePos) {
+    if(focused) {
+        if(io.WantSetMousePos) {
             glfwSetCursorPos(window, static_cast<double>(mouse_pos_backup.x), static_cast<double>(mouse_pos_backup.y));
         } else {
             double mouse_x, mouse_y;
@@ -266,19 +294,20 @@ void DebugUI::update_mouse_pos_and_buttons() const {
 
 void DebugUI::update_mouse_cursor() const {
     auto& io = ImGui::GetIO();
-    if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) || glfwGetInputMode(window, GLFW_CURSOR) ==
+    if((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) || glfwGetInputMode(window, GLFW_CURSOR) ==
         GLFW_CURSOR_DISABLED) {
         return;
     }
 
     const auto imgui_cursor = ImGui::GetMouseCursor();
-    if (imgui_cursor == ImGuiMouseCursor_None || io.MouseDrawCursor) {
+    if(imgui_cursor == ImGuiMouseCursor_None || io.MouseDrawCursor) {
         // Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
     } else {
         // Show OS mouse cursor
         glfwSetCursor(
-            window, mouse_cursors[imgui_cursor] ? mouse_cursors[imgui_cursor] : mouse_cursors[ImGuiMouseCursor_Arrow]
+            window,
+            mouse_cursors[imgui_cursor] ? mouse_cursors[imgui_cursor] : mouse_cursors[ImGuiMouseCursor_Arrow]
         );
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
@@ -286,11 +315,115 @@ void DebugUI::update_mouse_cursor() const {
 #endif
 
 void DebugUI::draw_debug_menu() {
-    if (ImGui::Begin("Debug Menu", &is_debug_menu_open)) {
-        if (ImGui::CollapsingHeader("Visualizers")) {
-            for (auto visualizer : magic_enum::enum_values<RenderVisualization>()) {
+    if(ImGui::Begin("Debug Menu", &is_debug_menu_open)) {
+        ImGui::Text("TAA");
+        ImGui::Separator();
+        draw_combo_box("TAA Technique", std::array<std::string, 4>{"DLSS", "XeSS", "FSR", "None"}, current_taa);
+
+#if SAH_USE_STREAMLINE
+        if(current_taa == 0) {
+            CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::DLSS));
+
+            draw_combo_box(
+                "DLSS Mode",
+                std::array<std::string, 4>{"DLAA", "Quality", "Balanced", "Performance"},
+                current_dlss_mode);
+            auto* dlss_quality = CVarSystem::Get()->GetIntCVar("r.DLSS.Quality");
+            switch(current_dlss_mode) {
+            case 0:
+                *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eDLAA);
+                break;
+            case 1:
+                *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eMaxQuality);
+                break;
+            case 2:
+                *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eBalanced);
+                break;
+            case 3:
+                *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eMaxPerformance);
+                break;
+            }
+
+        } else
+#endif
+#if SAH_USE_XESS
+            if(current_taa == 1) {
+                CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::XeSS));
+
+                draw_combo_box(
+                    "XeSS Mode",
+                    std::array<std::string, 7>{
+                        "AA", "Ultra Quality Plus", "Ultra Quality", "Quality", "Balanced", "Performance",
+                        "Ultra Performance"
+                    },
+                    current_xess_mode);
+                auto* xess_quality = CVarSystem::Get()->GetIntCVar("r.XeSS.Mode");
+                switch(current_xess_mode) {
+                case 0:
+                    *xess_quality = XESS_QUALITY_SETTING_AA;
+                    break;
+                case 1:
+                    *xess_quality = XESS_QUALITY_SETTING_ULTRA_QUALITY_PLUS;
+                    break;
+                case 2:
+                    *xess_quality = XESS_QUALITY_SETTING_ULTRA_QUALITY;
+                    break;
+                case 3:
+                    *xess_quality = XESS_QUALITY_SETTING_QUALITY;
+                    break;
+                case 4:
+                    *xess_quality = XESS_QUALITY_SETTING_BALANCED;
+                    break;
+                case 5:
+                    *xess_quality = XESS_QUALITY_SETTING_PERFORMANCE;
+                    break;
+                case 6:
+                    *xess_quality = XESS_QUALITY_SETTING_ULTRA_PERFORMANCE;
+                    break;
+                }
+
+            } else
+#endif
+#if SAH_USE_FFX
+                if(current_taa == 2) {
+                    CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::FSR3));
+
+                    draw_combo_box(
+                        "FSR Mode",
+                        std::array<std::string, 5>{
+                            "Native AA", "Quality", "Balanced", "Performance", "Ultra Performance"
+                        },
+                        current_fsr_mode);
+                    auto* fsr_quality = CVarSystem::Get()->GetIntCVar("r.FSR3.Quality");
+                    switch(current_fsr_mode) {
+                    case 0:
+                        *fsr_quality = FFX_UPSCALE_QUALITY_MODE_NATIVEAA;
+                        break;
+                    case 1:
+                        *fsr_quality = FFX_UPSCALE_QUALITY_MODE_QUALITY;
+                        break;
+                    case 2:
+                        *fsr_quality = FFX_UPSCALE_QUALITY_MODE_BALANCED;
+                        break;
+                    case 3:
+                        *fsr_quality = FFX_UPSCALE_QUALITY_MODE_PERFORMANCE;
+                        break;
+                    case 4:
+                        *fsr_quality = FFX_UPSCALE_QUALITY_MODE_ULTRA_PERFORMANCE;
+                        break;
+                    }
+
+                } else
+#endif
+                {
+                    CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::None));
+                }
+
+
+        if(ImGui::CollapsingHeader("Visualizers")) {
+            for(auto visualizer : magic_enum::enum_values<RenderVisualization>()) {
                 const auto name = to_string(visualizer);
-                if (ImGui::Selectable(name, selected_visualizer == visualizer)) {
+                if(ImGui::Selectable(name, selected_visualizer == visualizer)) {
                     selected_visualizer = visualizer;
                 }
             }
@@ -298,11 +431,23 @@ void DebugUI::draw_debug_menu() {
             renderer.set_active_visualizer(selected_visualizer);
         }
 
-        if (ImGui::CollapsingHeader("cvars")) {
+        if(ImGui::CollapsingHeader("cvars")) {
             auto cvars = CVarSystem::Get();
             cvars->DrawImguiEditor();
         }
     }
 
     ImGui::End();
+}
+
+void DebugUI::draw_combo_box(const std::string& name, std::span<const std::string> items, int& selected_item) {
+    if(ImGui::BeginCombo(name.c_str(), items[selected_item].c_str(), ImGuiComboFlags_None)) {
+        for(auto i = 0; i < items.size(); i++) {
+            const auto selected = selected_item == i;
+            if(ImGui::Selectable(items[i].c_str(), selected)) {
+                selected_item = i;
+            }
+        }
+        ImGui::EndCombo();
+    }
 }

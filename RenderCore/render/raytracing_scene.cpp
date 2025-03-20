@@ -14,7 +14,9 @@ RaytracingScene::RaytracingScene(RenderScene& scene_in)
 
 void RaytracingScene::add_primitive(const MeshPrimitiveHandle primitive) {
     const auto& model_matrix = primitive->data.model;
-    const auto blas_flags = primitive->material->first.transparency_mode == TransparencyMode::Solid ? VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR : VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
+    const auto blas_flags = primitive->material->first.transparency_mode == TransparencyMode::Solid
+        ? VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR
+        : VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
 
     // Multiply by two because each shader group has a GI and occlusion variant
     const auto sbt_offset = static_cast<uint32_t>(primitive->material->first.transparency_mode) * 2;
@@ -149,6 +151,18 @@ void RaytracingScene::commit_tlas_builds(RenderGraph& graph) {
 
                 // Build the TLAS
                 vkCmdBuildAccelerationStructuresKHR(commands.get_vk_commands(), 1, &build_info, &p_build_offset_info);
+            }
+        });
+
+    // Make sure the TLAS is ready for anything
+    graph.add_transition_pass(
+        TransitionPass{
+            .buffers = {
+                BufferUsageToken{
+                    .buffer = acceleration_structure->buffer,
+                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                    .access = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR,
+                }
             }
         });
 

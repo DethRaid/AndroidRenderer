@@ -6,6 +6,9 @@
 #include <GLFW/glfw3.h>
 #endif
 
+#include <span>
+#include <string_view>
+
 #include "render/backend/handles.hpp"
 #include "render/visualizers/visualizer_type.hpp"
 
@@ -39,6 +42,14 @@ private:
 
     RenderVisualization selected_visualizer;
 
+    int current_taa = 0;
+
+    int current_dlss_mode = 1;
+
+    int current_xess_mode = 1;
+
+    int current_fsr_mode = 1;
+
     void create_font_texture();
 
 #if defined(_WIN32)
@@ -48,4 +59,6 @@ private:
 #endif
 
     void draw_debug_menu();
+
+    static void draw_combo_box(const std::string& name, std::span<const std::string> items, int& selected_item);
 };

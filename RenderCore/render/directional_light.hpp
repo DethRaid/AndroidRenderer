@@ -56,9 +56,7 @@ public:
     /**
      * Renders this light's contribution to the scene, using a fullscreen triangle and additive blending
      */
-    void render(
-        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneView& view
-    ) const;
+    void render(CommandBuffer& commands, const SceneView& view) const;
 
     /**
      * Renders this light's contribution to the scene, using ray tracing to compute shadows

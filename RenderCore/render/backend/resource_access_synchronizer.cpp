@@ -174,6 +174,7 @@ void ResourceAccessTracker::set_resource_usage(const BufferUsageToken& usage) {
         }
 
         *itr = usage;
+
     } else {
         last_buffer_usages.emplace_back(usage);
     }

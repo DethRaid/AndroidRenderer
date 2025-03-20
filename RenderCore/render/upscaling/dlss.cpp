@@ -12,7 +12,7 @@
 #include "render/backend/render_backend.hpp"
 
 static auto cvar_dlss_quality = AutoCVar_Enum{
-    "r.DLSS.Quality", "DLSS Quality", sl::DLSSMode::eDLAA
+    "r.DLSS.Quality", "DLSS Quality", sl::DLSSMode::eMaxQuality
 };
 
 static std::shared_ptr<spdlog::logger> logger;

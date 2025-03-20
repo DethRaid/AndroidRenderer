@@ -325,9 +325,7 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& sce
     }
 }
 
-void DirectionalLight::render(
-    CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneView& view
-) const {
+void DirectionalLight::render(CommandBuffer& commands, const SceneView& view) const {
     ZoneScoped;
 
     commands.begin_label(__func__);
@@ -354,8 +352,6 @@ void DirectionalLight::render(
 
     commands.bind_pipeline(pipeline);
 
-    commands.bind_descriptor_set(0, gbuffers_descriptor_set);
-
     const auto sun_descriptor_set = backend.get_transient_descriptor_allocator()
                                            .build_set(pipeline, 1)
                                            .bind(shadowmap_handle, sampler)
@@ -368,7 +364,6 @@ void DirectionalLight::render(
 
     commands.draw_triangle();
 
-    commands.clear_descriptor_set(0);
     commands.clear_descriptor_set(1);
 
     commands.end_label();
@@ -420,7 +415,7 @@ void DirectionalLight::raytrace(
                 commands.bind_descriptor_set(0, set);
                 commands.bind_descriptor_set(1, backend.get_texture_descriptor_pool().get_descriptor_set());
 
-                commands.dispatch_rays({lit_scene->create_info.extent.width, lit_scene->create_info.extent.height});
+                commands.dispatch_rays({lit_scene->get_resolution()});
 
                 commands.clear_descriptor_set(0);
                 commands.clear_descriptor_set(1);

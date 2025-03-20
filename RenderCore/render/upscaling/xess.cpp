@@ -177,22 +177,6 @@ void XeSSAdapter::evaluate(
     RenderGraph& graph, const TextureHandle color_in, const TextureHandle color_out, const TextureHandle depth_in,
     const TextureHandle motion_vectors_in
 ) {
-    if(r32_depth == nullptr) {
-        r32_depth = RenderBackend::get().get_global_allocator().create_texture(
-            "r32_depth",
-            {
-                .format = VK_FORMAT_R32_SFLOAT,
-                .resolution = {depth_in->create_info.extent.width, depth_in->create_info.extent.height},
-                .usage = TextureUsage::StorageImage
-            });
-    }
-
-    graph.add_copy_pass(ImageCopyPass{
-        .name = "r32_depth_copy",
-        .dst = r32_depth,
-        .src = depth_in
-    });
-
     graph.add_pass(
         {
             .name = "xess",

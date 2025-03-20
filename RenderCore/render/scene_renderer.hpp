@@ -118,8 +118,6 @@ private:
 
     std::vector<TextureHandle> swapchain_images;
 
-    ProceduralSky sky;
-
     /**
      * \brief Screen-space camera jitter applied to this frame
      */
@@ -149,7 +147,7 @@ private:
     AntiAliasingType cached_aa = AntiAliasingType::None;
 
     uint32_t frame_count = 0;
-
+    
     void set_render_resolution(glm::uvec2 new_render_resolution);
 
     void create_scene_render_targets();

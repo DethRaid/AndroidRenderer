@@ -355,6 +355,15 @@ void main_anyhit(inout uint payload, in float2 barycentrics) {
 [vk::binding(1, 0)]
 ConstantBuffer<SunLightConstants> sun_light;
 
+[vk::binding(3, 0)]
+RaytracingAccelerationStructure rtas;
+
+[vk::binding(6, 0)]
+Texture2D<float3> noisetex;
+
+#define RAY_TYPE_OCCLUSION 0
+#define RAY_TYPE_GI 1
+
 [shader("closesthit")]
 void main_closesthit(inout half3 payload, in float2 barycentrics) {
     const uint primitive_id = InstanceID();
@@ -373,6 +382,14 @@ void main_closesthit(inout half3 payload, in float2 barycentrics) {
     const StandardVertexData v2 = primitive.vertex_data[i2];
 
     const StandardVertexData v = interpolate_vertex(v0, v1, v2, barycentrics);
+
+    const float3 p0 = primitive.vertex_positions[i0];
+    const float3 p1 = primitive.vertex_positions[i1];
+    const float3 p2 = primitive.vertex_positions[i2];
+
+    float3 b = float3(1.f - barycentrics.x - barycentrics.y, barycentrics.x, barycentrics.y);
+    const float3 modelspace_vertex_position = b.x * p0 + b.y * p1 + b.z * p2;
+    const float4 worldspace_vertex_position = mul(primitive.model, float4(modelspace_vertex_position, 1));
 
     const BasicPbrMaterialGpu material = *primitive.material;
 
@@ -402,15 +419,55 @@ void main_closesthit(inout half3 payload, in float2 barycentrics) {
     gbuffer.emission = emission_sample * (half4)material.emission_factor;
 
     SurfaceInfo surface = (SurfaceInfo)0;
+    surface.location = worldspace_vertex_position.xyz;
     surface.base_color = gbuffer.base_color.rgb;
     surface.normal = gbuffer.normal.xyz;
     surface.metalness = gbuffer.data.b;
     surface.roughness = gbuffer.data.g;
 
-    // TODO: RT sun occlusion, proper pathtracing
-    const half3 brdf_result = Fd(surface, (half3)-sun_light.direction_and_size.xyz, surface.normal);
+    // TODO: proper pathtracing
+    const half3 light_vector = normalize((half3)-sun_light.direction_and_size.xyz);
+    const half3 brdf_result = Fd(surface, light_vector, surface.normal);
+    const half ndotl = (half)clamp(dot(light_vector, surface.normal), 0.h, 1.h);
 
-    payload = brdf_result;
+    half shadow = 0;
+
+    if (ndotl > 0) {
+        const float noise_size = tan(sun_light.direction_and_size.w);
+
+        const uint2 noisetex_pixel = uint2(DispatchRaysIndex().xy) % 128;
+
+        const float3 noise = normalize(noisetex[noisetex_pixel].xyz * 2.f - 1.f);
+        const float3 ray_direction = normalize(light_vector + noise * noise_size);
+
+        RayDesc ray;
+        ray.Origin = surface.location;
+        ray.Direction = light_vector;
+        ray.TMin = 0.05f;
+        ray.TMax = 100000.f;
+
+        // 0 if we hit something, 1 if not
+        uint payload = 1;
+
+        TraceRay(
+            rtas,
+            RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_CULL_FRONT_FACING_TRIANGLES,
+            0xFF,
+            RAY_TYPE_OCCLUSION,
+            1,
+            0,
+            ray,
+            payload);
+
+        if (payload > 0) {
+            shadow = 1;
+        }
+    }
+
+    // Number chosen based on what happened to look fine
+    const half exposure_factor = 0.0031415927h;
+
+    payload = brdf_result * sun_light.color.rgb * ndotl * shadow * exposure_factor;
 }
 #endif  // SAH_RT_GI
 #endif // SAH_RT

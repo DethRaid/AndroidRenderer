@@ -144,12 +144,11 @@ void ProceduralSky::update_sky_luts(RenderGraph& graph, const glm::vec3& light_v
 }
 
 void ProceduralSky::render_sky(
-    CommandBuffer& commands, const BufferHandle view_buffer, const glm::vec3& light_vector,
-    const DescriptorSet& gbuffer_descriptor_set
+    CommandBuffer& commands, const BufferHandle view_buffer, const glm::vec3& light_vector
 ) const {
     auto& backend = RenderBackend::get();
 
-    const auto set = backend.get_transient_descriptor_allocator().build_set(sky_application_pso, 0)
+    const auto set = backend.get_transient_descriptor_allocator().build_set(sky_application_pso, 1)
                             .bind(transmittance_lut, linear_sampler)
                             .bind(sky_view_lut, linear_sampler)
                             .bind(view_buffer)
@@ -157,15 +156,14 @@ void ProceduralSky::render_sky(
 
     commands.bind_pipeline(sky_application_pso);
 
-    commands.bind_descriptor_set(0, set);
-    commands.bind_descriptor_set(1, gbuffer_descriptor_set);
+    commands.bind_descriptor_set(1, set);
+
     commands.set_push_constant(0, light_vector.x);
     commands.set_push_constant(1, light_vector.y);
     commands.set_push_constant(2, light_vector.z);
 
     commands.draw(3);
 
-    commands.clear_descriptor_set(0);
     commands.clear_descriptor_set(1);
 }
 
@@ -176,3 +174,5 @@ TextureHandle ProceduralSky::get_sky_view_lut() const {
 TextureHandle ProceduralSky::get_transmission_lut() const {
     return transmittance_lut;
 }
+
+VkSampler ProceduralSky::get_sampler() const { return linear_sampler; }

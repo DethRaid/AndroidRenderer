@@ -70,8 +70,6 @@ public:
      */
     void update_cascade_transforms(const SceneView& view, const DirectionalLight& light);
 
-    void update_buffers(ResourceUploadQueue& queue) const;
-
     void clear_volume(RenderGraph& render_graph);
 
     static GvBuildMode get_build_mode();
@@ -107,13 +105,11 @@ public:
      * Additively renders the LPV onto the bound framebuffer
      *
      * @param commands The command buffer to render with. Should already have a framebuffer bound
-     * @param gbuffers_descriptor The descriptor set that contains the gbuffer attachments as input attachments
      * @param scene_view_buffer Buffer with the matrices of the scene view
      * @param ao_texture Ambient occlusion texture
      */
     void add_lighting_to_scene(
-        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor, BufferHandle scene_view_buffer,
-        TextureHandle ao_texture
+        CommandBuffer& commands, BufferHandle scene_view_buffer, TextureHandle ao_texture
     ) const;
 
     void visualize_vpls(
@@ -179,6 +175,8 @@ private:
     GraphicsPipelineHandle inject_scene_depth_into_gv_pipeline;
 
     void init_resources(ResourceAllocator& allocator);
+
+    void update_buffers() const;
 
     /**
      * \brief Injects the RSM depth and normals buffers for a given cascade into that cascade's geometry volume
