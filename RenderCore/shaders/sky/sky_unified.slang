@@ -1,10 +1,27 @@
-#pragma once 
+// Unifie3d sky shader - contains both the fragment shader to draw the sky in the lighting pass, and the miss shaders
+// for the sky for both occlusion and radiance rays
+
+#ifndef SAH_RT
+#define SAH_RT 0
+#endif
+
+#ifndef SAH_RT_OCCLUSION
+#define SAH_RT_OCCLUSION 0
+#endif
+
+#ifndef SAH_RT_GI
+#define SAH_RT_GI 0
+#endif
 
 // Implementation of the Hillaire 2020 sky from ShaderToy. This shader applies the sky to any pixel with depth = 1
 
 #ifndef PI
 #define PI 3.14159265358
 #endif
+
+#include "shared/sun_light_constants.hpp"
+#include "shared/view_data.hpp"
+
 
 // Units are in megameters.
 static const float groundRadiusMM = 6.360;
@@ -64,10 +81,10 @@ float3 getValFromSkyLUT(float3 rayDir, float3 sunDir, Sampler2D sky_view_lut)
 {
     float height = length(viewPos);
     float3 up = viewPos / height;
-    
+
     float horizonAngle = safeacos(sqrt(height * height - groundRadiusMM * groundRadiusMM) / height);
     float altitudeAngle = horizonAngle - acos(dot(rayDir, up)); // Between -PI/2 and PI/2
-    float azimuthAngle; // Between 0 and 2*PI
+    float azimuthAngle;                                         // Between 0 and 2*PI
     if (abs(altitudeAngle) > (0.5 * PI - .0001))
     {
         // Looking nearly straight up or down.
@@ -77,17 +94,17 @@ float3 getValFromSkyLUT(float3 rayDir, float3 sunDir, Sampler2D sky_view_lut)
     {
         float3 right = cross(sunDir, up);
         float3 forward = cross(up, right);
-        
+
         float3 projectedDir = normalize(rayDir - up * (dot(rayDir, up)));
         float sinTheta = dot(projectedDir, right);
         float cosTheta = dot(projectedDir, forward);
         azimuthAngle = atan(cosTheta / sinTheta) + PI;
     }
-    
+
     // Non-linear mapping of altitude angle. See Section 5.3 of the paper.
     float v = 0.5 + 0.5 * sign(altitudeAngle) * sqrt(abs(altitudeAngle) * 2.0 / PI);
     float2 uv = float2(azimuthAngle / (2.0 * PI), v);
-        
+
     return sky_view_lut.SampleLevel(uv, 0).rgb;
 }
 
@@ -96,7 +113,7 @@ float3 getValFromTLUT(Sampler2D tex, float3 pos, float3 sunDir) {
     float3 up = pos / height;
     float sunCosZenithAngle = dot(sunDir, up);
     float2 uv = float2(clamp(0.5 + 0.5 * sunCosZenithAngle, 0.0, 1.0),
-                   max(0.0, min(1.0, (height - groundRadiusMM) / (atmosphereRadiusMM - groundRadiusMM))));
+                       max(0.0, min(1.0, (height - groundRadiusMM) / (atmosphereRadiusMM - groundRadiusMM))));
     return tex.SampleLevel(uv, 0).rgb;
 }
 
@@ -110,14 +127,14 @@ float sunWithBloom(float3 rayDir, float3 sunDir)
     {
         return 1.f;
     }
-    
+
     float offset = minSunCosTheta - cosTheta;
     float gaussianBloom = exp(-offset * 50000.0) * 0.5;
     float invBloom = 1.0 / (0.02 + offset * 300.0) * 0.01;
     return gaussianBloom + invBloom;
 }
 
-float3 get_sky_color(in float3 view_vector_worldspace, in float3 sunDir, Sampler2D sky_view_lut, Sampler2D transmittance_lut) {        
+float3 get_sky_color(in float3 view_vector_worldspace, in float3 sunDir, Sampler2D sky_view_lut, Sampler2D transmittance_lut) {
     float3 lum = getValFromSkyLUT(view_vector_worldspace, sunDir, sky_view_lut);
 
     // Bloom should be added at the end, but this is subtle and works well.
@@ -139,7 +156,7 @@ float3 get_sky_color(in float3 view_vector_worldspace, in float3 sunDir, Sampler
     lum += sunLum;
 
     lum *= 20.h;
-    
+
     // Number chosen based on what happened to look fine
     const float exposure_factor = 1.h;
 
@@ -147,3 +164,61 @@ float3 get_sky_color(in float3 view_vector_worldspace, in float3 sunDir, Sampler
 
     return lum;
 }
+
+#if !SAH_RT
+
+[vk::binding(0, 0)]
+Sampler2D transmittance_lut;
+
+[vk::binding(1, 0)]
+Sampler2D sky_view_lut;
+
+[vk::binding(2, 0)]
+ConstantBuffer<ViewDataGPU> view_info;
+
+[vk::binding(3, 0)]
+ConstantBuffer<SunLightConstants> sun_info;
+
+[shader("fragment")]
+half4 main_fs(float4 fragcoord: SV_Position) {
+    // Screen position for the ray
+    float2 location_screen = fragcoord.xy / view_info.render_resolution.xy;
+
+    float4 location_clipspace = float4(location_screen, 0.f, 1.f);
+    float4 location_viewspace = mul(view_info.inverse_projection, location_clipspace);
+    location_viewspace /= location_viewspace.w;
+    float3 view_vector_worldspace = -normalize(mul(view_info.inverse_view, float4(location_viewspace.xyz, 0)).xyz);
+    view_vector_worldspace.y *= -1;
+
+    float3 sunDir = -normalize(sun_info.direction_and_size.xyz);
+
+    const float3 sky_color = get_sky_color(view_vector_worldspace, sunDir, sky_view_lut, transmittance_lut);
+
+    return half4((half3)sky_color, 1);
+}
+#else
+
+#if SAH_RT_OCCLUSION
+[shader("miss")]
+void main_miss(inout uint payload) {
+    payload = 1;
+}
+#endif
+
+#if SAH_RT_GI
+[vk::binding(1, 0)]
+ConstantBuffer<SunLightConstants> sun_light;
+
+[vk::binding(9, 0)]
+Sampler2D transmittance_lut;
+
+[vk::binding(10, 0)]
+Sampler2D sky_view_lut;
+
+[shader("miss")]
+void main_miss(inout float3 payload) {
+    get_sky_color(WorldRayDirection(), sun_light.direction_and_size.xyz, sky_view_lut, transmittance_lut);
+}
+#endif
+
+#endif  // SAH_RT

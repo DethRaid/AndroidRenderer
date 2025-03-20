@@ -38,7 +38,7 @@ public:
      *
      * Optionally can sample rays around the current pixel, decreasing GI noise 
      */
-    void add_lighting_to_scene(CommandBuffer& commands, BufferHandle view_buffer) const;
+    void add_lighting_to_scene(CommandBuffer& commands, BufferHandle view_buffer, TextureHandle noise_texture) const;
 
 private:
     /**

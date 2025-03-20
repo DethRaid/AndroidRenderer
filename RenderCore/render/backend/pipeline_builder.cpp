@@ -446,6 +446,12 @@ bool collect_descriptor_sets(
                 set_info.has_variable_count_binding = true;
             }
         }
+
+        auto binding_index = 0;
+        for(auto& binding : set_info.bindings) {
+            binding.binding = binding_index;
+            binding_index++;
+        }
     }
 
     return has_error;

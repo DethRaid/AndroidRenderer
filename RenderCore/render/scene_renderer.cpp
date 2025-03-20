@@ -88,6 +88,8 @@ SceneRenderer::SceneRenderer() {
 
     stbn_3d_unitvec = NoiseTexture::create("assets/stbn/stbn_unitvec3_2Dx1D_128x128x64", 64, texture_loader);
 
+    stbn_2d_scalar = NoiseTexture::create("assets/stbn/stbn_vec2_2Dx1D_128x128x64", 64, texture_loader);
+
     logger->info("Initialized SceneRenderer");
 }
 
@@ -450,7 +452,8 @@ void SceneRenderer::render() {
         lpv.get(),
         rtgi.get(),
         vrsaa_shading_rate_image,
-        stbn_3d_unitvec);
+        stbn_3d_unitvec,
+        stbn_2d_scalar.get_layer(frame_count));
 
     // Anti-aliasing/upscaling
 

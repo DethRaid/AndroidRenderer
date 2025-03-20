@@ -552,6 +552,14 @@ VkPipeline PipelineCache::get_pipeline(
     return pipeline->pipeline;
 }
 
+void PipelineCache::add_miss_shaders(const std::span<const uint8_t> occlusion_miss, const std::span<const uint8_t> gi_miss) {
+    occlusion_miss_shader.resize(occlusion_miss.size());
+    std::memcpy(occlusion_miss_shader.data(), occlusion_miss.data(), occlusion_miss.size_bytes());
+
+    gi_miss_shader.resize(gi_miss.size());
+    std::memcpy(gi_miss_shader.data(), gi_miss.data(), gi_miss.size_bytes());
+}
+
 HitGroupHandle PipelineCache::add_hit_group(const HitGroupBuilder& shader_group) {
     return &(*shader_groups.emplace(
         HitGroup{
@@ -577,9 +585,7 @@ static uint32_t round_up(const uint32_t num, const uint32_t multiple) {
     return num + multiple - remainder;
 }
 
-RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
-    const std::filesystem::path& raygen_shader_path, const std::filesystem::path& miss_shader_path
-) {
+RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(const std::filesystem::path& raygen_shader_path, bool skip_gi_miss_shader) {
     ZoneScoped;
 
     logger->debug("Creating RT PSO {}", raygen_shader_path.string());
@@ -750,47 +756,82 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
     }
 
     const auto miss_shader_index = static_cast<uint32_t>(stages.size());
-    const auto raygen_shader_index = miss_shader_index + 1;
+    const auto miss_group_index = static_cast<uint32_t>(groups.size());
 
-    pipeline.miss_group_index = static_cast<uint32_t>(groups.size());
+    // Occlusion miss
+    {
+        const auto& miss_module_create_info = modules.emplace_back(
+            VkShaderModuleCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                .codeSize = occlusion_miss_shader.size() * sizeof(uint8_t),
+                .pCode = reinterpret_cast<const uint32_t*>(occlusion_miss_shader.data())
+            });
 
-    const auto miss_shader_maybe = SystemInterface::get().load_file(miss_shader_path);
-    if(!miss_shader_maybe) {
-        throw std::runtime_error{fmt::format("Could not load miss shader {}", miss_shader_path.string())};
+        stages.emplace_back(
+            VkPipelineShaderStageCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .pNext = &miss_module_create_info,
+                .stage = VK_SHADER_STAGE_MISS_BIT_KHR,
+                .pName = "main"
+            });
+
+        groups.emplace_back(
+            VkRayTracingShaderGroupCreateInfoKHR{
+                .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+                .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+                .generalShader = miss_shader_index,
+                .closestHitShader = VK_SHADER_UNUSED_KHR,
+                .anyHitShader = VK_SHADER_UNUSED_KHR,
+                .intersectionShader = VK_SHADER_UNUSED_KHR,
+            });
+
+        collect_bindings(
+            occlusion_miss_shader,
+            "Occlusion miss shader",
+            VK_SHADER_STAGE_MISS_BIT_KHR,
+            pipeline.descriptor_sets,
+            push_constants);
     }
-    const auto& miss_module_create_info = modules.emplace_back(
-        VkShaderModuleCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = miss_shader_maybe->size() * sizeof(uint8_t),
-            .pCode = reinterpret_cast<const uint32_t*>(miss_shader_maybe->data())
-        });
 
-    stages.emplace_back(
-        VkPipelineShaderStageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .pNext = &miss_module_create_info,
-            .stage = VK_SHADER_STAGE_MISS_BIT_KHR,
-            .pName = "main"
-        });
+    auto num_miss_shaders = 1u;
+    // GI miss
+    if(!skip_gi_miss_shader) {
+        num_miss_shaders = 2;
+        const auto& miss_module_create_info = modules.emplace_back(
+            VkShaderModuleCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                .codeSize = gi_miss_shader.size() * sizeof(uint8_t),
+                .pCode = reinterpret_cast<const uint32_t*>(gi_miss_shader.data())
+            });
 
-    groups.emplace_back(
-        VkRayTracingShaderGroupCreateInfoKHR{
-            .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
-            .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
-            .generalShader = miss_shader_index,
-            .closestHitShader = VK_SHADER_UNUSED_KHR,
-            .anyHitShader = VK_SHADER_UNUSED_KHR,
-            .intersectionShader = VK_SHADER_UNUSED_KHR,
-        });
+        stages.emplace_back(
+            VkPipelineShaderStageCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .pNext = &miss_module_create_info,
+                .stage = VK_SHADER_STAGE_MISS_BIT_KHR,
+                .pName = "main"
+            });
 
-    collect_bindings(
-        *miss_shader_maybe,
-        miss_shader_path.string(),
-        VK_SHADER_STAGE_MISS_BIT_KHR,
-        pipeline.descriptor_sets,
-        push_constants);
+        groups.emplace_back(
+            VkRayTracingShaderGroupCreateInfoKHR{
+                .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+                .type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+                .generalShader = miss_shader_index + 1,
+                .closestHitShader = VK_SHADER_UNUSED_KHR,
+                .anyHitShader = VK_SHADER_UNUSED_KHR,
+                .intersectionShader = VK_SHADER_UNUSED_KHR,
+            });
 
-    pipeline.raygen_group_index = static_cast<uint32_t>(groups.size());
+        collect_bindings(
+            gi_miss_shader,
+            "GI miss shader",
+            VK_SHADER_STAGE_MISS_BIT_KHR,
+            pipeline.descriptor_sets,
+            push_constants);
+    }
+
+    const auto raygen_shader_index = miss_shader_index + num_miss_shaders;
+    const auto raygen_group_index = static_cast<uint32_t>(groups.size());
 
     const auto raygen_shader_maybe = SystemInterface::get().load_file(raygen_shader_path);
     if(!raygen_shader_maybe) {
@@ -876,7 +917,7 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
     auto shader_group_handles = std::vector<uint8_t>{};
 
     const auto hit_table_size = round_up(groups.size() * shader_group_handle_size, shader_group_alignment);
-    const auto miss_table_size = round_up(shader_group_handle_size, shader_group_alignment);
+    const auto miss_table_size = round_up(shader_group_handle_size * num_miss_shaders, shader_group_alignment);
     const auto raygen_table_size = round_up(shader_group_handle_size, shader_group_alignment);
 
     shader_group_handles.resize(hit_table_size + miss_table_size + raygen_table_size);
@@ -901,7 +942,7 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
     result = vkGetRayTracingShaderGroupHandlesKHR(
         device,
         pipeline.pipeline,
-        pipeline.raygen_group_index,
+        raygen_group_index,
         1,
         raygen_table_size,
         write_ptr);
@@ -915,8 +956,8 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
     result = vkGetRayTracingShaderGroupHandlesKHR(
         device,
         pipeline.pipeline,
-        pipeline.miss_group_index,
-        1,
+        miss_group_index,
+        num_miss_shaders,
         miss_table_size,
         write_ptr);
     if(result != VK_SUCCESS) {

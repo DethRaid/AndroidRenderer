@@ -62,8 +62,8 @@ DirectionalLight::DirectionalLight() {
                       .set_fragment_shader("shaders/lighting/directional_light.frag.spv")
                       .set_depth_state(
                           DepthStencilState{
-                              .enable_depth_test = false,
                               .enable_depth_write = false,
+                              .compare_op = VK_COMPARE_OP_GREATER
                           }
                       )
                       .set_blend_state(
@@ -357,7 +357,6 @@ void DirectionalLight::render(CommandBuffer& commands, const SceneView& view) co
                                            .bind(shadowmap_handle, sampler)
                                            .bind(sun_buffer)
                                            .bind(view.get_buffer())
-                                           //.bind(rtas)
                                            .build();
 
     commands.bind_descriptor_set(1, sun_descriptor_set);
@@ -377,9 +376,7 @@ void DirectionalLight::raytrace(
 
     if(rt_pipeline == nullptr) {
         rt_pipeline = backend.get_pipeline_cache()
-                             .create_ray_tracing_pipeline(
-                                 "shaders/lighting/directional_light.rt.raygen.spv",
-                                 "shaders/lighting/directional_light.rt.miss.spv");
+                             .create_ray_tracing_pipeline("shaders/lighting/directional_light.rt.raygen.spv", true);
     }
 
     auto set = backend.get_transient_descriptor_allocator()

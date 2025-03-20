@@ -207,7 +207,11 @@ LightPropagationVolume::LightPropagationVolume() {
     lpv_render_shader = backend.begin_building_pipeline("LPV Rendering")
                                .set_vertex_shader("shaders/common/fullscreen.vert.spv")
                                .set_fragment_shader("shaders/lpv/overlay.frag.spv")
-                               .set_depth_state({.enable_depth_test = false, .enable_depth_write = false})
+                               .set_depth_state(
+                                   {
+                                       .enable_depth_write = false,
+                                       .compare_op = VK_COMPARE_OP_GREATER
+                                   })
                                .set_blend_state(
                                    0,
                                    {

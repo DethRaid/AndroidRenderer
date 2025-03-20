@@ -17,5 +17,7 @@ struct NoiseTexture
     glm::uvec2 resolution = {};
 
     uint32_t num_layers = {};
+
+    TextureHandle get_layer(uint32_t index) const;
 };
 

@@ -41,9 +41,6 @@ struct HitGroup {
 
 struct RayTracingPipeline : PipelineBase
 {
-    uint32_t miss_group_index;
-    uint32_t raygen_group_index;
-
     BufferHandle shader_tables_buffer = nullptr;
 
     VkStridedDeviceAddressRegionKHR raygen_table = {};

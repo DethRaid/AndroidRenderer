@@ -138,8 +138,3 @@ void main_raygen() {
     //color.rgb = sun_radiance * exposure_factor;
     lit_scene[thread_id] = color;
 }
-
-[shader("miss")]
-void main_miss(inout uint payload) {
-    payload = 1;
-}

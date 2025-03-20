@@ -39,7 +39,8 @@ public:
         const LightPropagationVolume* lpv,
         const RayTracedGlobalIllumination* rtgi,
         std::optional<TextureHandle> vrsaa_shading_rate_image,
-        const NoiseTexture& noise
+        const NoiseTexture& noise,
+        TextureHandle noise_2d
     );
 
 private:

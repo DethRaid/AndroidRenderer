@@ -35,9 +35,7 @@ void RayTracingDebugPhase::raytrace(
     auto& backend = RenderBackend::get();
 
     if(pipeline == nullptr) {
-        pipeline = backend.get_pipeline_cache().create_ray_tracing_pipeline(
-            "shaders/debug/ray_tracing.rt.raygen.spv",
-            "shaders/debug/ray_tracing.rt.miss.spv");
+        pipeline = backend.get_pipeline_cache().create_ray_tracing_pipeline("shaders/debug/ray_tracing.rt.raygen.spv");
     }
 
     auto set = backend.get_transient_descriptor_allocator().build_set(pipeline, 0)

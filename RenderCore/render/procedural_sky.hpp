@@ -25,7 +25,7 @@ public:
     void update_sky_luts(RenderGraph& graph, const glm::vec3& light_vector) const;
 
     void render_sky(
-        CommandBuffer& commands, BufferHandle view_buffer, const glm::vec3& light_vector
+        CommandBuffer& commands, BufferHandle view_buffer, BufferHandle sun_buffer
     ) const;
 
     TextureHandle get_sky_view_lut() const;

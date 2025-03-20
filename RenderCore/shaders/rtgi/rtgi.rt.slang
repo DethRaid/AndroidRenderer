@@ -8,10 +8,6 @@
 // The primitive data buffer is bound at 0.0, the other bindings in this file work around it. Check out
 // gltf_basic_pbr.slang for other resources we use
 
-
-[vk::binding(1, 0)]
-ConstantBuffer<SunLightConstants> sun_light;
-
 [vk::binding(2, 0)]
 ConstantBuffer<ViewDataGPU> view_data;
 
@@ -97,20 +93,10 @@ void main_raygen() {
         ray,
         payload);
 
+    if (any(isnan(payload))) {
+        payload = 0;
+    }
+
     ray_buffer[thread_id] = float4(ray_direction, 0);
     ray_irradiance[thread_id] = float4(payload, 0);
-}
-
-[vk::binding(9, 0)]
-Sampler2D transmittance_lut;
-
-[vk::binding(10, 0)]
-Sampler2D sky_view_lut;
-
-#include "sky/hillaire.slangi"
-
-[shader("miss")]
-void main_miss(inout float3 payload) {
-    // payload = get_sky_color(WorldRayDirection(), sun_light.direction_and_size.xyz, sky_view_lut, transmittance_lut);
-    payload = 1;
 }

@@ -6,16 +6,24 @@
 #include "render/backend/pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
 
-static AutoCVar_Int cvar_num_reconstruction_rays{ "r.GI.Reconstruction.NumSamples", "Number of extra rays to use in the screen-space reconstruction filter", 8 };
+static AutoCVar_Int cvar_num_reconstruction_rays{
+    "r.GI.Reconstruction.NumSamples", "Number of extra rays to use in the screen-space reconstruction filter", 8
+};
 
-static AutoCVar_Float cvar_reconstruction_size{ "r.GI.Reconstruction.Size", "Size in pixels of the screenspace reconstruction filter", 16 };
+static AutoCVar_Float cvar_reconstruction_size{
+    "r.GI.Reconstruction.Size", "Size in pixels of the screenspace reconstruction filter", 16
+};
 
 RayTracedGlobalIllumination::RayTracedGlobalIllumination() {
     auto& backend = RenderBackend::get();
     overlay_pso = backend.begin_building_pipeline("rtgi_application")
                          .set_vertex_shader("shaders/common/fullscreen.vert.spv")
                          .set_fragment_shader("shaders/rtgi/overlay.frag.spv")
-                         .set_depth_state({.enable_depth_test = false, .enable_depth_write = false})
+                         .set_depth_state(
+                             {
+                                 .enable_depth_write = false,
+                                 .compare_op = VK_COMPARE_OP_GREATER
+                             })
                          .set_blend_state(
                              0,
                              {
@@ -72,9 +80,7 @@ void RayTracedGlobalIllumination::trace_global_illumination(
     }
     if(rtgi_pipeline == nullptr) {
         rtgi_pipeline = backend.get_pipeline_cache()
-                               .create_ray_tracing_pipeline(
-                                   "shaders/rtgi/rtgi.rt.raygen.spv",
-                                   "shaders/rtgi/rtgi.rt.miss.spv");
+                               .create_ray_tracing_pipeline("shaders/rtgi/rtgi.rt.spv");
     }
 
     const auto sun_buffer = scene.get_sun_light().get_constant_buffer();
@@ -91,8 +97,8 @@ void RayTracedGlobalIllumination::trace_global_illumination(
                             .bind(noise_tex)
                             .bind(ray_texture)
                             .bind(ray_irradiance)
-                            //.bind(sky.get_sky_view_lut(), sky.get_sampler())
-                            //.bind(sky.get_transmission_lut(), sky.get_sampler())
+                            .bind(sky.get_sky_view_lut(), sky.get_sampler())
+                            .bind(sky.get_transmission_lut(), sky.get_sampler())
                             .build();
 
     graph.add_pass(
@@ -104,9 +110,6 @@ void RayTracedGlobalIllumination::trace_global_illumination(
 
                 commands.bind_descriptor_set(0, set);
                 commands.bind_descriptor_set(1, backend.get_texture_descriptor_pool().get_descriptor_set());
-
-                commands.set_push_constant(0, static_cast<uint32_t>(cvar_num_reconstruction_rays.Get()));
-                commands.set_push_constant(1, static_cast<float>(cvar_reconstruction_size.Get()));
 
                 commands.dispatch_rays(render_resolution);
 
@@ -131,9 +134,13 @@ void RayTracedGlobalIllumination::get_resource_usages(
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
-void RayTracedGlobalIllumination::add_lighting_to_scene(CommandBuffer& commands, const BufferHandle view_buffer) const {
-    auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(overlay_pso, 1)
+void RayTracedGlobalIllumination::add_lighting_to_scene(
+    CommandBuffer& commands, const BufferHandle view_buffer, const TextureHandle noise_texture
+) const {
+    auto set = RenderBackend::get().get_transient_descriptor_allocator()
+                                   .build_set(overlay_pso, 1)
                                    .bind(view_buffer)
+                                   .bind(noise_texture)
                                    .bind(ray_texture)
                                    .bind(ray_irradiance)
                                    .build();
@@ -143,6 +150,9 @@ void RayTracedGlobalIllumination::add_lighting_to_scene(CommandBuffer& commands,
     commands.bind_pipeline(overlay_pso);
 
     commands.bind_descriptor_set(1, set);
+
+    commands.set_push_constant(0, static_cast<uint32_t>(cvar_num_reconstruction_rays.Get()));
+    commands.set_push_constant(1, static_cast<float>(cvar_reconstruction_size.Get()));
 
     commands.draw_triangle();
 

@@ -22,7 +22,10 @@ LightingPhase::LightingPhase() {
                                .set_vertex_shader("shaders/common/fullscreen.vert.spv")
                                .set_fragment_shader("shaders/lighting/emissive.frag.spv")
                                .set_depth_state(
-                                   DepthStencilState{.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE}
+                                   DepthStencilState{
+                                       .enable_depth_write = false,
+                                       .compare_op = VK_COMPARE_OP_GREATER
+                                   }
                                )
                                .set_blend_state(
                                    0,
@@ -49,7 +52,8 @@ void LightingPhase::render(
     const LightPropagationVolume* lpv,
     const RayTracedGlobalIllumination* rtgi,
     const std::optional<TextureHandle> vrsaa_shading_rate_image,
-    const NoiseTexture& noise
+    const NoiseTexture& noise,
+    const TextureHandle noise_2d
 ) {
     ZoneScoped;
 
@@ -113,6 +117,9 @@ void LightingPhase::render(
             .color_attachments = {
                 RenderingAttachmentInfo{.image = lit_scene_texture, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR}
             },
+            .depth_attachment = RenderingAttachmentInfo{
+                .image = gbuffer.depth, .load_op = VK_ATTACHMENT_LOAD_OP_LOAD, .store_op = VK_ATTACHMENT_STORE_OP_STORE
+            },
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_descriptor_set(0, gbuffers_descriptor_set);
 
@@ -124,7 +131,7 @@ void LightingPhase::render(
                     lpv->add_lighting_to_scene(commands, view.get_buffer(), ao_texture);
                 }
                 if(rtgi) {
-                    rtgi->add_lighting_to_scene(commands, view.get_buffer());
+                    rtgi->add_lighting_to_scene(commands, view.get_buffer(), noise_2d);
                 }
 
                 if(*CVarSystem::Get()->GetIntCVar("r.MeshLight.Raytrace")) {
@@ -133,9 +140,9 @@ void LightingPhase::render(
 
                 add_emissive_lighting(commands);
 
-                scene->get_sky().render_sky(commands, view.get_buffer(), sun.get_direction());
+                scene->get_sky().render_sky(commands, view.get_buffer(), sun.get_constant_buffer());
 
-                commands.clear_descriptor_set(0);
+                // The sky uses different descriptor sets, so if we add anything after this we'll have to re-bind the gbuffer descriptor set
             }
         });
 

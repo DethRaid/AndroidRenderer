@@ -159,18 +159,20 @@ namespace vkutil {
         }
         auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
         auto flags = std::vector<VkDescriptorBindingFlags>{};
-        const auto& last_binding = info->pBindings[info->bindingCount - 1];
-        if(is_descriptor_array(last_binding)) {
-            flags.resize(info->bindingCount);
-            flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
-                VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
-                VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
-            flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-                .bindingCount = static_cast<uint32_t>(flags.size()),
-                .pBindingFlags = flags.data(),
-            };
-            info->pNext = &flags_create_info;
+        if (info->bindingCount > 0) {
+            const auto& last_binding = info->pBindings[info->bindingCount - 1];
+            if (is_descriptor_array(last_binding)) {
+                flags.resize(info->bindingCount);
+                flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+                    VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
+                    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+                flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{
+                    .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+                    .bindingCount = static_cast<uint32_t>(flags.size()),
+                    .pBindingFlags = flags.data(),
+                };
+                info->pNext = &flags_create_info;
+            }
         }
 
         auto it = layoutCache.find(layout_info);
