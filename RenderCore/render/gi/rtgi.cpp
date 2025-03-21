@@ -17,6 +17,10 @@ static AutoCVar_Float cvar_reconstruction_size{
     "r.GI.Reconstruction.Size", "Size in pixels of the screenspace reconstruction filter", 16
 };
 
+bool RayTracedGlobalIllumination::should_render() {
+    return cvar_num_bounces.Get() > 0;
+}
+
 RayTracedGlobalIllumination::RayTracedGlobalIllumination() {
     auto& backend = RenderBackend::get();
     overlay_pso = backend.begin_building_pipeline("rtgi_application")

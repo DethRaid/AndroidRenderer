@@ -190,7 +190,7 @@ half4 main_fs(float4 fragcoord: SV_Position) {
     float3 view_vector_worldspace = -normalize(mul(view_info.inverse_view, float4(location_viewspace.xyz, 0)).xyz);
     view_vector_worldspace.y *= -1;
 
-    float3 sunDir = -normalize(sun_info.direction_and_size.xyz);
+    float3 sunDir = -normalize(sun_info.direction_and_tan_size.xyz);
 
     const float3 sky_color = get_sky_color(view_vector_worldspace, sunDir, sky_view_lut, transmittance_lut);
 
@@ -220,7 +220,7 @@ Sampler2D sky_view_lut;
 
 [shader("miss")]
 void main_miss(inout IrradiancePayload payload) {
-    payload.irradiance = get_sky_color(WorldRayDirection(), sun_light.direction_and_size.xyz, sky_view_lut, transmittance_lut);
+    payload.irradiance = get_sky_color(WorldRayDirection(), sun_light.direction_and_tan_size.xyz, sky_view_lut, transmittance_lut);
 }
 #endif
 

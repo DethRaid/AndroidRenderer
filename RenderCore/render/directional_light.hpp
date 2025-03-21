@@ -75,6 +75,11 @@ private:
 
     BufferHandle sun_buffer = {};
 
+    /**
+     * Angular size of the sun, in degrees
+     */
+    float angular_size = 0.545;
+
     std::vector<glm::mat4> world_to_ndc_matrices;
     BufferHandle world_to_ndc_matrices_buffer = nullptr;
 

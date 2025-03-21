@@ -19,6 +19,8 @@ struct GBuffer;
  */
 class RayTracedGlobalIllumination {
 public:
+    static bool should_render();
+
     RayTracedGlobalIllumination();
 
     ~RayTracedGlobalIllumination();

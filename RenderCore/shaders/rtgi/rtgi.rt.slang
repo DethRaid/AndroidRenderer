@@ -88,7 +88,7 @@ void main_raygen() {
 
     // irradiance that comes in along the ray
     IrradiancePayload payload = (IrradiancePayload)0;
-    payload.num_bounces = 1;
+    payload.num_bounces = 2;
 
     TraceRay(
         rtas,

@@ -77,7 +77,7 @@ void main_raygen() {
     surface.metalness = data_sample.b;
     surface.location = get_worldspace_location(thread_id);
 
-    const float3 light_vector = normalize(-sun_light.direction_and_size.xyz);
+    const float3 light_vector = normalize(-sun_light.direction_and_tan_size.xyz);
 
     const half ndotl = (half)clamp(dot(light_vector, surface.normal), 0.h, 1.h);
 
@@ -89,7 +89,7 @@ void main_raygen() {
     float3 sun_radiance = ndotl * brdf_result * sun_light.color.rgb;
 
     if (ndotl > 0) {
-        const float noise_size = tan(sun_light.direction_and_size.w);
+        const float noise_size = sun_light.direction_and_tan_size.w;
 
         float shadow = 0;
         for (uint i = 0; i < sun_light.num_shadow_samples; i++) {

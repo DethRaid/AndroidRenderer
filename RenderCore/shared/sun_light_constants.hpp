@@ -8,7 +8,14 @@
 #define SHADOW_MODE_RT  2
 
 struct SunLightConstants {
-    vec4 direction_and_size;
+    /**
+     * Light direction (xyz) and tangent of the angular size (w)
+     */
+    vec4 direction_and_tan_size;
+
+    /**
+     * HDR light color
+     */
     vec4 color;
 
     uvec4 csm_resolution;

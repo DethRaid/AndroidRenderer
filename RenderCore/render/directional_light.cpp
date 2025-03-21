@@ -197,7 +197,7 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
         radius = std::ceil(radius * 16.f) / 16.f;
 
         // Shadow cascade frustum
-        const auto light_dir = glm::normalize(glm::vec3{constants.direction_and_size});
+        const auto light_dir = glm::normalize(glm::vec3{constants.direction_and_tan_size});
 
         const auto light_view_matrix = glm::lookAt(
             frustum_center - light_dir * radius,
@@ -229,7 +229,7 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
 }
 
 void DirectionalLight::set_direction(const glm::vec3& direction) {
-    constants.direction_and_size = glm::vec4{glm::normalize(direction), glm::radians(0.545)};
+    constants.direction_and_tan_size = glm::vec4{glm::normalize(direction), tan(glm::radians(angular_size))};
     sun_buffer_dirty = true;
 }
 
@@ -275,7 +275,7 @@ GraphicsPipelineHandle& DirectionalLight::get_pipeline() {
 }
 
 glm::vec3 DirectionalLight::get_direction() const {
-    return glm::normalize(glm::vec3{constants.direction_and_size});
+    return glm::normalize(glm::vec3{constants.direction_and_tan_size});
 }
 
 SunShadowMode DirectionalLight::get_shadow_mode() {

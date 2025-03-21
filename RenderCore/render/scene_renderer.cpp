@@ -207,7 +207,7 @@ void SceneRenderer::render() {
         lpv = nullptr;
     }
 
-    if(cvar_gi_mode.Get() == GIMode::RT) {
+    if(cvar_gi_mode.Get() == GIMode::RT && RayTracedGlobalIllumination::should_render()) {
         if(rtgi == nullptr) {
             rtgi = std::make_unique<RayTracedGlobalIllumination>();
         }

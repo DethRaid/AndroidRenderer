@@ -93,32 +93,6 @@ medfloat sample_csm(vec3 worldspace_position, float viewspace_depth, float ndotl
     return shadow;
 }
 
-// medfloat query_ray_visibility(const vec3 worldspace_position) {
-//     // V1: Send a ray directly at the sun
-//     // V2: Send rays in a cone, accumulate over a few frames
-// 
-//     rayQueryEXT rq;
-// 
-//     rayQueryInitializeEXT(
-//         rq, 
-//         rtas, 
-//         gl_RayFlagsTerminateOnFirstHitEXT, 
-//         0xFF,
-//         worldspace_position, 
-//         0, 
-//         normalize(sun_light.direction_and_size.xyz), 
-//         100000);
-// 
-//     // Traverse the acceleration structure and store information about the first intersection (if any)
-//     rayQueryProceedEXT(rq);
-// 
-//     if (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT) {
-//         return 0;
-//     } else {
-//         return 1;
-//     }
-// }
-
 void main() {
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     medvec3 base_color_sample = texelFetch(gbuffer_base_color, pixel, 0).rgb;
@@ -133,7 +107,7 @@ void main() {
     vec3 worldspace_view_position = worldspace_position.xyz - view_position;
     medvec3 worldspace_view_vector = normalize(worldspace_view_position);
 
-    medvec3 light_vector = normalize(-sun_light.direction_and_size.xyz);
+    medvec3 light_vector = normalize(-sun_light.direction_and_tan_size.xyz);
 
     SurfaceInfo surface;
     surface.base_color = base_color_sample;
@@ -150,9 +124,7 @@ void main() {
     if(ndotl > 0) {
         if(sun_light.shadow_mode == SHADOW_MODE_CSM) {
             shadow = sample_csm(worldspace_position.xyz, viewspace_position.z, ndotl);    
-        } else if(sun_light.shadow_mode == SHADOW_MODE_RT) {
-            // shadow = query_ray_visibility(worldspace_position.xyz);
-        }
+        } 
     }
 
     medvec3 brdf_result = brdf(surface, light_vector, worldspace_view_vector);

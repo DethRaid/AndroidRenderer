@@ -236,7 +236,7 @@ main_fs(const VertexOutput vertex) {
     surface.metalness = gbuffer.data.b;
     surface.roughness = gbuffer.data.g;
 
-    const half3 brdf_result = Fd(surface, (half3)-sun_light.direction_and_size.xyz, surface.normal);
+    const half3 brdf_result = Fd(surface, (half3)-sun_light.direction_and_tan_size.xyz, surface.normal);
 
     RsmOutput output;
     output.flux = half4(brdf_result, 1);
@@ -423,7 +423,7 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
     half4 emission_sample = (half4)emission_texture.SampleLevel(v.texcoord, 0);
     surface.emission = (emission_sample * (half4)material.emission_factor).rgb;
 
-    const half3 light_vector = normalize((half3)-sun_light.direction_and_size.xyz);
+    const half3 light_vector = normalize((half3)-sun_light.direction_and_tan_size.xyz);
     const half3 brdf_result = Fd(surface, light_vector, surface.normal);
     const half ndotl = (half)clamp(dot(light_vector, surface.normal), 0.h, 1.h);
 
@@ -432,7 +432,7 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
     const uint2 noisetex_pixel = uint2(DispatchRaysIndex().xy) % 128;
 
     if (ndotl > 0) {
-        const float noise_size = tan(sun_light.direction_and_size.w);
+        const float noise_size = sun_light.direction_and_tan_size.w;
 
         const float3 noise = normalize(noisetex[noisetex_pixel].xyz * 2.f - 1.f);
         const float3 ray_direction = normalize(light_vector + noise * noise_size);
@@ -469,11 +469,11 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
             ray_direction *= -1;
         }
 
-        RayDesc ray;
-        ray.Origin = surface.location;
-        ray.Direction = ray_direction;
-        ray.TMin = 0.05f;
-        ray.TMax = 100000.f;
+        RayDesc bounce_ray;
+        bounce_ray.Origin = surface.location;
+        bounce_ray.Direction = ray_direction;
+        bounce_ray.TMin = 0.05f;
+        bounce_ray.TMax = 100000.f;
 
         // irradiance that comes in along the ray
         IrradiancePayload new_payload = (IrradiancePayload)0;
@@ -486,15 +486,17 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
             RAY_TYPE_GI,
             1,
             0,
-            ray,
+            bounce_ray,
             new_payload);
 
-        const half3 bounce_brdf_result = brdf(surface, ray_direction, surface.normal);
-        const half bounce_ndotl = (half)clamp(dot(ray_direction, surface.normal), 0.h, 1.h);
+        const half3 bounce_brdf_result = brdf(surface, bounce_ray.Direction, surface.normal);
+        const half bounce_ndotl = (half)clamp(dot(bounce_ray.Direction, surface.normal), 0.h, 1.h);
 
-        //if (!any(isnan(new_payload.irradiance))) {
-            //payload.irradiance += bounce_brdf_result * new_payload.irradiance * bounce_ndotl;
-        //}
+        const float3 bounce_radiance = bounce_ndotl * bounce_brdf_result * new_payload.irradiance;
+
+        if (!any(isnan(bounce_radiance)) && !any(isinf(bounce_radiance))) {
+            payload.irradiance += bounce_radiance;
+        }
     }
 }
 #endif  // SAH_RT_GI
