@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "global_illuminator.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/texture_usage_token.hpp"
@@ -17,30 +18,38 @@ struct GBuffer;
 /**
  * Per-pixel ray traces global illumination, with spatial path reuse
  */
-class RayTracedGlobalIllumination {
+class RayTracedGlobalIllumination : public IGlobalIlluminator {
 public:
     static bool should_render();
 
     RayTracedGlobalIllumination();
 
-    ~RayTracedGlobalIllumination();
+    ~RayTracedGlobalIllumination() override;
 
-    void trace_global_illumination(
-        RenderGraph& graph, const SceneView& view, const RenderScene& scene, TextureHandle gbuffer_normals,
-        TextureHandle gbuffer_depth, TextureHandle noise_tex
-    );
+    void pre_render(
+        RenderGraph& graph, const SceneView& view, const RenderScene& scene, TextureHandle noise_tex
+    ) override {}
+
+    void post_render(
+        RenderGraph& graph, const SceneView& view, const RenderScene& scene, const GBuffer& gbuffer,
+        TextureHandle noise_tex
+    ) override;
 
     /**
      * Retrieves resource usages for applying this effect to the lit scene
      */
-    void get_resource_usages(std::vector<TextureUsageToken>& textures, std::vector<BufferUsageToken>& buffers) const;
+    void get_lighting_resource_usages(
+        std::vector<TextureUsageToken>& textures, std::vector<BufferUsageToken>& buffers
+    ) const override;
 
     /**
      * Applies the RTGI to the scene image with an addative blending pixel shader
      *
      * Optionally can sample rays around the current pixel, decreasing GI noise 
      */
-    void add_lighting_to_scene(CommandBuffer& commands, BufferHandle view_buffer, TextureHandle noise_texture) const;
+    void render_to_lit_scene(
+        CommandBuffer& commands, BufferHandle view_buffer, TextureHandle ao_tex, TextureHandle noise_texture
+    ) const override;
 
 private:
     /**
@@ -53,7 +62,7 @@ private:
      */
     TextureHandle ray_irradiance = nullptr;
 
-    RayTracingPipelineHandle rtgi_pipeline = nullptr;
+    static inline RayTracingPipelineHandle rtgi_pipeline = nullptr;
 
-    GraphicsPipelineHandle overlay_pso = nullptr;
+    static inline GraphicsPipelineHandle overlay_pso = nullptr;
 };

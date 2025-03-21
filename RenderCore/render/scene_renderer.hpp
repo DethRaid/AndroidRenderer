@@ -27,6 +27,12 @@
 
 class GltfModel;
 
+enum class GIMode {
+    Off,
+    LPV,
+    RT
+};
+
 /**
  * Renders the scene
  */
@@ -96,26 +102,13 @@ private:
      */
     NoiseTexture stbn_2d_scalar;
 
-    std::unique_ptr<LightPropagationVolume> lpv;
+    GIMode cached_gi_mode = GIMode::Off;
 
-    std::unique_ptr<RayTracedGlobalIllumination> rtgi;
+    std::unique_ptr<IGlobalIlluminator> gi;
 
-    TextureHandle gbuffer_color_handle = nullptr;
-
-    TextureHandle gbuffer_normals_handle = nullptr;
-
-    TextureHandle gbuffer_data_handle = nullptr;
-
-    TextureHandle gbuffer_emission_handle = nullptr;
+    GBuffer gbuffer = {};
 
     TextureHandle ao_handle = nullptr;
-
-    // This should be something like an extracted texture?
-    TextureHandle depth_buffer_mip_chain = nullptr;
-    TextureUsageToken last_frame_depth_usage = {};
-    
-    TextureHandle normal_target_mip_chain = nullptr;
-    TextureUsageToken last_frame_normal_usage = {};
 
     TextureHandle lit_scene_handle = nullptr;
 
@@ -152,7 +145,7 @@ private:
     AntiAliasingType cached_aa = AntiAliasingType::None;
 
     uint32_t frame_count = 0;
-    
+
     void set_render_resolution(glm::uvec2 new_render_resolution);
 
     void create_scene_render_targets();

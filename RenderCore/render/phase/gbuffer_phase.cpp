@@ -1,5 +1,6 @@
 #include "gbuffer_phase.hpp"
 
+#include "render/gbuffer.hpp"
 #include "render/indirect_drawing_utils.hpp"
 #include "render/material_pipelines.hpp"
 #include "render/material_storage.hpp"
@@ -11,9 +12,7 @@ GbufferPhase::GbufferPhase() {}
 
 void GbufferPhase::render(
     RenderGraph& graph, const RenderScene& scene, const IndirectDrawingBuffers& buffers,
-    const IndirectDrawingBuffers& visible_masked_buffers, const TextureHandle gbuffer_depth,
-    const TextureHandle gbuffer_color, const TextureHandle gbuffer_normals, const TextureHandle gbuffer_data,
-    const TextureHandle gbuffer_emission, const std::optional<TextureHandle> shading_rate, const SceneView& player_view
+    const IndirectDrawingBuffers& visible_masked_buffers, const GBuffer& gbuffer, const std::optional<TextureHandle> shading_rate, const SceneView& player_view
 ) {
     const auto& pipelines = scene.get_material_storage().get_pipelines();
     const auto solid_pso = pipelines.get_gbuffer_pso();
@@ -63,28 +62,28 @@ void GbufferPhase::render(
             .descriptor_sets = {gbuffer_set},
             .color_attachments = {
                 RenderingAttachmentInfo{
-                    .image = gbuffer_color,
+                    .image = gbuffer.color,
                     .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .store_op = VK_ATTACHMENT_STORE_OP_STORE
                 },
                 RenderingAttachmentInfo{
-                    .image = gbuffer_normals,
+                    .image = gbuffer.normals,
                     .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .store_op = VK_ATTACHMENT_STORE_OP_STORE,
                     .clear_value = {.color = {.float32 = {0.5f, 0.5f, 1.f, 0}}}
                 },
                 RenderingAttachmentInfo{
-                    .image = gbuffer_data,
+                    .image = gbuffer.data,
                     .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .store_op = VK_ATTACHMENT_STORE_OP_STORE
                 },
                 RenderingAttachmentInfo{
-                    .image = gbuffer_emission,
+                    .image = gbuffer.emission,
                     .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .store_op = VK_ATTACHMENT_STORE_OP_STORE
                 },
             },
-            .depth_attachment = RenderingAttachmentInfo{.image = gbuffer_depth},
+            .depth_attachment = RenderingAttachmentInfo{.image = gbuffer.depth},
             .shading_rate_image = shading_rate,
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_descriptor_set(0, gbuffer_set);

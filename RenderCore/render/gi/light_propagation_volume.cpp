@@ -13,6 +13,7 @@
 #include "render/backend/resource_allocator.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
+#include "render/gbuffer.hpp"
 #include "render/scene_view.hpp"
 #include "render/render_scene.hpp"
 #include "shared/vpl.hpp"
@@ -67,6 +68,10 @@ static auto cvar_lpv_vpl_visualization_size = AutoCVar_Float{
     "r.LPV.VPL.VisualizationSize",
     "Size of one VPL, in pixels, when drawn in the visualization pass",
     32.f
+};
+
+static auto cvar_enable_mesh_lights = AutoCVar_Int{
+    "r.LPV.MeshLight.Enable", "Whether or not to inject mesh lights into the LPV", 1
 };
 
 static std::shared_ptr<spdlog::logger> logger;
@@ -257,6 +262,92 @@ LightPropagationVolume::~LightPropagationVolume() {
 
     allocator.destroy_buffer(cascade_data_buffer);
     allocator.destroy_buffer(vp_matrix_buffer);
+}
+
+void LightPropagationVolume::pre_render(
+    RenderGraph& graph, const SceneView& view, const RenderScene& scene, TextureHandle noise_tex
+) {
+    clear_volume(graph);
+
+    update_cascade_transforms(view, scene.get_sun_light());
+
+    // VPL cloud generation
+
+    inject_indirect_sun_light(graph, scene);
+
+    if(cvar_enable_mesh_lights.Get()) {
+        inject_emissive_point_clouds(graph, scene);
+    }
+}
+
+void LightPropagationVolume::post_render(
+    RenderGraph& graph, const SceneView& view, const RenderScene& scene, const GBuffer& gbuffer, TextureHandle noise_tex
+) {
+    if(cvar_lpv_build_gv_mode.Get() == GvBuildMode::DepthBuffers) {
+        build_geometry_volume_from_scene_view(
+            graph,
+            gbuffer.depth,
+            gbuffer.normals,
+            view.get_buffer(),
+            gbuffer.depth->get_resolution() / glm::uvec2{2}
+        );
+    }
+
+    propagate_lighting(graph);
+}
+
+void LightPropagationVolume::get_lighting_resource_usages(
+    std::vector<TextureUsageToken>& textures, std::vector<BufferUsageToken>& buffers
+) const {
+    textures.emplace_back(
+        lpv_a_red,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    textures.emplace_back(
+        lpv_a_green,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    textures.emplace_back(
+        lpv_a_blue,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+}
+
+void LightPropagationVolume::render_to_lit_scene(
+    CommandBuffer& commands,
+    const BufferHandle view_buffer,
+    const TextureHandle ao_tex,
+    const TextureHandle noise_tex
+) const {
+    GpuZoneScoped(commands)
+
+    commands.begin_label("LightPropagationVolume::add_lighting_to_scene");
+
+    auto& backend = RenderBackend::get();
+    const auto lpv_descriptor = backend.get_transient_descriptor_allocator().build_set(lpv_render_shader, 1)
+                                       .bind(lpv_a_red, linear_sampler)
+                                       .bind(lpv_a_green, linear_sampler)
+                                       .bind(lpv_a_blue, linear_sampler)
+                                       .bind(cascade_data_buffer)
+                                       .bind(view_buffer)
+                                       .bind(ao_tex, linear_sampler)
+                                       .build();
+
+    commands.bind_descriptor_set(1, lpv_descriptor);
+
+    commands.bind_pipeline(lpv_render_shader);
+
+    commands.set_push_constant(0, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
+
+    commands.draw_triangle();
+
+    commands.clear_descriptor_set(1);
+
+    commands.end_label();
+
 }
 
 void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
@@ -487,8 +578,8 @@ void LightPropagationVolume::update_buffers() const {
 }
 
 void LightPropagationVolume::inject_indirect_sun_light(
-    RenderGraph& graph, RenderScene& scene
-) {
+    RenderGraph& graph, const RenderScene& scene
+) const {
     ZoneScoped;
 
     // For each LPV cascade:
@@ -639,7 +730,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
 
 void LightPropagationVolume::dispatch_vpl_injection_pass(
     RenderGraph& graph, const uint32_t cascade_index, const CascadeData& cascade
-) {
+) const {
     ZoneScoped;
 
     auto& backend = RenderBackend::get();
@@ -725,7 +816,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
 }
 
 
-void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, const RenderScene& scene) {
+void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, const RenderScene& scene) const {
     ZoneScoped;
 
     graph.begin_label("Emissive mesh injection");
@@ -777,7 +868,7 @@ void LightPropagationVolume::inject_emissive_point_clouds(RenderGraph& graph, co
     graph.end_label();
 }
 
-void LightPropagationVolume::clear_volume(RenderGraph& render_graph) {
+void LightPropagationVolume::clear_volume(RenderGraph& render_graph) const {
     ZoneScoped;
 
     auto& backend = RenderBackend::get();
@@ -908,7 +999,7 @@ void LightPropagationVolume::build_geometry_volume_from_scene_view(
         });
 }
 
-void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
+void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) const {
     ZoneScoped;
 
     render_graph.begin_label("LPV Propagation");
@@ -1003,43 +1094,10 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
 
 }
 
-void LightPropagationVolume::add_lighting_to_scene(
-    CommandBuffer& commands,
-    const BufferHandle scene_view_buffer,
-    const TextureHandle ao_texture
-) const {
-    GpuZoneScoped(commands)
-
-    commands.begin_label("LightPropagationVolume::add_lighting_to_scene");
-
-    auto& backend = RenderBackend::get();
-    const auto lpv_descriptor = backend.get_transient_descriptor_allocator().build_set(lpv_render_shader, 1)
-                                       .bind(lpv_a_red, linear_sampler)
-                                       .bind(lpv_a_green, linear_sampler)
-                                       .bind(lpv_a_blue, linear_sampler)
-                                       .bind(cascade_data_buffer)
-                                       .bind(scene_view_buffer)
-                                       .bind(ao_texture, linear_sampler)
-                                       .build();
-
-    commands.bind_descriptor_set(1, lpv_descriptor);
-
-    commands.bind_pipeline(lpv_render_shader);
-
-    commands.set_push_constant(0, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
-
-    commands.draw_triangle();
-
-    commands.clear_descriptor_set(1);
-
-    commands.end_label();
-
-}
-
-void LightPropagationVolume::visualize_vpls(
+auto LightPropagationVolume::visualize_vpls(
     RenderGraph& graph, const BufferHandle scene_view_buffer, const TextureHandle lit_scene,
     const TextureHandle depth_buffer
-) {
+) -> void {
     auto buffer_barriers = std::vector<BufferUsageToken>{};
     buffer_barriers.reserve(cascades.size() * 2);
 

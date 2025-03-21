@@ -3,8 +3,7 @@
 #include "render/procedural_sky.hpp"
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
-#include "render/gi/light_propagation_volume.hpp"
-#include "render/gi/rtgi.hpp"
+#include "render/gi/global_illuminator.hpp"
 
 enum class SkyOcclusionType {
     Off,
@@ -47,10 +46,10 @@ LightingPhase::LightingPhase() {
 void LightingPhase::render(
     RenderGraph& render_graph,
     const SceneView& view,
+    const GBuffer& gbuffer,
     const TextureHandle lit_scene_texture,
     TextureHandle ao_texture,
-    const LightPropagationVolume* lpv,
-    const RayTracedGlobalIllumination* rtgi,
+    const IGlobalIlluminator* gi,
     const std::optional<TextureHandle> vrsaa_shading_rate_image,
     const NoiseTexture& noise,
     const TextureHandle noise_2d
@@ -77,7 +76,7 @@ void LightingPhase::render(
     const auto sampler = backend.get_default_sampler();
     auto gbuffers_descriptor_set = backend.get_transient_descriptor_allocator().build_set(sun_pipeline, 0)
                                           .bind(gbuffer.color, sampler)
-                                          .bind(gbuffer.normal, sampler)
+                                          .bind(gbuffer.normals, sampler)
                                           .bind(gbuffer.data, sampler)
                                           .bind(gbuffer.emission, sampler)
                                           .bind(gbuffer.depth, sampler)
@@ -104,8 +103,8 @@ void LightingPhase::render(
 
     auto buffer_usages = std::vector<BufferUsageToken>{};
 
-    if(rtgi) {
-        rtgi->get_resource_usages(texture_usages, buffer_usages);
+    if(gi) {
+        gi->get_lighting_resource_usages(texture_usages, buffer_usages);
     }
 
     render_graph.add_render_pass(
@@ -127,11 +126,8 @@ void LightingPhase::render(
                     sun.render(commands, view);
                 }
 
-                if(lpv) {
-                    lpv->add_lighting_to_scene(commands, view.get_buffer(), ao_texture);
-                }
-                if(rtgi) {
-                    rtgi->add_lighting_to_scene(commands, view.get_buffer(), noise_2d);
+                if(gi) {
+                    gi->render_to_lit_scene(commands, view.get_buffer(), ao_texture, noise_2d);
                 }
 
                 if(*CVarSystem::Get()->GetIntCVar("r.MeshLight.Raytrace")) {
@@ -150,11 +146,6 @@ void LightingPhase::render(
         sun.raytrace(render_graph, view, gbuffer, *scene, lit_scene_texture, noise);
     }
 }
-
-void LightingPhase::set_gbuffer(const GBuffer& gbuffer_in) {
-    gbuffer = gbuffer_in;
-}
-
 
 void LightingPhase::set_scene(RenderScene& scene_in) {
     scene = &scene_in;

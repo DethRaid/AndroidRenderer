@@ -6,6 +6,7 @@
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
+class IGlobalIlluminator;
 class RayTracedGlobalIllumination;
 struct NoiseTexture;
 class ProceduralSky;
@@ -29,15 +30,13 @@ public:
 
     void set_scene(RenderScene& scene_in);
 
-    void set_gbuffer(const GBuffer& gbuffer_in);
-
     void render(
         RenderGraph& render_graph,
         const SceneView& view,
+        const GBuffer& gbuffer,
         TextureHandle lit_scene_texture,
         TextureHandle ao_texture,
-        const LightPropagationVolume* lpv,
-        const RayTracedGlobalIllumination* rtgi,
+        const IGlobalIlluminator* gi,
         std::optional<TextureHandle> vrsaa_shading_rate_image,
         const NoiseTexture& noise,
         TextureHandle noise_2d
@@ -45,8 +44,6 @@ public:
 
 private:
     RenderScene* scene = nullptr;
-
-    GBuffer gbuffer = {};
 
     GraphicsPipelineHandle emission_pipeline;
 

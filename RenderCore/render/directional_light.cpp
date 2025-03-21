@@ -387,7 +387,7 @@ void DirectionalLight::raytrace(
                       .bind(scene.get_raytracing_scene().get_acceleration_structure())
                       .bind(lit_scene)
                       .bind(gbuffer.color)
-                      .bind(gbuffer.normal)
+                      .bind(gbuffer.normals)
                       .bind(gbuffer.data)
                       .bind(gbuffer.depth)
                       .bind(noise.layers[frame_index % noise.num_layers])

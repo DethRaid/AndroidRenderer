@@ -189,15 +189,6 @@ public:
     VkSampler get_sampler(const VkSamplerCreateInfo& info);
 
     /**
-     * Gets a VK render pass for the given RenderPass
-     *
-     * This method may create a render pass, or it may simply return a cached one
-     *
-     * We use the pass name as a key into the cache. If two RenderPasses use the same name, things will break
-     */
-    VkRenderPass get_render_pass(const RenderPass& pass);
-
-    /**
      * Frees the resources in the zombie list for the given frame
      *
      * Should be called at the beginning of the frame by the backend
