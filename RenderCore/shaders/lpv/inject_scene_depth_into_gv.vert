@@ -37,7 +37,7 @@ void main() {
 
     float depth = texelFetch(depth_target, ivec2(x, y), 0).x;
 
-    vec2 screenspace = vec2(x, y) / vec2(resolution_x, resolution_y);
+    vec2 screenspace = vec2(x + 0.5, y + 0.5) / vec2(resolution_x, resolution_y);
     vec4 ndc_position = vec4(screenspace * 2.f - 1.f, depth, 1);
     vec4 viewspace_position = view_info.inverse_projection * ndc_position;
     viewspace_position /= viewspace_position.w;

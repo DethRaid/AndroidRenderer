@@ -465,7 +465,7 @@ void DepthCullingPhase::draw_visible_objects(
             .depth_attachment = RenderingAttachmentInfo{
                 .image = depth_buffer,
                 .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .clear_value = {.depthStencil = {.depth = 1.0}}
+                .clear_value = {.depthStencil = {.depth = 0.0}}
             },
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_descriptor_set(0, view_descriptor);

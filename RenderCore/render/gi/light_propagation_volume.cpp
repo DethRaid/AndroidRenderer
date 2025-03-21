@@ -215,7 +215,7 @@ LightPropagationVolume::LightPropagationVolume() {
                                .set_depth_state(
                                    {
                                        .enable_depth_write = false,
-                                       .compare_op = VK_COMPARE_OP_GREATER
+                                       .compare_op = VK_COMPARE_OP_LESS
                                    })
                                .set_blend_state(
                                    0,

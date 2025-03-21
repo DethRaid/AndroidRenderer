@@ -44,7 +44,7 @@ layout(location = 0) out medvec4 lighting;
 
 vec3 get_viewspace_position() {
     const float depth = texelFetch(gbuffer_depth, ivec2(gl_FragCoord.xy), 0).r;
-    vec2 texcoord = gl_FragCoord.xy / view_info.render_resolution.xy;
+    vec2 texcoord = (gl_FragCoord.xy + 0.5) / view_info.render_resolution.xy;
     vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
     vec4 viewspace_position = view_info.inverse_projection * ndc_position;
     viewspace_position /= viewspace_position.w;

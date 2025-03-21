@@ -1,4 +1,4 @@
-// Unifie3d sky shader - contains both the fragment shader to draw the sky in the lighting pass, and the miss shaders
+// Unified sky shader - contains both the fragment shader to draw the sky in the lighting pass, and the miss shaders
 // for the sky for both occlusion and radiance rays
 
 #ifndef SAH_RT
@@ -182,9 +182,9 @@ ConstantBuffer<SunLightConstants> sun_info;
 [shader("fragment")]
 half4 main_fs(float4 fragcoord: SV_Position) {
     // Screen position for the ray
-    float2 location_screen = fragcoord.xy / view_info.render_resolution.xy;
+    float2 location_screen = (fragcoord.xy + 0.5) / view_info.render_resolution.xy;
 
-    float4 location_clipspace = float4(location_screen, 0.f, 1.f);
+    float4 location_clipspace = float4(location_screen, 1.f, 1.f);
     float4 location_viewspace = mul(view_info.inverse_projection, location_clipspace);
     location_viewspace /= location_viewspace.w;
     float3 view_vector_worldspace = -normalize(mul(view_info.inverse_view, float4(location_viewspace.xyz, 0)).xyz);
@@ -221,6 +221,7 @@ Sampler2D sky_view_lut;
 [shader("miss")]
 void main_miss(inout IrradiancePayload payload) {
     payload.irradiance = get_sky_color(WorldRayDirection(), sun_light.direction_and_tan_size.xyz, sky_view_lut, transmittance_lut);
+    payload.irradiance = float3(10, 0, 10);
 }
 #endif
 

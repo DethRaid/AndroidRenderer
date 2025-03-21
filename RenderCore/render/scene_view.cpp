@@ -9,19 +9,21 @@
 #include "render/backend/render_backend.hpp"
 #include "shared/view_data.hpp"
 
-glm::mat4 infinitePerspectiveFovReverseZ_ZO(
-    const float fov, const float width, const float height, const float z_near
+// from https://github.com/Sunset-Flock/Timberdoodle/blob/14c5ac3a0abee46ecac178b09712d24719e6e0fa/src/camera.cpp#L165
+glm::mat4 inf_depth_reverse_z_perspective(
+    const float fov_rads, const float aspect, const float z_near
 ) {
-    const auto ep = glm::epsilon<float>();
-    const auto h = glm::cot(0.5f * fov);
-    const auto w = h * height / width;
-    auto result = glm::zero<glm::mat4>();
-    result[0][0] = -w;
-    result[1][1] = h;
-    result[2][2] = 0.0f;
-    result[2][3] = 1.0f;
-    result[3][2] = z_near;
-    return result;
+    assert(abs(aspect - std::numeric_limits<float>::epsilon()) > 0.0f);
+
+    const auto tan_half_fov_y = 1.0f / std::tan(fov_rads * 0.5f);
+
+    glm::mat4x4 ret(0.0f);
+    ret[0][0] = tan_half_fov_y / aspect;
+    ret[1][1] = tan_half_fov_y;
+    ret[2][2] = 0.0f;
+    ret[2][3] = -1.0f;
+    ret[3][2] = z_near;
+    return ret;
 }
 
 SceneView::SceneView() {
@@ -142,8 +144,8 @@ void SceneView::refresh_view_matrices() {
 void SceneView::refresh_projection_matrices() {
     last_frame_projection = projection;
 
-    projection = glm::tweakedInfinitePerspective(glm::radians(fov), aspect, near_value);
-    // projection = infinitePerspectiveFovReverseZ_ZO(glm::radians(fov), aspect, 1.f, near_value);
+    // projection = glm::tweakedInfinitePerspective(glm::radians(fov), aspect, near_value);
+    projection = inf_depth_reverse_z_perspective(glm::radians(fov), aspect, near_value);
 
 #if defined(__ANDROID__)
     projection = glm::rotate(projection, glm::radians(270.f), glm::vec3{ 0, 0, 1 });

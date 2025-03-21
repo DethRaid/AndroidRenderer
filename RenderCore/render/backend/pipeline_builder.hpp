@@ -45,7 +45,7 @@ struct DepthStencilState {
 
     bool enable_depth_write = true;
 
-    VkCompareOp compare_op = VK_COMPARE_OP_LESS;
+    VkCompareOp compare_op = VK_COMPARE_OP_GREATER;
 
     bool enable_depth_bounds_test = false;
 

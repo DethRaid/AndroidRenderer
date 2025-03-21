@@ -113,7 +113,7 @@ void main() {
     }
 
     // Screen position for the ray
-    vec2 location_screen = gl_FragCoord.xy / view_info.render_resolution.xy;
+    vec2 location_screen = (gl_FragCoord.xy + 0.5) / view_info.render_resolution.xy;
  
     vec4 location_clipspace = vec4(location_screen, 0.f, 1.f);
     vec4 location_viewspace = view_info.inverse_projection * location_clipspace;

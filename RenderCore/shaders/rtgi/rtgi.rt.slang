@@ -34,7 +34,7 @@ RWTexture2D<float4> ray_irradiance;
 
 float3 get_worldspace_location(const uint2 pixel) {
     const float depth = gbuffer_depth[pixel];
-    const float2 texcoord = (float2)pixel / view_data.render_resolution.xy;
+    const float2 texcoord = ((float2)pixel + 0.5) / view_data.render_resolution.xy;
     const float4 ndc_position = float4(texcoord * 2.f - 1.f, depth, 1.f);
     float4 viewspace_position = mul(view_data.inverse_projection, ndc_position);
     viewspace_position /= viewspace_position.w;
@@ -65,7 +65,7 @@ void main_raygen() {
     }
 
     const float depth = gbuffer_depth[thread_id];
-    if (depth == 1.f) {
+    if (depth == 0.f) {
         return;
     }
 
@@ -83,12 +83,12 @@ void main_raygen() {
     RayDesc ray;
     ray.Origin = location;
     ray.Direction = ray_direction;
-    ray.TMin = 0.05f;
+    ray.TMin = 0.01f;
     ray.TMax = 100000.f;
 
     // irradiance that comes in along the ray
     IrradiancePayload payload = (IrradiancePayload)0;
-    payload.num_bounces = 2;
+    payload.remaining_bounces = 0;
 
     TraceRay(
         rtas,
@@ -107,6 +107,6 @@ void main_raygen() {
     // Number chosen based on what happened to look fine
     const float exposure_factor = 0.0031415927f;
 
-    ray_buffer[thread_id] = float4(ray_direction, 0);
+    ray_buffer[thread_id] = float4(ray_direction, payload.ray_distance);
     ray_irradiance[thread_id] = float4(payload.irradiance * exposure_factor, 0);
 }

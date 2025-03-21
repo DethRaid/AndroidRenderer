@@ -187,7 +187,7 @@ void Win32SystemInterface::poll_input(InputManager& input) {
 
     input.set_player_movement(raw_player_movement_axis);
 
-    input.set_player_rotation(raw_cursor_input * glm::vec2{-1, -1});
+    input.set_player_rotation(raw_cursor_input * -1.f);
 
     auto window_size = glm::ivec2{};
     glfwGetWindowSize(window, &window_size.x, &window_size.y);

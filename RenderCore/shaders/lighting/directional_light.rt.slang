@@ -38,7 +38,7 @@ Texture2D<float3> noisetex;
 
 float3 get_worldspace_location(const uint2 pixel) {
     const float depth = gbuffer_depth[pixel];
-    const float2 texcoord = (float2)pixel / view_data.render_resolution.xy;
+    const float2 texcoord = ((float2)pixel + 0.5) / view_data.render_resolution.xy;
     const float4 ndc_position = float4(texcoord * 2.f - 1.f, depth, 1.f);
     float4 viewspace_position = mul(view_data.inverse_projection, ndc_position);
     viewspace_position /= viewspace_position.w;
@@ -64,7 +64,7 @@ void main_raygen() {
     }
 
     const float depth = gbuffer_depth[thread_id];
-    if (depth == 1.f) {
+    if (depth == 0.f) {
         return;
     }
 
@@ -102,7 +102,7 @@ void main_raygen() {
             RayDesc ray;
             ray.Origin = surface.location;
             ray.Direction = ray_direction;
-            ray.TMin = 0.05f;
+            ray.TMin = 0.01f;
             ray.TMax = 100000.f;
 
             // 0 if we hit something, 1 if not
@@ -135,6 +135,5 @@ void main_raygen() {
     //color.rgb = srgb_to_linear(color.rgb);
     color.rgb += sun_radiance * exposure_factor;
     // color.rgb = linear_to_srgb(color.rgb);
-    //color.rgb = sun_radiance * exposure_factor;
     lit_scene[thread_id] = color;
 }

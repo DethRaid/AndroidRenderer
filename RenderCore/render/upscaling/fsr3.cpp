@@ -72,6 +72,7 @@ void FidelityFSSuperResolution3::initialize(const glm::uvec2 output_resolution_i
         create_upscaling.flags = FFX_UPSCALE_ENABLE_HIGH_DYNAMIC_RANGE |
             FFX_UPSCALE_ENABLE_MOTION_VECTORS_JITTER_CANCELLATION |
             FFX_UPSCALE_ENABLE_AUTO_EXPOSURE |
+            FFX_UPSCALE_ENABLE_DEPTH_INVERTED |
             FFX_UPSCALE_ENABLE_DEPTH_INFINITE |
             FFX_UPSCALE_ENABLE_DEBUG_CHECKING;
         if(MotionVectorsPhase::render_full_res()) {

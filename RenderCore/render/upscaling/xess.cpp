@@ -131,7 +131,7 @@ void XeSSAdapter::initialize(const glm::uvec2 output_resolution, const uint32_t 
         cached_output_resolution = output_resolution;
         cached_quality_mode = cvar_xess_mode.Get();
 
-        uint32_t flags = XESS_INIT_FLAG_JITTERED_MV;
+        uint32_t flags = XESS_INIT_FLAG_JITTERED_MV | XESS_INIT_FLAG_INVERTED_DEPTH;
         if(MotionVectorsPhase::render_full_res()) {
             flags |= XESS_INIT_FLAG_HIGH_RES_MV;
         }

@@ -11,7 +11,7 @@ static AutoCVar_Int cvar_num_bounces{"r.GI.NumBounces", "Number of times light c
 
 static AutoCVar_Int cvar_num_reconstruction_rays{
     "r.GI.Reconstruction.NumSamples",
-    "Number of extra rays to use in the screen-space reconstruction filter, DLSS likes 8, FSR likes 32", 8
+    "Number of extra rays to use in the screen-space reconstruction filter, DLSS likes 8, FSR likes 32", 0
 };
 
 static AutoCVar_Float cvar_reconstruction_size{
@@ -31,7 +31,7 @@ RayTracedGlobalIllumination::RayTracedGlobalIllumination() {
                              .set_depth_state(
                                  {
                                      .enable_depth_write = false,
-                                     .compare_op = VK_COMPARE_OP_GREATER
+                                     .compare_op = VK_COMPARE_OP_LESS
                                  })
                              .set_blend_state(
                                  0,

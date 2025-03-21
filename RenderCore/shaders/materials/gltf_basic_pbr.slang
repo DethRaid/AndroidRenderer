@@ -430,16 +430,16 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
     half shadow = 0;
 
     const uint2 noisetex_pixel = uint2(DispatchRaysIndex().xy) % 128;
+    const float3 noise = normalize(noisetex[noisetex_pixel].xyz * 2.f - 1.f);
 
     if (ndotl > 0) {
         const float noise_size = sun_light.direction_and_tan_size.w;
 
-        const float3 noise = normalize(noisetex[noisetex_pixel].xyz * 2.f - 1.f);
         const float3 ray_direction = normalize(light_vector + noise * noise_size);
 
         RayDesc ray;
         ray.Origin = surface.location;
-        ray.Direction = light_vector;
+        ray.Direction = ray_direction;
         ray.TMin = 0.05f;
         ray.TMax = 100000.f;
 
@@ -463,8 +463,12 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
 
     payload.irradiance = brdf_result * sun_light.color.rgb * ndotl * shadow;
 
-    if (payload.num_bounces > 0) {
-        float3 ray_direction = normalize(noisetex[noisetex_pixel].xyz * 2.f - 1.f);
+    payload.irradiance += surface.emission;
+
+    payload.ray_distance = RayTCurrent();
+
+    if (payload.remaining_bounces > 0) {
+        float3 ray_direction = noise;
         if (dot(surface.normal, ray_direction) < 0) {
             ray_direction *= -1;
         }
@@ -477,7 +481,7 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
 
         // irradiance that comes in along the ray
         IrradiancePayload new_payload = (IrradiancePayload)0;
-        new_payload.num_bounces = payload.num_bounces - 1;
+        new_payload.remaining_bounces = payload.remaining_bounces - 1;
 
         TraceRay(
             rtas,

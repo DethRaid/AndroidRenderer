@@ -106,7 +106,7 @@ void DLSSAdapter::set_constants(const SceneView& scene_transform, const glm::uve
 
     constants.cameraAspectRatio = scene_transform.get_aspect_ratio();
 
-    constants.depthInverted = sl::Boolean::eFalse;
+    constants.depthInverted = sl::Boolean::eTrue;
     constants.cameraMotionIncluded = sl::Boolean::eTrue;
     constants.motionVectors3D = sl::Boolean::eFalse;
     constants.reset = sl::Boolean::eFalse;

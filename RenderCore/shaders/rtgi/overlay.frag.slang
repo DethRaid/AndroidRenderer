@@ -37,7 +37,7 @@ float2 r1(uint n) {
 
 float3 get_worldspace_location(const uint2 pixel) {
     const float depth = gbuffer_depth[pixel];
-    const float2 texcoord = (float2)pixel / view_data.render_resolution.xy;
+    const float2 texcoord = ((float2)pixel + 0.5) / view_data.render_resolution.xy;
     const float4 ndc_position = float4(texcoord * 2.f - 1.f, depth, 1.f);
     float4 viewspace_position = mul(view_data.inverse_projection, ndc_position);
     viewspace_position /= viewspace_position.w;

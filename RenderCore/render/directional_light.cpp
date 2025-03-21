@@ -63,7 +63,7 @@ DirectionalLight::DirectionalLight() {
                       .set_depth_state(
                           DepthStencilState{
                               .enable_depth_write = false,
-                              .compare_op = VK_COMPARE_OP_GREATER
+                              .compare_op = VK_COMPARE_OP_LESS
                           }
                       )
                       .set_blend_state(
@@ -376,7 +376,7 @@ void DirectionalLight::raytrace(
 
     if(rt_pipeline == nullptr) {
         rt_pipeline = backend.get_pipeline_cache()
-                             .create_ray_tracing_pipeline("shaders/lighting/directional_light.rt.raygen.spv", true);
+                             .create_ray_tracing_pipeline("shaders/lighting/directional_light.rt.spv", true);
     }
 
     auto set = backend.get_transient_descriptor_allocator()
