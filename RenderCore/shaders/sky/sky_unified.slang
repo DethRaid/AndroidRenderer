@@ -206,6 +206,9 @@ void main_miss(inout uint payload) {
 #endif
 
 #if SAH_RT_GI
+
+#include "rtgi/rtgi_payload.slangi"
+
 [vk::binding(1, 0)]
 ConstantBuffer<SunLightConstants> sun_light;
 
@@ -216,8 +219,8 @@ Sampler2D transmittance_lut;
 Sampler2D sky_view_lut;
 
 [shader("miss")]
-void main_miss(inout float3 payload) {
-    get_sky_color(WorldRayDirection(), sun_light.direction_and_size.xyz, sky_view_lut, transmittance_lut);
+void main_miss(inout IrradiancePayload payload) {
+    payload.irradiance = get_sky_color(WorldRayDirection(), sun_light.direction_and_size.xyz, sky_view_lut, transmittance_lut);
 }
 #endif
 

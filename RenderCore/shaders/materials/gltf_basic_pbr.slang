@@ -322,7 +322,7 @@ void main_closesthit(inout uint payload) {
 
 #if SAH_MASKED
 [shader("anyhit")]
-void main_anyhit(inout uint payload, in float2 barycentrics) {
+void main_anyhit(inout IrradiancePayload payload, in float2 barycentrics) {
     const uint primitive_id = InstanceID();
     const uint triangle_id = PrimitiveIndex();
 
@@ -352,6 +352,8 @@ void main_anyhit(inout uint payload, in float2 barycentrics) {
 }
 #endif // SAH_MASKED
 
+#include "rtgi/rtgi_payload.slangi"
+
 [vk::binding(1, 0)]
 ConstantBuffer<SunLightConstants> sun_light;
 
@@ -365,7 +367,7 @@ Texture2D<float3> noisetex;
 #define RAY_TYPE_GI 1
 
 [shader("closesthit")]
-void main_closesthit(inout half3 payload, in float2 barycentrics) {
+void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
     const uint primitive_id = InstanceID();
     const uint triangle_id = PrimitiveIndex();
 
@@ -393,12 +395,13 @@ void main_closesthit(inout half3 payload, in float2 barycentrics) {
 
     const BasicPbrMaterialGpu material = *primitive.material;
 
-    GbufferOutput gbuffer = (GbufferOutput)0;
+    SurfaceInfo surface = (SurfaceInfo)0;
+    surface.location = worldspace_vertex_position.xyz;
 
     // Base color
     Sampler2D base_color_texture = textures[material.base_color_texture_index];
     const float4 base_color_sample = base_color_texture.SampleLevel(v.texcoord, 0);
-    gbuffer.base_color = base_color_sample * material.base_color_tint * unpackUnorm4x8ToHalf(v.color);
+    surface.base_color = (base_color_sample * material.base_color_tint * unpackUnorm4x8ToHalf(v.color)).rgb;
 
     // Normal
     // TODO
@@ -406,36 +409,30 @@ void main_closesthit(inout half3 payload, in float2 barycentrics) {
     // Sampler2D normals_texture = textures[material.normal_texture_index];
     // half3 normal_sample = (half3)normals_texture.SampleLevel(vertex.texcoord, 0).xyz * 2.h - 1.h;
     // half3 normal = mul(normal_sample, tbn);
-    gbuffer.normal = half4(v.normal, 0);
+    surface.normal = v.normal;
 
     // Data
     Sampler2D data_texture = textures[material.data_texture_index];
     half4 data_sample = (half4)data_texture.SampleLevel(v.texcoord, 0);
-    gbuffer.data = data_sample * half4(0, (half)material.roughness_factor, (half)material.metalness_factor, 0);
+    const half4 tinted_data = data_sample * half4(0, (half)material.roughness_factor, (half)material.metalness_factor, 0);
+    surface.roughness = tinted_data.g;
+    surface.metalness = tinted_data.b;
 
     // Emission
     Sampler2D emission_texture = textures[material.emission_texture_index];
     half4 emission_sample = (half4)emission_texture.SampleLevel(v.texcoord, 0);
-    gbuffer.emission = emission_sample * (half4)material.emission_factor;
+    surface.emission = (emission_sample * (half4)material.emission_factor).rgb;
 
-    SurfaceInfo surface = (SurfaceInfo)0;
-    surface.location = worldspace_vertex_position.xyz;
-    surface.base_color = gbuffer.base_color.rgb;
-    surface.normal = gbuffer.normal.xyz;
-    surface.metalness = gbuffer.data.b;
-    surface.roughness = gbuffer.data.g;
-
-    // TODO: proper pathtracing
     const half3 light_vector = normalize((half3)-sun_light.direction_and_size.xyz);
     const half3 brdf_result = Fd(surface, light_vector, surface.normal);
     const half ndotl = (half)clamp(dot(light_vector, surface.normal), 0.h, 1.h);
 
     half shadow = 0;
 
+    const uint2 noisetex_pixel = uint2(DispatchRaysIndex().xy) % 128;
+
     if (ndotl > 0) {
         const float noise_size = tan(sun_light.direction_and_size.w);
-
-        const uint2 noisetex_pixel = uint2(DispatchRaysIndex().xy) % 128;
 
         const float3 noise = normalize(noisetex[noisetex_pixel].xyz * 2.f - 1.f);
         const float3 ray_direction = normalize(light_vector + noise * noise_size);
@@ -451,7 +448,7 @@ void main_closesthit(inout half3 payload, in float2 barycentrics) {
 
         TraceRay(
             rtas,
-            RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_CULL_FRONT_FACING_TRIANGLES,
+            RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_CULL_NON_OPAQUE | RAY_FLAG_CULL_FRONT_FACING_TRIANGLES,
             0xFF,
             RAY_TYPE_OCCLUSION,
             1,
@@ -464,10 +461,41 @@ void main_closesthit(inout half3 payload, in float2 barycentrics) {
         }
     }
 
-    // Number chosen based on what happened to look fine
-    const half exposure_factor = 0.0031415927h;
+    payload.irradiance = brdf_result * sun_light.color.rgb * ndotl * shadow;
 
-    payload = brdf_result * sun_light.color.rgb * ndotl * shadow * exposure_factor;
+    if (payload.num_bounces > 0) {
+        float3 ray_direction = normalize(noisetex[noisetex_pixel].xyz * 2.f - 1.f);
+        if (dot(surface.normal, ray_direction) < 0) {
+            ray_direction *= -1;
+        }
+
+        RayDesc ray;
+        ray.Origin = surface.location;
+        ray.Direction = ray_direction;
+        ray.TMin = 0.05f;
+        ray.TMax = 100000.f;
+
+        // irradiance that comes in along the ray
+        IrradiancePayload new_payload = (IrradiancePayload)0;
+        new_payload.num_bounces = payload.num_bounces - 1;
+
+        TraceRay(
+            rtas,
+            RAY_FLAG_CULL_NON_OPAQUE,
+            0xFF,
+            RAY_TYPE_GI,
+            1,
+            0,
+            ray,
+            new_payload);
+
+        const half3 bounce_brdf_result = brdf(surface, ray_direction, surface.normal);
+        const half bounce_ndotl = (half)clamp(dot(ray_direction, surface.normal), 0.h, 1.h);
+
+        //if (!any(isnan(new_payload.irradiance))) {
+            //payload.irradiance += bounce_brdf_result * new_payload.irradiance * bounce_ndotl;
+        //}
+    }
 }
 #endif  // SAH_RT_GI
 #endif // SAH_RT

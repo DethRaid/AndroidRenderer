@@ -6,8 +6,11 @@
 #include "render/backend/pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
 
+static AutoCVar_Int cvar_num_bounces{"r.GI.NumBounces", "Number of times light can bounce in GI. 0 = no GI", 1};
+
 static AutoCVar_Int cvar_num_reconstruction_rays{
-    "r.GI.Reconstruction.NumSamples", "Number of extra rays to use in the screen-space reconstruction filter", 8
+    "r.GI.Reconstruction.NumSamples",
+    "Number of extra rays to use in the screen-space reconstruction filter, DLSS likes 8, FSR likes 32", 8
 };
 
 static AutoCVar_Float cvar_reconstruction_size{
@@ -110,6 +113,8 @@ void RayTracedGlobalIllumination::trace_global_illumination(
 
                 commands.bind_descriptor_set(0, set);
                 commands.bind_descriptor_set(1, backend.get_texture_descriptor_pool().get_descriptor_set());
+
+                commands.set_push_constant(0, static_cast<uint32_t>(cvar_num_bounces.Get()));
 
                 commands.dispatch_rays(render_resolution);
 

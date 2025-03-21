@@ -3,6 +3,7 @@
 #include "shared/view_data.hpp"
 #include "shared/primitive_data.hpp"
 #include "util/srgb_conversions.slangi"
+#include "rtgi/rtgi_payload.slangi"
 
 // Generates rays for the sun shadow. Uses ray tracing pipelines to get pretty shadows
 // The primitive data buffer is bound at 0.0, the other bindings in this file work around it. Check out
@@ -50,6 +51,11 @@ float2 r0(uint n) {
     );
 }
 
+[[vk::push_constant]]
+cbuffer Constants {
+    uint num_bounces;
+};
+
 [shader("raygen")]
 void main_raygen() {
     uint2 thread_id = DispatchRaysIndex().xy;
@@ -81,11 +87,12 @@ void main_raygen() {
     ray.TMax = 100000.f;
 
     // irradiance that comes in along the ray
-    float3 payload = 0;
+    IrradiancePayload payload = (IrradiancePayload)0;
+    payload.num_bounces = 1;
 
     TraceRay(
         rtas,
-        RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
+        RAY_FLAG_NONE,
         0xFF,
         RAY_TYPE_GI,
         1,
@@ -93,10 +100,13 @@ void main_raygen() {
         ray,
         payload);
 
-    if (any(isnan(payload))) {
-        payload = 0;
+    if (any(isnan(payload.irradiance))) {
+        payload.irradiance = 0;
     }
 
+    // Number chosen based on what happened to look fine
+    const float exposure_factor = 0.0031415927f;
+
     ray_buffer[thread_id] = float4(ray_direction, 0);
-    ray_irradiance[thread_id] = float4(payload, 0);
+    ray_irradiance[thread_id] = float4(payload.irradiance * exposure_factor, 0);
 }
