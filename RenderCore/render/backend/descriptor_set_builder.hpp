@@ -25,7 +25,7 @@ namespace detail {
             BufferHandle buffer;
             TextureHandle texture;
             CombinedImageSampler combined_image_sampler;
-            AccelerationStructureHandle address = {};
+            AccelerationStructureHandle acceleration_structure = {};
         };
     };
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "render/procedural_sky.hpp"
 #include "render/raytracing_scene.hpp"
 #include "core/object_pool.hpp"
 #include "render/backend/handles.hpp"
@@ -37,6 +38,10 @@ public:
     uint32_t get_total_num_primitives() const;
 
     DirectionalLight& get_sun_light();
+
+    const DirectionalLight& get_sun_light() const;
+
+    const ProceduralSky& get_sky() const;
 
     /**
      * Retrieves a list of all solid primitives that lie within the given bounds
@@ -85,6 +90,8 @@ private:
     tl::optional<RaytracingScene> raytracing_scene;
 
     DirectionalLight sun;
+
+    ProceduralSky sky;
 
     ObjectPool<MeshPrimitive> mesh_primitives;
 

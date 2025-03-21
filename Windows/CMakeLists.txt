@@ -29,6 +29,7 @@ endif()
 
 set(SAH_USE_FFX 1 CACHE BOOL "" FORCE)
 set(SAH_USE_STREAMLINE 1 CACHE BOOL "" FORCE)
+set(SAH_USE_XESS 1 CACHE BOOL "" FORCE)
 include(${CMAKE_CURRENT_LIST_DIR}/../RenderCore/SahCore.cmake)
 
 # Win32 dependencies

@@ -156,6 +156,31 @@ if(SAH_USE_FFX)
     endif()
 endif()
 
+if(SAH_USE_XESS)
+        FetchContent_Declare(
+                xess
+                GIT_REPOSITORY  https://github.com/intel/xess.git     
+                GIT_TAG         v2.0.1
+        )
+        FetchContent_GetProperties(xess)
+        if(xess_POPULATED)
+                message("XeSS automatically populated")
+        else()
+                FetchContent_Populate(xess)
+
+                add_library(xess INTERFACE)
+                target_include_directories(xess INTERFACE 
+                        ${xess_SOURCE_DIR}/inc
+                )
+                target_link_directories(xess INTERFACE
+                        ${xess_SOURCE_DIR}/lib
+                )
+                target_link_libraries(xess INTERFACE 
+                        libxess
+                )
+        endif()
+endif()
+
 FetchContent_Declare(
         fetch_imgui
         GIT_REPOSITORY  https://github.com/ocornut/imgui.git

@@ -14,17 +14,19 @@ RaytracingScene::RaytracingScene(RenderScene& scene_in)
 
 void RaytracingScene::add_primitive(const MeshPrimitiveHandle primitive) {
     const auto& model_matrix = primitive->data.model;
-    const auto blas_flags = primitive->material->first.transparency_mode == TransparencyMode::Solid ? VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR : VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
+    const auto blas_flags = primitive->material->first.transparency_mode == TransparencyMode::Solid
+        ? VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR
+        : VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
 
     // Multiply by two because each shader group has a GI and occlusion variant
-    const auto sbt_offset = static_cast<uint32_t>(primitive->material->first.transparency_mode) * RenderBackend::get().get_shader_record_size() * 2;
+    const auto sbt_offset = static_cast<uint32_t>(primitive->material->first.transparency_mode) * 2;
     placed_blases.emplace_back(
         VkAccelerationStructureInstanceKHR{
             .transform = {
                 .matrix = {
-                    {model_matrix[0][0], model_matrix[0][1], model_matrix[0][2], model_matrix[0][3]},
-                    {model_matrix[1][0], model_matrix[1][1], model_matrix[1][2], model_matrix[1][3]},
-                    {model_matrix[2][0], model_matrix[2][1], model_matrix[2][2], model_matrix[2][3]}
+                    {model_matrix[0][0], model_matrix[1][0], model_matrix[2][0], model_matrix[3][0]},
+                    {model_matrix[0][1], model_matrix[1][1], model_matrix[2][1], model_matrix[3][1]},
+                    {model_matrix[0][2], model_matrix[1][2], model_matrix[2][2], model_matrix[3][2]}
                 }
             },
             .instanceCustomIndex = primitive.index,
@@ -135,6 +137,11 @@ void RaytracingScene::commit_tlas_builds(RenderGraph& graph) {
                     .buffer = scratch_buffer,
                     .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
                     .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
+                },
+                {
+                    .buffer = acceleration_structure->buffer,
+                    .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                    .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
                 }
             },
             .execute = [=](const CommandBuffer& commands) {
@@ -144,6 +151,18 @@ void RaytracingScene::commit_tlas_builds(RenderGraph& graph) {
 
                 // Build the TLAS
                 vkCmdBuildAccelerationStructuresKHR(commands.get_vk_commands(), 1, &build_info, &p_build_offset_info);
+            }
+        });
+
+    // Make sure the TLAS is ready for anything
+    graph.add_transition_pass(
+        TransitionPass{
+            .buffers = {
+                BufferUsageToken{
+                    .buffer = acceleration_structure->buffer,
+                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                    .access = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR,
+                }
             }
         });
 

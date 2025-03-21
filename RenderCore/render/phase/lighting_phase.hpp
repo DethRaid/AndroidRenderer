@@ -2,9 +2,12 @@
 
 #include <optional>
 
+#include "render/gbuffer.hpp"
 #include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/handles.hpp"
 
+class RayTracedGlobalIllumination;
+struct NoiseTexture;
 class ProceduralSky;
 struct DescriptorSet;
 class RenderGraph;
@@ -13,14 +16,6 @@ class RenderScene;
 class RenderBackend;
 class SceneView;
 class LightPropagationVolume;
-
-struct GBuffer {
-    TextureHandle color = nullptr;
-    TextureHandle normal = nullptr;
-    TextureHandle data = nullptr;
-    TextureHandle emission = nullptr;
-    TextureHandle depth = nullptr;
-};
 
 /**
  * Computes the lighting form the gbuffers
@@ -37,19 +32,21 @@ public:
     void set_gbuffer(const GBuffer& gbuffer_in);
 
     void render(
-        RenderGraph& render_graph, 
-        const SceneView& view, 
-        TextureHandle lit_scene_texture, 
+        RenderGraph& render_graph,
+        const SceneView& view,
+        TextureHandle lit_scene_texture,
         TextureHandle ao_texture,
-        const LightPropagationVolume* lpv, 
-        const ProceduralSky& sky, 
-        std::optional<TextureHandle> vrsaa_shading_rate_image
+        const LightPropagationVolume* lpv,
+        const RayTracedGlobalIllumination* rtgi,
+        std::optional<TextureHandle> vrsaa_shading_rate_image,
+        const NoiseTexture& noise,
+        TextureHandle noise_2d
     );
 
 private:
     RenderScene* scene = nullptr;
 
-    GBuffer gbuffer;
+    GBuffer gbuffer = {};
 
     GraphicsPipelineHandle emission_pipeline;
 
@@ -57,9 +54,7 @@ private:
 
     void rasterize_sky_shadow(RenderGraph& render_graph, const SceneView& view);
 
-    void add_raytraced_mesh_lighting(
-        CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, BufferHandle view_buffer
-    ) const;
+    void add_raytraced_mesh_lighting(CommandBuffer& commands, BufferHandle view_buffer) const;
 
-    void add_emissive_lighting(CommandBuffer& commands, const DescriptorSet& gbuffer_descriptor_set) const;
+    void add_emissive_lighting(CommandBuffer& commands) const;
 };

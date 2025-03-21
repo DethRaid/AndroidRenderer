@@ -27,7 +27,7 @@ static auto standard_vertex_layout = VertexLayout{
     .input_bindings = {
         {
             .binding = 0,
-            .stride = sizeof(VertexPosition),
+            .stride = sizeof(StandardVertexPosition),
             .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
         },
         {
@@ -134,14 +134,14 @@ static VkDescriptorType to_vk_type(SpvReflectDescriptorType type);
  */
 static bool collect_descriptor_sets(
     const std::vector<SpvReflectDescriptorSet*>& sets,
-    VkShaderStageFlagBits shader_stage,
+    VkShaderStageFlags shader_stage,
     std::vector<DescriptorSetInfo>& descriptor_sets
 );
 
 static bool collect_push_constants(
     const std::filesystem::path& shader_path,
     const std::vector<SpvReflectBlockVariable*>& spv_push_constants,
-    VkShaderStageFlagBits shader_stage,
+    VkShaderStageFlags shader_stage,
     std::vector<VkPushConstantRange>& push_constants
 );
 
@@ -155,7 +155,7 @@ static void collect_vertex_attributes(
 );
 
 static void init_logger() {
-    logger = SystemInterface::get().get_logger("GraphicsPipelineBuilder");
+    logger = SystemInterface::get().get_logger("PipelineBuilder");
     logger->set_level(spdlog::level::debug);
 }
 
@@ -399,7 +399,7 @@ GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
 
 bool collect_descriptor_sets(
     const std::vector<SpvReflectDescriptorSet*>& sets,
-    const VkShaderStageFlagBits shader_stage,
+    const VkShaderStageFlags shader_stage,
     std::vector<DescriptorSetInfo>& descriptor_sets
 ) {
     if(logger == nullptr) {
@@ -423,7 +423,7 @@ bool collect_descriptor_sets(
                 binding->binding,
                 string_VkDescriptorType(to_vk_type(binding->descriptor_type)),
                 binding->count,
-                string_VkShaderStageFlagBits(shader_stage)
+                string_VkShaderStageFlags(shader_stage)
             );
             if(set_info.bindings.size() <= binding->binding) {
                 set_info.bindings.resize(binding->binding + 1);
@@ -446,6 +446,12 @@ bool collect_descriptor_sets(
                 set_info.has_variable_count_binding = true;
             }
         }
+
+        auto binding_index = 0;
+        for(auto& binding : set_info.bindings) {
+            binding.binding = binding_index;
+            binding_index++;
+        }
     }
 
     return has_error;
@@ -454,7 +460,7 @@ bool collect_descriptor_sets(
 bool collect_push_constants(
     const std::filesystem::path& shader_path,
     const std::vector<SpvReflectBlockVariable*>& spv_push_constants,
-    VkShaderStageFlagBits shader_stage,
+    const VkShaderStageFlags shader_stage,
     std::vector<VkPushConstantRange>& push_constants
 ) {
     bool has_error = false;
@@ -501,7 +507,7 @@ bool collect_push_constants(
 
 bool collect_bindings(
     const std::vector<uint8_t>& shader_instructions, const std::string& shader_name,
-    const VkShaderStageFlagBits shader_stage,
+    const VkShaderStageFlags shader_stage,
     std::vector<DescriptorSetInfo>& descriptor_sets,
     std::vector<VkPushConstantRange>& push_constants
 ) {

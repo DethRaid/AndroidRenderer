@@ -61,7 +61,7 @@ void main() {
     StandardVertex vertex = points.vertices[point_id];
 
     PrimitiveDataGPU primitive = primitive_data_buffer.primitive_datas[primitive_id];
-    BasicPbrMaterialGpu material = material_data_buffer.materials[primitive.material_id];
+    BasicPbrMaterialGpu material = material_data_buffer.materials[0];    // TODO: Fix this?
 
     mediump vec4 emission_sample = texture(textures[nonuniformEXT(material.emission_texture_index)], vertex.texcoord);
     mediump vec4 tinted_emission = emission_sample * material.emission_factor;

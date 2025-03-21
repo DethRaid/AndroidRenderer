@@ -6,8 +6,8 @@
 #include <VkBootstrap.h>
 #include <tracy/TracyVulkan.hpp>
 
-#include "hit_group_builder.hpp"
-#include "render/noise_texture.hpp"
+#include "streamline_adapter.hpp"
+#include "render/backend/hit_group_builder.hpp"
 #include "render/backend/descriptor_set_allocator.hpp"
 #include "render/backend/render_graph.hpp"
 #include "render/backend/resource_access_synchronizer.hpp"
@@ -18,7 +18,6 @@
 #include "render/backend/resource_upload_queue.hpp"
 #include "render/backend/constants.hpp"
 
-class StreamlineAdapter;
 class BlasBuildQueue;
 class PipelineCache;
 /**
@@ -65,7 +64,9 @@ public:
 
     glm::vec2 get_max_shading_rate_texel_size() const;
 
-    uint32_t get_shader_record_size() const;
+    uint32_t get_shader_group_handle_size() const;
+
+    uint32_t get_shader_group_alignment() const;
 
     RenderGraph create_render_graph();
 
@@ -98,11 +99,6 @@ public:
     HitGroupBuilder create_hit_group(std::string_view name) const;
 
     uint32_t get_current_gpu_frame() const;
-
-    /**
-     * Updates internal state with the beginning of the simulation. Useful for things like Nvidia Reflex
-     */
-    void mark_simulation_begin() const;
 
     /**
      * Begins the frame
@@ -146,10 +142,6 @@ public:
      */
     DescriptorSetAllocator& get_transient_descriptor_allocator();
 
-#if SAH_USE_STREAMLINE
-    StreamlineAdapter* get_streamline() const;
-#endif
-
     CommandBuffer create_graphics_command_buffer(const std::string& name);
 
     /**
@@ -182,6 +174,8 @@ public:
      */
     void present();
 
+    void wait_for_idle() const;
+
     vkb::Swapchain& get_swapchain();
 
     uint32_t get_current_swapchain_index() const;
@@ -199,10 +193,6 @@ public:
 
 private:
     static inline std::unique_ptr<RenderBackend> g_render_backend = nullptr;
-
-#if SAH_USE_STREAMLINE
-    std::unique_ptr<StreamlineAdapter> streamline;
-#endif
 
     bool is_first_frame = true;
 
@@ -229,6 +219,8 @@ private:
 
     VkQueue transfer_queue;
     uint32_t transfer_queue_family_index;
+
+    StreamlineAdapter streamline;
 
     std::unique_ptr<ResourceAllocator> allocator;
 

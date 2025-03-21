@@ -3,9 +3,11 @@
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/matrix_clip_space.hpp>
 
+#include "gbuffer.hpp"
 #include "material_pipelines.hpp"
 #include "material_storage.hpp"
 #include "mesh_storage.hpp"
+#include "noise_texture.hpp"
 #include "render_scene.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
@@ -19,7 +21,7 @@ static std::shared_ptr<spdlog::logger> logger;
 static auto cvar_sun_shadow_mode = AutoCVar_Enum{
     "r.Shadow.SunShadowMode",
     "How to calculate shadows for the sun.\n\t0 = off\n\t1 = Cascade Shadow Maps\n\t2 = Hardware ray pipelines",
-    SunShadowMode::CascadedShadowMaps
+    SunShadowMode::RayTracing
 };
 
 static auto cvar_num_shadow_cascades = AutoCVar_Int{"r.Shadow.NumCascades", "Number of shadow cascades", 4};
@@ -37,7 +39,7 @@ static auto cvar_shadow_cascade_split_lambda = AutoCVar_Float{
 };
 
 static auto cvar_shadow_samples = AutoCVar_Int{
-    "r.Shadow.RT.NumSamples", "Number of rays to send for ray traced shadows", 1
+    "r.Shadow.RT.NumSamples", "Number of rays to send for ray traced shadows", 8
 };
 
 DirectionalLight::DirectionalLight() {
@@ -60,8 +62,8 @@ DirectionalLight::DirectionalLight() {
                       .set_fragment_shader("shaders/lighting/directional_light.frag.spv")
                       .set_depth_state(
                           DepthStencilState{
-                              .enable_depth_test = false,
                               .enable_depth_write = false,
+                              .compare_op = VK_COMPARE_OP_GREATER
                           }
                       )
                       .set_blend_state(
@@ -195,7 +197,7 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
         radius = std::ceil(radius * 16.f) / 16.f;
 
         // Shadow cascade frustum
-        const auto light_dir = glm::normalize(glm::vec3{constants.direction_and_size});
+        const auto light_dir = glm::normalize(glm::vec3{constants.direction_and_tan_size});
 
         const auto light_view_matrix = glm::lookAt(
             frustum_center - light_dir * radius,
@@ -227,7 +229,7 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
 }
 
 void DirectionalLight::set_direction(const glm::vec3& direction) {
-    constants.direction_and_size = glm::vec4{glm::normalize(direction), 1.f};
+    constants.direction_and_tan_size = glm::vec4{glm::normalize(direction), tan(glm::radians(angular_size))};
     sun_buffer_dirty = true;
 }
 
@@ -248,9 +250,17 @@ void DirectionalLight::update_buffer(ResourceUploadQueue& queue) {
         sun_buffer_dirty = true;
     }
 
+    const auto num_samples = static_cast<float>(cvar_shadow_samples.Get());
+    if(constants.num_shadow_samples != num_samples) {
+        constants.num_shadow_samples = num_samples;
+        sun_buffer_dirty = true;
+    }
+
     if(sun_buffer_dirty) {
         queue.upload_to_buffer(sun_buffer, constants);
-        queue.upload_to_buffer(world_to_ndc_matrices_buffer, std::span{world_to_ndc_matrices});
+        if(!world_to_ndc_matrices.empty()) {
+            queue.upload_to_buffer(world_to_ndc_matrices_buffer, std::span{world_to_ndc_matrices});
+        }
 
         sun_buffer_dirty = false;
     }
@@ -265,7 +275,7 @@ GraphicsPipelineHandle& DirectionalLight::get_pipeline() {
 }
 
 glm::vec3 DirectionalLight::get_direction() const {
-    return glm::normalize(glm::vec3{constants.direction_and_size});
+    return glm::normalize(glm::vec3{constants.direction_and_tan_size});
 }
 
 SunShadowMode DirectionalLight::get_shadow_mode() {
@@ -274,22 +284,21 @@ SunShadowMode DirectionalLight::get_shadow_mode() {
 
 void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& scene) const {
     auto& backend = RenderBackend::get();
-    if(static_cast<SunShadowMode>(cvar_sun_shadow_mode.Get()) == SunShadowMode::CascadedShadowMaps) {
+    if(cvar_sun_shadow_mode.Get() == SunShadowMode::CascadedShadowMaps) {
         const auto& pipelines = scene.get_material_storage().get_pipelines();
         const auto shadow_pso = pipelines.get_shadow_pso();
         const auto shadow_masked_pso = pipelines.get_shadow_masked_pso();
 
         const auto solid_set = backend.get_transient_descriptor_allocator()
                                       .build_set(shadow_pso, 0)
-                                      .bind(world_to_ndc_matrices_buffer)
                                       .bind(scene.get_primitive_buffer())
+                                      .bind(world_to_ndc_matrices_buffer)
                                       .build();
 
         const auto masked_set = backend.get_transient_descriptor_allocator()
                                        .build_set(shadow_masked_pso, 0)
-                                       .bind(world_to_ndc_matrices_buffer)
                                        .bind(scene.get_primitive_buffer())
-                                       .bind(scene.get_material_storage().get_material_instance_buffer())
+                                       .bind(world_to_ndc_matrices_buffer)
                                        .build();
 
         graph.add_render_pass(
@@ -316,9 +325,7 @@ void DirectionalLight::render_shadows(RenderGraph& graph, const RenderScene& sce
     }
 }
 
-void DirectionalLight::render(
-    CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, const SceneView& view
-) const {
+void DirectionalLight::render(CommandBuffer& commands, const SceneView& view) const {
     ZoneScoped;
 
     commands.begin_label(__func__);
@@ -345,62 +352,67 @@ void DirectionalLight::render(
 
     commands.bind_pipeline(pipeline);
 
-    commands.bind_descriptor_set(0, gbuffers_descriptor_set);
-
     const auto sun_descriptor_set = backend.get_transient_descriptor_allocator()
                                            .build_set(pipeline, 1)
                                            .bind(shadowmap_handle, sampler)
                                            .bind(sun_buffer)
                                            .bind(view.get_buffer())
-                                           //.bind(rtas)
                                            .build();
 
     commands.bind_descriptor_set(1, sun_descriptor_set);
 
     commands.draw_triangle();
 
-    commands.clear_descriptor_set(0);
     commands.clear_descriptor_set(1);
 
     commands.end_label();
 }
 
 void DirectionalLight::raytrace(
-    RenderGraph& graph, const SceneView& view, const DescriptorSet& gbuffers_set, const RenderScene& scene,
-    const TextureHandle lit_scene
+    RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, const RenderScene& scene,
+    const TextureHandle lit_scene, const NoiseTexture& noise
 ) {
     auto& backend = RenderBackend::get();
 
     if(rt_pipeline == nullptr) {
         rt_pipeline = backend.get_pipeline_cache()
-                             .create_ray_tracing_pipeline(
-                                 "shaders/lighting/directional_light.raygen.spv",
-                                 "shaders/lighting/directional_light.miss.spv");
+                             .create_ray_tracing_pipeline("shaders/lighting/directional_light.rt.raygen.spv", true);
     }
 
     auto set = backend.get_transient_descriptor_allocator()
-                      .build_set(rt_pipeline, 1)
-                      .bind(view.get_buffer())
-                      .bind(sun_buffer)
+                      .build_set(rt_pipeline, 0)
                       .bind(scene.get_primitive_buffer())
-                      .bind(scene.get_material_storage().get_material_instance_buffer())
+                      .bind(sun_buffer)
+                      .bind(view.get_buffer())
                       .bind(scene.get_raytracing_scene().get_acceleration_structure())
                       .bind(lit_scene)
+                      .bind(gbuffer.color)
+                      .bind(gbuffer.normal)
+                      .bind(gbuffer.data)
+                      .bind(gbuffer.depth)
+                      .bind(noise.layers[frame_index % noise.num_layers])
                       .build();
+    frame_index++;
+
 
     graph.add_pass(
         {
             .name = "ray_traced_sun",
-            .descriptor_sets = {gbuffers_set, set},
+            .buffers = {
+                {
+                    .buffer = rt_pipeline->shader_tables_buffer,
+                    .stage = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                    .access = VK_ACCESS_2_SHADER_BINDING_TABLE_READ_BIT_KHR,
+                }
+            },
+            .descriptor_sets = {set},
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_pipeline(rt_pipeline);
 
-                commands.bind_descriptor_set(0, gbuffers_set);
-                commands.bind_descriptor_set(1, set);
+                commands.bind_descriptor_set(0, set);
+                commands.bind_descriptor_set(1, backend.get_texture_descriptor_pool().get_descriptor_set());
 
-                commands.set_push_constant(0, static_cast<uint32_t>(cvar_shadow_samples.Get()));
-
-                commands.dispatch_rays({lit_scene->create_info.extent.width, lit_scene->create_info.extent.height});
+                commands.dispatch_rays({lit_scene->get_resolution()});
 
                 commands.clear_descriptor_set(0);
                 commands.clear_descriptor_set(1);

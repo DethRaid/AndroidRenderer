@@ -71,6 +71,26 @@ def compile_slang_shader(input_file, output_file, include_directories, defines=[
             f.write(f"{dependency}\n")
 
 
+def compile_sky_pipeline(input_file, output_file, include_directories):
+    base_stem = output_file.stem
+
+    lighting_stem = base_stem
+    lighting_fs_filename = output_file.with_stem(lighting_stem).with_suffix('.frag.spv')
+    compile_slang_shader(input_file, lighting_fs_filename, include_directories, ['SAH_MAIN_VIEW=1'], 'main_fs')
+
+    # Ray traced occlusion
+
+    rt_occlusion_stem = base_stem + "_occlusion"
+    rt_occlusion_miss_filename = output_file.with_stem(rt_occlusion_stem).with_suffix(".miss.spv")
+    compile_slang_shader(input_file, rt_occlusion_miss_filename, include_directories, ['SAH_RT=1', 'SAH_RT_OCCLUSION=1'], 'main_miss')
+    
+    # Ray traced GI
+
+    rt_gi_stem = base_stem + "_gi"
+    rt_gi_miss_filename = output_file.with_stem(rt_gi_stem).with_suffix(".miss.spv")
+    compile_slang_shader(input_file, rt_gi_miss_filename, include_directories, ['SAH_RT=1', 'SAH_RT_GI=1'], 'main_miss')
+    
+
 def compile_material(input_file, output_file, include_directories):
     '''Compiles a material with all its variants
     '''
@@ -158,11 +178,8 @@ def compile_material(input_file, output_file, include_directories):
 
 def compile_rt_pipeline(input_file, output_file, include_directories):
     # Compile a raygen and miss shader from the pipeline
-    raygen_filename = output_file.with_suffix('.raygen.spv')
+    raygen_filename = output_file.with_suffix('.spv')
     compile_slang_shader(input_file, raygen_filename, include_directories, ['SAH_RT=1'], 'main_raygen')
-
-    miss_filename = output_file.with_suffix('.miss.spv')
-    compile_slang_shader(input_file, miss_filename, include_directories, ['SAH_RT=1'], 'main_miss')
 
 
 def compile_glsl_shader(input_file, output_file, include_directories):
@@ -201,7 +218,10 @@ def compile_shaders_in_path(path, root_dir, output_dir):
             output_parent = output_file.parent
             output_parent.mkdir(parents=True, exist_ok=True)
 
-            if '.rt' in child_path.suffixes:
+            if child_path.stem == 'sky_unified':
+                compile_sky_pipeline(child_path, output_file, include_paths)
+
+            elif '.rt' in child_path.suffixes:
                 compile_rt_pipeline(child_path, output_file, include_paths)
                 
             elif child_path.suffix == '.slang':

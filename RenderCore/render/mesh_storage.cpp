@@ -30,7 +30,7 @@ MeshStorage::MeshStorage() {
     auto& allocator = backend.get_global_allocator();
     vertex_position_buffer = allocator.create_buffer(
         "Vertex position buffer",
-        max_num_vertices * sizeof(VertexPosition),
+        max_num_vertices * sizeof(StandardVertexPosition),
         BufferUsage::VertexBuffer
     );
     vertex_data_buffer = allocator.create_buffer(
@@ -101,7 +101,7 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
     mesh.num_indices = static_cast<uint32_t>(indices.size());
     mesh.bounds = bounds;
 
-    auto positions = std::vector<VertexPosition>{};
+    auto positions = std::vector<StandardVertexPosition>{};
     auto data = std::vector<StandardVertexData>{};
     positions.reserve(vertices.size());
     data.reserve(vertices.size());
@@ -120,10 +120,10 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
 
     auto& backend = RenderBackend::get();
     auto& upload_queue = backend.get_upload_queue();
-    upload_queue.upload_to_buffer<VertexPosition>(
+    upload_queue.upload_to_buffer<StandardVertexPosition>(
         vertex_position_buffer,
         positions,
-        static_cast<uint32_t>(mesh.first_vertex * sizeof(VertexPosition))
+        static_cast<uint32_t>(mesh.first_vertex * sizeof(StandardVertexPosition))
     );
     upload_queue.upload_to_buffer<StandardVertexData>(
         vertex_data_buffer,

@@ -37,14 +37,17 @@ public:
     ) const;
 
     /**
+     * Registers global miss shaders, to be used for all RT pipelines
+     */
+    void add_miss_shaders(std::span<const uint8_t> occlusion_miss, std::span<const uint8_t> gi_miss);
+
+    /**
      * Adds a shader group to the cache. All shader groups will be added to every ray tracing pipeline. This should be
      * fine since we'll have very few shader groups, but it's worth keeping in mind
      */
     HitGroupHandle add_hit_group(const HitGroupBuilder& shader_group);
 
-    RayTracingPipelineHandle create_ray_tracing_pipeline(
-        const std::filesystem::path& raygen_shader_path, const std::filesystem::path& miss_shader_path
-    );
+    RayTracingPipelineHandle create_ray_tracing_pipeline(const std::filesystem::path& raygen_shader_path, bool skip_gi_miss_shader = false);
 
 private:
     RenderBackend& backend;
@@ -56,6 +59,10 @@ private:
     plf::colony<ComputePipeline> compute_pipelines;
 
     plf::colony<HitGroup> shader_groups;
+
+    std::vector<uint8_t> occlusion_miss_shader;
+
+    std::vector<uint8_t> gi_miss_shader;
 
     plf::colony<RayTracingPipeline> ray_tracing_pipelines;
 };

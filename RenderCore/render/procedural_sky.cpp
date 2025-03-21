@@ -4,6 +4,7 @@
 
 #include "backend/pipeline_cache.hpp"
 #include "backend/render_backend.hpp"
+#include "core/system_interface.hpp"
 #include "render/backend/render_graph.hpp"
 
 ProceduralSky::ProceduralSky() {
@@ -50,11 +51,11 @@ ProceduralSky::ProceduralSky() {
 
     sky_application_pso = backend.begin_building_pipeline("Hillaire Sky")
                                  .set_vertex_shader("shaders/common/fullscreen.vert.spv")
-                                 .set_fragment_shader("shaders/sky/hillaire.frag.spv")
+                                 .set_fragment_shader("shaders/sky/sky_unified.frag.spv")
                                  .set_depth_state(
                                      {
                                          .enable_depth_write = false,
-                                         .compare_op = VK_COMPARE_OP_LESS_OR_EQUAL
+                                         .compare_op = VK_COMPARE_OP_EQUAL
                                      })
                                  .build();
 
@@ -65,6 +66,10 @@ ProceduralSky::ProceduralSky() {
             .minFilter = VK_FILTER_LINEAR,
             .maxLod = VK_LOD_CLAMP_NONE,
         });
+
+    const auto occlusion_miss_shader = *SystemInterface::get().load_file("shaders/sky/sky_unified_occlusion.miss.spv");
+    const auto gi_miss_shader = *SystemInterface::get().load_file("shaders/sky/sky_unified_gi.miss.spv");
+    backend.get_pipeline_cache().add_miss_shaders(occlusion_miss_shader, gi_miss_shader);
 }
 
 void ProceduralSky::update_sky_luts(RenderGraph& graph, const glm::vec3& light_vector) const {
@@ -144,8 +149,7 @@ void ProceduralSky::update_sky_luts(RenderGraph& graph, const glm::vec3& light_v
 }
 
 void ProceduralSky::render_sky(
-    CommandBuffer& commands, const BufferHandle view_buffer, const glm::vec3& light_vector,
-    const DescriptorSet& gbuffer_descriptor_set
+    CommandBuffer& commands, const BufferHandle view_buffer, const BufferHandle sun_buffer
 ) const {
     auto& backend = RenderBackend::get();
 
@@ -153,20 +157,16 @@ void ProceduralSky::render_sky(
                             .bind(transmittance_lut, linear_sampler)
                             .bind(sky_view_lut, linear_sampler)
                             .bind(view_buffer)
+                            .bind(sun_buffer)
                             .build();
 
     commands.bind_pipeline(sky_application_pso);
 
     commands.bind_descriptor_set(0, set);
-    commands.bind_descriptor_set(1, gbuffer_descriptor_set);
-    commands.set_push_constant(0, light_vector.x);
-    commands.set_push_constant(1, light_vector.y);
-    commands.set_push_constant(2, light_vector.z);
 
-    commands.draw(3);
+    commands.draw_triangle();
 
     commands.clear_descriptor_set(0);
-    commands.clear_descriptor_set(1);
 }
 
 TextureHandle ProceduralSky::get_sky_view_lut() const {
@@ -175,4 +175,8 @@ TextureHandle ProceduralSky::get_sky_view_lut() const {
 
 TextureHandle ProceduralSky::get_transmission_lut() const {
     return transmittance_lut;
+}
+
+VkSampler ProceduralSky::get_sampler() const {
+    return linear_sampler;
 }

@@ -5,6 +5,7 @@ enum class AntiAliasingType {
     VRSAA,
     FSR3,
     DLSS,
+    XeSS,
 };
 
 inline const char* to_string(const AntiAliasingType e) {
@@ -13,6 +14,7 @@ inline const char* to_string(const AntiAliasingType e) {
     case AntiAliasingType::VRSAA: return "VRSAA";
     case AntiAliasingType::FSR3: return "FSR3";
     case AntiAliasingType::DLSS: return "DLSS";
+    case AntiAliasingType::XeSS: return "XeSS";
     default: return "unknown";
     }
 }

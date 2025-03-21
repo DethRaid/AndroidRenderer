@@ -236,3 +236,6 @@ app/src/main/assets
 RenderCore/extern/aftermath
 **.spv
 **.pdf
+**.glb
+**.bin
+**.gltf

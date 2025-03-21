@@ -2,10 +2,10 @@
 
 #include <imgui.h>
 
-#include "core/halton_sequence.hpp"
-#include "render/fsr3.hpp"
+#include "phase/ray_tracing_debug_phase.hpp"
+#include "render/antialiasing_type.hpp"
+#include "render/noise_texture.hpp"
 #include "render/bloomer.hpp"
-#include "render/backend/render_backend.hpp"
 #include "render/scene_view.hpp"
 #include "render/material_storage.hpp"
 #include "render/texture_loader.hpp"
@@ -22,6 +22,7 @@
 #include "render/phase/lighting_phase.hpp"
 #include "render/gi/light_propagation_volume.hpp"
 #include "ui/debug_menu.hpp"
+#include "render/upscaling/upscaler.hpp"
 #include "visualizers/visualizer_type.hpp"
 
 class GltfModel;
@@ -41,6 +42,7 @@ public:
     void set_output_resolution(const glm::uvec2& new_output_resolution);
 
     void set_scene(RenderScene& scene_in);
+
     /**
      * Do the thing!
      */
@@ -85,9 +87,14 @@ private:
     glm::uvec2 scene_render_resolution = glm::uvec2{};
 
     /**
-     * Spatio-temporal blue noise texture, containing 3D vectors in a cosine-weighted hemisphere
+     * Spatio-temporal blue noise texture, containing 3D vectors in a unit sphere
      */
-    NoiseTexture stbn_3d_cosine;
+    NoiseTexture stbn_3d_unitvec;
+
+    /**
+     * Spatio-temporal blue noise texture, pairs of random scalars
+     */
+    NoiseTexture stbn_2d_scalar;
 
     std::unique_ptr<LightPropagationVolume> lpv;
 
@@ -116,11 +123,6 @@ private:
 
     std::vector<TextureHandle> swapchain_images;
 
-    ProceduralSky sky;
-
-    HaltonSequence jitter_sequence_x = HaltonSequence{ 2 };
-    HaltonSequence jitter_sequence_y = HaltonSequence{ 3 };
-
     /**
      * \brief Screen-space camera jitter applied to this frame
      */
@@ -137,16 +139,20 @@ private:
     
     LightingPhase lighting_pass;
 
+    RayTracingDebugPhase rt_debug_phase;
+
     std::unique_ptr<VRSAA> vrsaa;
 
     UiPhase ui_phase;
 
     RenderVisualization active_visualization = RenderVisualization::None;
 
-#if SAH_USE_FFX
-    std::unique_ptr<FidelityFSSuperResolution3> fsr3;
-#endif
+    std::unique_ptr<IUpscaler> upscaler;
 
+    AntiAliasingType cached_aa = AntiAliasingType::None;
+
+    uint32_t frame_count = 0;
+    
     void set_render_resolution(glm::uvec2 new_render_resolution);
 
     void create_scene_render_targets();

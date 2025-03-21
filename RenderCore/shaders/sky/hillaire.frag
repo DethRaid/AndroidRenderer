@@ -35,18 +35,18 @@
  * (which was confirmed after reading S�bastien's code more closely).
  */
 
-layout(set = 0, binding = 0) uniform sampler2D transmittance_lut;
-layout(set = 0, binding = 1) uniform sampler2D sky_view_lut;
+layout(set = 1, binding = 0) uniform sampler2D transmittance_lut;
+layout(set = 1, binding = 1) uniform sampler2D sky_view_lut;
 
-layout(set = 0, binding = 2) uniform ViewUniformBuffer {
+layout(set = 1, binding = 2) uniform ViewUniformBuffer {
     ViewDataGPU view_info;
 };
 
-layout(set = 1, binding = 0) uniform sampler2D gbuffer_base_color;
-layout(set = 1, binding = 1) uniform sampler2D gbuffer_normal;
-layout(set = 1, binding = 2) uniform sampler2D gbuffer_data;
-layout(set = 1, binding = 3) uniform sampler2D gbuffer_emission;
-layout(set = 1, binding = 4) uniform sampler2D gbuffer_depth;
+layout(set = 0, binding = 0) uniform sampler2D gbuffer_base_color;
+layout(set = 0, binding = 1) uniform sampler2D gbuffer_normal;
+layout(set = 0, binding = 2) uniform sampler2D gbuffer_data;
+layout(set = 0, binding = 3) uniform sampler2D gbuffer_emission;
+layout(set = 0, binding = 4) uniform sampler2D gbuffer_depth;
 
 layout(push_constant) uniform Constants {
     vec3 sun_direction;

@@ -5,8 +5,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(sah_renderer)
 
-option(SAH_USE_FFX "Whether to use AMD's FidelityFX library" ON)
-option(SAH_USE_STREAMLINE "Whether to use Nvidia's Streamline library" ON)
+# These must be 1 or 0 because of CMake skill issue
+option(SAH_USE_FFX "Whether to use AMD's FidelityFX library" 1)
+option(SAH_USE_STREAMLINE "Whether to use Nvidia's Streamline library" 1)
+option(SAH_USE_XESS "Whether to use Intel's XeSS library" 1)
 
 set(SAH_TOOLS_DIR "${CMAKE_CURRENT_LIST_DIR}/../Tools")
 
@@ -51,6 +53,7 @@ target_compile_definitions(SahCore PUBLIC
         SAH_BINARY_DIR="${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
         SAH_USE_FFX=${SAH_USE_FFX}
         SAH_USE_STREAMLINE=${SAH_USE_STREAMLINE}
+        SAH_USE_XESS=${SAH_USE_XESS}
         UTF_CPP_CPLUSPLUS=202002
         )
 
@@ -136,6 +139,15 @@ if(SAH_USE_STREAMLINE)
     target_link_libraries(SahCore PUBLIC
             streamline
     )
+endif()
+if(SAH_USE_XESS)
+    target_link_libraries(SahCore PUBLIC
+        xess
+    )
+    add_custom_command(TARGET SahCore POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${xess_SOURCE_DIR}/bin/libxess.dll"
+            $<TARGET_FILE_DIR:SahCore>)
 endif()
 
 #######################

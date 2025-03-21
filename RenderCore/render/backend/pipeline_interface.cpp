@@ -4,9 +4,6 @@
 
 PipelineBase::~PipelineBase() {
     auto& backend = RenderBackend::get();
-    for(const auto layout : descriptor_set_layouts) {
-        vkDestroyDescriptorSetLayout(backend.get_device(), layout, nullptr);
-    }
 
     if(layout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(backend.get_device(), layout, nullptr);

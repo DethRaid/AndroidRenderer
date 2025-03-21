@@ -207,7 +207,11 @@ LightPropagationVolume::LightPropagationVolume() {
     lpv_render_shader = backend.begin_building_pipeline("LPV Rendering")
                                .set_vertex_shader("shaders/common/fullscreen.vert.spv")
                                .set_fragment_shader("shaders/lpv/overlay.frag.spv")
-                               .set_depth_state({.enable_depth_test = false, .enable_depth_write = false})
+                               .set_depth_state(
+                                   {
+                                       .enable_depth_write = false,
+                                       .compare_op = VK_COMPARE_OP_GREATER
+                                   })
                                .set_blend_state(
                                    0,
                                    {
@@ -323,7 +327,7 @@ void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
     vp_matrix_buffer = allocator.create_buffer(
         "rsm_vp_matrices",
         sizeof(glm::mat4) * num_cascades,
-        BufferUsage::StagingBuffer);
+        BufferUsage::UniformBuffer);
 
     const auto num_vpls = cvar_lpv_rsm_resolution.Get() * cvar_lpv_rsm_resolution.Get() / 4;
 
@@ -451,9 +455,11 @@ void LightPropagationVolume::update_cascade_transforms(const SceneView& view, co
         cascade.min_bounds = snapped_offset - glm::vec3{half_cascade_size};
         cascade.max_bounds = snapped_offset + glm::vec3{half_cascade_size};
     }
+
+    update_buffers();
 }
 
-void LightPropagationVolume::update_buffers(ResourceUploadQueue& queue) const {
+void LightPropagationVolume::update_buffers() const {
     ZoneScoped;
 
     auto cascade_matrices = std::vector<LPVCascadeMatrices>{};
@@ -469,6 +475,7 @@ void LightPropagationVolume::update_buffers(ResourceUploadQueue& queue) const {
         );
     }
 
+    auto& queue = RenderBackend::get().get_upload_queue();
     queue.upload_to_buffer(cascade_data_buffer, std::span{cascade_matrices});
 
     auto matrices = std::vector<glm::mat4>{};
@@ -509,10 +516,9 @@ void LightPropagationVolume::inject_indirect_sun_light(
     auto& backend = RenderBackend::get();
     const auto set = backend.get_transient_descriptor_allocator()
                             .build_set(rsm_pso, 0)
+                            .bind(scene.get_primitive_buffer())
                             .bind(vp_matrix_buffer)
                             .bind(scene.get_sun_light().get_constant_buffer())
-                            .bind(scene.get_primitive_buffer())
-                            .bind(scene.get_material_storage().get_material_instance_buffer())
                             .build();
 
     graph.add_render_pass(
@@ -999,15 +1005,12 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) {
 
 void LightPropagationVolume::add_lighting_to_scene(
     CommandBuffer& commands,
-    const DescriptorSet& gbuffers_descriptor,
     const BufferHandle scene_view_buffer,
     const TextureHandle ao_texture
 ) const {
     GpuZoneScoped(commands)
 
     commands.begin_label("LightPropagationVolume::add_lighting_to_scene");
-
-    commands.bind_descriptor_set(0, gbuffers_descriptor);
 
     auto& backend = RenderBackend::get();
     const auto lpv_descriptor = backend.get_transient_descriptor_allocator().build_set(lpv_render_shader, 1)
@@ -1028,7 +1031,6 @@ void LightPropagationVolume::add_lighting_to_scene(
     commands.draw_triangle();
 
     commands.clear_descriptor_set(1);
-    commands.clear_descriptor_set(0);
 
     commands.end_label();
 

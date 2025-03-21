@@ -26,7 +26,7 @@
 #include "render/backend/pipeline_cache.hpp"
 #include "render/backend/resource_upload_queue.hpp"
 #include "core/issue_breakpoint.hpp"
-#include "render/streamline_adapter/streamline_adapter.hpp"
+#include "render/upscaling/xess.hpp"
 
 [[maybe_unused]] static auto cvar_use_dgc = AutoCVar_Int{
     "r.RHI.DGC.Enable",
@@ -79,13 +79,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
 
     VkResult volk_result = VK_SUCCESS;
 #if SAH_USE_STREAMLINE
-    try {
-        streamline = std::make_unique<StreamlineAdapter>();
-    } catch(const std::exception& e) {
-        logger->error("Could not initialize Streamline: {}!", e.what());
-    }
-
-    const PFN_vkGetInstanceProcAddr vk_get_instance_proc = StreamlineAdapter::try_load_streamline();
+    const PFN_vkGetInstanceProcAddr vk_get_instance_proc = streamline.try_load_interposer();
     if(vk_get_instance_proc != nullptr) {
         volkInitializeCustom(vk_get_instance_proc);
     } else {
@@ -211,6 +205,13 @@ void RenderBackend::create_instance_and_device() {
     instance_builder.enable_layer("VK_LAYER_KHRONOS_validation");
 #endif
 
+#if SAH_USE_XESS
+    const auto xess_extensions = XeSSAdapter::get_instance_extensions();
+    for(const auto& extension : xess_extensions) {
+        instance_builder.enable_extension(extension.c_str());
+    }
+#endif
+
     auto instance_ret = instance_builder.build();
     if(!instance_ret) {
         const auto error_message = fmt::format(
@@ -286,7 +287,7 @@ void RenderBackend::create_instance_and_device() {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .drawIndirectCount = VK_TRUE,
         .shaderFloat16 = VK_TRUE,
-        // Extension VK_KHR_shader_float16_int8 in 1.1. Add VkPhysicalDeviceShaderFloat16Int8Features to Physical Device pNext
+        .shaderInt8 = VK_TRUE,
         .descriptorIndexing = VK_TRUE,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
         .descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
@@ -308,6 +309,7 @@ void RenderBackend::create_instance_and_device() {
         .textureCompressionASTC_HDR = VK_TRUE,
 #endif
         .dynamicRendering = VK_TRUE,
+        .shaderIntegerDotProduct = VK_TRUE,
         .maintenance4 = VK_TRUE,
     };
 
@@ -369,11 +371,31 @@ void RenderBackend::create_instance_and_device() {
     const auto supports_dr = physical_device.enable_extension_if_present(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
     logger->info("Supports DR extension: {}", supports_dr);
 
+#if SAH_USE_XESS
+    const auto xess_device_extensions = XeSSAdapter::get_device_extensions(instance, physical_device);
+    for(const auto& extension : xess_device_extensions) {
+        physical_device.enable_extension_if_present(extension.c_str());
+    }
+#endif
+
     query_physical_device_features();
 
     query_physical_device_properties();
 
     auto device_builder = vkb::DeviceBuilder{physical_device};
+
+#if SAH_USE_XESS
+    auto xess_features = VkPhysicalDeviceFeatures2{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2
+    };
+    XeSSAdapter::add_required_features(instance, physical_device, xess_features);
+    // TODO: Merge their requests properly
+    auto mutable_descriptor = VkPhysicalDeviceMutableDescriptorTypeFeaturesEXT{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MUTABLE_DESCRIPTOR_TYPE_FEATURES_EXT,
+        .mutableDescriptorType = VK_TRUE,
+    };
+    device_builder.add_pNext(&mutable_descriptor);
+#endif
 
     if(supports_ray_tracing()) {
         device_builder.add_pNext(&acceleration_structure_features);
@@ -412,6 +434,10 @@ void RenderBackend::create_instance_and_device() {
     }
     device = *device_ret;
     volkLoadDevice(device.device);
+
+#if SAH_USE_STREAMLINE
+    //DLSSAdapter::set_devices_from_backend(*this);
+#endif
 }
 
 void RenderBackend::query_physical_device_features() {
@@ -542,7 +568,7 @@ void RenderBackend::create_swapchain() {
 }
 
 RenderBackend::~RenderBackend() {
-    vkDeviceWaitIdle(device.device);
+    wait_for_idle();
 }
 
 bool RenderBackend::supports_ray_tracing() const {
@@ -566,8 +592,12 @@ glm::vec2 RenderBackend::get_max_shading_rate_texel_size() const {
     return properties_max;
 }
 
-uint32_t RenderBackend::get_shader_record_size() const {
+uint32_t RenderBackend::get_shader_group_handle_size() const {
     return ray_tracing_pipeline_properties.shaderGroupHandleSize;
+}
+
+uint32_t RenderBackend::get_shader_group_alignment() const {
+    return ray_tracing_pipeline_properties.shaderGroupBaseAlignment;
 }
 
 RenderGraph RenderBackend::create_render_graph() {
@@ -909,14 +939,6 @@ uint32_t RenderBackend::get_current_gpu_frame() const {
     return cur_frame_idx;
 }
 
-void RenderBackend::mark_simulation_begin() const {
-#if SAH_USE_STREAMLINE
-    if(streamline) {
-        streamline->update_frame_token(total_num_frames + 1);
-    }
-#endif
-}
-
 ResourceUploadQueue& RenderBackend::get_upload_queue() const {
     return *upload_queue;
 }
@@ -991,6 +1013,10 @@ void RenderBackend::present() {
     last_submission_semaphores.clear();
 }
 
+void RenderBackend::wait_for_idle() const {
+    vkDeviceWaitIdle(device);
+}
+
 DescriptorSetAllocator& RenderBackend::get_persistent_descriptor_allocator() {
     return global_descriptor_allocator;
 }
@@ -998,12 +1024,6 @@ DescriptorSetAllocator& RenderBackend::get_persistent_descriptor_allocator() {
 DescriptorSetAllocator& RenderBackend::get_transient_descriptor_allocator() {
     return frame_descriptor_allocators[cur_frame_idx];
 }
-
-#if SAH_USE_STREAMLINE
-StreamlineAdapter* RenderBackend::get_streamline() const {
-    return streamline.get();
-}
-#endif
 
 VkSemaphore RenderBackend::create_transient_semaphore(const std::string& name) {
     auto semaphore = VkSemaphore{};

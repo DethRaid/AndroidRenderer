@@ -153,11 +153,12 @@ TextureHandle ResourceAllocator::create_texture(const std::string& name, const T
             },
         };
         result = vkCreateImageView(device, &rtv_create_info, nullptr, &texture.attachment_view);
+
+        backend.set_object_name(texture.attachment_view, fmt::format("{} RTV", name));
     }
 
     backend.set_object_name(texture.image, name);
     backend.set_object_name(texture.image_view, image_view_name);
-    backend.set_object_name(texture.attachment_view, fmt::format("{} RTV", name));
 
     texture.mip_views.reserve(create_info.num_mips);
     for(auto i = 0u; i < create_info.num_mips; i++) {
@@ -422,6 +423,12 @@ BufferHandle ResourceAllocator::create_buffer(const std::string& name, const siz
     case BufferUsage::AccelerationStructure:
         vk_usage |= VK_BUFFER_USAGE_2_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
             VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT_KHR | VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT_KHR;
+        memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        break;
+
+    case BufferUsage::ShaderBindingTable:
+        vk_usage |= VK_BUFFER_USAGE_2_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_2_SHADER_DEVICE_ADDRESS_BIT_KHR |
+            VK_BUFFER_USAGE_2_TRANSFER_DST_BIT | VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT_KHR;
         memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         break;
     }

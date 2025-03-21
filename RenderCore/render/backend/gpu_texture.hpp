@@ -54,8 +54,14 @@ struct GpuTexture {
     };
 
     bool operator==(const GpuTexture& other) const;
+
+    glm::uvec2 get_resolution() const;
 };
 
 inline bool GpuTexture::operator==(const GpuTexture& other) const {
     return memcmp(this, &other, sizeof(GpuTexture)) == 0;
+}
+
+inline glm::uvec2 GpuTexture::get_resolution() const {
+    return {create_info.extent.width, create_info.extent.height};
 }

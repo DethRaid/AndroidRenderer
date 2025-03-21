@@ -315,15 +315,17 @@ void CommandBuffer::draw_triangle() {
 void CommandBuffer::dispatch_rays(const glm::uvec2 dispatch_size) {
     commit_bindings();
 
-   //vkCmdTraceRaysKHR(
-   //    commands,
-   //    raygen_binding_table,
-   //    miss_binding_table,
-   //    hit_binding_table,
-   //    nullptr,
-   //    dispatch_size.x,
-   //    dispatch_size.y,
-   //    1);
+    constexpr auto callable_shader_table = VkStridedDeviceAddressRegionKHR{};
+
+    vkCmdTraceRaysKHR(
+        commands,
+        &current_ray_pipeline->raygen_table,
+        &current_ray_pipeline->miss_table,
+        &current_ray_pipeline->hit_table,
+        &callable_shader_table,
+        dispatch_size.x,
+        dispatch_size.y,
+        1);
 }
 
 void CommandBuffer::execute_commands() {
@@ -363,17 +365,12 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
 
     auto& cache = backend->get_pipeline_cache();
 
-    VkPipeline vk_pipeline;
-    if(current_render_pass == VK_NULL_HANDLE) {
-        vk_pipeline = cache.get_pipeline_for_dynamic_rendering(
-            pipeline,
-            bound_color_attachment_formats,
-            bound_depth_attachment_format,
-            bound_view_mask,
-            using_fragment_shading_rate_attachment);
-    } else {
-        vk_pipeline = cache.get_pipeline(pipeline, current_render_pass, current_subpass);
-    }
+    auto vk_pipeline = cache.get_pipeline_for_dynamic_rendering(
+        pipeline,
+        bound_color_attachment_formats,
+        bound_depth_attachment_format,
+        bound_view_mask,
+        using_fragment_shading_rate_attachment);
 
     vkCmdBindPipeline(commands, current_bind_point, vk_pipeline);
 
@@ -387,6 +384,8 @@ void CommandBuffer::bind_pipeline(const RayTracingPipelineHandle pipeline) {
 
     // We compile RT PSOs ahead of time because we can
     vkCmdBindPipeline(commands, current_bind_point, pipeline->pipeline);
+
+    current_ray_pipeline = pipeline;
 
     are_bindings_dirty = true;
 }
@@ -615,14 +614,6 @@ void CommandBuffer::commit_bindings() {
 
 VkCommandBuffer CommandBuffer::get_vk_commands() const {
     return commands;
-}
-
-VkRenderPass CommandBuffer::get_current_renderpass() const {
-    return current_render_pass;
-}
-
-uint32_t CommandBuffer::get_current_subpass() const {
-    return current_subpass;
 }
 
 RenderBackend& CommandBuffer::get_backend() const {

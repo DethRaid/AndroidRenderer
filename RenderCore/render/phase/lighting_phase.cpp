@@ -1,11 +1,10 @@
 #include "lighting_phase.hpp"
 
-#include "render/material_pipelines.hpp"
 #include "render/procedural_sky.hpp"
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
 #include "render/gi/light_propagation_volume.hpp"
-#include "shared/view_data.hpp"
+#include "render/gi/rtgi.hpp"
 
 enum class SkyOcclusionType {
     Off,
@@ -23,7 +22,10 @@ LightingPhase::LightingPhase() {
                                .set_vertex_shader("shaders/common/fullscreen.vert.spv")
                                .set_fragment_shader("shaders/lighting/emissive.frag.spv")
                                .set_depth_state(
-                                   DepthStencilState{.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE}
+                                   DepthStencilState{
+                                       .enable_depth_write = false,
+                                       .compare_op = VK_COMPARE_OP_GREATER
+                                   }
                                )
                                .set_blend_state(
                                    0,
@@ -48,8 +50,10 @@ void LightingPhase::render(
     const TextureHandle lit_scene_texture,
     TextureHandle ao_texture,
     const LightPropagationVolume* lpv,
-    const ProceduralSky& sky,
-    const std::optional<TextureHandle> vrsaa_shading_rate_image
+    const RayTracedGlobalIllumination* rtgi,
+    const std::optional<TextureHandle> vrsaa_shading_rate_image,
+    const NoiseTexture& noise,
+    const TextureHandle noise_2d
 ) {
     ZoneScoped;
 
@@ -98,36 +102,53 @@ void LightingPhase::render(
             });
     }
 
-    if(DirectionalLight::get_shadow_mode() == SunShadowMode::RayTracing) {
-        sun.raytrace(render_graph, view, gbuffers_descriptor_set, *scene, lit_scene_texture);
+    auto buffer_usages = std::vector<BufferUsageToken>{};
+
+    if(rtgi) {
+        rtgi->get_resource_usages(texture_usages, buffer_usages);
     }
 
     render_graph.add_render_pass(
         {
             .name = "Lighting",
             .textures = texture_usages,
+            .buffers = buffer_usages,
             .descriptor_sets = {gbuffers_descriptor_set},
             .color_attachments = {
                 RenderingAttachmentInfo{.image = lit_scene_texture, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR}
             },
+            .depth_attachment = RenderingAttachmentInfo{
+                .image = gbuffer.depth, .load_op = VK_ATTACHMENT_LOAD_OP_LOAD, .store_op = VK_ATTACHMENT_STORE_OP_STORE
+            },
             .execute = [&](CommandBuffer& commands) {
+                commands.bind_descriptor_set(0, gbuffers_descriptor_set);
+
                 if(DirectionalLight::get_shadow_mode() == SunShadowMode::CascadedShadowMaps) {
-                    sun.render(commands, gbuffers_descriptor_set, view);
+                    sun.render(commands, view);
                 }
 
                 if(lpv) {
-                    lpv->add_lighting_to_scene(commands, gbuffers_descriptor_set, view.get_buffer(), ao_texture);
+                    lpv->add_lighting_to_scene(commands, view.get_buffer(), ao_texture);
+                }
+                if(rtgi) {
+                    rtgi->add_lighting_to_scene(commands, view.get_buffer(), noise_2d);
                 }
 
                 if(*CVarSystem::Get()->GetIntCVar("r.MeshLight.Raytrace")) {
-                    add_raytraced_mesh_lighting(commands, gbuffers_descriptor_set, view.get_buffer());
+                    add_raytraced_mesh_lighting(commands, view.get_buffer());
                 }
 
-                add_emissive_lighting(commands, gbuffers_descriptor_set);
+                add_emissive_lighting(commands);
 
-                sky.render_sky(commands, view.get_buffer(), sun.get_direction(), gbuffers_descriptor_set);
+                scene->get_sky().render_sky(commands, view.get_buffer(), sun.get_constant_buffer());
+
+                // The sky uses different descriptor sets, so if we add anything after this we'll have to re-bind the gbuffer descriptor set
             }
         });
+
+    if(DirectionalLight::get_shadow_mode() == SunShadowMode::RayTracing) {
+        sun.raytrace(render_graph, view, gbuffer, *scene, lit_scene_texture, noise);
+    }
 }
 
 void LightingPhase::set_gbuffer(const GBuffer& gbuffer_in) {
@@ -168,27 +189,21 @@ void LightingPhase::rasterize_sky_shadow(RenderGraph& render_graph, const SceneV
     //     });
 }
 
-void LightingPhase::add_raytraced_mesh_lighting(
-    CommandBuffer& commands, const DescriptorSet& gbuffers_descriptor_set, BufferHandle view_buffer
-) const {
+void LightingPhase::add_raytraced_mesh_lighting(CommandBuffer& commands, BufferHandle view_buffer) const {
     ZoneScoped;
 
     auto& sun = scene->get_sun_light();
     auto& raytracing_scene = scene->get_raytracing_scene();
 }
 
-void LightingPhase::add_emissive_lighting(CommandBuffer& commands, const DescriptorSet& gbuffer_descriptor_set) const {
+void LightingPhase::add_emissive_lighting(CommandBuffer& commands) const {
     ZoneScoped;
 
     commands.begin_label("Emissive Lighting");
 
     commands.bind_pipeline(emission_pipeline);
 
-    commands.bind_descriptor_set(0, gbuffer_descriptor_set);
-
     commands.draw_triangle();
-
-    commands.clear_descriptor_set(0);
 
     commands.end_label();
 }

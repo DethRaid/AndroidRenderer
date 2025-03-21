@@ -24,7 +24,7 @@ RenderScene::RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in)
     // Defaults
     sun.set_direction({0.1f, -1.f, -0.33f});
     // sun.set_direction({0.1f, -1.f, -0.01f});
-    sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 100000.f);
+    sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 80000.f);
 
     if(backend.supports_ray_tracing()) {
         raytracing_scene.emplace(RaytracingScene{*this});
@@ -36,9 +36,19 @@ RenderScene::RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in)
 
 MeshPrimitiveHandle
 RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
-    primitive.data.material_id = primitive.material.index;
+    const auto material_buffer_address = materials.get_material_instance_buffer()->address;
+    primitive.data.material = material_buffer_address + primitive.material.index * sizeof(BasicPbrMaterialGpu);
     primitive.data.mesh_id = primitive.mesh.index;
     primitive.data.type = static_cast<uint32_t>(primitive.material->first.transparency_mode);
+
+    const auto index_buffer_address = meshes.get_index_buffer()->address;
+    primitive.data.indices = index_buffer_address + primitive.mesh->first_index * sizeof(uint32_t);
+
+    const auto positions_buffer_address = meshes.get_vertex_position_buffer()->address;
+    primitive.data.vertex_positions = positions_buffer_address + primitive.mesh->first_vertex * sizeof(StandardVertexPosition);
+
+    const auto data_buffer_address = meshes.get_vertex_data_buffer()->address;
+    primitive.data.vertex_data = data_buffer_address + primitive.mesh->first_vertex * sizeof(StandardVertexData);
 
     auto handle = mesh_primitives.add_object(std::move(primitive));
 
@@ -78,7 +88,7 @@ RenderScene::add_primitive(RenderGraph& graph, MeshPrimitive primitive) {
 }
 
 void RenderScene::begin_frame(RenderGraph& graph) {
-    graph.begin_label("RenderScene::pre_frame");
+    graph.begin_label("RenderScene::begin_frame");
 
     primitive_upload_buffer.flush_to_buffer(graph, primitive_data_buffer);
 
@@ -88,7 +98,11 @@ void RenderScene::begin_frame(RenderGraph& graph) {
 
     new_primitives.clear();
 
+    generate_emissive_point_clouds(graph);
+
     graph.end_label();
+
+    sky.update_sky_luts(graph, sun.get_direction());
 }
 
 const std::vector<PooledObject<MeshPrimitive>>& RenderScene::get_solid_primitives() const {
@@ -114,6 +128,10 @@ uint32_t RenderScene::get_total_num_primitives() const {
 DirectionalLight& RenderScene::get_sun_light() {
     return sun;
 }
+
+const DirectionalLight& RenderScene::get_sun_light() const { return sun; }
+
+const ProceduralSky& RenderScene::get_sky() const { return sky; }
 
 std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
     const glm::vec3& min_bounds, const glm::vec3& max_bounds
@@ -142,6 +160,10 @@ std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
 }
 
 void RenderScene::generate_emissive_point_clouds(RenderGraph& render_graph) {
+    if(new_emissive_objects.empty()) {
+        return;
+    }
+
     render_graph.begin_label("Generate emissive mesh VPLs");
     for(auto& primitive : new_emissive_objects) {
         primitive->emissive_points_buffer = generate_vpls_for_primitive(render_graph, primitive);

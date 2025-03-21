@@ -117,8 +117,6 @@ void Application::update_resolution() const {
 void Application::tick() {
     ZoneScoped;
 
-    RenderBackend::get().mark_simulation_begin();
-
     update_delta_time();
 
     logger->debug("Tick {:.3f} ms ({:.3f} fps)", delta_time * 1000, 1 / delta_time);

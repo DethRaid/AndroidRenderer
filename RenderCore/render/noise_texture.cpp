@@ -20,3 +20,5 @@ NoiseTexture NoiseTexture::create(const std::string& base_filename, const uint32
 
     return new_texture;
 }
+
+TextureHandle NoiseTexture::get_layer(const uint32_t index) const { return layers[index % num_layers]; }

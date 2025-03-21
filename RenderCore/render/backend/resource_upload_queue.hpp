@@ -43,6 +43,9 @@ class ResourceUploadQueue {
 public:
     explicit ResourceUploadQueue(RenderBackend& backend_in);
 
+    ResourceUploadQueue(const ResourceUploadQueue& other) = delete;
+    ResourceUploadQueue& operator=(const ResourceUploadQueue& other) = delete;
+
     template<typename DataType>
     void upload_to_buffer(BufferHandle buffer, const DataType& data, uint32_t dest_offset = 0);
 

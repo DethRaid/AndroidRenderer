@@ -7,13 +7,14 @@
 
 #include "console/cvars.hpp"
 #include "core/string_conversion.hpp"
+#include "render/noise_texture.hpp"
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
 #include "render/backend/pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
 
 static AutoCVar_Enum cvar_ao_technique{
-    "r.AO", "What kind of AO to use", AoTechnique::Off
+    "r.AO", "What kind of AO to use", AoTechnique::RTAO
 };
 
 static AutoCVar_Int cvar_rtao_samples{
