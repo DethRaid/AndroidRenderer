@@ -20,11 +20,11 @@
  * Note that more clever normal encoding schemes are readily available. Storing it in two halfs would be great
  */
 struct PackedVPL {
-    uvec4 data;
+    uint4 data;
 };
 
 struct VPL {
-    vec3 position;
+    float3 position;
     mvec3 color;
     mvec3 normal;
 };

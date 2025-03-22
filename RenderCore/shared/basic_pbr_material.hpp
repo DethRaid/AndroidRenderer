@@ -4,8 +4,8 @@
 #include "shared/prelude.h"
 
 struct BasicPbrMaterialGpu {
-    vec4 base_color_tint;
-    vec4 emission_factor;
+    float4 base_color_tint;
+    float4 emission_factor;
     float metalness_factor;
     float roughness_factor;
 

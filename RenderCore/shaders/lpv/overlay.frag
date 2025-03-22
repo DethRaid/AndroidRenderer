@@ -31,6 +31,7 @@ layout(set = 1, binding = 5) uniform sampler2D ao_texture;
 
 layout(push_constant) uniform Constants {
     uint num_cascades;
+    uint num_propagation_steps;
 };
 
 // Texcoord from the vertex shader
@@ -161,7 +162,7 @@ void main() {
     mediump vec3 total_lighting = indirect_light * diffuse_factor * ao + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
-    const mediump float exposure_factor = 0.5 * 3.1415927;
+    const mediump float exposure_factor = 0.031415927;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 

@@ -22,11 +22,11 @@ int main(const int argc, const char** argv) {
 
         {
             ZoneScopedN("Init application");
-            //application.load_scene("assets/Sponza/Sponza.compressed.glb");
+            application.load_scene("assets/Sponza/Sponza.compressed.glb");
             // application.load_scene("assets/path_tracing_nightmare.compressed.glb");
             // application.load_scene("assets/shadow_test.glb");
             // application.load_scene("assets/deccercube/SM_Deccer_Cubes_Textured.compressed.glb");
-            application.load_scene("assets/Bistro_v5_2/BistroExterior.compressed.glb");
+            // application.load_scene("assets/Bistro_v5_2/BistroExterior.compressed.glb");
             // application.load_scene("assets/Main.1_Sponza/NewSponza_Main_glTF_002.compressed.glb");
             // application.load_scene("assets/PKG_A_Curtains/NewSponza_Curtains_glTF.compressed.glb");
             // application.load_scene("assets/deccerballs/scene.compressed.glb");
@@ -36,7 +36,7 @@ int main(const int argc, const char** argv) {
             // application.load_scene("assets/BoomBoxWithAxes/gltf/BoomBoxWithAxes.gltf");
             // application.load_scene("assets/NormalTangentTest/gltf/NormalTangentTest.gltf");
             // application.load_scene("assets/AlphaTest.gltf");
-            //application.load_scene("assets/CornelBoxKinda.glb");
+            // application.load_scene("assets/CornelBoxKinda.glb");
             application.update_resolution();
         }
 

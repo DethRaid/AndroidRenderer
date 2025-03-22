@@ -4,10 +4,10 @@
 #include "shared/prelude.h"
 
 struct LPVCascadeMatrices {
-    mat4 rsm_vp;
-    mat4 inverse_rsm_vp;
-    mat4 world_to_cascade;
-    mat4 cascade_to_world;
+    float4x4 rsm_vp;
+    float4x4 inverse_rsm_vp;
+    float4x4 world_to_cascade;
+    float4x4 cascade_to_world;
 };
 
 #endif

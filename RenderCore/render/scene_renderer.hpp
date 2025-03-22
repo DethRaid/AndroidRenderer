@@ -27,9 +27,21 @@
 
 class GltfModel;
 
+/**
+ * How to calculate global illumination
+ */
 enum class GIMode {
+    /**
+     * No GI
+     */
     Off,
+    /**
+     * Light Propagation Volume, a la Crytek 2009. This leaks a ton because I don't have the geometry volume working, but it's vaguely plausible and very fast
+     */
     LPV,
+    /**
+     * Ray traced global illumination
+     */
     RT
 };
 

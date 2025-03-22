@@ -7,7 +7,7 @@
 #endif
 
 #include <span>
-#include <string_view>
+#include <string>
 
 #include "render/backend/handles.hpp"
 #include "render/visualizers/visualizer_type.hpp"

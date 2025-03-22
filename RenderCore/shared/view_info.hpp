@@ -4,13 +4,13 @@
 #include "shared/prelude.h"
 
 struct ViewInfo {
-    mat4 view;
-    mat4 projection;
+    float4x4 view;
+    float4x4 projection;
 
-    mat4 inverse_view;
-    mat4 inverse_projection;
+    float4x4 inverse_view;
+    float4x4 inverse_projection;
 
-    vec4 render_resolution;
+    float4 render_resolution;
 };
 
 #endif

@@ -37,7 +37,7 @@ static auto cvar_lpv_num_cascades = AutoCVar_Int{
 
 static auto cvar_lpv_num_propagation_steps = AutoCVar_Int{
     "r.LPV.NumPropagationSteps",
-    "Number of times to propagate lighting through the LPV", 16
+    "Number of times to propagate lighting through the LPV", 32
 };
 
 static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
@@ -49,7 +49,7 @@ static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
 static auto cvar_lpv_build_gv_mode = AutoCVar_Enum{
     "r.LPV.GvBuildMode",
     "How to build the geometry volume.\n0 = Disable\n1 = Use the RSM depth buffer and last frame's depth buffer",
-    GvBuildMode::Off
+    GvBuildMode::DepthBuffers
 };
 
 static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
@@ -341,6 +341,7 @@ void LightPropagationVolume::render_to_lit_scene(
     commands.bind_pipeline(lpv_render_shader);
 
     commands.set_push_constant(0, static_cast<uint32_t>(cvar_lpv_num_cascades.Get()));
+    commands.set_push_constant(1, static_cast<uint32_t>(cvar_lpv_num_propagation_steps.Get()));
 
     commands.draw_triangle();
 
@@ -530,7 +531,7 @@ void LightPropagationVolume::update_cascade_transforms(const SceneView& view, co
         cascade.world_to_cascade = bias_mat * cascade.world_to_cascade;
 
         const auto half_cascade_size = cascade_size / 2.f;
-        constexpr auto rsm_pullback_distance = 32.f;
+        const auto rsm_pullback_distance = cascade_size * 2;
         const auto rsm_view_start = snapped_offset - light.get_direction() * rsm_pullback_distance;
         const auto rsm_view_matrix = glm::lookAt(rsm_view_start, snapped_offset, glm::vec3{0, 1, 0});
         const auto rsm_projection_matrix = glm::ortho(

@@ -6,10 +6,10 @@
 // TODO: Compress down to 20 bytes
 // We're at 48 now :(
 struct StandardVertex {
-    vec3 position;
-    vec3 normal;
-    vec3 tangent;
-    vec2 texcoord;
+    float3 position;
+    float3 normal;
+    float3 tangent;
+    float2 texcoord;
     uint color;
 };
 
@@ -18,9 +18,9 @@ using StandardVertexPosition = glm::vec3;
 #endif
 
 struct StandardVertexData {
-    vec3 normal;
-    vec3 tangent;
-    vec2 texcoord;
+    float3 normal;
+    float3 tangent;
+    float2 texcoord;
     unorm4 color;
 };
 
