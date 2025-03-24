@@ -74,7 +74,8 @@ void LightingPhase::render(
     auto& sun_pipeline = sun.get_pipeline();
 
     const auto sampler = backend.get_default_sampler();
-    auto gbuffers_descriptor_set = backend.get_transient_descriptor_allocator().build_set(sun_pipeline, 0)
+    auto gbuffers_descriptor_set = backend.get_transient_descriptor_allocator()
+                                          .build_set(sun_pipeline, 0)
                                           .bind(gbuffer.color, sampler)
                                           .bind(gbuffer.normals, sampler)
                                           .bind(gbuffer.data, sampler)
@@ -116,9 +117,6 @@ void LightingPhase::render(
             .color_attachments = {
                 RenderingAttachmentInfo{.image = lit_scene_texture, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR}
             },
-            .depth_attachment = RenderingAttachmentInfo{
-                .image = gbuffer.depth, .load_op = VK_ATTACHMENT_LOAD_OP_LOAD, .store_op = VK_ATTACHMENT_STORE_OP_STORE
-            },
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_descriptor_set(0, gbuffers_descriptor_set);
 
@@ -136,7 +134,7 @@ void LightingPhase::render(
 
                 add_emissive_lighting(commands);
 
-                scene->get_sky().render_sky(commands, view.get_buffer(), sun.get_constant_buffer());
+                scene->get_sky().render_sky(commands, view.get_buffer(), sun.get_constant_buffer(), gbuffer.depth);
 
                 // The sky uses different descriptor sets, so if we add anything after this we'll have to re-bind the gbuffer descriptor set
             }

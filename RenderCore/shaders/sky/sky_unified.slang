@@ -179,8 +179,16 @@ ConstantBuffer<ViewDataGPU> view_info;
 [vk::binding(3, 0)]
 ConstantBuffer<SunLightConstants> sun_info;
 
+[vk::binding(4, 0)]
+Texture2D<float> gbuffer_depth;
+
 [shader("fragment")]
 half4 main_fs(float4 fragcoord: SV_Position) {
+    const float depth = gbuffer_depth[fragcoord.xy];
+    if (depth != 0.f) {
+        discard;
+    }
+
     // Screen position for the ray
     float2 location_screen = (fragcoord.xy + 0.5) / view_info.render_resolution.xy;
 
@@ -221,7 +229,6 @@ Sampler2D sky_view_lut;
 [shader("miss")]
 void main_miss(inout IrradiancePayload payload) {
     payload.irradiance = get_sky_color(WorldRayDirection(), sun_light.direction_and_tan_size.xyz, sky_view_lut, transmittance_lut);
-    payload.irradiance = float3(10, 0, 10);
 }
 #endif
 

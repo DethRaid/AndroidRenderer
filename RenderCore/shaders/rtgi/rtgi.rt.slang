@@ -29,9 +29,6 @@ RWTexture2D<float4> ray_buffer;
 [vk::binding(8, 0)]
 RWTexture2D<float4> ray_irradiance;
 
-#define RAY_TYPE_OCCLUSION 0
-#define RAY_TYPE_GI 1
-
 float3 get_worldspace_location(const uint2 pixel) {
     const float depth = gbuffer_depth[pixel];
     const float2 texcoord = ((float2)pixel + 0.5) / view_data.render_resolution.xy;

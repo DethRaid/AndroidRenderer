@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "global_illuminator.hpp"
+#include "irradiance_cache.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/texture_usage_token.hpp"
@@ -16,7 +17,7 @@ class RenderGraph;
 struct GBuffer;
 
 /**
- * Per-pixel ray traces global illumination, with spatial path reuse
+ * Uses ray tracing to calculate global illumination
  */
 class RayTracedGlobalIllumination : public IGlobalIlluminator {
 public:
@@ -28,7 +29,7 @@ public:
 
     void pre_render(
         RenderGraph& graph, const SceneView& view, const RenderScene& scene, TextureHandle noise_tex
-    ) override {}
+    ) override;
 
     void post_render(
         RenderGraph& graph, const SceneView& view, const RenderScene& scene, const GBuffer& gbuffer,
@@ -43,7 +44,7 @@ public:
     ) const override;
 
     /**
-     * Applies the RTGI to the scene image with an addative blending pixel shader
+     * Applies the RTGI to the scene image with an additive blending pixel shader
      *
      * Optionally can sample rays around the current pixel, decreasing GI noise 
      */
@@ -53,7 +54,7 @@ public:
 
 private:
     /**
-     * Stores ray start parameters, such as direction and... well, direction
+     * Stores ray start parameters, such as direction and... well, it's just direction
      */
     TextureHandle ray_texture = nullptr;
 
@@ -61,6 +62,8 @@ private:
      * Per-pixel irradiance, calculated by ray tracing
      */
     TextureHandle ray_irradiance = nullptr;
+
+    std::unique_ptr<IrradianceCache> irradiance_cache = nullptr;
 
     static inline RayTracingPipelineHandle rtgi_pipeline = nullptr;
 

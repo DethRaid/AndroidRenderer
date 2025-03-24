@@ -95,6 +95,12 @@ medfloat sample_csm(vec3 worldspace_position, float viewspace_depth, float ndotl
 
 void main() {
     ivec2 pixel = ivec2(gl_FragCoord.xy);
+    
+    const float depth = texelFetch(gbuffer_depth, pixel, 0).r;
+    if(depth == 0) {
+        discard;
+    }
+
     medvec3 base_color_sample = texelFetch(gbuffer_base_color, pixel, 0).rgb;
     medvec3 normal_sample = normalize(texelFetch(gbuffer_normal, pixel, 0).xyz);
     medvec4 data_sample = texelFetch(gbuffer_data, pixel, 0);

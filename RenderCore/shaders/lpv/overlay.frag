@@ -69,6 +69,12 @@ mediump vec3 sample_light_from_cascade(mediump vec4 normal_coefficients, vec4 po
 
 void main() {
     ivec2 pixel = ivec2(gl_FragCoord.xy);
+
+    const float depth = texelFetch(gbuffer_depth, pixel, 0).r;
+    if(depth == 0) {
+        discard;
+    }
+
     mediump vec3 base_color_sample = texelFetch(gbuffer_base_color, pixel, 0).rgb;
     mediump vec3 normal_sample = normalize(texelFetch(gbuffer_normal, pixel, 0).xyz);
     mediump vec4 data_sample = texelFetch(gbuffer_data, pixel, 0);

@@ -1,10 +1,13 @@
 #pragma once
 
 #include <array>
+#include <vector>
+#include <tracy/Tracy.hpp>
 
 #include "shared/prelude.h"
 #include "render/backend/handles.hpp"
 
+class RenderScene;
 class RenderGraph;
 class SceneView;
 
@@ -33,6 +36,28 @@ public:
     static constexpr uint32_t cascade_size_y = 8;
 
     static constexpr uint32_t num_cascades = 4;
+
+    /**
+     * Some CPU-side information about a probe
+     */
+    struct Probe {
+        /**
+         * Marks if the probe has been invalidated for any reason
+         */
+        bool is_valid = false;
+
+        /**
+         * The frame where this probe was most recently updated
+         */
+        uint last_update_frame = 0;
+    };
+
+    struct ProbeGrid : std::array<Probe, cascade_size_xz * cascade_size_y * cascade_size_xz> {
+        template <typename F>
+        void foreach(F func);
+
+        Probe& at(uint3 index);
+    };
 
     struct Cascade {
         /**
@@ -70,7 +95,7 @@ public:
         /**
          * How far the cascade has moved, measured in probes. Used when copying old probes to the new volume
          */
-        float3 movement = {};
+        int3 movement = {};
 
         /**
          * Transforms from worldspace to pixel in the probe texture
@@ -81,6 +106,10 @@ public:
          * Transforms from pixel in the probe texture to worldspace
          */
         float4x4 cascade_to_world = float4x4{1};
+
+        ProbeGrid probes;
+
+        void move_probes();
     };
 
     IrradianceCache();
@@ -88,14 +117,14 @@ public:
     IrradianceCache(const IrradianceCache& other) = delete;
     IrradianceCache& operator=(const IrradianceCache& other) = delete;
 
-    IrradianceCache(IrradianceCache&& old) noexcept;
-    IrradianceCache& operator=(IrradianceCache&& old) noexcept;
+    IrradianceCache(IrradianceCache&& old) = delete;
+    IrradianceCache& operator=(IrradianceCache&& old) = delete;
 
     ~IrradianceCache();
 
-    void place_probes_from_view(const SceneView& view);
-
-    void copy_probes_to_new_texture(RenderGraph& graph);
+    void update_cascades_and_probes(
+        RenderGraph& graph, const SceneView& view, const RenderScene& scene, TextureHandle noise_tex
+    );
 
 private:
     /**
@@ -157,5 +186,60 @@ private:
         },
     };
 
+    BufferHandle cascade_cbuffer = nullptr;
+
+    uint32_t num_probes_updated = 0;
+    std::array<glm::uvec3, 1024> probes_to_update = {};
+    BufferHandle probes_to_update_buffer = nullptr;
+
+    BufferHandle trace_results_buffer = nullptr;
+        
     static inline ComputePipelineHandle cascade_copy_shader = nullptr;
+
+    static inline RayTracingPipelineHandle probe_tracing_pipeline = nullptr;
+
+    static inline ComputePipelineHandle probe_update_shader = nullptr;
+
+    /**
+     * Requests an update of a given probe. Returns true if the probe can be updated this frame, false otherwise
+     *
+     * The probe index Y MUST contain an offset for the cascade it's in. Otherwise we don't know which cascade we're in :(
+     */
+    bool request_probe_update(uint3 probe_index);
+
+    /**
+     * Updates cascade locations based on the provided view
+     */
+    void place_probes_from_view(const SceneView& view);
+
+    /**
+     * Copies probes from the A texture to the B texture, so that they're in the right location. Out-of-bounds probes
+     * are lost
+     */
+    void copy_probes_to_new_texture(RenderGraph& graph);
+
+    void swap_probe_textures();
+
+    /**
+     * Determines which probes should be updated, using a heuristic based on time since update and distance from the
+     * center of the screen
+     */
+    void find_probes_to_update(uint32_t frame_count);
+
+    void dispatch_probe_updates(RenderGraph& graph, const RenderScene& scene, TextureHandle noise_tex);
 };
+
+template <typename F>
+void IrradianceCache::ProbeGrid::foreach(F func) {
+    ZoneScoped;
+    for(auto x = 0u; x < cascade_size_xz; x++) {
+        for(auto y = 0u; y < cascade_size_y; y++) {
+            for(auto z = 0u; z < cascade_size_xz; z++) {
+                const auto keep_looping = func(uint3{x, y, z}, at({x, y, z}));
+                if(!keep_looping) {
+                    return;
+                }
+            }
+        }
+    }
+}

@@ -20,9 +20,9 @@ cbuffer Constants {
 };
 
 void init_new_probe(in int3 index) {
-    const int3 rtgi_pixel = index * int3(8, 8, 1);
-    for (int y = 0; y < 8; y++) {
-        for (int x = 0; x < 8; x++) {
+    const int3 rtgi_pixel = index * int3(5, 6, 1);
+    for (int y = 0; y < 6; y++) {
+        for (int x = 0; x < 5; x++) {
             rtgi_dest[rtgi_pixel + int3(x, y, 0)] = half3(0);
         }
     }
@@ -48,10 +48,10 @@ void init_new_probe(in int3 index) {
 }
 
 void copy_from_cell(in int3 dest_index, in int3 src_index) {
-    const int3 rtgi_dest_pixel = dest_index * int3(8, 8, 1);
-    const int3 rtgi_src_pixel = src_index * int3(8, 8, 1);
-    for (int y = 0; y < 8; y++) {
-        for (int x = 0; x < 8; x++) {
+    const int3 rtgi_dest_pixel = dest_index * int3(5, 6, 1);
+    const int3 rtgi_src_pixel = src_index * int3(5, 6, 1);
+    for (int y = 0; y < 6; y++) {
+        for (int x = 0; x < 5; x++) {
             rtgi_dest[rtgi_dest_pixel + int3(x, y, 0)] = rtgi_src[rtgi_src_pixel + int3(x, y, 0)];
         }
     }

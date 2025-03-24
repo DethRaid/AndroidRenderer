@@ -18,6 +18,8 @@ static AutoCVar_Float cvar_reconstruction_size{
     "r.GI.Reconstruction.Size", "Size in pixels of the screenspace reconstruction filter", 16
 };
 
+static AutoCVar_Int cvar_gi_cache{ "r.GI.Cache.Enabled", "Whether to enable the GI irradiance cache", false };
+
 bool RayTracedGlobalIllumination::should_render() {
     return cvar_num_bounces.Get() > 0;
 }
@@ -57,6 +59,22 @@ RayTracedGlobalIllumination::~RayTracedGlobalIllumination() {
 
     allocator.destroy_texture(ray_texture);
     allocator.destroy_texture(ray_irradiance);
+}
+
+void RayTracedGlobalIllumination::pre_render(
+    RenderGraph& graph, const SceneView& view, const RenderScene& scene, const TextureHandle noise_tex
+) {
+    ZoneScoped;
+
+    if(cvar_gi_cache.Get() == 0) {
+        irradiance_cache = nullptr;
+    } else if(irradiance_cache == nullptr) {
+        irradiance_cache = std::make_unique<IrradianceCache>();
+    }
+
+    if (irradiance_cache) {
+        irradiance_cache->update_cascades_and_probes(graph, view, scene, noise_tex);
+    }
 }
 
 void RayTracedGlobalIllumination::post_render(
@@ -108,7 +126,7 @@ void RayTracedGlobalIllumination::post_render(
                             .bind(ray_texture)
                             .bind(ray_irradiance)
                             .bind(sky.get_sky_view_lut(), sky.get_sampler())
-                            .bind(sky.get_transmission_lut(), sky.get_sampler())
+                            .bind(sky.get_transmittance_lut(), sky.get_sampler())
                             .build();
 
     graph.add_pass(
