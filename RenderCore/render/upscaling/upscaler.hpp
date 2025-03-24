@@ -5,6 +5,7 @@
 #include "core/halton_sequence.hpp"
 #include "render/backend/handles.hpp"
 
+struct GBuffer;
 class RenderGraph;
 class SceneView;
 
@@ -21,11 +22,11 @@ public:
     virtual glm::vec2 get_jitter();
 
     virtual void evaluate(
-        RenderGraph& graph, TextureHandle color_in, TextureHandle color_out,
-        TextureHandle depth_in, TextureHandle motion_vectors_in
+        RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, TextureHandle color_in,
+        TextureHandle color_out, TextureHandle motion_vectors_in
     ) = 0;
 
 private:
-    HaltonSequence jitter_sequence_x = HaltonSequence{ 2 };
-    HaltonSequence jitter_sequence_y = HaltonSequence{ 3 };
+    HaltonSequence jitter_sequence_x = HaltonSequence{2};
+    HaltonSequence jitter_sequence_y = HaltonSequence{3};
 };

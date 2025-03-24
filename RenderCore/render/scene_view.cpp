@@ -129,6 +129,12 @@ const glm::mat4& SceneView::get_projection() const { return projection; }
 
 const glm::mat4& SceneView::get_last_frame_projection() const { return last_frame_projection; }
 
+void SceneView::increment_frame_count() { frame_count++; }
+
+uint32_t SceneView::get_frame_count() const { return frame_count; }
+
+const float4x4& SceneView::get_view() const { return gpu_data.view; }
+
 void SceneView::refresh_view_matrices() {
     forward = glm::vec3{cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw)};
     const auto right = glm::vec3{sin(yaw - std::numbers::pi_v<float> / 2.0), 0, cos(yaw - std::numbers::pi_v<float> / 2.0)};

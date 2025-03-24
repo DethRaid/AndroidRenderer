@@ -123,6 +123,8 @@ void SceneRenderer::render() {
 
     backend.advance_frame();
 
+    player_view.increment_frame_count();
+
     logger->trace("Beginning frame");
 
     auto needs_motion_vectors = false;
@@ -485,9 +487,10 @@ void SceneRenderer::evaluate_antialiasing(RenderGraph& render_graph, const Textu
             const auto motion_vectors_handle = motion_vectors_phase.get_motion_vectors();
             upscaler->evaluate(
                 render_graph,
+                player_view,
+                gbuffer,
                 lit_scene_handle,
                 antialiased_scene_handle,
-                gbuffer_depth_handle,
                 motion_vectors_handle);
             break;
         } else {

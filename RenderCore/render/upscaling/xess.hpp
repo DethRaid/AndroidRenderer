@@ -14,8 +14,7 @@
 
 #include "render/upscaling/upscaler.hpp"
 
-class XeSSAdapter : public IUpscaler
-{
+class XeSSAdapter : public IUpscaler {
 public:
     /**
      * Retrieves the instance extension that XeSS requires
@@ -30,7 +29,9 @@ public:
     /**
      * Modifies the provided Vulkan features with the features that XeSS requires
      */
-    static void add_required_features(VkInstance instance, VkPhysicalDevice physical_device, VkPhysicalDeviceFeatures2& features);
+    static void add_required_features(
+        VkInstance instance, VkPhysicalDevice physical_device, VkPhysicalDeviceFeatures2& features
+    );
 
     XeSSAdapter();
 
@@ -42,9 +43,9 @@ public:
 
     void set_constants(const SceneView& scene_view, glm::uvec2 render_resolution) override;
 
-     void evaluate(
-        RenderGraph& graph, TextureHandle color_in, TextureHandle color_out, TextureHandle depth_in,
-        TextureHandle motion_vectors_in
+    void evaluate(
+        RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, TextureHandle color_in,
+        TextureHandle color_out, TextureHandle motion_vectors_in
     ) override;
 
 private:

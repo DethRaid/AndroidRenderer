@@ -25,8 +25,8 @@ public:
     void set_constants(const SceneView& scene_transform, glm::uvec2 render_resolution) override;
 
     void evaluate(
-        RenderGraph& graph, TextureHandle color_in, TextureHandle color_out, TextureHandle depth_in,
-        TextureHandle motion_vectors_in
+        RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, TextureHandle color_in,
+        TextureHandle color_out, TextureHandle motion_vectors_in
     ) override;
 
     glm::uvec2 get_optimal_render_resolution() const override;

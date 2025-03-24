@@ -1,10 +1,13 @@
 #include "dlss.hpp"
 
+#include "render/gbuffer.hpp"
+
 #if SAH_USE_STREAMLINE
 
 #include <stdexcept>
 
 #include <sl_helpers.h>
+#include <sl_dlss_d.h>
 
 #include "core/system_interface.hpp"
 #include "console/cvars.hpp"
@@ -13,6 +16,10 @@
 
 static auto cvar_dlss_quality = AutoCVar_Enum{
     "r.DLSS.Quality", "DLSS Quality", sl::DLSSMode::eMaxQuality
+};
+
+static auto cvar_ray_reconstruction = AutoCVar_Int{
+    "r.DLSS-RR.Enabled", "Whether to enable DLSS Ray Reconstruction", true
 };
 
 static std::shared_ptr<spdlog::logger> logger;
@@ -26,11 +33,20 @@ DLSSAdapter::DLSSAdapter() {
 
     bool dlss_loaded = false;
     slIsFeatureLoaded(sl::kFeatureDLSS, dlss_loaded);
-    if (!dlss_loaded) {
+    if(!dlss_loaded) {
         auto result = slSetFeatureLoaded(sl::kFeatureDLSS, true);
-        if (result != sl::Result::eOk) {
+        if(result != sl::Result::eOk) {
             logger->error("Error loading DLSS: {}", sl::getResultAsStr(result));
-            throw std::runtime_error{ "Could not load DLSS!" };
+            throw std::runtime_error{"Could not load DLSS!"};
+        }
+    }
+
+    bool dlss_rr_loaded = false;
+    slIsFeatureLoaded(sl::kFeatureDLSS_RR, dlss_rr_loaded);
+    if(!dlss_rr_loaded) {
+        auto result = slSetFeatureLoaded(sl::kFeatureDLSS_RR, true);
+        if(result != sl::Result::eOk) {
+            logger->warn("Error loading DLSS-RR: {}", sl::getResultAsStr(result));
         }
     }
 }
@@ -83,7 +99,9 @@ void DLSSAdapter::set_constants(const SceneView& scene_transform, const glm::uve
     const auto jitter = scene_transform.get_jitter();
     constants.jitterOffset = {-jitter.x, -jitter.y};
 
-    constants.mvecScale = {1.f / static_cast<float>(render_resolution.x), 1.f / static_cast<float>(render_resolution.y)};
+    constants.mvecScale = {
+        1.f / static_cast<float>(render_resolution.x), 1.f / static_cast<float>(render_resolution.y)
+    };
 
     constants.cameraPinholeOffset = {0, 0};
 
@@ -117,75 +135,141 @@ void DLSSAdapter::set_constants(const SceneView& scene_transform, const glm::uve
 }
 
 void DLSSAdapter::evaluate(
-    RenderGraph& graph,
+    RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer,
     const TextureHandle color_in, const TextureHandle color_out,
-    const TextureHandle depth_in, const TextureHandle motion_vectors_in
+    const TextureHandle motion_vectors_in
 ) {
+    auto textures = std::vector<TextureUsageToken>{
+        {
+            .texture = color_in,
+            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            .access = VK_ACCESS_2_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        },
+        {
+            .texture = color_out,
+            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+            .layout = VK_IMAGE_LAYOUT_GENERAL
+        },
+        {
+            .texture = gbuffer.depth,
+            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            .access = VK_ACCESS_2_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        },
+        {
+            .texture = motion_vectors_in,
+            .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            .access = VK_ACCESS_2_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        },
+    };
+
+    if(cvar_ray_reconstruction.Get() != 0) {
+        pack_dlss_rr_inputs(graph, gbuffer);
+
+        textures.emplace_back(
+            diffuse_albedo,
+            VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        textures.emplace_back(
+            specular_albedo,
+            VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        textures.emplace_back(
+            packed_normals_roughness,
+            VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+
     graph.add_pass(
         {
             .name = "dlss",
-            .textures = {
-                {
-                    .texture = color_in,
-                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                    .access = VK_ACCESS_2_SHADER_READ_BIT,
-                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                },
-                {
-                    .texture = color_out,
-                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                    .access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
-                    .layout = VK_IMAGE_LAYOUT_GENERAL
-                },
-                {
-                    .texture = depth_in,
-                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                    .access = VK_ACCESS_2_SHADER_READ_BIT,
-                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                },
-                {
-                    .texture = motion_vectors_in,
-                    .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                    .access = VK_ACCESS_2_SHADER_READ_BIT,
-                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                },
-            },
+            .textures = textures,
             .execute = [&](CommandBuffer& commands) {
                 auto color_in_res = wrap_resource(color_in, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 auto color_out_res = wrap_resource(color_out, VK_IMAGE_LAYOUT_GENERAL);
-                auto depth_in_res = wrap_resource(depth_in, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                auto depth_in_res = wrap_resource(gbuffer.depth, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 auto motion_vectors_in_res = wrap_resource(
                     motion_vectors_in,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-                auto color_in_tag = sl::ResourceTag{
-                    &color_in_res, sl::kBufferTypeScalingInputColor, sl::ResourceLifecycle::eValidUntilPresent
-                };
-                auto color_out_tag = sl::ResourceTag{
-                    &color_out_res, sl::kBufferTypeScalingOutputColor, sl::ResourceLifecycle::eValidUntilPresent
-                };
-                auto depth_tag = sl::ResourceTag{
-                    &depth_in_res, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent
-                };
-                auto motion_vectors_tag = sl::ResourceTag{
-                    &motion_vectors_in_res, sl::kBufferTypeMotionVectors, sl::ResourceLifecycle::eValidUntilPresent
-                };
+                auto tags = std::vector<sl::ResourceTag>{};
+                tags.reserve(8);
 
-                auto tags = std::array{color_in_tag, color_out_tag, depth_tag, motion_vectors_tag};
-                slSetTag(viewport, tags.data(), tags.size(), commands.get_vk_commands());
+                tags.emplace_back(
+                    &color_in_res,
+                    sl::kBufferTypeScalingInputColor,
+                    sl::ResourceLifecycle::eValidUntilPresent);
+                tags.emplace_back(
+                    &color_out_res,
+                    sl::kBufferTypeScalingOutputColor,
+                    sl::ResourceLifecycle::eValidUntilPresent);
+                tags.emplace_back(&depth_in_res, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent);
+                tags.emplace_back(
+                    &motion_vectors_in_res,
+                    sl::kBufferTypeMotionVectors,
+                    sl::ResourceLifecycle::eValidUntilPresent);
 
-                auto options = sl::DLSSOptions{};
-                options.mode = dlss_mode;
-                const auto& output_resolution = color_out->create_info.extent;
-                options.outputWidth = output_resolution.width;
-                options.outputHeight = output_resolution.height;
-                options.sharpness = dlss_settings.optimalSharpness;
-                options.useAutoExposure = sl::Boolean::eTrue;
-                slDLSSSetOptions(viewport, options);
+                if(diffuse_albedo != nullptr) {
+                    tags.emplace_back(
+                        &sl_diffuse_albedo,
+                        sl::kBufferTypeAlbedo,
+                        sl::ResourceLifecycle::eValidUntilPresent);
+                }
+                if(specular_albedo != nullptr) {
+                    tags.emplace_back(
+                        &sl_specular_albedo,
+                        sl::kBufferTypeSpecularAlbedo,
+                        sl::ResourceLifecycle::eValidUntilPresent);
+                }
+                if(packed_normals_roughness != nullptr) {
+                    tags.emplace_back(
+                        &sl_normals_roughness,
+                        sl::kBufferTypeNormalRoughness,
+                        sl::ResourceLifecycle::eValidUntilPresent);
+                }
+
+                slSetTag(viewport, tags.data(), static_cast<uint32_t>(tags.size()), commands.get_vk_commands());
+
+                const auto& output_resolution = color_out->get_resolution();
+
+                auto feature = sl::kFeatureDLSS;
+                if(cvar_ray_reconstruction.Get() != 0) {
+                    auto dlssd_options = sl::DLSSDOptions{};
+                    dlssd_options.mode = dlss_mode;
+                    dlssd_options.outputWidth = output_resolution.x;
+                    dlssd_options.outputHeight = output_resolution.y;
+                    dlssd_options.sharpness = dlss_settings.optimalSharpness;
+                    dlssd_options.normalRoughnessMode = sl::DLSSDNormalRoughnessMode::ePacked;
+
+                    const auto world_to_view = view.get_view();
+                    std::memcpy(&dlssd_options.worldToCameraView, &world_to_view, sizeof(float4x4));
+
+                    const auto view_to_world = inverse(world_to_view);
+                    std::memcpy(&dlssd_options.cameraViewToWorld, &view_to_world, sizeof(float4x4));
+
+                    slDLSSDSetOptions(viewport, dlssd_options);
+
+                    feature = sl::kFeatureDLSS_RR;
+
+                } else {
+                    auto options = sl::DLSSOptions{};
+                    options.mode = dlss_mode;
+                    options.outputWidth = output_resolution.x;
+                    options.outputHeight = output_resolution.y;
+                    options.sharpness = dlss_settings.optimalSharpness;
+                    options.useAutoExposure = sl::Boolean::eFalse;
+                    slDLSSSetOptions(viewport, options);
+                }
 
                 auto options_arr = std::array<const sl::BaseStructure*, 1>{&viewport};
                 const auto result = slEvaluateFeature(
-                    sl::kFeatureDLSS,
+                    feature,
                     *frame_token,
                     options_arr.data(),
                     options_arr.size(),
@@ -193,6 +277,81 @@ void DLSSAdapter::evaluate(
                 if(result != sl::Result::eOk) {
                     logger->error("Error evaluating DLSS: {}", sl::getResultAsStr(result));
                 }
+            }
+        });
+}
+
+void DLSSAdapter::pack_dlss_rr_inputs(RenderGraph& graph, const GBuffer& gbuffer) {
+    auto& backend = RenderBackend::get();
+
+    if(dlss_rr_packing_pipeline == nullptr) {
+        dlss_rr_packing_pipeline = backend.begin_building_pipeline("dlss_rr_input_packing")
+                                          .set_vertex_shader("shaders/common/fullscreen.vert.spv")
+                                          .set_fragment_shader("shaders/dlss/dlss_rr_packing.frag.spv")
+                                          .set_depth_state({.enable_depth_test = false, .enable_depth_write = false})
+                                          .build();
+    }
+
+    auto& allocator = backend.get_global_allocator();
+    if(diffuse_albedo == nullptr) {
+        diffuse_albedo = allocator.create_texture(
+            "dlssrr_diffuse_albedo",
+            {
+                .format = VK_FORMAT_R8G8B8A8_UNORM,
+                .resolution = gbuffer.color->get_resolution(),
+                .usage = TextureUsage::RenderTarget,
+            });
+        sl_diffuse_albedo = wrap_resource(diffuse_albedo, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    if(specular_albedo == nullptr) {
+        specular_albedo = allocator.create_texture(
+            "dlssrr_specular_albedo",
+            {
+                .format = VK_FORMAT_R8G8B8A8_UNORM,
+                .resolution = gbuffer.color->get_resolution(),
+                .usage = TextureUsage::RenderTarget,
+            });
+        sl_specular_albedo = wrap_resource(specular_albedo, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    if(packed_normals_roughness == nullptr) {
+        packed_normals_roughness = allocator.create_texture(
+            "dlssrr_normals_roughness",
+            {
+                .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+                .resolution = gbuffer.color->get_resolution(),
+                .usage = TextureUsage::RenderTarget,
+            });
+        sl_normals_roughness = wrap_resource(packed_normals_roughness, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+
+    const auto set = backend.get_transient_descriptor_allocator().build_set(dlss_rr_packing_pipeline, 0)
+                            .bind(gbuffer.color)
+                            .bind(gbuffer.normals)
+                            .bind(gbuffer.data)
+                            .build();
+
+    graph.add_render_pass(
+        {
+            .name = "pack_dlss_rr_inputs",
+            .descriptor_sets = {set},
+            .color_attachments = {
+                {
+                    .image = diffuse_albedo,
+                    .load_op = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+                },
+                {
+                    .image = specular_albedo,
+                    .load_op = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+                },
+                {
+                    .image = packed_normals_roughness,
+                    .load_op = VK_ATTACHMENT_LOAD_OP_DONT_CARE
+                },
+            },
+            .execute = [&](CommandBuffer& commands) {
+                commands.bind_descriptor_set(0, set);
+                commands.bind_pipeline(dlss_rr_packing_pipeline);
+                commands.draw_triangle();
             }
         });
 }

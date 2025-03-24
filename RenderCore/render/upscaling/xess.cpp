@@ -1,6 +1,7 @@
 #include "xess.hpp"
 
 #include "core/system_interface.hpp"
+#include "render/gbuffer.hpp"
 #include "render/scene_view.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/utils.hpp"
@@ -174,8 +175,8 @@ void XeSSAdapter::set_constants(const SceneView& scene_view, const glm::uvec2 re
 static xess_vk_image_view_info wrap_image(TextureHandle texture);
 
 void XeSSAdapter::evaluate(
-    RenderGraph& graph, const TextureHandle color_in, const TextureHandle color_out, const TextureHandle depth_in,
-    const TextureHandle motion_vectors_in
+    RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, const TextureHandle color_in,
+    const TextureHandle color_out, const TextureHandle motion_vectors_in
 ) {
     graph.add_pass(
         {
@@ -194,7 +195,7 @@ void XeSSAdapter::evaluate(
                     .layout = VK_IMAGE_LAYOUT_GENERAL
                 },
                 {
-                    .texture = depth_in,
+                    .texture = gbuffer.depth,
                     .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                     .access = VK_ACCESS_2_SHADER_READ_BIT,
                     .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -209,7 +210,7 @@ void XeSSAdapter::evaluate(
             .execute = [&](CommandBuffer& commands) {
                 params.colorTexture = wrap_image(color_in);
                 params.velocityTexture = wrap_image(motion_vectors_in);
-                params.depthTexture = wrap_image(depth_in);
+                params.depthTexture = wrap_image(gbuffer.depth);
                 params.outputTexture = wrap_image(color_out);
 
                 auto result = xessVKExecute(context, commands.get_vk_commands(), &params);

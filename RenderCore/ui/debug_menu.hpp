@@ -50,6 +50,8 @@ private:
 
     int current_fsr_mode = 1;
 
+    bool use_ray_reconstruction = false;
+
     void create_font_texture();
 
 #if defined(_WIN32)

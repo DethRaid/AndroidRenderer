@@ -65,6 +65,12 @@ public:
 
     const glm::mat4& get_last_frame_projection() const;
 
+    void increment_frame_count();
+
+    uint32_t get_frame_count() const;
+
+    const float4x4& get_view() const;
+
 private:
     float fov = {75.f};
 
@@ -109,6 +115,8 @@ private:
     bool is_dirty = true;
 
     glm::vec2 jitter = {};
+
+    uint32_t frame_count = 0;
 
     void refresh_view_matrices();
 

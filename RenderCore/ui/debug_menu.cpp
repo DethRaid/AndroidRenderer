@@ -177,6 +177,8 @@ DebugUI::DebugUI(SceneRenderer& renderer_in) : renderer{renderer_in},
     default:
         current_taa = 3;
     }
+
+    use_ray_reconstruction = *CVarSystem::Get()->GetIntCVar("r.DLSS-RR.Enabled") != 0;
 }
 
 void DebugUI::draw() {
@@ -343,6 +345,9 @@ void DebugUI::draw_debug_menu() {
                 *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eMaxPerformance);
                 break;
             }
+
+            ImGui::Checkbox("DLSS Ray Reconstruction", &use_ray_reconstruction);
+            CVarSystem::Get()->SetIntCVar("r.DLSS-RR.Enabled", use_ray_reconstruction);
 
         } else
 #endif
