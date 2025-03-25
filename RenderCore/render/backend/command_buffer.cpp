@@ -313,6 +313,10 @@ void CommandBuffer::draw_triangle() {
 }
 
 void CommandBuffer::dispatch_rays(const glm::uvec2 dispatch_size) {
+    dispatch_rays(glm::uvec3{ dispatch_size, 1u });
+}
+
+void CommandBuffer::dispatch_rays(const glm::uvec3 dispatch_size) {
     commit_bindings();
 
     constexpr auto callable_shader_table = VkStridedDeviceAddressRegionKHR{};

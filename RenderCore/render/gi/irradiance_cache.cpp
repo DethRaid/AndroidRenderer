@@ -60,44 +60,49 @@ IrradianceCache::IrradianceCache() {
 
     auto& allocator = RenderBackend::get().get_global_allocator();
 
+    // All these volumes are a little bigger than the number of texels per probe might imply, because we have a one pixel border around each texel
+
     constexpr auto resolution = glm::uvec3{cascade_size_xz, cascade_size_y * num_cascades, cascade_size_xz};
+    constexpr uint3 rtgi_probe_size = {7, 8, 1};
     rtgi_a = allocator.create_volume_texture(
         "probe_rtgi_a",
         VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        resolution * glm::uvec3{5, 6, 1},
+        resolution * rtgi_probe_size,
         1,
         TextureUsage::StorageImage);
     rtgi_b = allocator.create_volume_texture(
         "probe_rtgi_b",
         VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        resolution * glm::uvec3{5, 6, 1},
+        resolution * rtgi_probe_size,
         1,
         TextureUsage::StorageImage);
 
+    constexpr uint3 light_cache_probe_size = {13, 13, 1};
     light_cache_a = allocator.create_volume_texture(
         "probe_light_cache_a",
         VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        resolution * glm::uvec3{11, 11, 1},
+        resolution * light_cache_probe_size,
         1,
         TextureUsage::StorageImage);
     light_cache_b = allocator.create_volume_texture(
         "probe_light_cache_b",
         VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        resolution * glm::uvec3{11, 11, 1},
+        resolution * light_cache_probe_size,
         1,
         TextureUsage::StorageImage);
 
+    constexpr uint3 probe_depth_probe_size = {12, 12, 1};
     depth_a = allocator.create_volume_texture(
         "probe_depth_a",
         VK_FORMAT_R16G16_SFLOAT,
-        resolution * glm::uvec3{10, 10, 1},
+        resolution * probe_depth_probe_size,
         1,
         TextureUsage::StorageImage
     );
     depth_b = allocator.create_volume_texture(
         "probe_depth_b",
         VK_FORMAT_R16G16_SFLOAT,
-        resolution * glm::uvec3{10, 10, 1},
+        resolution * probe_depth_probe_size,
         1,
         TextureUsage::StorageImage
     );
@@ -135,10 +140,31 @@ IrradianceCache::IrradianceCache() {
 
     cascade_cbuffer = allocator.create_buffer("cascade_cbuffer", sizeof(ProbeCascade) * 4, BufferUsage::UniformBuffer);
 
-    trace_results_buffer = allocator.create_buffer(
+    trace_results_texture = allocator.create_texture(
         "probe_trace_results",
-        sizeof(ProbeTraceResult) * cvar_rays_per_probe.Get() * cvar_probes_per_frame.Get(),
-        BufferUsage::StorageBuffer);
+        {
+            .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+            .resolution = {20, 20},
+            .usage = TextureUsage::StorageImage,
+            .num_layers = static_cast<uint32_t>(cvar_probes_per_frame.Get()),
+        }
+    );
+    trace_params_texture = allocator.create_texture(
+        "probe_trace_params",
+        {
+            .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+            .resolution = {20, 20},
+            .usage = TextureUsage::StorageImage,
+            .num_layers = static_cast<uint32_t>(cvar_probes_per_frame.Get()),
+        }
+    );
+
+    linear_sampler = allocator.get_sampler(
+        {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+        });
 }
 
 IrradianceCache::~IrradianceCache() {
@@ -156,6 +182,10 @@ IrradianceCache::~IrradianceCache() {
     allocator.destroy_texture(validity_b);
 
     allocator.destroy_buffer(probes_to_update_buffer);
+    allocator.destroy_buffer(cascade_cbuffer);
+
+    allocator.destroy_texture(trace_results_texture);
+    allocator.destroy_texture(trace_params_texture);
 }
 
 void IrradianceCache::update_cascades_and_probes(
@@ -423,20 +453,21 @@ void IrradianceCache::dispatch_probe_updates(
     auto& descriptor_allocator = backend.get_transient_descriptor_allocator();
 
     {
+        const auto& sky = scene.get_sky();
         auto set = descriptor_allocator.build_set(probe_tracing_pipeline, 0)
                                        .bind(scene.get_primitive_buffer())
                                        .bind(scene.get_sun_light().get_constant_buffer())
                                        .bind(probes_to_update_buffer)
                                        .bind(scene.get_raytracing_scene().get_acceleration_structure())
-                                       .bind(rtgi_a)
-                                       .bind(light_cache_a)
+                                       .bind(rtgi_a, linear_sampler)
+                                       .bind(depth_a, linear_sampler)
                                        .bind(noise_tex)
-                                       .bind(depth_a)
                                        .bind(validity_a)
-                                       .bind(scene.get_sky().get_transmittance_lut())
-                                       .bind(scene.get_sky().get_sky_view_lut())
                                        .bind(cascade_cbuffer)
-                                       .bind(trace_results_buffer)
+                                       .bind(sky.get_transmittance_lut(), sky.get_sampler())
+                                       .bind(sky.get_sky_view_lut(), sky.get_sampler())
+                                       .bind(trace_params_texture)
+                                       .bind(trace_results_texture)
                                        .build();
 
         graph.add_pass(
@@ -449,7 +480,7 @@ void IrradianceCache::dispatch_probe_updates(
                     commands.bind_descriptor_set(0, set);
                     commands.bind_descriptor_set(1, backend.get_texture_descriptor_pool().get_descriptor_set());
 
-                    commands.dispatch_rays({cvar_rays_per_probe.Get(), num_probes_updated});
+                    commands.dispatch_rays({20, 20, num_probes_updated});
 
                     commands.clear_descriptor_set(0);
                 }
@@ -457,26 +488,43 @@ void IrradianceCache::dispatch_probe_updates(
     }
 
     {
-        if(probe_update_shader == nullptr) {
-            probe_update_shader = backend.get_pipeline_cache().create_pipeline(
-                "shaders/gi/cache/probe_update.comp.spv");
+        if(probe_depth_update_shader == nullptr) {
+            probe_depth_update_shader = backend.get_pipeline_cache().create_pipeline(
+                "shaders/gi/cache/probe_depth_update.comp.spv");
         }
-        auto set = descriptor_allocator.build_set(probe_update_shader, 0)
+        auto set = descriptor_allocator.build_set(probe_depth_update_shader, 0)
                                        .bind(probes_to_update_buffer)
-                                       .bind(trace_results_buffer)
-                                       .bind(rtgi_a)
-                                       .bind(light_cache_a)
+                                       .bind(trace_params_texture)
+                                       .bind(trace_results_texture)
                                        .bind(depth_a)
-                                       .bind(average_a)
-                                       .bind(validity_a)
                                        .build();
 
         graph.add_compute_dispatch(
             ComputeDispatch{
-                .name = "probe_update",
+                .name = "probe_depth_update",
                 .descriptor_sets = {set},
                 .num_workgroups = {num_probes_updated, 1, 1},
-                .compute_shader = probe_update_shader
+                .compute_shader = probe_depth_update_shader
             });
     }
+    //{
+    //    if(probe_light_cache_update_shader == nullptr) {
+    //        probe_light_cache_update_shader = backend.get_pipeline_cache().create_pipeline(
+    //            "shaders/gi/cache/probe_light_cache_update.comp.spv");
+    //    }
+    //    auto set = descriptor_allocator.build_set(probe_light_cache_update_shader, 0)
+    //        .bind(probes_to_update_buffer)
+    //        .bind(trace_params_texture)
+    //        .bind(trace_results_texture)
+    //        .bind(light_cache_a)
+    //        .build();
+    //
+    //    graph.add_compute_dispatch(
+    //        ComputeDispatch{
+    //            .name = "probe_light_cache_update",
+    //            .descriptor_sets = {set},
+    //            .num_workgroups = {num_probes_updated, 1, 1},
+    //            .compute_shader = probe_light_cache_update_shader
+    //        });
+    //}
 }

@@ -31,6 +31,7 @@ set(CAULDRON_VK ON CACHE BOOL "" FORCE)
 
 message(STATUS "CMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
+
 FetchContent_Declare(
         glm
         GIT_REPOSITORY  https://github.com/g-truc/glm.git

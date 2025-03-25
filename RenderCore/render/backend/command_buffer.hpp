@@ -7,16 +7,16 @@
 
 #include <volk.h>
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyVulkan.hpp>
 
-#include "render/backend/compute_shader.hpp"
 #include "render/backend/rendering_attachment_info.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
-#include "render/backend/graphics_pipeline.hpp"
 #include "render/backend/framebuffer.hpp"
 
+struct PipelineBase;
 struct DescriptorSet;
 struct ComputePipeline;
 class RenderBackend;
@@ -163,6 +163,8 @@ public:
     void draw_triangle();
 
     void dispatch_rays(glm::uvec2 dispatch_size);
+
+    void dispatch_rays(glm::uvec3 dispatch_size);
 
     /**
      * Executes a buffer of device-generated commands

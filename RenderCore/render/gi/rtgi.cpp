@@ -18,7 +18,7 @@ static AutoCVar_Float cvar_reconstruction_size{
     "r.GI.Reconstruction.Size", "Size in pixels of the screenspace reconstruction filter", 16
 };
 
-static AutoCVar_Int cvar_gi_cache{ "r.GI.Cache.Enabled", "Whether to enable the GI irradiance cache", false };
+static AutoCVar_Int cvar_gi_cache{ "r.GI.Cache.Enabled", "Whether to enable the GI irradiance cache", true };
 
 bool RayTracedGlobalIllumination::should_render() {
     return cvar_num_bounces.Get() > 0;

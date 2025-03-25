@@ -3,6 +3,7 @@
 #include <array>
 #include <vector>
 #include <tracy/Tracy.hpp>
+#include <vulkan/vulkan_core.h>
 
 #include "shared/prelude.h"
 #include "render/backend/handles.hpp"
@@ -192,13 +193,33 @@ private:
     std::array<glm::uvec3, 1024> probes_to_update = {};
     BufferHandle probes_to_update_buffer = nullptr;
 
-    BufferHandle trace_results_buffer = nullptr;
-        
+    /**
+     * Array texture for storing trace results. 20x20 resolution, 1024 layers
+     *
+     * This texture stores the irradiance (rgb) and ray distance (a)
+     */
+    TextureHandle trace_results_texture = nullptr;
+
+    /**
+     * Array texture for storing tracing parameters. 20x20 resolution, 1024 layers
+     *
+     * This texture stores the ray direction (rgb)
+     */
+    TextureHandle trace_params_texture = nullptr;
+
+    VkSampler linear_sampler;
+
     static inline ComputePipelineHandle cascade_copy_shader = nullptr;
 
     static inline RayTracingPipelineHandle probe_tracing_pipeline = nullptr;
 
-    static inline ComputePipelineHandle probe_update_shader = nullptr;
+    static inline ComputePipelineHandle probe_depth_update_shader = nullptr;
+
+    static inline ComputePipelineHandle probe_light_cache_update_shader = nullptr;
+
+    static inline ComputePipelineHandle probe_rtgi_update_shader = nullptr;
+
+    static inline ComputePipelineHandle probe_validity_update_shader = nullptr;
 
     /**
      * Requests an update of a given probe. Returns true if the probe can be updated this frame, false otherwise
