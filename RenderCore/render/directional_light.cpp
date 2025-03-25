@@ -130,7 +130,7 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
     const auto clip_range = z_near + max_shadow_distance;
     const auto ratio = clip_range / z_near;
 
-    auto cascade_splits = std::vector<float>{};
+    auto cascade_splits = eastl::vector<float>{};
     cascade_splits.resize(num_cascades);
 
     // Calculate split depths based on view camera frustum
@@ -148,7 +148,7 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
     for(auto i = 0u; i < num_cascades; i++) {
         const auto split_distance = cascade_splits[i];
 
-        auto frustum_corners = std::array{
+        auto frustum_corners = eastl::array{
             glm::vec3{-1.0f, 1.0f, -1.0f},
             glm::vec3{1.0f, 1.0f, -1.0f},
             glm::vec3{1.0f, -1.0f, -1.0f},

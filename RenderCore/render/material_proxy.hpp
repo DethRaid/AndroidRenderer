@@ -1,6 +1,6 @@
 #pragma once
 
-#include <array>
+#include <EASTL/array.h>
 #include <utility>
 
 #include "render/basic_pbr_material.hpp"
@@ -13,7 +13,7 @@ class RenderBackend;
  * Proxy for a material
  */
 struct MaterialProxy {
-    std::array<GraphicsPipelineHandle, ScenePassType::Count> pipelines;
+    eastl::array<GraphicsPipelineHandle, ScenePassType::Count> pipelines;
 };
 
 using BasicPbrMaterialProxy = std::pair<BasicPbrMaterial, MaterialProxy>;

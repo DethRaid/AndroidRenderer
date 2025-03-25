@@ -16,7 +16,7 @@ AndroidSystemInterface::AndroidSystemInterface(android_app* app) :
     begin_stdout_redirection("SAH");
 }
 
-static std::vector<std::shared_ptr<spdlog::logger>> all_loggers{};
+static eastl::vector<std::shared_ptr<spdlog::logger>> all_loggers{};
 
 std::shared_ptr<spdlog::logger> AndroidSystemInterface::get_logger(const std::string& name) {
     auto logger = spdlog::android_logger_mt(name);
@@ -32,7 +32,7 @@ void AndroidSystemInterface::flush_all_loggers() {
     }
 }
 
-tl::optional<std::vector<uint8_t>> AndroidSystemInterface::load_file(const std::filesystem::path& filepath) {
+tl::optional<eastl::vector<uint8_t>> AndroidSystemInterface::load_file(const std::filesystem::path& filepath) {
     const auto filename_string = filepath.string();
 
     AAsset* file = AAssetManager_open(asset_manager, filename_string.c_str(), AASSET_MODE_BUFFER);
@@ -42,7 +42,7 @@ tl::optional<std::vector<uint8_t>> AndroidSystemInterface::load_file(const std::
 
     const auto file_length = AAsset_getLength(file);
 
-    auto file_content = std::vector<uint8_t>{};
+    auto file_content = eastl::vector<uint8_t>{};
     file_content.resize(file_length);
 
     AAsset_read(file, file_content.data(), file_length);

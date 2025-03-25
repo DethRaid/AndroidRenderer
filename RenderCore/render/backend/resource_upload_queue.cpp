@@ -27,8 +27,8 @@ void ResourceUploadQueue::flush_pending_uploads() {
 
     auto& allocator = backend.get_global_allocator();
 
-    auto before_image_barriers = std::vector<VkImageMemoryBarrier2>{};
-    auto after_image_barriers = std::vector<VkImageMemoryBarrier2>{};
+    auto before_image_barriers = eastl::vector<VkImageMemoryBarrier2>{};
+    auto after_image_barriers = eastl::vector<VkImageMemoryBarrier2>{};
     before_image_barriers.reserve(texture_uploads.size());
     after_image_barriers.reserve(texture_uploads.size() + ktx_uploads.size());
 
@@ -131,8 +131,8 @@ void ResourceUploadQueue::flush_pending_uploads() {
         );
     }
 
-    auto before_buffer_barriers = std::vector<VkBufferMemoryBarrier2>{};
-    auto after_buffer_barriers = std::vector<VkBufferMemoryBarrier2>{};
+    auto before_buffer_barriers = eastl::vector<VkBufferMemoryBarrier2>{};
+    auto after_buffer_barriers = eastl::vector<VkBufferMemoryBarrier2>{};
     before_buffer_barriers.reserve(buffer_uploads.size());
     after_buffer_barriers.reserve(buffer_uploads.size());
 
@@ -275,7 +275,7 @@ void ResourceUploadQueue::upload_ktx(
     const size_t offset
 ) const {
     const auto num_copy_regions = job.source->numLevels;
-    auto copy_regions = std::vector<VkBufferImageCopy>(num_copy_regions);
+    auto copy_regions = eastl::vector<VkBufferImageCopy>(num_copy_regions);
 
     const auto data_size = ktxTexture_GetDataSizeUncompressed(job.source.get());
     auto* data_dest = static_cast<uint8_t*>(staging_buffer.allocation_info.pMappedData) + offset;

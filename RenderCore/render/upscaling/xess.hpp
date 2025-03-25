@@ -4,7 +4,7 @@
 
 #if SAH_USE_XESS
 #include <string>
-#include <vector>
+#include <EASTL/vector.h>
 
 #include <xess/xess.h>
 #include <xess/xess_vk.h>
@@ -19,12 +19,12 @@ public:
     /**
      * Retrieves the instance extension that XeSS requires
      */
-    static std::vector<std::string> get_instance_extensions();
+    static eastl::vector<std::string> get_instance_extensions();
 
     /**
      * Retrieves the device extensions that XeSS requires
      */
-    static std::vector<std::string> get_device_extensions(VkInstance instance, VkPhysicalDevice physical_device);
+    static eastl::vector<std::string> get_device_extensions(VkInstance instance, VkPhysicalDevice physical_device);
 
     /**
      * Modifies the provided Vulkan features with the features that XeSS requires

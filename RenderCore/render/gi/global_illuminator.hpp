@@ -1,5 +1,5 @@
 #pragma once
-#include <vector>
+#include <EASTL/vector.h>
 
 #include "render/backend/handles.hpp"
 #include "render/backend/texture_usage_token.hpp"
@@ -29,7 +29,7 @@ public:
     ) = 0;
 
     virtual void get_lighting_resource_usages(
-        std::vector<TextureUsageToken>& textures, std::vector<BufferUsageToken>& buffers
+        eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers
     ) const = 0;
 
     virtual void render_to_lit_scene(

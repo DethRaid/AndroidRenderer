@@ -1,6 +1,6 @@
 #pragma once
 
-#include <array>
+#include <EASTL/array.h>
 
 #include <imgui.h>
 

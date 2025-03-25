@@ -139,7 +139,7 @@ void DLSSAdapter::evaluate(
     const TextureHandle color_in, const TextureHandle color_out,
     const TextureHandle motion_vectors_in
 ) {
-    auto textures = std::vector<TextureUsageToken>{
+    auto textures = eastl::vector<TextureUsageToken>{
         {
             .texture = color_in,
             .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -198,7 +198,7 @@ void DLSSAdapter::evaluate(
                     motion_vectors_in,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-                auto tags = std::vector<sl::ResourceTag>{};
+                auto tags = eastl::vector<sl::ResourceTag>{};
                 tags.reserve(8);
 
                 tags.emplace_back(
@@ -267,7 +267,7 @@ void DLSSAdapter::evaluate(
                     slDLSSSetOptions(viewport, options);
                 }
 
-                auto options_arr = std::array<const sl::BaseStructure*, 1>{&viewport};
+                auto options_arr = eastl::array<const sl::BaseStructure*, 1>{&viewport};
                 const auto result = slEvaluateFeature(
                     feature,
                     *frame_token,

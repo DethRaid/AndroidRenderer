@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <EASTL/vector.h>
 
 #include "global_illuminator.hpp"
 #include "irradiance_cache.hpp"
@@ -40,7 +40,7 @@ public:
      * Retrieves resource usages for applying this effect to the lit scene
      */
     void get_lighting_resource_usages(
-        std::vector<TextureUsageToken>& textures, std::vector<BufferUsageToken>& buffers
+        eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers
     ) const override;
 
     /**

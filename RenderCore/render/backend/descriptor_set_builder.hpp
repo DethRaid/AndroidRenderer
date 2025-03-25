@@ -4,6 +4,8 @@
 #include <string>
 #include <string_view>
 
+#include <EASTL/vector.h>
+
 #include "render/backend/acceleration_structure.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/texture_usage_token.hpp"
@@ -38,11 +40,11 @@ public:
 
     DescriptorSetInfo set_info;
 
-    std::vector<detail::BoundResource> bindings;
+    eastl::vector<detail::BoundResource> bindings;
 
     void get_resource_usage_information(
-        std::vector<TextureUsageToken>& texture_usages,
-        std::vector<BufferUsageToken>& buffer_usages
+        eastl::vector<TextureUsageToken>& texture_usages,
+        eastl::vector<BufferUsageToken>& buffer_usages
     ) const;
 };
 
@@ -76,7 +78,7 @@ private:
 
     uint32_t binding_index = 0;
 
-    std::vector<detail::BoundResource> bindings;
+    eastl::vector<detail::BoundResource> bindings;
 
     std::string name;
 };

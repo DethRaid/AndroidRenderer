@@ -507,14 +507,14 @@ void RenderBackend::query_physical_device_features() {
         auto count = uint32_t{};
         vkGetPhysicalDeviceFragmentShadingRatesKHR(physical_device, &count, nullptr);
 
-        auto shading_rates = std::vector<VkPhysicalDeviceFragmentShadingRateKHR>(
+        auto shading_rates = eastl::vector<VkPhysicalDeviceFragmentShadingRateKHR>(
             count,
             VkPhysicalDeviceFragmentShadingRateKHR{
                 .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_KHR
             });
         vkGetPhysicalDeviceFragmentShadingRatesKHR(physical_device, &count, shading_rates.data());
 
-        supported_shading_rates = std::vector<glm::uvec2>{};
+        supported_shading_rates = eastl::vector<glm::uvec2>{};
         supported_shading_rates.reserve(count);
         for(const auto& rate : shading_rates) {
             supported_shading_rates.emplace_back(rate.fragmentSize.width, rate.fragmentSize.height);
@@ -579,7 +579,7 @@ bool RenderBackend::supports_device_generated_commands() const {
     return supports_dgc;
 }
 
-const std::vector<glm::uvec2>& RenderBackend::get_shading_rates() const {
+const eastl::vector<glm::uvec2>& RenderBackend::get_shading_rates() const {
     return supported_shading_rates;
 }
 
@@ -829,15 +829,15 @@ void RenderBackend::flush_batched_command_buffers() {
     }
 
     if(!queued_command_buffers.empty()) {
-        auto command_buffers = std::vector<VkCommandBuffer>{};
+        auto command_buffers = eastl::vector<VkCommandBuffer>{};
         command_buffers.reserve(queued_command_buffers.size() * 2);
 
         for(const auto& queued_commands : queued_command_buffers) {
             command_buffers.emplace_back(queued_commands.get_vk_commands());
         }
 
-        auto wait_stages = std::vector<VkPipelineStageFlags>{VK_PIPELINE_STAGE_ALL_COMMANDS_BIT};
-        auto wait_semaphores = std::vector{swapchain_semaphore};
+        auto wait_stages = eastl::vector<VkPipelineStageFlags>{VK_PIPELINE_STAGE_ALL_COMMANDS_BIT};
+        auto wait_semaphores = eastl::vector{swapchain_semaphore};
         if(!last_submission_semaphores.empty()) {
             wait_semaphores.insert(
                 wait_semaphores.end(),
@@ -1115,14 +1115,14 @@ void RenderBackend::create_default_resources() {
         TextureUploadJob{
             .destination = white_texture_handle,
             .mip = 0,
-            .data = std::vector<uint8_t>(static_cast<size_t>(64 * 4), 0xFF)
+            .data = eastl::vector<uint8_t>(static_cast<size_t>(64 * 4), 0xFF)
         }
     );
     upload_queue->enqueue(
         TextureUploadJob{
             .destination = default_normalmap_handle,
             .mip = 0,
-            .data = std::vector<uint8_t>{
+            .data = eastl::vector<uint8_t>{
                 0x80, 0x80, 0xFF, 0x00, 0x80, 0x80, 0xFF, 0x00, 0x80, 0x80, 0xFF, 0x00, 0x80, 0x80, 0xFF, 0x00,
                 0x80, 0x80, 0xFF, 0x00, 0x80, 0x80, 0xFF, 0x00, 0x80, 0x80, 0xFF, 0x00, 0x80, 0x80, 0xFF, 0x00,
                 0x80, 0x80, 0xFF, 0x00, 0x80, 0x80, 0xFF, 0x00, 0x80, 0x80, 0xFF, 0x00, 0x80, 0x80, 0xFF, 0x00,

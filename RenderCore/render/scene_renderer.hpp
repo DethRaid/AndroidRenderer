@@ -126,7 +126,7 @@ private:
 
     TextureHandle antialiased_scene_handle = nullptr;
 
-    std::vector<TextureHandle> swapchain_images;
+    eastl::vector<TextureHandle> swapchain_images;
 
     /**
      * \brief Screen-space camera jitter applied to this frame

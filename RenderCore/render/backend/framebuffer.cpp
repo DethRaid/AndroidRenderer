@@ -1,13 +1,13 @@
 #include "framebuffer.hpp"
 
-#include <vector>
+#include <EASTL/vector.h>
 
 #include <glm/vec2.hpp>
 #include <tracy/Tracy.hpp>
 
 #include "render/backend/render_backend.hpp"
 
-Framebuffer Framebuffer::create(const RenderBackend& backend, const std::vector<TextureHandle>& color_attachments,
+Framebuffer Framebuffer::create(const RenderBackend& backend, const eastl::vector<TextureHandle>& color_attachments,
                                 const std::optional<TextureHandle> depth_attachment, const VkRenderPass render_pass) {
     ZoneScoped;
 
@@ -15,7 +15,7 @@ Framebuffer Framebuffer::create(const RenderBackend& backend, const std::vector<
 
     auto render_area = VkRect2D{};
 
-    auto attachments = std::array<VkImageView, 9>{};
+    auto attachments = eastl::array<VkImageView, 9>{};
     auto attachment_write_idx = 0u;
 
     auto num_layers = 1u;
@@ -74,14 +74,14 @@ Framebuffer Framebuffer::create(const RenderBackend& backend, const std::vector<
     return framebuffer;
 }
 
-Framebuffer Framebuffer::create(const VkDevice device, const std::vector<VkImageView>& color_attachments,
+Framebuffer Framebuffer::create(const VkDevice device, const eastl::vector<VkImageView>& color_attachments,
                                 const std::optional<VkImageView> depth_attachment, const VkRect2D& render_area,
                                 const VkRenderPass render_pass) {
     ZoneScoped;
 
     auto depth_attachment_count = depth_attachment ? 1 : 0;
 
-    auto attachments = std::vector<VkImageView>{};
+    auto attachments = eastl::vector<VkImageView>{};
     attachments.reserve(color_attachments.size() + depth_attachment_count);
 
     {

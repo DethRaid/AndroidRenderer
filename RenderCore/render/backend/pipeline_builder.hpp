@@ -1,9 +1,10 @@
 #pragma once
 
 #include <filesystem>
-#include <vector>
+#include <EASTL/vector.h>
 #include <cstdint>
-#include <unordered_map>
+#include <EASTL/unordered_map.h>
+#include <EASTL/string.h>
 
 #include <volk.h>
 
@@ -19,16 +20,16 @@ struct SpvReflectBlockVariable;
 struct SpvReflectInterfaceVariable;
 
 bool collect_bindings(
-    const std::vector<uint8_t>& shader_instructions,
-    const std::string& shader_name,
+    const eastl::vector<uint8_t>& shader_instructions,
+    std::string_view shader_name,
     VkShaderStageFlags shader_stage,
-    std::vector<DescriptorSetInfo>& descriptor_sets,
-    std::vector<VkPushConstantRange>& push_constants
+    eastl::vector<DescriptorSetInfo>& descriptor_sets,
+    eastl::vector<VkPushConstantRange>& push_constants
 );
 
 struct VertexLayout {
-    std::vector<VkVertexInputBindingDescription> input_bindings;
-    std::unordered_map<std::string, VkVertexInputAttributeDescription> attributes;
+    eastl::vector<VkVertexInputBindingDescription> input_bindings;
+    eastl::unordered_map<eastl::string, VkVertexInputAttributeDescription> attributes;
 };
 
 /**
@@ -133,15 +134,15 @@ private:
     /**
      * Vertex shader SPIR-V code. If this is present, you may not load another vertex shader
      */
-    std::optional<std::vector<uint8_t>> vertex_shader;
+    std::optional<eastl::vector<uint8_t>> vertex_shader;
 
     std::string vertex_shader_name;
 
-    std::optional<std::vector<uint8_t>> geometry_shader;
+    std::optional<eastl::vector<uint8_t>> geometry_shader;
 
     std::string geometry_shader_name;
 
-    std::optional<std::vector<uint8_t>> fragment_shader;
+    std::optional<eastl::vector<uint8_t>> fragment_shader;
 
     std::string fragment_shader_name;
 
@@ -153,22 +154,22 @@ private:
      * However, each set in the vertex and fragment shader must be the same - vertex shader set 0 must be the same as
      * fragment shader set 0
      */
-    std::vector<DescriptorSetInfo> descriptor_sets;
+    eastl::vector<DescriptorSetInfo> descriptor_sets;
 
-    std::vector<VkPushConstantRange> push_constants;
+    eastl::vector<VkPushConstantRange> push_constants;
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
 
     VkPipelineRasterizationStateCreateInfo raster_state = {};
 
     VkPipelineColorBlendStateCreateFlags blend_flags = {};
-    std::vector<VkPipelineColorBlendAttachmentState> blends = {};
+    eastl::vector<VkPipelineColorBlendAttachmentState> blends = {};
 
     bool need_position_buffer = false;
     bool need_data_buffer = false;
     bool need_primitive_id_buffer = false;
-    std::vector<VkVertexInputBindingDescription> vertex_inputs;
-    std::vector<VkVertexInputAttributeDescription> vertex_attributes;
+    eastl::vector<VkVertexInputBindingDescription> vertex_inputs;
+    eastl::vector<VkVertexInputAttributeDescription> vertex_attributes;
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 

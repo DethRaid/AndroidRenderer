@@ -92,8 +92,8 @@ void CommandBuffer::barrier(
 }
 
 void CommandBuffer::barrier(
-    const std::vector<VkMemoryBarrier2>& memory_barriers, const std::vector<VkBufferMemoryBarrier2>& buffer_barriers,
-    const std::vector<VkImageMemoryBarrier2>& image_barriers
+    const eastl::vector<VkMemoryBarrier2>& memory_barriers, const eastl::vector<VkBufferMemoryBarrier2>& buffer_barriers,
+    const eastl::vector<VkImageMemoryBarrier2>& image_barriers
 ) const {
     const auto dependency_info = VkDependencyInfo{
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -131,7 +131,7 @@ void CommandBuffer::build_acceleration_structures(
 }
 
 void CommandBuffer::begin_rendering(const RenderingInfo& info) {
-    auto attachment_infos = std::vector<VkRenderingAttachmentInfo>{};
+    auto attachment_infos = eastl::vector<VkRenderingAttachmentInfo>{};
     attachment_infos.reserve(
         info.color_attachments.size() +
         (info.depth_attachment.has_value() ? 1 : 0)
@@ -502,8 +502,8 @@ void CommandBuffer::reset_event(const VkEvent event, const VkPipelineStageFlags 
     vkCmdResetEvent2(commands, event, stages);
 }
 
-void CommandBuffer::set_event(const VkEvent event, const std::vector<BufferBarrier>& buffers) {
-    auto buffer_barriers = std::vector<VkBufferMemoryBarrier2>{};
+void CommandBuffer::set_event(const VkEvent event, const eastl::vector<BufferBarrier>& buffers) {
+    auto buffer_barriers = eastl::vector<VkBufferMemoryBarrier2>{};
     buffer_barriers.reserve(buffers.size());
     for(const auto& buffer_barrier : buffers) {
         const auto barrier = VkBufferMemoryBarrier2{

@@ -27,11 +27,11 @@ public:
 
     void begin_frame(RenderGraph& graph);
 
-    const std::vector<MeshPrimitiveHandle>& get_solid_primitives() const;
+    const eastl::vector<MeshPrimitiveHandle>& get_solid_primitives() const;
 
-    const std::vector<MeshPrimitiveHandle>& get_masked_primitives() const;
+    const eastl::vector<MeshPrimitiveHandle>& get_masked_primitives() const;
 
-    const std::vector<MeshPrimitiveHandle>& get_transparent_primitives() const;
+    const eastl::vector<MeshPrimitiveHandle>& get_transparent_primitives() const;
 
     BufferHandle get_primitive_buffer() const;
 
@@ -46,7 +46,7 @@ public:
     /**
      * Retrieves a list of all solid primitives that lie within the given bounds
      */
-    std::vector<MeshPrimitiveHandle> get_primitives_in_bounds(
+    eastl::vector<MeshPrimitiveHandle> get_primitives_in_bounds(
         const glm::vec3& min_bounds, const glm::vec3& max_bounds
     ) const;
 
@@ -102,19 +102,19 @@ private:
 
     // TODO: Group solid primitives by front face
 
-    std::vector<MeshPrimitiveHandle> solid_primitives;
+    eastl::vector<MeshPrimitiveHandle> solid_primitives;
 
     // TODO: Group masked primitives by front face and cull mode
 
-    std::vector<MeshPrimitiveHandle> masked_primitives;
+    eastl::vector<MeshPrimitiveHandle> masked_primitives;
 
-    std::vector<MeshPrimitiveHandle> translucent_primitives;
+    eastl::vector<MeshPrimitiveHandle> translucent_primitives;
 
-    std::vector<MeshPrimitiveHandle> new_emissive_objects;
+    eastl::vector<MeshPrimitiveHandle> new_emissive_objects;
 
     ComputePipelineHandle emissive_point_cloud_shader;
 
-    std::vector<MeshPrimitiveHandle> new_primitives;
+    eastl::vector<MeshPrimitiveHandle> new_primitives;
 
     BufferHandle generate_vpls_for_primitive(RenderGraph& graph, const MeshPrimitiveHandle& primitive);
 

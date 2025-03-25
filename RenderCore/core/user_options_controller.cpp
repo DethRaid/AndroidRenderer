@@ -12,14 +12,14 @@ void CvarChangeDispatcher::register_cvar_listener<int32_t>(
     if (cvar != nullptr) {
         auto itr = int_cvar_listeners.find(hash);
         if (itr == int_cvar_listeners.end()) {
-            itr = int_cvar_listeners.emplace(hash, std::vector<std::function<void(int32_t)>>{}).first;
+            itr = int_cvar_listeners.emplace(hash, eastl::vector<std::function<void(int32_t)>>{}).first;
         }
 
         itr->second.emplace_back(std::move(listener));
         return;
     }
 
-    throw CvarNotFoundException{fmt::format("No such cvar: {}", cvar_name)};
+    throw CvarNotFoundException{ fmt::format("No such cvar: {}", std::string_view{cvar_name.data(), cvar_name.size()}) };
 }
 
 template <>
@@ -32,14 +32,14 @@ void CvarChangeDispatcher::register_cvar_listener<double>(
     if (cvar != nullptr) {
         auto itr = float_cvar_listeners.find(hash);
         if (itr == float_cvar_listeners.end()) {
-            itr = float_cvar_listeners.emplace(hash, std::vector<std::function<void(double)>>{}).first;
+            itr = float_cvar_listeners.emplace(hash, eastl::vector<std::function<void(double)>>{}).first;
         }
 
         itr->second.emplace_back(std::move(listener));
         return;
     }
 
-    throw CvarNotFoundException{fmt::format("No such cvar: {}", cvar_name)};
+    throw CvarNotFoundException{fmt::format("No such cvar: {}", std::string_view{cvar_name.data(), cvar_name.size()})};
 }
 
 template <>
@@ -52,14 +52,14 @@ void CvarChangeDispatcher::register_cvar_listener<std::string>(
     if (cvar != nullptr) {
         auto itr = string_cvar_listeners.find(hash);
         if (itr == string_cvar_listeners.end()) {
-            itr = string_cvar_listeners.emplace(hash, std::vector<std::function<void(std::string)>>{}).first;
+            itr = string_cvar_listeners.emplace(hash, eastl::vector<std::function<void(std::string)>>{}).first;
         }
 
         itr->second.emplace_back(std::move(listener));
         return;
     }
 
-    throw CvarNotFoundException{fmt::format("No such cvar: {}", cvar_name)};
+    throw CvarNotFoundException{fmt::format("No such cvar: {}", std::string_view{cvar_name.data(), cvar_name.size()})};
 }
 
 template<>

@@ -150,7 +150,7 @@ void RayTracedGlobalIllumination::post_render(
 }
 
 void RayTracedGlobalIllumination::get_lighting_resource_usages(
-    std::vector<TextureUsageToken>& textures, std::vector<BufferUsageToken>& buffers
+    eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers
 ) const {
     textures.emplace_back(
         ray_texture,

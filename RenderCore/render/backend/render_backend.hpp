@@ -1,6 +1,6 @@
 #pragma once
 
-#include <array>
+#include <EASTL/array.h>
 
 #include <volk.h>
 #include <VkBootstrap.h>
@@ -42,7 +42,7 @@ public:
 
     bool supports_shading_rate_image = false;
 
-    std::vector<glm::uvec2> supported_shading_rates;
+    eastl::vector<glm::uvec2> supported_shading_rates;
 
     explicit RenderBackend();
 
@@ -60,7 +60,7 @@ public:
 
     bool supports_device_generated_commands() const;
 
-    const std::vector<glm::uvec2>& get_shading_rates() const;
+    const eastl::vector<glm::uvec2>& get_shading_rates() const;
 
     glm::vec2 get_max_shading_rate_texel_size() const;
 
@@ -240,7 +240,7 @@ private:
 
     DescriptorSetAllocator global_descriptor_allocator;
 
-    std::array<DescriptorSetAllocator, num_in_flight_frames> frame_descriptor_allocators;
+    eastl::array<DescriptorSetAllocator, num_in_flight_frames> frame_descriptor_allocators;
 
     vkutil::DescriptorLayoutCache descriptor_layout_cache;
 
@@ -262,24 +262,24 @@ private:
      *
      * Set to VK_NULL_HANDLE after presenting - vkQueuePresentKHR consumes the semaphore value and makes it unsignalled
      */
-    std::vector<VkSemaphore> last_submission_semaphores = {};
+    eastl::vector<VkSemaphore> last_submission_semaphores = {};
 
     uint32_t cur_swapchain_image_idx = 0;
 
-    std::array<VkFence, num_in_flight_frames> frame_fences = {};
+    eastl::array<VkFence, num_in_flight_frames> frame_fences = {};
 
-    std::array<CommandAllocator, num_in_flight_frames> graphics_command_allocators = {};
+    eastl::array<CommandAllocator, num_in_flight_frames> graphics_command_allocators = {};
 
-    std::array<CommandAllocator, num_in_flight_frames> transfer_command_allocators = {};
+    eastl::array<CommandAllocator, num_in_flight_frames> transfer_command_allocators = {};
 
-    std::vector<VkCommandBuffer> queued_transfer_command_buffers = {};
+    eastl::vector<VkCommandBuffer> queued_transfer_command_buffers = {};
 
     /**
      * Barriers that need to execute to transfer resources from the transfer queue to the graphics queue
      */
-    std::vector<VkImageMemoryBarrier2> transfer_barriers = {};
+    eastl::vector<VkImageMemoryBarrier2> transfer_barriers = {};
 
-    std::vector<CommandBuffer> queued_command_buffers = {};
+    eastl::vector<CommandBuffer> queued_command_buffers = {};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR ray_pipeline_features = {};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
     VkPhysicalDeviceRayQueryFeaturesKHR ray_query_features = {};
@@ -317,8 +317,8 @@ private:
 
     void destroy_semaphore(VkSemaphore semaphore);
 
-    std::array<std::vector<VkSemaphore>, num_in_flight_frames> zombie_semaphores;
-    std::vector<VkSemaphore> available_semaphores;
+    eastl::array<eastl::vector<VkSemaphore>, num_in_flight_frames> zombie_semaphores;
+    eastl::vector<VkSemaphore> available_semaphores;
 
     void create_default_resources();
 

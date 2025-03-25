@@ -30,7 +30,7 @@ static GLFWscrollfun prev_scroll_callback;
 static GLFWkeyfun prev_key_callback;
 static GLFWcharfun prev_char_callback;
 
-std::array<GLFWcursor*, ImGuiMouseCursor_COUNT> mouse_cursors = {};
+eastl::array<GLFWcursor*, ImGuiMouseCursor_COUNT> mouse_cursors = {};
 
 static const char* get_clipboard_text(void* user_data) {
     return glfwGetClipboardString(static_cast<GLFWwindow*>(user_data));
@@ -244,7 +244,7 @@ void DebugUI::create_font_texture() {
     upload_queue.enqueue(
         TextureUploadJob{
             .destination = font_atlas_handle, .mip = 0,
-            .data = std::vector(pixels, pixels + static_cast<ptrdiff_t>(width * height))
+            .data = eastl::vector<uint8_t>(pixels, pixels + static_cast<ptrdiff_t>(width * height))
         }
     );
 
@@ -320,7 +320,7 @@ void DebugUI::draw_debug_menu() {
     if(ImGui::Begin("Debug Menu", &is_debug_menu_open)) {
         ImGui::Text("TAA");
         ImGui::Separator();
-        draw_combo_box("TAA Technique", std::array<std::string, 4>{"DLSS", "XeSS", "FSR", "None"}, current_taa);
+        draw_combo_box("TAA Technique", eastl::array<std::string, 4>{"DLSS", "XeSS", "FSR", "None"}, current_taa);
 
 #if SAH_USE_STREAMLINE
         if(current_taa == 0) {
@@ -328,7 +328,7 @@ void DebugUI::draw_debug_menu() {
 
             draw_combo_box(
                 "DLSS Mode",
-                std::array<std::string, 4>{"DLAA", "Quality", "Balanced", "Performance"},
+                eastl::array<std::string, 4>{"DLAA", "Quality", "Balanced", "Performance"},
                 current_dlss_mode);
             auto* dlss_quality = CVarSystem::Get()->GetIntCVar("r.DLSS.Quality");
             switch(current_dlss_mode) {
@@ -357,7 +357,7 @@ void DebugUI::draw_debug_menu() {
 
                 draw_combo_box(
                     "XeSS Mode",
-                    std::array<std::string, 7>{
+                    eastl::array<std::string, 7>{
                         "AA", "Ultra Quality Plus", "Ultra Quality", "Quality", "Balanced", "Performance",
                         "Ultra Performance"
                     },
@@ -395,7 +395,7 @@ void DebugUI::draw_debug_menu() {
 
                     draw_combo_box(
                         "FSR Mode",
-                        std::array<std::string, 5>{
+                        eastl::array<std::string, 5>{
                             "Native AA", "Quality", "Balanced", "Performance", "Ultra Performance"
                         },
                         current_fsr_mode);

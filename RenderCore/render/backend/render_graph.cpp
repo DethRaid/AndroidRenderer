@@ -221,8 +221,8 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
 }
 
 void RenderGraph::update_accesses_and_issues_barriers(
-    const std::vector<TextureUsageToken>& textures,
-    const std::vector<BufferUsageToken>& buffers
+    const eastl::vector<TextureUsageToken>& textures,
+    const eastl::vector<BufferUsageToken>& buffers
 ) const {
     for(const auto& buffer_token : buffers) {
         access_tracker.set_resource_usage(buffer_token);

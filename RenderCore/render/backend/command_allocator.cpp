@@ -24,7 +24,8 @@ CommandAllocator::CommandAllocator(RenderBackend& backend_in, const uint32_t que
         logger->error("Could not create command pool: Vulkan error {}", result);
         throw std::runtime_error{"Could not create command pool"};
     }
-    backend->set_object_name(command_pool, fmt::format("Command allocator for queue family {}", queue_index));
+    const auto name = fmt::format("Command allocator for queue family {}", queue_index);
+    backend->set_object_name(command_pool, std::string{name.c_str()});
 }
 
 CommandAllocator::CommandAllocator(CommandAllocator&& old) noexcept : backend{old.backend },

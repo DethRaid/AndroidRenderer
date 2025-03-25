@@ -20,7 +20,7 @@ public:
 
     GraphicsPipelineHandle create_pipeline(const GraphicsPipelineBuilder& pipeline_builder);
 
-    ComputePipelineHandle create_pipeline(const std::string& shader_file_path);
+    ComputePipelineHandle create_pipeline(const std::filesystem::path& shader_file_path);
 
     GraphicsPipelineHandle create_pipeline_group(std::span<GraphicsPipelineHandle> pipelines_in);
 
@@ -60,9 +60,9 @@ private:
 
     plf::colony<HitGroup> shader_groups;
 
-    std::vector<uint8_t> occlusion_miss_shader;
+    eastl::vector<uint8_t> occlusion_miss_shader;
 
-    std::vector<uint8_t> gi_miss_shader;
+    eastl::vector<uint8_t> gi_miss_shader;
 
     plf::colony<RayTracingPipeline> ray_tracing_pipelines;
 };

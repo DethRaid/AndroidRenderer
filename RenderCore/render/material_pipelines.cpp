@@ -13,7 +13,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_prepass", material_name);
-        depth_pso = backend.begin_building_pipeline(variant_name)
+        depth_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                            .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                            .enable_dgc()
                            .build();
@@ -21,7 +21,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_prepass_masked", material_name);
-        depth_masked_pso = backend.begin_building_pipeline(variant_name)
+        depth_masked_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                                   .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                                   .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
                                   .enable_dgc()
@@ -30,7 +30,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_shadow", material_name);
-        shadow_pso = backend.begin_building_pipeline(variant_name)
+        shadow_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                             .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                             .set_depth_state(
                                 {
@@ -47,7 +47,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_shadow_masked", material_name);
-        shadow_masked_pso = backend.begin_building_pipeline(variant_name)
+        shadow_masked_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                                    .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                                    .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
                                    .set_depth_state(
@@ -69,7 +69,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
     };
     {
         const auto variant_name = fmt::format("{}_rsm", material_name);
-        rsm_pso = backend.begin_building_pipeline(variant_name)
+        rsm_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                          .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                          .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
                          .set_depth_state(
@@ -84,7 +84,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_rsm_masked", material_name);
-        rsm_masked_pso = backend.begin_building_pipeline(variant_name)
+        rsm_masked_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                                 .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                                 .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
                                 .set_depth_state(
@@ -99,7 +99,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_gbuffer", material_name);
-        gbuffer_pso = backend.begin_building_pipeline(variant_name)
+        gbuffer_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                              .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                              .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
                              .set_depth_state(
@@ -117,7 +117,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
     }
     {
         const auto variant_name = fmt::format("{}_gbuffer_masked", material_name);
-        gbuffer_masked_pso = backend.begin_building_pipeline(variant_name)
+        gbuffer_masked_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                                     .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                                     .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
                                     .set_depth_state(

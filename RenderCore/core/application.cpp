@@ -7,6 +7,7 @@
 #include <imgui.h>
 #include <magic_enum.hpp>
 #include <tracy/Tracy.hpp>
+#include <fastgltf/core.hpp>
 
 #include "system_interface.hpp"
 #include "model_import/gltf_model.hpp"
@@ -24,24 +25,34 @@ Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
 
     scene_renderer = std::make_unique<SceneRenderer>();
     scene = std::make_unique<RenderScene>(
-        scene_renderer->get_mesh_storage(), scene_renderer->get_material_storage()
+        scene_renderer->get_mesh_storage(),
+        scene_renderer->get_material_storage()
     );
 
     scene_renderer->set_scene(*scene);
 
-    input.add_input_event_callback([&](const InputEvent& event) { switch (event.button) {
-    case InputButtons::FlycamEnabled:
-        if(event.action == InputAction::Pressed) {
-            logger->trace("Enabling the flycam");
-            flycam_enabled = true;
-        } else {
-            logger->trace("Disabling the flycam");
-            flycam_enabled = false;
-        }
-        break;
-    } });
-    input.add_player_movement_callback([&](const glm::vec3& movement) { update_player_location(movement); });
-    input.add_player_rotation_callback([&](const glm::vec2& rotation) { update_player_rotation(rotation); });
+    input.add_input_event_callback(
+        [&](const InputEvent& event) {
+            switch(event.button) {
+            case InputButtons::FlycamEnabled:
+                if(event.action == InputAction::Pressed) {
+                    logger->trace("Enabling the flycam");
+                    flycam_enabled = true;
+                } else {
+                    logger->trace("Disabling the flycam");
+                    flycam_enabled = false;
+                }
+                break;
+            }
+        });
+    input.add_player_movement_callback(
+        [&](const glm::vec3& movement) {
+            update_player_location(movement);
+        });
+    input.add_player_rotation_callback(
+        [&](const glm::vec2& rotation) {
+            update_player_rotation(rotation);
+        });
 
     last_frame_start_time = std::chrono::high_resolution_clock::now();
 
@@ -61,7 +72,7 @@ void Application::load_scene(const std::filesystem::path& scene_path) {
     }
 #endif
 
-    if (scene_path.has_parent_path()) {
+    if(scene_path.has_parent_path()) {
         logger->info("Scene path {} has parent path {}", scene_path.string(), scene_path.parent_path().string());
     } else {
         logger->warn("Scene path {} has no parent path!", scene_path.string());
@@ -75,35 +86,20 @@ void Application::load_scene(const std::filesystem::path& scene_path) {
         data.loadFromAndroidAsset(scene_path);
     }
 #else
-    fastgltf::GltfDataBuffer data;
-    {
-        ZoneScopedN("Load file data");
-        data.loadFromFile(scene_path);
-    }
-#endif
-    std::unique_ptr<fastgltf::glTF> gltf;
-    {
-        ZoneScopedN("Parse glTF");
-        if (scene_path.extension() == ".gltf") {
-            gltf = parser.loadGLTF(&data, scene_path.parent_path(), fastgltf::Options::LoadExternalBuffers);
-        } else if (scene_path.extension() == ".glb") {
-            gltf = parser.loadBinaryGLTF(&data, scene_path.parent_path(), fastgltf::Options::LoadGLBBuffers);
-        }
-    }
-    if (parser.getError() != fastgltf::Error::None) {
-        logger->error("Could not load scene {}: {}", scene_path.string(), magic_enum::enum_name(parser.getError()));
-        return;
-    }
 
-    const auto parse_error = gltf->parse(fastgltf::Category::All & ~(fastgltf::Category::Images));
-    if (parse_error != fastgltf::Error::None) {
-        logger->error("Could not parse glTF file {}: {}", scene_path.string(), magic_enum::enum_name(parse_error));
+    auto data = fastgltf::GltfDataBuffer::FromPath(scene_path);
+
+#endif
+    auto gltf = parser.loadGltf(data.get(), scene_path.parent_path(), fastgltf::Options::LoadExternalBuffers);
+
+    if(gltf.error() != fastgltf::Error::None) {
+        logger->error("Could not load scene {}: {}", scene_path.string(), magic_enum::enum_name(gltf.error()));
         return;
     }
 
     logger->info("Beginning import of scene {}", scene_path.string());
 
-    auto imported_model = GltfModel{scene_path, gltf->getParsedAsset(), *scene_renderer};
+    auto imported_model = GltfModel{scene_path, std::move(gltf.get()), *scene_renderer};
     imported_model.add_to_scene(*scene);
 
     logger->info("Loaded scene {}", scene_path.string());
@@ -154,7 +150,7 @@ void Application::update_player_location(const glm::vec3& movement_axis) const {
 }
 
 void Application::update_player_rotation(const glm::vec2& rotation_input) const {
-    if (!flycam_enabled) {
+    if(!flycam_enabled) {
         scene_renderer->rotate_player(0.f, 0.f);
         return;
     }
@@ -164,7 +160,9 @@ void Application::update_player_rotation(const glm::vec2& rotation_input) const 
     scene_renderer->rotate_player(rotation.y, rotation.x);
 }
 
-SceneRenderer& Application::get_renderer() const { return *scene_renderer; }
+SceneRenderer& Application::get_renderer() const {
+    return *scene_renderer;
+}
 
 void Application::update_delta_time() {
     const auto frame_start_time = std::chrono::high_resolution_clock::now();

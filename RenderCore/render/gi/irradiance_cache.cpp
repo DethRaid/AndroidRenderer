@@ -295,7 +295,7 @@ void IrradianceCache::place_probes_from_view(const SceneView& view) {
 
     first_frame = false;
 
-    std::array<ProbeCascade, 4> cascade_gpu_data;
+    eastl::array<ProbeCascade, 4> cascade_gpu_data;
     for(uint i = 0; i < cascades.size(); i++) {
         cascade_gpu_data[i].min = cascades[i].location;
         cascade_gpu_data[i].probe_spacing = cascades[i].probe_spacing;

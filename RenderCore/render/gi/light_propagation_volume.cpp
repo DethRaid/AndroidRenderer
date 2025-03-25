@@ -297,7 +297,7 @@ void LightPropagationVolume::post_render(
 }
 
 void LightPropagationVolume::get_lighting_resource_usages(
-    std::vector<TextureUsageToken>& textures, std::vector<BufferUsageToken>& buffers
+    eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers
 ) const {
     textures.emplace_back(
         lpv_a_red,
@@ -554,7 +554,7 @@ void LightPropagationVolume::update_cascade_transforms(const SceneView& view, co
 void LightPropagationVolume::update_buffers() const {
     ZoneScoped;
 
-    auto cascade_matrices = std::vector<LPVCascadeMatrices>{};
+    auto cascade_matrices = eastl::vector<LPVCascadeMatrices>{};
     cascade_matrices.reserve(cascades.size());
     for(const auto& cascade : cascades) {
         cascade_matrices.emplace_back(
@@ -570,7 +570,7 @@ void LightPropagationVolume::update_buffers() const {
     auto& queue = RenderBackend::get().get_upload_queue();
     queue.upload_to_buffer(cascade_data_buffer, std::span{cascade_matrices});
 
-    auto matrices = std::vector<glm::mat4>{};
+    auto matrices = eastl::vector<glm::mat4>{};
     matrices.reserve(cascades.size());
     for(const auto& cascade : cascades) {
         matrices.emplace_back(cascade.rsm_vp);
@@ -690,7 +690,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
         graph.add_compute_dispatch<VplPipelineConstants>(
             ComputeDispatch<VplPipelineConstants>{
                 .name = "Extract VPLs",
-                .descriptor_sets = std::vector{descriptor_set},
+                .descriptor_sets = eastl::vector{descriptor_set},
                 .buffers = {
                     {
                         .buffer = cascade.vpl_count_buffer,
@@ -756,7 +756,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
 
                     }
                 },
-                .descriptor_sets = std::vector{descriptor_set},
+                .descriptor_sets = eastl::vector{descriptor_set},
                 .color_attachments = {
                     RenderingAttachmentInfo{
                         .image = lpv_a_red,
@@ -799,7 +799,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
         graph.add_compute_dispatch<VplInjectionConstants>(
             ComputeDispatch<VplInjectionConstants>{
                 .name = "VPL Injection",
-                .descriptor_sets = std::vector{descriptor_set},
+                .descriptor_sets = eastl::vector{descriptor_set},
                 .buffers = {
                     {cascade_data_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT},
                     {cascade.vpl_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT},
@@ -877,7 +877,7 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) const {
     render_graph.add_pass(
         {
             .name = "LightPropagationVolume::clear_volume",
-            .textures = std::vector<TextureUsageToken>{
+            .textures = eastl::vector<TextureUsageToken>{
                 {
                     .texture = lpv_a_red,
                     .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -1050,7 +1050,7 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) const
         render_graph.add_compute_dispatch(
             ComputeDispatch{
                 .name = "Propagate lighting cascade",
-                .descriptor_sets = std::vector{a_to_b_set},
+                .descriptor_sets = eastl::vector{a_to_b_set},
                 .push_constants = constants,
                 .num_workgroups = dispatch_size,
                 .compute_shader = propagation_shader
@@ -1059,7 +1059,7 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) const
         render_graph.add_compute_dispatch(
             ComputeDispatch{
                 .name = "Propagate lighting cascade",
-                .descriptor_sets = std::vector{b_to_a_set},
+                .descriptor_sets = eastl::vector{b_to_a_set},
                 .push_constants = constants,
                 .num_workgroups = dispatch_size,
                 .compute_shader = propagation_shader
@@ -1099,7 +1099,7 @@ auto LightPropagationVolume::visualize_vpls(
     RenderGraph& graph, const BufferHandle scene_view_buffer, const TextureHandle lit_scene,
     const TextureHandle depth_buffer
 ) -> void {
-    auto buffer_barriers = std::vector<BufferUsageToken>{};
+    auto buffer_barriers = eastl::vector<BufferUsageToken>{};
     buffer_barriers.reserve(cascades.size() * 2);
 
     for(const auto& cascade : cascades) {

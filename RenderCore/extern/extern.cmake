@@ -31,7 +31,11 @@ set(CAULDRON_VK ON CACHE BOOL "" FORCE)
 
 message(STATUS "CMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
-
+FetchContent_Declare(
+        eastl
+        GIT_REPOSITORY  https://github.com/electronicarts/EASTL.git
+        GIT_TAG         3.21.23 
+)
 FetchContent_Declare(
         glm
         GIT_REPOSITORY  https://github.com/g-truc/glm.git
@@ -55,7 +59,7 @@ FetchContent_Declare(
 FetchContent_Declare(
         fetch_fastgltf
         GIT_REPOSITORY  https://github.com/spnda/fastgltf.git
-        GIT_TAG         aa43588c42b78bc188fdd36124f1d1491e04a680
+        GIT_TAG         8d0e09523f9546142f07744848a914ac245f4b89
 )
 FetchContent_Declare(
         tl_optional
@@ -91,6 +95,7 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(
+        eastl
         glm
         spdlog
         fetch_fastgltf

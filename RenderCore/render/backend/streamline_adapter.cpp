@@ -14,7 +14,7 @@ StreamlineAdapter::StreamlineAdapter() {
         logger = SystemInterface::get().get_logger("StreamlineAdapter");
     }
 
-    auto features_to_load = std::vector<sl::Feature>{sl::kFeatureDLSS, sl::kFeatureDLSS_RR };
+    auto features_to_load = eastl::vector<sl::Feature>{sl::kFeatureDLSS, sl::kFeatureDLSS_RR };
 
     auto prefs = sl::Preferences{};
     prefs.showConsole = true;

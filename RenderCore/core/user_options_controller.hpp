@@ -3,8 +3,8 @@
 #include <functional>
 #include <stdexcept>
 #include <string>
-#include <vector>
-#include <unordered_map>
+#include <EASTL/vector.h>
+#include <EASTL/unordered_map.h>
 
 #include "console/cvars.hpp"
 
@@ -35,7 +35,7 @@ public:
 
 private:
     template <typename CvarType>
-    using CvarListenerMap = std::unordered_map<uint32_t, std::vector<std::function<void(CvarType value)>>>;
+    using CvarListenerMap = eastl::unordered_map<uint32_t, eastl::vector<std::function<void(CvarType value)>>>;
 
     CvarListenerMap<int32_t> int_cvar_listeners;
     CvarListenerMap<double> float_cvar_listeners;

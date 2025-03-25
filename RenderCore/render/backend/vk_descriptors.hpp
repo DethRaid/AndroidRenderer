@@ -1,8 +1,8 @@
 ﻿#pragma once
 
-#include <vector>
+#include <EASTL/vector.h>
 #include <optional>
-#include <unordered_map>
+#include <EASTL/unordered_map.h>
 
 #include <volk.h>
 
@@ -15,7 +15,7 @@ namespace vkutil {
     class DescriptorAllocator {
     public:
         struct PoolSizes {
-            std::vector<std::pair<VkDescriptorType, float>> sizes =
+            eastl::vector<std::pair<VkDescriptorType, float>> sizes =
             {
                 {VK_DESCRIPTOR_TYPE_SAMPLER, 0.5f},
                 {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4.f},
@@ -49,8 +49,8 @@ namespace vkutil {
 
         VkDescriptorPool currentPool{VK_NULL_HANDLE};
         PoolSizes descriptorSizes;
-        std::vector<VkDescriptorPool> usedPools;
-        std::vector<VkDescriptorPool> freePools;
+        eastl::vector<VkDescriptorPool> usedPools;
+        eastl::vector<VkDescriptorPool> freePools;
     };
 
     class DescriptorLayoutCache {
@@ -63,7 +63,7 @@ namespace vkutil {
 
         struct DescriptorLayoutInfo {
             //good idea to turn this into a inlined array
-            std::vector<VkDescriptorSetLayoutBinding> bindings;
+            eastl::vector<VkDescriptorSetLayoutBinding> bindings;
 
             bool operator==(const DescriptorLayoutInfo& other) const;
 
@@ -77,7 +77,7 @@ namespace vkutil {
             }
         };
 
-        std::unordered_map<DescriptorLayoutInfo, VkDescriptorSetLayout, DescriptorLayoutHash> layoutCache;
+        eastl::unordered_map<DescriptorLayoutInfo, VkDescriptorSetLayout, DescriptorLayoutHash> layoutCache;
         VkDevice device;
     };
 
@@ -107,7 +107,7 @@ namespace vkutil {
         );
 
         DescriptorBuilder& bind_buffer_array(
-            uint32_t binding, const std::vector<BufferInfo>& infos, VkDescriptorType type,
+            uint32_t binding, const eastl::vector<BufferInfo>& infos, VkDescriptorType type,
             VkShaderStageFlags stage_flags
         );
 
@@ -116,7 +116,7 @@ namespace vkutil {
         );
 
         DescriptorBuilder& bind_image_array(
-            uint32_t binding, const std::vector<ImageInfo>& infos,
+            uint32_t binding, const eastl::vector<ImageInfo>& infos,
             VkDescriptorType type, VkShaderStageFlags stage_flags
         );
 
@@ -141,16 +141,16 @@ namespace vkutil {
     private:
         RenderBackend& backend;
 
-        std::vector<VkWriteDescriptorSetAccelerationStructureKHR> as_writes;
-        std::vector<VkWriteDescriptorSet> writes;
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        eastl::vector<VkWriteDescriptorSetAccelerationStructureKHR> as_writes;
+        eastl::vector<VkWriteDescriptorSet> writes;
+        eastl::vector<VkDescriptorSetLayoutBinding> bindings;
 
         DescriptorLayoutCache& cache;
         DescriptorAllocator& alloc;
 
-        std::vector<std::vector<VkDescriptorBufferInfo>> buffer_infos_to_delete;
-        std::vector<std::vector<VkDescriptorImageInfo>> image_infos_to_delete;
-        std::vector<std::vector<VkDescriptorBufferInfo>> as_infos_to_delete;
+        eastl::vector<eastl::vector<VkDescriptorBufferInfo>> buffer_infos_to_delete;
+        eastl::vector<eastl::vector<VkDescriptorImageInfo>> image_infos_to_delete;
+        eastl::vector<eastl::vector<VkDescriptorBufferInfo>> as_infos_to_delete;
 
         DescriptorBuilder(RenderBackend& backend_in, vkutil::DescriptorAllocator& allocator_in);
     };

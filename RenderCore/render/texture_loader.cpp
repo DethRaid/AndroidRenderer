@@ -10,7 +10,7 @@
 struct LoadedTexture {
     int width = 0;
     int height = 0;
-    std::vector<uint8_t> data = {};
+    eastl::vector<uint8_t> data = {};
 };
 
 TextureLoader::TextureLoader() {
@@ -72,7 +72,7 @@ tl::optional<TextureHandle> TextureLoader::load_texture_ktx(
     return SystemInterface::get()
            .load_file(filepath)
            .and_then(
-               [&](const std::vector<uint8_t>& data) {
+               [&](const eastl::vector<uint8_t>& data) {
                    return upload_texture_ktx(filepath, data);
                });
 }
@@ -85,14 +85,14 @@ tl::optional<TextureHandle> TextureLoader::load_texture_stbi(
     return SystemInterface::get()
            .load_file(filepath)
            .and_then(
-               [&](const std::vector<uint8_t>& data) {
+               [&](const eastl::vector<uint8_t>& data) {
                    return upload_texture_stbi(filepath, data, type);
                }
            );
 }
 
 tl::optional<TextureHandle> TextureLoader::upload_texture_ktx(
-    const std::filesystem::path& filepath, const std::vector<uint8_t>& data
+    const std::filesystem::path& filepath, const eastl::vector<uint8_t>& data
 ) {
     ZoneScoped;
 
@@ -123,7 +123,7 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_ktx(
     }
 
     auto texture = GpuTexture{
-        .name = filepath.string(),
+        .name = std::string{filepath.string().c_str()},
         .type = TextureAllocationType::Ktx,
     };
     result = ktxTexture2_VkUpload(ktx_texture, &ktx, &texture.ktx.ktx_vk_tex);
@@ -191,7 +191,7 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_ktx(
 }
 
 tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
-    const std::filesystem::path& filepath, const std::vector<uint8_t>& data, const TextureType type
+    const std::filesystem::path& filepath, const eastl::vector<uint8_t>& data, const TextureType type
 ) {
     ZoneScoped;
 
@@ -211,7 +211,7 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
         return tl::nullopt;
     }
 
-    loaded_texture.data = std::vector(
+    loaded_texture.data = eastl::vector< uint8_t>(
         reinterpret_cast<uint8_t*>(decoded_data),
         reinterpret_cast<uint8_t*>(decoded_data) +
         loaded_texture.width * loaded_texture.height * 4
@@ -232,7 +232,7 @@ tl::optional<TextureHandle> TextureLoader::upload_texture_stbi(
     }();
     auto& allocator = backend.get_global_allocator();
     const auto handle = allocator.create_texture(
-        filepath.string(),
+        std::string{ filepath.string().c_str() },
         {
             format,
             glm::uvec2{loaded_texture.width, loaded_texture.height},

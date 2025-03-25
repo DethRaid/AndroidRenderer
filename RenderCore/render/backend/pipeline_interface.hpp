@@ -19,9 +19,9 @@ struct PipelineBase {
 
     VkShaderStageFlags push_constant_stages = 0;
 
-    std::vector<DescriptorSetInfo> descriptor_sets;
+    eastl::vector<DescriptorSetInfo> descriptor_sets;
 
-    std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
+    eastl::vector<VkDescriptorSetLayout> descriptor_set_layouts;
 
     PipelineBase() = default;
 
@@ -36,7 +36,7 @@ struct PipelineBase {
     PipelineBase& operator=(PipelineBase&& old) noexcept;
 
     void create_pipeline_layout(
-        RenderBackend& backend, const std::vector<DescriptorSetInfo>& descriptor_set_infos,
-        const std::vector<VkPushConstantRange>& push_constants
+        RenderBackend& backend, const eastl::vector<DescriptorSetInfo>& descriptor_set_infos,
+        const eastl::vector<VkPushConstantRange>& push_constants
     );
 };

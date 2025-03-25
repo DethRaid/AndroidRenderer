@@ -45,8 +45,8 @@ PipelineBase& PipelineBase::operator=(PipelineBase&& old) noexcept {
 }
 
 void PipelineBase::create_pipeline_layout(
-    RenderBackend& backend, const std::vector<DescriptorSetInfo>& descriptor_set_infos,
-    const std::vector<VkPushConstantRange>& push_constants
+    RenderBackend& backend, const eastl::vector<DescriptorSetInfo>& descriptor_set_infos,
+    const eastl::vector<VkPushConstantRange>& push_constants
 ) {
     // Create descriptor sets
     descriptor_set_layouts.resize(descriptor_set_infos.size());
@@ -55,7 +55,7 @@ void PipelineBase::create_pipeline_layout(
 
     auto set_index = 0u;
     for(const auto& set_info : descriptor_set_infos) {
-        auto bindings = std::vector<VkDescriptorSetLayoutBinding>{};
+        auto bindings = eastl::vector<VkDescriptorSetLayoutBinding>{};
 
         for(const auto& binding : set_info.bindings) {
             bindings.emplace_back(binding);
@@ -70,7 +70,7 @@ void PipelineBase::create_pipeline_layout(
 
         // If the last binding is un unsized texture array, tell Vulkan about it
         auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
-        auto binding_flags = std::vector<VkDescriptorBindingFlags>{};
+        auto binding_flags = eastl::vector<VkDescriptorBindingFlags>{};
         if(set_info.has_variable_count_binding) {
             binding_flags.resize(bindings.size());
             binding_flags.back() = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |

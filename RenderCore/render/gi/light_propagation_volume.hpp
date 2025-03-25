@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <EASTL/vector.h>
 
 #include <glm/mat4x4.hpp>
 #include <vulkan/vulkan_core.h>
@@ -70,7 +70,7 @@ public:
 
     void post_render(RenderGraph& graph, const SceneView& view, const RenderScene& scene, const GBuffer& gbuffer, TextureHandle noise_tex) override;
 
-    void get_lighting_resource_usages(std::vector<TextureUsageToken>& textures, std::vector<BufferUsageToken>& buffers) const override;
+    void get_lighting_resource_usages(eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers) const override;
 
     void render_to_lit_scene(CommandBuffer& commands, BufferHandle view_buffer, TextureHandle ao_tex, TextureHandle noise_tex) const override;
 
@@ -112,7 +112,7 @@ private:
 
     ComputePipelineHandle propagation_shader;
 
-    std::vector<CascadeData> cascades;
+    eastl::vector<CascadeData> cascades;
     BufferHandle cascade_data_buffer = {};
 
     /**

@@ -80,7 +80,7 @@ private:
      */
     float angular_size = 0.545;
 
-    std::vector<glm::mat4> world_to_ndc_matrices;
+    eastl::vector<glm::mat4> world_to_ndc_matrices;
     BufferHandle world_to_ndc_matrices_buffer = nullptr;
 
     GraphicsPipelineHandle pipeline = {};

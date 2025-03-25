@@ -1,7 +1,7 @@
 #pragma once
 
-#include <array>
-#include <vector>
+#include <EASTL/array.h>
+#include <EASTL/vector.h>
 #include <tracy/Tracy.hpp>
 #include <vulkan/vulkan_core.h>
 
@@ -53,7 +53,7 @@ public:
         uint last_update_frame = 0;
     };
 
-    struct ProbeGrid : std::array<Probe, cascade_size_xz * cascade_size_y * cascade_size_xz> {
+    struct ProbeGrid : eastl::array<Probe, cascade_size_xz * cascade_size_y * cascade_size_xz> {
         template <typename F>
         void foreach(F func);
 
@@ -164,7 +164,7 @@ private:
     TextureHandle validity_a = nullptr;
     TextureHandle validity_b = nullptr;
 
-    std::array<Cascade, num_cascades> cascades = {
+    eastl::array<Cascade, num_cascades> cascades = {
         Cascade{
             .probe_spacing = 0.5f,
             .forward_alignment = 0.4f,
@@ -190,7 +190,7 @@ private:
     BufferHandle cascade_cbuffer = nullptr;
 
     uint32_t num_probes_updated = 0;
-    std::array<glm::uvec3, 1024> probes_to_update = {};
+    eastl::array<glm::uvec3, 1024> probes_to_update = {};
     BufferHandle probes_to_update_buffer = nullptr;
 
     /**

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <unordered_map>
+#include <EASTL/unordered_map.h>
 
 #include "render/backend/compute_shader.hpp"
 #include "render/backend/handles.hpp"
@@ -42,7 +42,7 @@ private:
      *
      * R32 is weird. It's the destination format when building a HiZ buffer, so we use a special shader. This is very weird and we do not like it
      */
-    std::unordered_map<VkFormat, ComputePipelineHandle> shaders;
+    eastl::unordered_map<VkFormat, ComputePipelineHandle> shaders;
 
     VkSampler sampler;
 };

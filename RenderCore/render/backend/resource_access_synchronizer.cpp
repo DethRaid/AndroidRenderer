@@ -181,7 +181,7 @@ void ResourceAccessTracker::set_resource_usage(const BufferUsageToken& usage) {
 }
 
 void ResourceAccessTracker::issue_barriers(const CommandBuffer& commands) {
-    const static auto memory_barriers = std::vector<VkMemoryBarrier2>{};
+    const static auto memory_barriers = eastl::vector<VkMemoryBarrier2>{};
     commands.barrier(memory_barriers, buffer_barriers, image_barriers);
     buffer_barriers.clear();
     image_barriers.clear();

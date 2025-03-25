@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <EASTL/vector.h>
 #include <cstdint>
 
 #include "render/backend/pipeline_interface.hpp"
@@ -20,17 +20,17 @@ struct GraphicsPipeline : PipelineBase {
 
     VkPipelineCreateFlags flags;
 
-    std::vector<uint8_t> vertex_shader;
+    eastl::vector<uint8_t> vertex_shader;
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-    std::vector<VkVertexInputBindingDescription> vertex_inputs;
+    eastl::vector<VkVertexInputBindingDescription> vertex_inputs;
 
-    std::vector<VkVertexInputAttributeDescription> vertex_attributes;
+    eastl::vector<VkVertexInputAttributeDescription> vertex_attributes;
 
-    std::vector<uint8_t> geometry_shader;
+    eastl::vector<uint8_t> geometry_shader;
 
-    std::vector<uint8_t> fragment_shader;
+    eastl::vector<uint8_t> fragment_shader;
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
 
@@ -38,7 +38,7 @@ struct GraphicsPipeline : PipelineBase {
 
     VkPipelineColorBlendStateCreateFlags blend_flags = {};
 
-    std::vector<VkPipelineColorBlendAttachmentState> blends = {};
+    eastl::vector<VkPipelineColorBlendAttachmentState> blends = {};
 
     // Renderpass and subpass index that this pipeline was most recently used with
 

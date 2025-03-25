@@ -103,7 +103,7 @@ void MipChainGenerator::fill_mip_chain(
                 const auto dest_texture_format = dest_texture->create_info.format;
                 const auto& shader = shaders.at(dest_texture_format);
 
-                auto uavs = std::vector<VkDescriptorImageInfo>{};
+                auto uavs = eastl::vector<VkDescriptorImageInfo>{};
                 uavs.reserve(12);
                 for(auto mip_level = 0u; mip_level < dest_texture->create_info.mipLevels; mip_level++) {
                     uavs.emplace_back(

@@ -83,7 +83,7 @@ void LightingPhase::render(
                                           .bind(gbuffer.depth, sampler)
                                           .build();
 
-    auto texture_usages = std::vector<TextureUsageToken>{
+    auto texture_usages = eastl::vector<TextureUsageToken>{
         {
             .texture = ao_texture,
             .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
@@ -102,7 +102,7 @@ void LightingPhase::render(
             });
     }
 
-    auto buffer_usages = std::vector<BufferUsageToken>{};
+    auto buffer_usages = eastl::vector<BufferUsageToken>{};
 
     if(gi) {
         gi->get_lighting_resource_usages(texture_usages, buffer_usages);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <EASTL/vector.h>
 
 #include <tl/optional.hpp>
 #include <volk.h>
@@ -14,18 +14,18 @@ struct BarrierGroup {
     VkPipelineStageFlags dstStageMask;
     VkDependencyFlags dependencyFlags;
 
-    std::vector<VkBufferMemoryBarrier> buffer_barriers;
+    eastl::vector<VkBufferMemoryBarrier> buffer_barriers;
 
-    std::vector<VkImageMemoryBarrier> image_barriers;
+    eastl::vector<VkImageMemoryBarrier> image_barriers;
 
-    std::vector<VkMemoryBarrier> memory_barriers;
+    eastl::vector<VkMemoryBarrier> memory_barriers;
 };
 
 /**
  * A render pass that's been compiled
  */
 struct CompiledRenderPass {
-    std::vector<BarrierGroup> barrier_groups;
+    eastl::vector<BarrierGroup> barrier_groups;
 
     /**
      * VkRenderPass for this renderpass. if empty, this compiled render pass is a subpass. If not empty, this compiled

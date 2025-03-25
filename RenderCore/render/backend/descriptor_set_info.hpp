@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <EASTL/vector.h>
 
 #include <volk.h>
 
@@ -9,7 +9,7 @@ struct DescriptorInfo : VkDescriptorSetLayoutBinding {
 };
 
 struct DescriptorSetInfo {
-    std::vector<DescriptorInfo> bindings;
+    eastl::vector<DescriptorInfo> bindings;
 
     bool has_variable_count_binding = false;
 };

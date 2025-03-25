@@ -1,9 +1,9 @@
 #pragma once
 
-#include <array>
+#include <EASTL/array.h>
 #include <filesystem>
 #include <string>
-#include <vector>
+#include <EASTL/vector.h>
 
 #include <volk.h>
 
@@ -35,16 +35,16 @@ private:
 
     std::string name;
 
-    std::vector<VkPipelineShaderStageCreateInfo> stages;
+    eastl::vector<VkPipelineShaderStageCreateInfo> stages;
 
     /**
      * First group is for occlusion, second is for GI
      */
-    std::array<VkRayTracingShaderGroupCreateInfoKHR, 2> groups;
+    eastl::array<VkRayTracingShaderGroupCreateInfoKHR, 2> groups;
 
-    std::vector<uint8_t> occlusion_closesthit_shader;
-    std::vector<uint8_t> occlusion_anyhit_shader;
-    std::vector<uint8_t> gi_closesthit_shader;
-    std::vector<uint8_t> gi_anyhit_shader;
+    eastl::vector<uint8_t> occlusion_closesthit_shader;
+    eastl::vector<uint8_t> occlusion_anyhit_shader;
+    eastl::vector<uint8_t> gi_closesthit_shader;
+    eastl::vector<uint8_t> gi_anyhit_shader;
 };
 

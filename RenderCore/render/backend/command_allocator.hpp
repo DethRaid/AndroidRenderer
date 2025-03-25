@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <vector>
+#include <EASTL/vector.h>
 
 #include <volk.h>
 
@@ -40,9 +40,9 @@ private:
 
     VkCommandPool command_pool = VK_NULL_HANDLE;
 
-    std::vector<VkCommandBuffer> command_buffers;
+    eastl::vector<VkCommandBuffer> command_buffers;
 
-    std::vector<VkCommandBuffer> available_command_buffers;
+    eastl::vector<VkCommandBuffer> available_command_buffers;
 };
 
 

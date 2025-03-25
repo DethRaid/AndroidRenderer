@@ -1,7 +1,8 @@
 #pragma once
 
-#include <array>
-#include <vector>
+#include <EASTL/array.h>
+#include <EASTL/vector.h>
+#include <EASTL/unordered_map.h>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -210,12 +211,12 @@ private:
     plf::colony<GpuBuffer> buffers;
     plf::colony<AccelerationStructure> acceleration_structures;
 
-    std::unordered_map<std::string, VkRenderPass> cached_render_passes;
+    eastl::unordered_map<std::string, VkRenderPass> cached_render_passes;
 
-    std::array<std::vector<BufferHandle>, num_in_flight_frames> buffer_zombie_lists;
-    std::array<std::vector<TextureHandle>, num_in_flight_frames> texture_zombie_lists;
-    std::array<std::vector<AccelerationStructureHandle>, num_in_flight_frames> as_zombie_lists;
-    std::array<std::vector<Framebuffer>, num_in_flight_frames> framebuffer_zombie_lists;
+    eastl::array<eastl::vector<BufferHandle>, num_in_flight_frames> buffer_zombie_lists;
+    eastl::array<eastl::vector<TextureHandle>, num_in_flight_frames> texture_zombie_lists;
+    eastl::array<eastl::vector<AccelerationStructureHandle>, num_in_flight_frames> as_zombie_lists;
+    eastl::array<eastl::vector<Framebuffer>, num_in_flight_frames> framebuffer_zombie_lists;
 
     struct SamplerCreateInfoHasher {
         std::size_t operator()(const VkSamplerCreateInfo& k) const {
@@ -227,7 +228,7 @@ private:
 
     // Cache from sampler create info hash to sampler
     // I do the hashing myself
-    std::unordered_map<std::size_t, VkSampler> sampler_cache;
+    eastl::unordered_map<std::size_t, VkSampler> sampler_cache;
 };
 
 template <typename MappedType>

@@ -154,11 +154,12 @@ TextureHandle ResourceAllocator::create_texture(const std::string& name, const T
         };
         result = vkCreateImageView(device, &rtv_create_info, nullptr, &texture.attachment_view);
 
-        backend.set_object_name(texture.attachment_view, fmt::format("{} RTV", name));
+        const auto rtv_name = fmt::format("{} RTV", name);
+        backend.set_object_name(texture.attachment_view, std::string{rtv_name.c_str()});
     }
 
     backend.set_object_name(texture.image, name);
-    backend.set_object_name(texture.image_view, image_view_name);
+    backend.set_object_name(texture.image_view, std::string{image_view_name.c_str()});
 
     texture.mip_views.reserve(create_info.num_mips);
     for(auto i = 0u; i < create_info.num_mips; i++) {
@@ -181,7 +182,8 @@ TextureHandle ResourceAllocator::create_texture(const std::string& name, const T
             throw std::runtime_error{fmt::format("Could not create image view")};
         }
 
-        backend.set_object_name(view, fmt::format("{} mip {}", name, i));
+        const auto view_name = fmt::format("{} mip {}", name, i);
+        backend.set_object_name(view, std::string{view_name.c_str()});
 
         texture.mip_views.emplace_back(view);
     }
@@ -285,8 +287,6 @@ TextureHandle ResourceAllocator::create_volume_texture(
         throw std::runtime_error{fmt::format("Could not create image view {}", image_view_name)};
     }
 
-    const auto rtv_name = fmt::format("{} RTV", name);
-
     const auto rtv_create_info = VkImageViewCreateInfo{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = texture.image,
@@ -306,8 +306,9 @@ TextureHandle ResourceAllocator::create_volume_texture(
     }
 
     backend.set_object_name(texture.image, name);
-    backend.set_object_name(texture.image_view, image_view_name);
-    backend.set_object_name(texture.attachment_view, fmt::format("{} RTV", name));
+    backend.set_object_name(texture.image_view, std::string{image_view_name.c_str()});
+    const auto rtv_name = fmt::format("{} RTV", name);
+    backend.set_object_name(texture.attachment_view, std::string{rtv_name.c_str()});
 
     auto handle = &(*textures.emplace(std::move(texture)));
     return handle;
@@ -351,7 +352,7 @@ TextureHandle ResourceAllocator::emplace_texture(GpuTexture&& new_texture) {
 
     const auto image_view_name = fmt::format("{} View", new_texture.name);
     backend.set_object_name(new_texture.image, new_texture.name);
-    backend.set_object_name(new_texture.image_view, image_view_name);
+    backend.set_object_name(new_texture.image_view, std::string{image_view_name.c_str()});
 
     auto handle = &(*textures.emplace(std::move(new_texture)));
     return handle;
@@ -620,7 +621,7 @@ void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
 }
 
 void ResourceAllocator::report_memory_usage() const {
-    auto budgets = std::vector<VmaBudget>{};
+    auto budgets = eastl::vector<VmaBudget>{};
     budgets.resize(32);
     vmaGetHeapBudgets(vma, budgets.data());
 

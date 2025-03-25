@@ -111,15 +111,15 @@ Win32SystemInterface::Win32SystemInterface(GLFWwindow* window_in) : window{windo
     init_renderdoc_api();
 }
 
-static std::vector<std::shared_ptr<spdlog::logger>> all_loggers{};
+static eastl::vector<std::shared_ptr<spdlog::logger>> all_loggers{};
 
 std::shared_ptr<spdlog::logger> Win32SystemInterface::get_logger(const std::string& name) {
-    auto sinks = std::vector<spdlog::sink_ptr>{
+    auto sinks = eastl::vector<spdlog::sink_ptr>{
         std::make_shared<spdlog::sinks::stdout_color_sink_mt>(),
         std::make_shared<spdlog::sinks::basic_file_sink_mt>("sah.log", true),
     };
     sinks[0]->set_pattern("[%n] [%^%l%$] %v");
-    auto new_logger = std::make_shared<spdlog::logger>(name, sinks.begin(), sinks.end());
+    auto new_logger = std::make_shared<spdlog::logger>(name.c_str(), sinks.begin(), sinks.end());
 
 #ifndef NDEBUG
     new_logger->set_level(spdlog::level::debug);
@@ -140,7 +140,7 @@ void Win32SystemInterface::flush_all_loggers() {
     }
 }
 
-tl::optional<std::vector<uint8_t>> Win32SystemInterface::load_file(const std::filesystem::path& filepath) {
+tl::optional<eastl::vector<uint8_t>> Win32SystemInterface::load_file(const std::filesystem::path& filepath) {
     // TODO: Integrate physfs and add the executable's directory to the search paths
     std::ifstream file{filepath, std::ios::binary};
 
@@ -155,7 +155,7 @@ tl::optional<std::vector<uint8_t>> Win32SystemInterface::load_file(const std::fi
     file.seekg(0, std::ios::beg);
 
     // read the data:
-    std::vector<uint8_t> file_data(file_size);
+    eastl::vector<uint8_t> file_data(file_size);
     file.read(reinterpret_cast<char*>(file_data.data()), file_size);
 
     return file_data;

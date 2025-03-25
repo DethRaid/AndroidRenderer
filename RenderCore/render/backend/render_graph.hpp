@@ -90,13 +90,13 @@ private:
 
     CommandBuffer cmds;
 
-    std::vector<std::function<void()>> post_submit_lambdas;
+    eastl::vector<std::function<void()>> post_submit_lambdas;
 
     uint32_t num_passes = 0;
 
     void update_accesses_and_issues_barriers(
-        const std::vector<TextureUsageToken>& textures,
-        const std::vector<BufferUsageToken>& buffers
+        const eastl::vector<TextureUsageToken>& textures,
+        const eastl::vector<BufferUsageToken>& buffers
     ) const;
 
     void do_compute_shader_copy(const ImageCopyPass& pass);
@@ -110,10 +110,10 @@ void RenderGraph::add_compute_dispatch(const ComputeDispatch<PushConstantsType>&
         cmds.begin_label(dispatch_info.name);
     }
 
-    std::vector<TextureUsageToken> textures;
+    eastl::vector<TextureUsageToken> textures;
     textures.reserve(128);
 
-    std::vector<BufferUsageToken> buffers;
+    eastl::vector<BufferUsageToken> buffers;
     buffers.reserve(128);
 
     for(const auto& descriptor_set : dispatch_info.descriptor_sets) {
@@ -151,9 +151,9 @@ void RenderGraph::add_compute_dispatch(const IndirectComputeDispatch<PushConstan
         cmds.begin_label(dispatch_info.name);
     }
 
-    std::vector<TextureUsageToken> textures;
+    eastl::vector<TextureUsageToken> textures;
 
-    std::vector<BufferUsageToken> buffers;
+    eastl::vector<BufferUsageToken> buffers;
 
     for(const auto& descriptor_set : dispatch_info.descriptor_sets) {
         descriptor_set.get_resource_usage_information(textures, buffers);

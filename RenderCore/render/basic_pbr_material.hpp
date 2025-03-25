@@ -2,6 +2,7 @@
 #define SAHRENDERER_BASIC_PBR_MATERIAL_HPP
 
 #include <filesystem>
+#include <string>
 
 #include <volk.h>
 

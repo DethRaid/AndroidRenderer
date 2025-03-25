@@ -16,12 +16,12 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-static std::string POSITION_VERTEX_ATTRIBUTE_NAME = "position_in";
-static std::string TEXCOORD_VERTEX_ATTRIBUTE_NAME = "texcoord_in";
-static std::string NORMAL_VERTEX_ATTRIBUTE_NAME = "normal_in";
-static std::string TANGENT_VERTEX_ATTRIBUTE_NAME = "tangent_in";
-static std::string COLOR_VERTEX_ATTRIBUTE_NAME = "color_in";
-static std::string PRIMITIVE_ID_VERTEX_ATTRIBUTE_NAME = "primitive_id_in";
+static eastl::string POSITION_VERTEX_ATTRIBUTE_NAME = "position_in";
+static eastl::string TEXCOORD_VERTEX_ATTRIBUTE_NAME = "texcoord_in";
+static eastl::string NORMAL_VERTEX_ATTRIBUTE_NAME = "normal_in";
+static eastl::string TANGENT_VERTEX_ATTRIBUTE_NAME = "tangent_in";
+static eastl::string COLOR_VERTEX_ATTRIBUTE_NAME = "color_in";
+static eastl::string PRIMITIVE_ID_VERTEX_ATTRIBUTE_NAME = "primitive_id_in";
 
 static auto standard_vertex_layout = VertexLayout{
     .input_bindings = {
@@ -130,25 +130,27 @@ static VkDescriptorType to_vk_type(SpvReflectDescriptorType type);
  *
  * @param sets The descriptor sets to collect
  * @param shader_stage The shader stage these descriptor sets came from
+ * @param descriptor_sets Information about the descriptor sets that the shader uses. We make an effort to add bindings
+ * to existing sets when possible
  * @return True if there was an error, false if everything's fine
  */
 static bool collect_descriptor_sets(
-    const std::vector<SpvReflectDescriptorSet*>& sets,
+    const eastl::vector<SpvReflectDescriptorSet*>& sets,
     VkShaderStageFlags shader_stage,
-    std::vector<DescriptorSetInfo>& descriptor_sets
+    eastl::vector<DescriptorSetInfo>& descriptor_sets
 );
 
 static bool collect_push_constants(
-    const std::filesystem::path& shader_path,
-    const std::vector<SpvReflectBlockVariable*>& spv_push_constants,
+    const std::string_view shader_name,
+    const eastl::vector<SpvReflectBlockVariable*>& spv_push_constants,
     VkShaderStageFlags shader_stage,
-    std::vector<VkPushConstantRange>& push_constants
+    eastl::vector<VkPushConstantRange>& push_constants
 );
 
 static void collect_vertex_attributes(
     const VertexLayout& vertex_layout,
-    const std::vector<SpvReflectInterfaceVariable*>& inputs,
-    std::vector<VkVertexInputAttributeDescription>& vertex_attributes,
+    const eastl::vector<SpvReflectInterfaceVariable*>& inputs,
+    eastl::vector<VkVertexInputAttributeDescription>& vertex_attributes,
     bool& needs_position_buffer,
     bool& needs_data_buffer,
     bool& needs_primitive_id_buffer
@@ -213,10 +215,11 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
     }
 
     vertex_shader = *vertex_shader_maybe;
-    vertex_shader_name = vertex_path.string();
+    vertex_shader_name = vertex_path.string().c_str();
 
     const auto shader_module = spv_reflect::ShaderModule{
-        *vertex_shader,
+        vertex_shader->size(),
+        vertex_shader->data(),
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
     if(shader_module.GetResult() != SPV_REFLECT_RESULT_SUCCESS) {
@@ -227,13 +230,13 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
 
     logger->trace("Beginning reflection on vertex shader {}", vertex_shader_name);
 
-    collect_bindings(*vertex_shader_maybe, vertex_path.string(), VK_SHADER_STAGE_VERTEX_BIT, descriptor_sets, push_constants);
+    collect_bindings(*vertex_shader_maybe, vertex_shader_name, VK_SHADER_STAGE_VERTEX_BIT, descriptor_sets, push_constants);
 
     // Collect inputs
     uint32_t input_count;
     auto result = shader_module.EnumerateInputVariables(&input_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_vertex_inputs = std::vector<SpvReflectInterfaceVariable*>{input_count};
+    auto spv_vertex_inputs = eastl::vector<SpvReflectInterfaceVariable*>{input_count};
     result = shader_module.EnumerateInputVariables(&input_count, spv_vertex_inputs.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -264,10 +267,11 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
     }
 
     geometry_shader = *geometry_shader_maybe;
-    geometry_shader_name = geometry_path.string();
+    geometry_shader_name = geometry_path.string().c_str();
 
     const auto shader_module = spv_reflect::ShaderModule{
-        *geometry_shader,
+        geometry_shader->size(),
+        geometry_shader->data(),
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
     if(shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
@@ -278,7 +282,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_geometry_shader(const std:
 
     collect_bindings(
         *geometry_shader,
-        geometry_path.string(),
+        geometry_shader_name,
         VK_SHADER_STAGE_GEOMETRY_BIT,
         descriptor_sets,
         push_constants);
@@ -298,13 +302,13 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_fragment_shader(const std:
     }
 
     fragment_shader = *fragment_shader_maybe;
-    fragment_shader_name = fragment_path.string();
+    fragment_shader_name = fragment_path.string().c_str();
 
     logger->trace("Beginning reflection on fragment shader {}", fragment_shader_name);
 
     collect_bindings(
         *fragment_shader,
-        fragment_path.string(),
+        fragment_shader_name,
         VK_SHADER_STAGE_FRAGMENT_BIT,
         descriptor_sets,
         push_constants
@@ -398,9 +402,9 @@ GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
 }
 
 bool collect_descriptor_sets(
-    const std::vector<SpvReflectDescriptorSet*>& sets,
+    const eastl::vector<SpvReflectDescriptorSet*>& sets,
     const VkShaderStageFlags shader_stage,
-    std::vector<DescriptorSetInfo>& descriptor_sets
+    eastl::vector<DescriptorSetInfo>& descriptor_sets
 ) {
     if(logger == nullptr) {
         init_logger();
@@ -458,10 +462,10 @@ bool collect_descriptor_sets(
 }
 
 bool collect_push_constants(
-    const std::filesystem::path& shader_path,
-    const std::vector<SpvReflectBlockVariable*>& spv_push_constants,
+    const std::string_view shader_name,
+    const eastl::vector<SpvReflectBlockVariable*>& spv_push_constants,
     const VkShaderStageFlags shader_stage,
-    std::vector<VkPushConstantRange>& push_constants
+    eastl::vector<VkPushConstantRange>& push_constants
 ) {
     bool has_error = false;
 
@@ -479,7 +483,7 @@ bool collect_push_constants(
                     "Push constant range at offset {} has size {} in shader {}, but it had size {} earlier",
                     constant_range->offset,
                     constant_range->size,
-                    shader_path.string(),
+                    std::string_view{ shader_name.data(), shader_name.size() },
                     existing_constant->size
                 );
                 has_error = true;
@@ -506,17 +510,18 @@ bool collect_push_constants(
 }
 
 bool collect_bindings(
-    const std::vector<uint8_t>& shader_instructions, const std::string& shader_name,
+    const eastl::vector<uint8_t>& shader_instructions, const std::string_view shader_name,
     const VkShaderStageFlags shader_stage,
-    std::vector<DescriptorSetInfo>& descriptor_sets,
-    std::vector<VkPushConstantRange>& push_constants
+    eastl::vector<DescriptorSetInfo>& descriptor_sets,
+    eastl::vector<VkPushConstantRange>& push_constants
 ) {
     if(logger == nullptr) {
         init_logger();
     }
 
     const auto shader_module = spv_reflect::ShaderModule{
-        shader_instructions,
+        shader_instructions.size(),
+        shader_instructions.data(),
         SPV_REFLECT_MODULE_FLAG_NO_COPY
     };
     if(shader_module.GetResult() != SpvReflectResult::SPV_REFLECT_RESULT_SUCCESS) {
@@ -529,7 +534,7 @@ bool collect_bindings(
     uint32_t set_count;
     auto result = shader_module.EnumerateDescriptorSets(&set_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto sets = std::vector<SpvReflectDescriptorSet*>{set_count};
+    auto sets = eastl::vector<SpvReflectDescriptorSet*>{set_count};
     result = shader_module.EnumerateDescriptorSets(&set_count, sets.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -539,7 +544,7 @@ bool collect_bindings(
     uint32_t constant_count;
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, nullptr);
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
-    auto spv_push_constants = std::vector<SpvReflectBlockVariable*>{constant_count};
+    auto spv_push_constants = eastl::vector<SpvReflectBlockVariable*>{constant_count};
     result = shader_module.EnumeratePushConstantBlocks(&constant_count, spv_push_constants.data());
     assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
@@ -555,8 +560,8 @@ bool collect_bindings(
 
 void collect_vertex_attributes(
     const VertexLayout& vertex_layout,
-    const std::vector<SpvReflectInterfaceVariable*>& inputs,
-    std::vector<VkVertexInputAttributeDescription>& vertex_attributes,
+    const eastl::vector<SpvReflectInterfaceVariable*>& inputs,
+    eastl::vector<VkVertexInputAttributeDescription>& vertex_attributes,
     bool& needs_position_buffer,
     bool& needs_data_buffer,
     bool& needs_primitive_id_buffer
@@ -574,17 +579,17 @@ void collect_vertex_attributes(
 
         const auto string_name = std::string{ input->name };
 
-        if(string_name.find(POSITION_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
+        if(string_name.find(POSITION_VERTEX_ATTRIBUTE_NAME.c_str()) != std::string::npos) {
             needs_position_buffer = true;
-        } else if(string_name.find(NORMAL_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
+        } else if(string_name.find(NORMAL_VERTEX_ATTRIBUTE_NAME.c_str()) != std::string::npos) {
             needs_data_buffer = true;
-        } else if(string_name.find(TANGENT_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
+        } else if(string_name.find(TANGENT_VERTEX_ATTRIBUTE_NAME.c_str()) != std::string::npos) {
             needs_data_buffer = true;
-        } else if(string_name.find(TEXCOORD_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
+        } else if(string_name.find(TEXCOORD_VERTEX_ATTRIBUTE_NAME.c_str()) != std::string::npos) {
             needs_data_buffer = true;
-        } else if(string_name.find(COLOR_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
+        } else if(string_name.find(COLOR_VERTEX_ATTRIBUTE_NAME.c_str()) != std::string::npos) {
             needs_data_buffer = true;
-        } else if(string_name.find(PRIMITIVE_ID_VERTEX_ATTRIBUTE_NAME) != std::string::npos) {
+        } else if(string_name.find(PRIMITIVE_ID_VERTEX_ATTRIBUTE_NAME.c_str()) != std::string::npos) {
             needs_primitive_id_buffer = true;
         } else if(input->location != 0xFFFFFFFF) {
             // -1 is used for some builtin things i guess

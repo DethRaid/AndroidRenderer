@@ -2,7 +2,8 @@
 
 #include <filesystem>
 #include <memory>
-#include <vector>
+#include <EASTL/vector.h>
+#include <string>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -60,7 +61,7 @@ public:
      * This method returns an empty optional if the file can't be read. It returns a zero-length vector if the file can
      * be read but just happens to have no data
      */
-    virtual tl::optional<std::vector<uint8_t>> load_file(const std::filesystem::path& filepath) = 0;
+    virtual tl::optional<eastl::vector<uint8_t>> load_file(const std::filesystem::path& filepath) = 0;
 
     /**
      * Writes some data to a file
@@ -101,7 +102,7 @@ public:
 
     void flush_all_loggers() override;
 
-    tl::optional<std::vector<uint8_t>> load_file(const std::filesystem::path& filepath) override;
+    tl::optional<eastl::vector<uint8_t>> load_file(const std::filesystem::path& filepath) override;
 
     void write_file(const std::filesystem::path& filepath, const void* data, uint32_t data_size) override;
 
@@ -135,7 +136,7 @@ public:
 
     void flush_all_loggers() override;
 
-    tl::optional<std::vector<uint8_t>> load_file(const std::filesystem::path& filepath) override;
+    tl::optional<eastl::vector<uint8_t>> load_file(const std::filesystem::path& filepath) override;
 
     void write_file(const std::filesystem::path& filepath, const void* data, uint32_t data_size) override;
 

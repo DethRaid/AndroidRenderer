@@ -23,7 +23,7 @@ static AutoCVar_Enum cvar_xess_mode{
     XESS_QUALITY_SETTING_AA
 };
 
-std::vector<std::string> XeSSAdapter::get_instance_extensions() {
+eastl::vector<std::string> XeSSAdapter::get_instance_extensions() {
     uint32_t instance_extension_count;
     const char* const* instance_extensions;
     uint32_t api_version;
@@ -37,7 +37,7 @@ std::vector<std::string> XeSSAdapter::get_instance_extensions() {
         return {};
     }
 
-    auto extensions = std::vector<std::string>{};
+    auto extensions = eastl::vector<std::string>{};
     extensions.reserve(instance_extension_count);
 
     for(auto i = 0u; i < instance_extension_count; i++) {
@@ -47,7 +47,7 @@ std::vector<std::string> XeSSAdapter::get_instance_extensions() {
     return extensions;
 }
 
-std::vector<std::string> XeSSAdapter::get_device_extensions(
+eastl::vector<std::string> XeSSAdapter::get_device_extensions(
     const VkInstance instance, const VkPhysicalDevice physical_device
 ) {
     uint32_t device_extension_count;
@@ -63,7 +63,7 @@ std::vector<std::string> XeSSAdapter::get_device_extensions(
         return {};
     }
 
-    auto extensions = std::vector<std::string>{};
+    auto extensions = eastl::vector<std::string>{};
     extensions.reserve(device_extension_count);
 
     for(auto i = 0u; i < device_extension_count; i++) {
