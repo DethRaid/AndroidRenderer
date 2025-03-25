@@ -39,7 +39,7 @@ public:
     /**
      * Registers global miss shaders, to be used for all RT pipelines
      */
-    void add_miss_shaders(std::span<const uint8_t> occlusion_miss, std::span<const uint8_t> gi_miss);
+    void add_miss_shaders(std::span<const std::byte> occlusion_miss, std::span<const std::byte> gi_miss);
 
     /**
      * Adds a shader group to the cache. All shader groups will be added to every ray tracing pipeline. This should be
@@ -60,9 +60,9 @@ private:
 
     plf::colony<HitGroup> shader_groups;
 
-    eastl::vector<uint8_t> occlusion_miss_shader;
+    eastl::vector<std::byte> occlusion_miss_shader;
 
-    eastl::vector<uint8_t> gi_miss_shader;
+    eastl::vector<std::byte> gi_miss_shader;
 
     plf::colony<RayTracingPipeline> ray_tracing_pipelines;
 };

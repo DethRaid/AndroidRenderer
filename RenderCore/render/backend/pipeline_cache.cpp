@@ -18,7 +18,7 @@ PipelineCache::PipelineCache(RenderBackend& backend_in) : backend{backend_in} {
     const auto data = SystemInterface::get()
                       .load_file("cache/pipeline_cache")
                       .and_then(
-                          [&](const auto& cache_data) -> tl::optional<eastl::vector<uint8_t>> {
+                          [&](const auto& cache_data) -> tl::optional<eastl::vector<std::byte>> {
                               const auto* header = reinterpret_cast<const VkPipelineCacheHeaderVersionOne*>(cache_data.
                                   data());
                               if(header->vendorID == physical_device.properties.vendorID &&
@@ -553,7 +553,7 @@ VkPipeline PipelineCache::get_pipeline(
 }
 
 void PipelineCache::add_miss_shaders(
-    const std::span<const uint8_t> occlusion_miss, const std::span<const uint8_t> gi_miss
+    const std::span<const std::byte> occlusion_miss, const std::span<const std::byte> gi_miss
 ) {
     occlusion_miss_shader.resize(occlusion_miss.size());
     std::memcpy(occlusion_miss_shader.data(), occlusion_miss.data(), occlusion_miss.size_bytes());

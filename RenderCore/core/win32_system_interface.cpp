@@ -140,7 +140,7 @@ void Win32SystemInterface::flush_all_loggers() {
     }
 }
 
-tl::optional<eastl::vector<uint8_t>> Win32SystemInterface::load_file(const std::filesystem::path& filepath) {
+tl::optional<eastl::vector<std::byte>> Win32SystemInterface::load_file(const std::filesystem::path& filepath) {
     // TODO: Integrate physfs and add the executable's directory to the search paths
     std::ifstream file{filepath, std::ios::binary};
 
@@ -155,7 +155,7 @@ tl::optional<eastl::vector<uint8_t>> Win32SystemInterface::load_file(const std::
     file.seekg(0, std::ios::beg);
 
     // read the data:
-    eastl::vector<uint8_t> file_data(file_size);
+    eastl::vector<std::byte> file_data(file_size);
     file.read(reinterpret_cast<char*>(file_data.data()), file_size);
 
     return file_data;

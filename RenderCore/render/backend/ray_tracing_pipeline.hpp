@@ -21,22 +21,22 @@ struct HitGroup {
     /**
      * Anyhit shader to use when testing for occlusion. Empty for solid hitgroups
      */
-    eastl::vector<uint8_t> occlusion_anyhit_shader;
+    eastl::vector<std::byte> occlusion_anyhit_shader;
 
     /**
      * Closesthit shader to use when testing occlusion
      */
-    eastl::vector<uint8_t> occlusion_closesthit_shader;
+    eastl::vector<std::byte> occlusion_closesthit_shader;
 
     /**
      * Anyhit shader to use when sampling GI. Empty for solid hitgroups
      */
-    eastl::vector<uint8_t> gi_anyhit_shader;
+    eastl::vector<std::byte> gi_anyhit_shader;
 
     /**
      * Closesthit shader to use when sampling GI
      */
-    eastl::vector<uint8_t> gi_closesthit_shader;
+    eastl::vector<std::byte> gi_closesthit_shader;
 };
 
 struct RayTracingPipeline : PipelineBase

@@ -336,22 +336,10 @@ void GltfModel::calculate_bounding_sphere_and_footprint() {
             if(node.meshIndex) {
                 const auto& mesh = model.meshes[*node.meshIndex];
                 for(const auto& primitive : mesh.primitives) {
-                    const auto position_accessor_index = primitive.findAttribute("POSITION");
-                    const auto& position_accessor = model.accessors[position_accessor_index->accessorIndex];
-                    // Position accessor. It's min and max values are the min and max bounding box of the primitive
-                    // This probably breaks for animated meshes
-                    // Better solution: Save the glTF model's bounding sphere and footprint radius into an extension in the glTF
-                    // file
+                    const auto mesh_bounds = read_mesh_bounds(primitive, model);
 
-                    const auto primitive_min = glm::make_vec3(
-                        std::get_if<std::vector<double>>(&position_accessor.min)->data()
-                    );
-                    const auto primitive_max = glm::make_vec3(
-                        std::get_if<std::vector<double>>(&position_accessor.max)->data()
-                    );
-
-                    const auto primitive_min_modelspace = local_to_world * glm::vec4{primitive_min, 1.f};
-                    const auto primitive_max_modelspace = local_to_world * glm::vec4{primitive_max, 1.f};
+                    const auto primitive_min_modelspace = local_to_world * glm::vec4{ mesh_bounds.min, 1.f};
+                    const auto primitive_max_modelspace = local_to_world * glm::vec4{ mesh_bounds.max, 1.f};
 
                     min_extents = glm::min(min_extents, glm::vec3{primitive_min_modelspace});
                     max_extents = glm::max(max_extents, glm::vec3{primitive_max_modelspace});
@@ -410,7 +398,7 @@ TextureHandle GltfModel::get_texture(
     const size_t gltf_texture_index, const TextureType type,
     TextureLoader& texture_storage
 ) {
-    if(gltf_texture_to_texture_handle.find(gltf_texture_index) != gltf_texture_to_texture_handle.end()) {
+    if(gltf_texture_to_texture_handle.find(gltf_texture_index) == gltf_texture_to_texture_handle.end()) {
         import_single_texture(gltf_texture_index, type, texture_storage);
     }
 
@@ -424,9 +412,16 @@ void GltfModel::import_single_texture(
     ZoneScoped;
 
     const auto& gltf_texture = model.textures[gltf_texture_index];
-    const auto& image = model.images[*gltf_texture.imageIndex];
+    auto image_index = std::size_t{};
+    if (gltf_texture.basisuImageIndex) {
+        image_index = *gltf_texture.basisuImageIndex;
+    } else {
+        image_index = *gltf_texture.imageIndex;
+    }
 
-    auto image_data = eastl::vector<uint8_t>{};
+    const auto& image = model.images[image_index];
+
+    auto image_data = eastl::vector<std::byte>{};
     auto image_name = std::filesystem::path{image.name};
     auto mime_type = fastgltf::MimeType::None;
 
@@ -438,7 +433,7 @@ void GltfModel::import_single_texture(
             [&](const fastgltf::sources::BufferView& buffer_view) {
                 const auto& real_buffer_view = model.bufferViews[buffer_view.bufferViewIndex];
                 const auto& buffer = model.buffers[real_buffer_view.bufferIndex];
-                const auto* buffer_vector = std::get_if<fastgltf::sources::Vector>(&buffer.data);
+                const auto* buffer_vector = std::get_if<fastgltf::sources::Array>(&buffer.data);
                 auto* data_pointer = buffer_vector->bytes.data();
                 data_pointer += real_buffer_view.byteOffset;
                 image_data = {data_pointer, data_pointer + real_buffer_view.byteLength};
@@ -476,8 +471,9 @@ void GltfModel::import_single_texture(
 
                 throw std::runtime_error{fmt::format("Could not load image {}", texture_filepath.string())};
             },
-            [&](const fastgltf::sources::Vector& vector_data) {
-                image_data = {vector_data.bytes.begin(), vector_data.bytes.end()};
+            [&](const fastgltf::sources::Array& vector_data) {
+                image_data.resize(vector_data.bytes.size());
+                std::memcpy(image_data.data(), vector_data.bytes.data(), vector_data.bytes.size() * sizeof(std::byte));
                 mime_type = vector_data.mimeType;
             }
         },
@@ -626,7 +622,7 @@ read_index_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& mod
 
     const auto& index_buffer_view = model.bufferViews[*index_accessor.bufferViewIndex];
     const auto& index_buffer = model.buffers[index_buffer_view.bufferIndex];
-    const auto* index_buffer_data = std::get_if<fastgltf::sources::Vector>(&index_buffer.data);
+    const auto* index_buffer_data = std::get_if<fastgltf::sources::Array>(&index_buffer.data);
     const auto* index_ptr_u8 = index_buffer_data->bytes.data() + index_buffer_view.byteOffset + index_accessor.
         byteOffset;
 
@@ -646,8 +642,8 @@ read_index_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& mod
 Box read_mesh_bounds(const fastgltf::Primitive& primitive, const fastgltf::Asset& model) {
     const auto position_attribute_idx = primitive.findAttribute("POSITION")->accessorIndex;
     const auto& position_accessor = model.accessors[position_attribute_idx];
-    const auto* min = std::get_if<eastl::vector<double>>(&position_accessor.min);
-    const auto* max = std::get_if<eastl::vector<double>>(&position_accessor.max);
+    const auto* min = std::get_if<FASTGLTF_STD_PMR_NS::vector<double>>(&position_accessor.min);
+    const auto* max = std::get_if<FASTGLTF_STD_PMR_NS::vector<double>>(&position_accessor.max);
 
     return {.min = glm::make_vec3(min->data()), .max = glm::make_vec3(max->data())};
 }
@@ -660,7 +656,7 @@ void copy_vertex_data_to_vector(
     ZoneScoped;
 
     const auto position_attribute = primitive.findAttribute("POSITION");
-    if(position_attribute != nullptr) {
+    if(position_attribute != primitive.attributes.end()) {
         const auto& attribute_accessor = model.accessors[position_attribute->accessorIndex];
 
         fastgltf::iterateAccessorWithIndex<glm::vec3>(
@@ -672,7 +668,7 @@ void copy_vertex_data_to_vector(
     }
 
     const auto normal_attribute = primitive.findAttribute("NORMAL");
-    if(normal_attribute != nullptr) {
+    if(normal_attribute != primitive.attributes.end()) {
         const auto& attribute_accessor = model.accessors[normal_attribute->accessorIndex];
 
         fastgltf::iterateAccessorWithIndex<glm::vec3>(
@@ -684,19 +680,22 @@ void copy_vertex_data_to_vector(
     }
 
     const auto tangent_attribute = primitive.findAttribute("TANGENT");
-    if(tangent_attribute != nullptr) {
+    if(tangent_attribute != primitive.attributes.end()) {
         const auto& attribute_accessor = model.accessors[tangent_attribute->accessorIndex];
 
-        fastgltf::iterateAccessorWithIndex<glm::vec3>(
+        fastgltf::iterateAccessorWithIndex<glm::vec4>(
             model,
             attribute_accessor,
-            [&](const glm::vec3& tangent, const size_t idx) {
-                vertices[idx].tangent = tangent;
+            [&](const glm::vec4& tangent, const size_t idx) {
+                vertices[idx].tangent = glm::vec3{ tangent };
+                if (tangent.w < 0) {
+                    front_face_ccw = false;
+                }
             });
     }
 
     const auto texcoord_attribute = primitive.findAttribute("TEXCOORD_0");
-    if(texcoord_attribute != nullptr) {
+    if(texcoord_attribute != primitive.attributes.end()) {
         const auto& attribute_accessor = model.accessors[texcoord_attribute->accessorIndex];
 
         fastgltf::iterateAccessorWithIndex<glm::vec2>(
@@ -708,7 +707,7 @@ void copy_vertex_data_to_vector(
     }
 
     const auto color_attribute = primitive.findAttribute("COLOR_0");
-    if(color_attribute != nullptr) {
+    if(color_attribute != primitive.attributes.end()) {
         const auto& attribute_accessor = model.accessors[color_attribute->accessorIndex];
 
         fastgltf::iterateAccessorWithIndex<glm::u8vec4>(

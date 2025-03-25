@@ -20,7 +20,7 @@ struct SpvReflectBlockVariable;
 struct SpvReflectInterfaceVariable;
 
 bool collect_bindings(
-    const eastl::vector<uint8_t>& shader_instructions,
+    const eastl::vector<std::byte>& shader_instructions,
     std::string_view shader_name,
     VkShaderStageFlags shader_stage,
     eastl::vector<DescriptorSetInfo>& descriptor_sets,
@@ -134,15 +134,15 @@ private:
     /**
      * Vertex shader SPIR-V code. If this is present, you may not load another vertex shader
      */
-    std::optional<eastl::vector<uint8_t>> vertex_shader;
+    std::optional<eastl::vector<std::byte>> vertex_shader;
 
     std::string vertex_shader_name;
 
-    std::optional<eastl::vector<uint8_t>> geometry_shader;
+    std::optional<eastl::vector<std::byte>> geometry_shader;
 
     std::string geometry_shader_name;
 
-    std::optional<eastl::vector<uint8_t>> fragment_shader;
+    std::optional<eastl::vector<std::byte>> fragment_shader;
 
     std::string fragment_shader_name;
 

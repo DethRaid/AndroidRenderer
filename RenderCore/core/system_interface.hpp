@@ -61,7 +61,7 @@ public:
      * This method returns an empty optional if the file can't be read. It returns a zero-length vector if the file can
      * be read but just happens to have no data
      */
-    virtual tl::optional<eastl::vector<uint8_t>> load_file(const std::filesystem::path& filepath) = 0;
+    virtual tl::optional<eastl::vector<std::byte>> load_file(const std::filesystem::path& filepath) = 0;
 
     /**
      * Writes some data to a file
@@ -136,7 +136,7 @@ public:
 
     void flush_all_loggers() override;
 
-    tl::optional<eastl::vector<uint8_t>> load_file(const std::filesystem::path& filepath) override;
+    tl::optional<eastl::vector<std::byte>> load_file(const std::filesystem::path& filepath) override;
 
     void write_file(const std::filesystem::path& filepath, const void* data, uint32_t data_size) override;
 

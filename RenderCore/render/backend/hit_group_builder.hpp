@@ -42,9 +42,9 @@ private:
      */
     eastl::array<VkRayTracingShaderGroupCreateInfoKHR, 2> groups;
 
-    eastl::vector<uint8_t> occlusion_closesthit_shader;
-    eastl::vector<uint8_t> occlusion_anyhit_shader;
-    eastl::vector<uint8_t> gi_closesthit_shader;
-    eastl::vector<uint8_t> gi_anyhit_shader;
+    eastl::vector<std::byte> occlusion_closesthit_shader;
+    eastl::vector<std::byte> occlusion_anyhit_shader;
+    eastl::vector<std::byte> gi_closesthit_shader;
+    eastl::vector<std::byte> gi_anyhit_shader;
 };
 

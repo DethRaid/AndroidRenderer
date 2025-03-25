@@ -510,7 +510,7 @@ bool collect_push_constants(
 }
 
 bool collect_bindings(
-    const eastl::vector<uint8_t>& shader_instructions, const std::string_view shader_name,
+    const eastl::vector<std::byte>& shader_instructions, const std::string_view shader_name,
     const VkShaderStageFlags shader_stage,
     eastl::vector<DescriptorSetInfo>& descriptor_sets,
     eastl::vector<VkPushConstantRange>& push_constants

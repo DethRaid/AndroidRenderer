@@ -20,7 +20,7 @@ struct GraphicsPipeline : PipelineBase {
 
     VkPipelineCreateFlags flags;
 
-    eastl::vector<uint8_t> vertex_shader;
+    eastl::vector<std::byte> vertex_shader;
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
@@ -28,9 +28,9 @@ struct GraphicsPipeline : PipelineBase {
 
     eastl::vector<VkVertexInputAttributeDescription> vertex_attributes;
 
-    eastl::vector<uint8_t> geometry_shader;
+    eastl::vector<std::byte> geometry_shader;
 
-    eastl::vector<uint8_t> fragment_shader;
+    eastl::vector<std::byte> fragment_shader;
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
 
