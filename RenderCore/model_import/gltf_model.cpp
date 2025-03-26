@@ -599,7 +599,7 @@ read_vertex_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& mo
         StandardVertex{
             .position = glm::vec3{},
             .normal = glm::vec3{0, 0, 1},
-            .tangent = glm::vec3{1, 0, 0},
+            .tangent = glm::vec4{1, 0, 0, 1},
             .texcoord = {},
             .color = glm::packUnorm4x8(glm::vec4{1, 1, 1, 1}),
         }
@@ -687,7 +687,7 @@ void copy_vertex_data_to_vector(
             model,
             attribute_accessor,
             [&](const glm::vec4& tangent, const size_t idx) {
-                vertices[idx].tangent = glm::vec3{ tangent };
+                vertices[idx].tangent = tangent;
                 if (tangent.w < 0) {
                     front_face_ccw = false;
                 }

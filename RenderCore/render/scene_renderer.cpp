@@ -25,7 +25,7 @@ static auto cvar_raytrace_mesh_lights = AutoCVar_Int{
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
-    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::DLSS
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::FSR3
 };
 
 /*

@@ -25,7 +25,7 @@ CommandAllocator::CommandAllocator(RenderBackend& backend_in, const uint32_t que
         throw std::runtime_error{"Could not create command pool"};
     }
     const auto name = fmt::format("Command allocator for queue family {}", queue_index);
-    backend->set_object_name(command_pool, std::string{name.c_str()});
+    backend->set_object_name(command_pool, name);
 }
 
 CommandAllocator::CommandAllocator(CommandAllocator&& old) noexcept : backend{old.backend },

@@ -189,8 +189,7 @@ private:
 
     BufferHandle cascade_cbuffer = nullptr;
 
-    uint32_t num_probes_updated = 0;
-    eastl::array<glm::uvec3, 1024> probes_to_update = {};
+    eastl::vector<glm::uvec3> probes_to_update = {};
     BufferHandle probes_to_update_buffer = nullptr;
 
     /**
@@ -203,7 +202,7 @@ private:
     /**
      * Array texture for storing tracing parameters. 20x20 resolution, 1024 layers
      *
-     * This texture stores the ray direction (rgb)
+     * This texture stores the ray direction (rgb)s
      */
     TextureHandle trace_params_texture = nullptr;
 

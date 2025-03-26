@@ -90,7 +90,7 @@ struct VertexOutput {
 #endif
 #if !SAH_DEPTH_ONLY
     half3 normal;
-    half3 tangent;
+    half4 tangent;
 #endif
 };
 
@@ -111,7 +111,7 @@ struct RsmOutput {
 VertexOutput main_vs(
     const float3 position_in,
     const float3 normal_in,
-    const float3 tangent_in,
+    const float4 tangent_in,
     const float2 texcoord_in,
     const half4 color_in,
 #if SAH_MAIN_VIEW
@@ -140,8 +140,9 @@ VertexOutput main_vs(
     output.color = color_in;
 
 #if !SAH_DEPTH_ONLY
-    output.normal = (half3)normalize(mul((half3x3)data.model, normal_in));
-    output.tangent = (half3)normalize(mul((half3x3)data.model, tangent_in));
+    output.normal = (half3)normalize(mul((float3x3)data.model, normal_in));
+    output.tangent.xyz = (half3)normalize(mul((float3x3)data.model, tangent_in.xyz));
+    output.tangent.w = (half)tangent_in.w;
 #endif
 
     return output;
@@ -199,7 +200,13 @@ main_fs(const VertexOutput vertex) {
 
     // Normals
 #if SAH_MAIN_VIEW
-    float3x3 tbn = cotangent_frame(vertex.normal, vertex.viewspace_position, vertex.texcoord);
+    // float3x3 tbn = cotangent_frame(vertex.normal, vertex.viewspace_position, vertex.texcoord);
+    half3 bitangent = cross(vertex.normal, vertex.tangent.xyz) * vertex.tangent.w;
+    half3x3 tbn = half3x3(
+        vertex.tangent.xyz,
+        bitangent,
+        vertex.normal
+    );
     Sampler2D normals_texture = textures[material.normal_texture_index];
     half3 normal_sample = (half3)normals_texture.SampleBias(vertex.texcoord, mip_bias).xyz * 2.h - 1.h;
     half3 normal = mul(normal_sample, tbn);
@@ -363,8 +370,12 @@ RaytracingAccelerationStructure rtas;
 [vk::binding(6, 0)]
 Texture2D<float3> noisetex;
 
+#ifndef RAY_TYPE_OCCLUSION
 #define RAY_TYPE_OCCLUSION 0
+#endif
+#ifndef RAY_TYPE_GI
 #define RAY_TYPE_GI 1
+#endif
 
 [shader("closesthit")]
 void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {

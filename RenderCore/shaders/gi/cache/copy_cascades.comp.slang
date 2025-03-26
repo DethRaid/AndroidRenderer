@@ -6,13 +6,13 @@ Texture3D<half3> rtgi_src;
 Texture3D<half3> light_cache_src;
 Texture3D<half2> depth_src;
 Texture3D<half3> average_srv;
-Texture3D<uint8_t> validity_src;
+Texture3D<half> validity_src;
 
 RWTexture3D<half3> rtgi_dest;
 RWTexture3D<half3> light_cache_dest;
 RWTexture3D<half2> depth_dest;
 RWTexture3D<half3> average_dest;
-RWTexture3D<uint8_t> validity_dest;
+RWTexture3D<half> validity_dest;
 
 [vk::push_constant]
 cbuffer Constants {
