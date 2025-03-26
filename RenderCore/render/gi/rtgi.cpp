@@ -18,7 +18,9 @@ static AutoCVar_Float cvar_reconstruction_size{
     "r.GI.Reconstruction.Size", "Size in pixels of the screenspace reconstruction filter", 16
 };
 
-static AutoCVar_Int cvar_gi_cache{ "r.GI.Cache.Enabled", "Whether to enable the GI irradiance cache", true };
+static AutoCVar_Int cvar_gi_cache{"r.GI.Cache.Enabled", "Whether to enable the GI irradiance cache", true};
+
+static AutoCVar_Int cvar_gi_cache_debug{"r.GI.Cache.Debug", "Enable a debug draw of the irradiance cache", true};
 
 bool RayTracedGlobalIllumination::should_render() {
     return cvar_num_bounces.Get() > 0;
@@ -72,7 +74,7 @@ void RayTracedGlobalIllumination::pre_render(
         irradiance_cache = std::make_unique<IrradianceCache>();
     }
 
-    if (irradiance_cache) {
+    if(irradiance_cache) {
         irradiance_cache->update_cascades_and_probes(graph, view, scene, noise_tex);
     }
 }
@@ -162,29 +164,38 @@ void RayTracedGlobalIllumination::get_lighting_resource_usages(
         VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
         VK_ACCESS_2_SHADER_READ_BIT,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    if(irradiance_cache) {
+        irradiance_cache->get_resource_uses(textures, buffers);
+    }
 }
 
 void RayTracedGlobalIllumination::render_to_lit_scene(
     CommandBuffer& commands, const BufferHandle view_buffer, TextureHandle ao_tex, const TextureHandle noise_texture
 ) const {
-    auto set = RenderBackend::get().get_transient_descriptor_allocator()
-                                   .build_set(overlay_pso, 1)
-                                   .bind(view_buffer)
-                                   .bind(noise_texture)
-                                   .bind(ray_texture)
-                                   .bind(ray_irradiance)
-                                   .build();
 
-    commands.set_cull_mode(VK_CULL_MODE_NONE);
+    if(cvar_gi_cache_debug.Get() != 0 && irradiance_cache != nullptr) {
+        irradiance_cache->add_to_lit_scene(commands, view_buffer);
+    } else {
+        auto set = RenderBackend::get().get_transient_descriptor_allocator()
+                                       .build_set(overlay_pso, 1)
+                                       .bind(view_buffer)
+                                       .bind(noise_texture)
+                                       .bind(ray_texture)
+                                       .bind(ray_irradiance)
+                                       .build();
 
-    commands.bind_pipeline(overlay_pso);
+        commands.set_cull_mode(VK_CULL_MODE_NONE);
 
-    commands.bind_descriptor_set(1, set);
+        commands.bind_pipeline(overlay_pso);
 
-    commands.set_push_constant(0, static_cast<uint32_t>(cvar_num_reconstruction_rays.Get()));
-    commands.set_push_constant(1, static_cast<float>(cvar_reconstruction_size.Get()));
+        commands.bind_descriptor_set(1, set);
 
-    commands.draw_triangle();
+        commands.set_push_constant(0, static_cast<uint32_t>(cvar_num_reconstruction_rays.Get()));
+        commands.set_push_constant(1, static_cast<float>(cvar_reconstruction_size.Get()));
 
-    commands.clear_descriptor_set(1);
+        commands.draw_triangle();
+
+        commands.clear_descriptor_set(1);
+    }
 }

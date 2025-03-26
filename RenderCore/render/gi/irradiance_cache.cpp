@@ -57,6 +57,32 @@ IrradianceCache::IrradianceCache() {
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("IrradianceCache");
     }
+    if(overlay_pso == nullptr) {
+        overlay_pso = RenderBackend::get().begin_building_pipeline("gi_cache_application")
+                                          .set_vertex_shader("shaders/common/fullscreen.vert.spv")
+                                          .set_fragment_shader("shaders/gi/cache/overlay.frag.spv")
+                                          .set_depth_state(
+                                              {
+                                                  .enable_depth_write = false,
+                                                  .compare_op = VK_COMPARE_OP_LESS
+                                              })
+                                          .set_blend_state(
+                                              0,
+                                              {
+                                                  .blendEnable = VK_TRUE,
+                                                  .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                  .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                  .colorBlendOp = VK_BLEND_OP_ADD,
+                                                  .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                  .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                                  .alphaBlendOp = VK_BLEND_OP_ADD,
+                                                  .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
+                                                  |
+                                                  VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                              }
+                                          )
+                                          .build();
+    }
 
     auto& allocator = RenderBackend::get().get_global_allocator();
 
@@ -203,6 +229,55 @@ void IrradianceCache::update_cascades_and_probes(
     find_probes_to_update(view.get_frame_count());
 
     dispatch_probe_updates(graph, scene, noise_tex);
+}
+
+void IrradianceCache::get_resource_uses(
+    eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers
+) {
+    textures.emplace_back(
+        rtgi_a,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    textures.emplace_back(
+        light_cache_a,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    textures.emplace_back(
+        depth_a,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    textures.emplace_back(
+        average_a,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    textures.emplace_back(
+        validity_a,
+        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_2_SHADER_READ_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+}
+
+void IrradianceCache::add_to_lit_scene(CommandBuffer& commands, const BufferHandle view_buffer) const {
+    const auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(overlay_pso, 1)
+                                         .bind(view_buffer)
+                                         .bind(cascade_cbuffer)
+                                         .bind(rtgi_a, linear_sampler)
+                                         .bind(depth_a, linear_sampler)
+                                         .bind(validity_a)
+                                         .build();
+
+    commands.bind_descriptor_set(1, set);
+    commands.bind_pipeline(overlay_pso);
+    commands.set_push_constant(0, 5u);
+    commands.set_push_constant(0, 6u);
+
+    commands.draw_triangle();
+
+    commands.clear_descriptor_set(1);
 }
 
 bool IrradianceCache::request_probe_update(const uint3 probe_index) {
@@ -513,18 +588,59 @@ void IrradianceCache::dispatch_probe_updates(
                 "shaders/gi/cache/probe_light_cache_update.comp.spv");
         }
         auto set = descriptor_allocator.build_set(probe_light_cache_update_shader, 0)
-            .bind(probes_to_update_buffer)
-            .bind(trace_params_texture)
-            .bind(trace_results_texture)
-            .bind(light_cache_a)
-            .build();
-    
+                                       .bind(probes_to_update_buffer)
+                                       .bind(trace_params_texture)
+                                       .bind(trace_results_texture)
+                                       .bind(light_cache_a)
+                                       .build();
+
         graph.add_compute_dispatch(
             ComputeDispatch{
                 .name = "probe_light_cache_update",
                 .descriptor_sets = {set},
                 .num_workgroups = {static_cast<uint32_t>(probes_to_update.size()), 1, 1},
                 .compute_shader = probe_light_cache_update_shader
+            });
+    }
+    {
+        if(probe_rtgi_update_shader == nullptr) {
+            probe_rtgi_update_shader = backend.get_pipeline_cache().create_pipeline(
+                "shaders/gi/cache/probe_rtgi_update.comp.spv");
+        }
+        auto set = descriptor_allocator.build_set(probe_rtgi_update_shader, 0)
+                                       .bind(probes_to_update_buffer)
+                                       .bind(trace_params_texture)
+                                       .bind(trace_results_texture)
+                                       .bind(rtgi_a)
+                                       .build();
+
+        graph.add_compute_dispatch(
+            ComputeDispatch{
+                .name = "probe_rtgi_update",
+                .descriptor_sets = {set},
+                .num_workgroups = {static_cast<uint32_t>(probes_to_update.size()), 1, 1},
+                .compute_shader = probe_rtgi_update_shader
+            });
+    }
+    {
+        if(probe_finalize_shader == nullptr) {
+            probe_finalize_shader = backend.get_pipeline_cache().create_pipeline(
+                "shaders/gi/cache/probe_finalize.comp.spv");
+        }
+        auto set = descriptor_allocator.build_set(probe_finalize_shader, 0)
+                                       .bind(probes_to_update_buffer)
+                                       .bind(rtgi_a)
+                                       .bind(depth_a)
+                                       .bind(average_a)
+                                       .bind(validity_a)
+                                       .build();
+
+        graph.add_compute_dispatch(
+            ComputeDispatch{
+                .name = "probe_finalize",
+                .descriptor_sets = {set},
+                .num_workgroups = {1, 1, static_cast<uint32_t>(probes_to_update.size())},
+                .compute_shader = probe_finalize_shader
             });
     }
 }

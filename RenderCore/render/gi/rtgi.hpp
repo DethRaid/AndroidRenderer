@@ -2,8 +2,8 @@
 
 #include <EASTL/vector.h>
 
-#include "global_illuminator.hpp"
-#include "irradiance_cache.hpp"
+#include "render/gi/global_illuminator.hpp"
+#include "render/gi/irradiance_cache.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/texture_usage_token.hpp"

@@ -1,5 +1,6 @@
-#include "shared/gi_probe.hpp"
 #include "common/octahedral.slangi"
+#include "probe_update.slangi"
+#include "shared/gi_probe.hpp"
 
 StructuredBuffer<uint3> probes_to_update;
 
@@ -42,8 +43,9 @@ void main(uint3 group_id: SV_GroupID, uint3 thread_id: SV_GroupThreadID) {
     const uint3 write_pixel = probe_id + uint3(thread_id.xy, 0);
     if (num_valid_samples > 0) {
         light /= num_valid_samples;
-        light_cache_dest[write_pixel] = light;
     } else {
-        light_cache_dest[write_pixel] = (half3)0;
+        light = (half3)0;
     }
+
+    write_probe_texel_with_border<3>(light_cache_dest, int2(11, 11), probe_id, thread_id.xy, light);
 }

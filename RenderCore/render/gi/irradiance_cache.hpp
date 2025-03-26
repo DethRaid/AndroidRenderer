@@ -7,10 +7,13 @@
 
 #include "shared/prelude.h"
 #include "render/backend/handles.hpp"
+#include "render/backend/texture_usage_token.hpp"
+#include "render/backend/buffer_usage_token.hpp"
 
 class RenderScene;
 class RenderGraph;
 class SceneView;
+class CommandBuffer;
 
 /**
  * Irradiance cache, based on DDGI
@@ -127,11 +130,17 @@ public:
         RenderGraph& graph, const SceneView& view, const RenderScene& scene, TextureHandle noise_tex
     );
 
+    void get_resource_uses(eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers);
+
+    void add_to_lit_scene(CommandBuffer& commands, BufferHandle view_buffer) const;
+
 private:
     /**
      * We can skip copying the cascade textures if this is the first frame
      */
     bool first_frame = true;
+
+    static inline GraphicsPipelineHandle overlay_pso = nullptr;
 
     /**
      * Stores 8x8 R11G11B10 textures representing the incoming light at each probe
@@ -219,6 +228,8 @@ private:
     static inline ComputePipelineHandle probe_rtgi_update_shader = nullptr;
 
     static inline ComputePipelineHandle probe_validity_update_shader = nullptr;
+
+    static inline ComputePipelineHandle probe_finalize_shader = nullptr;
 
     /**
      * Requests an update of a given probe. Returns true if the probe can be updated this frame, false otherwise

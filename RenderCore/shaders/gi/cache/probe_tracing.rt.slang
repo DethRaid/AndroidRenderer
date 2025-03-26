@@ -1,6 +1,7 @@
 #include "shared/view_data.hpp"
 #include "shared/gi_probe.hpp"
 #include "rtgi/rtgi_payload.slangi"
+#include "probe_sampling.slangi"
 #include "common/octahedral.slangi"
 
 [vk::binding(2, 0)]
@@ -29,109 +30,6 @@ RWTexture2DArray<half4> trace_params_texture;
 
 [vk::binding(12, 0)]
 RWTexture2DArray<half4> trace_results_texture;
-
-float3 get_probe_uv(in uint3 probe_index, in float2 octant_coords, in uint2 num_probe_texels) {
-    const float2 total_num_probe_texels = (float2)num_probe_texels + 2.f;
-    const float2 texture_size = total_num_probe_texels * float2(32, 8);
-
-    float2 uv = float2(probe_index.xy * total_num_probe_texels) + total_num_probe_texels * 0.5f;
-    uv += octant_coords * ((float2)num_probe_texels * 0.5f);
-    uv /= texture_size;
-
-    return float3(uv, probe_index.z / 32.f);
-}
-
-float3 sample_cascade(in float3 location, in float3 direction, in uint cascade_index) {
-    // Convert location to cascade space. Sample the eight probes closest to the location. Sample their depths and 
-    // validity to weight the result, then sample their rtgi textures. Divide by weight, return
-
-    const ProbeCascade cascade = cascades[cascade_index];
-    const float3 relative_location = location - cascade.min;
-    const float3 probespace_location = relative_location / cascade.probe_spacing;
-    const float3 min_probe = floor(probespace_location);
-
-    const float3 alpha = clamp((probespace_location - min_probe) / cascade.probe_spacing, 0.f, 1.f);
-
-    const float3 offsets[8] = float3[8](
-        float3(0, 0, 0),
-        float3(0, 0, 1),
-        float3(0, 1, 0),
-        float3(0, 1, 1),
-        float3(1, 0, 0),
-        float3(1, 0, 1),
-        float3(1, 1, 0),
-        float3(1, 1, 1)
-    );
-
-    float3 irradiance = 0.h;
-    float weight = 0.h;
-
-    for (uint i = 0; i < 8; i++) {
-        const float3 probe_location = min_probe + offsets[i];
-        const float3 direction_to_probe = probe_location - probespace_location;
-        const float distance_to_probe = length(direction_to_probe) * cascade.probe_spacing;
-
-        const uint3 base_probe_index = (uint3)(probe_location + float3(0, cascade_index * 8.f, 0));
-
-        const half probe_validity = validity[base_probe_index];
-        if (probe_validity == 0) {
-            continue;
-        }
-
-        // Compute trilinear weights based on the distance to each adjacent probe to smoothly transition between
-        // probes. offset is binary, so we're using a 1-alpha when offset = 0 and alpha when offset = 1.
-        const float3 trilinear = max(0.001f, lerp(1.f - alpha, alpha, offsets[i]));
-        const float trilinear_weight = (trilinear.x * trilinear.y * trilinear.z);
-        
-        float probe_weight = 1.h;
-
-        const float2 depth_octant_coord = get_octahedral_coordinates(-direction_to_probe);
-        const float3 depth_uv = get_probe_uv(base_probe_index, depth_octant_coord, uint2(10, 10));
-        const half2 depth = depth.SampleLevel(depth_uv, 0);
-
-        const float variance = abs((depth.x * depth.x) - depth.y);
-
-        // Occlusion test
-        float chebyshev_weight = 1;
-        if (distance_to_probe > depth.x) // occluded
-        {
-            // v must be greater than 0, which is guaranteed by the if condition above.
-            const float v = distance_to_probe - depth.x;
-            chebyshev_weight = variance / (variance + (v * v));
-
-            // Increase the contrast in the weight
-            chebyshev_weight = max((chebyshev_weight * chebyshev_weight * chebyshev_weight), 0.h);
-        }
-
-        // Avoid visibility weights ever going all the way to zero because
-        // when *no* probe has visibility we need a fallback value
-        probe_weight *= max(0.05, chebyshev_weight);
-
-        // Avoid a weight of zero
-        probe_weight = max(0.000001, probe_weight);
-
-        // A small amount of light is visible due to logarithmic perception, so
-        // crush tiny weights but keep the curve continuous
-        const float crush_threshold = 0.2f;
-        if (probe_weight < crush_threshold)
-        {
-            probe_weight *= (probe_weight * probe_weight) * (1.f / (crush_threshold * crush_threshold));
-        }
-
-        probe_weight *= trilinear_weight;
-
-        const float2 irradiance_octant_coord = get_octahedral_coordinates(direction);
-        const float3 rtgi_uv = get_probe_uv(base_probe_index, irradiance_octant_coord, uint2(5, 6));
-        const half3 probe_irradiance = rtgi.SampleLevel(rtgi_uv, 0);
-
-        irradiance += probe_irradiance * probe_weight;
-        weight += probe_weight;
-    }
-
-    irradiance /= weight;
-
-    return irradiance * 2 * PI;
-}
 
 /**
  * Yeet 400 rays into the aether. Convolve them into our textures. Party
@@ -185,8 +83,8 @@ void main_raygen() {
     if (payload.ray_distance == 0) {
         // If we didn't hit anything and there's a next-largest cascade to sample, sample from it. Otherwise we just 
         // keep the sky irradiance in the payload
-        if(cascade_index + 1 < 4) {
-            payload.irradiance = sample_cascade(ray.Origin + ray.Direction * ray.TMax, ray.Direction, cascade_index + 1);
+        if (cascade_index + 1 < 4) {
+            payload.irradiance = sample_cascade(ray.Origin + ray.Direction * ray.TMax, ray.Direction, cascade_index + 1, cascades[cascade_index + 1], rtgi, uint2(5, 6), depth, validity);
         }
 
         payload.ray_distance = ray_distance;
