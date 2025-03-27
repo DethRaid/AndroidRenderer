@@ -338,8 +338,8 @@ void GltfModel::calculate_bounding_sphere_and_footprint() {
                 for(const auto& primitive : mesh.primitives) {
                     const auto mesh_bounds = read_mesh_bounds(primitive, model);
 
-                    const auto primitive_min_modelspace = local_to_world * glm::vec4{ mesh_bounds.min, 1.f};
-                    const auto primitive_max_modelspace = local_to_world * glm::vec4{ mesh_bounds.max, 1.f};
+                    const auto primitive_min_modelspace = local_to_world * glm::vec4{mesh_bounds.min, 1.f};
+                    const auto primitive_max_modelspace = local_to_world * glm::vec4{mesh_bounds.max, 1.f};
 
                     min_extents = glm::min(min_extents, glm::vec3{primitive_min_modelspace});
                     max_extents = glm::max(max_extents, glm::vec3{primitive_max_modelspace});
@@ -413,7 +413,7 @@ void GltfModel::import_single_texture(
 
     const auto& gltf_texture = model.textures[gltf_texture_index];
     auto image_index = std::size_t{};
-    if (gltf_texture.basisuImageIndex) {
+    if(gltf_texture.basisuImageIndex) {
         image_index = *gltf_texture.basisuImageIndex;
     } else {
         image_index = *gltf_texture.imageIndex;
@@ -642,8 +642,9 @@ read_index_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& mod
 Box read_mesh_bounds(const fastgltf::Primitive& primitive, const fastgltf::Asset& model) {
     const auto position_attribute_idx = primitive.findAttribute("POSITION")->accessorIndex;
     const auto& position_accessor = model.accessors[position_attribute_idx];
-    const auto min = glm::make_vec3(position_accessor.min->data<double>());
-    const auto max = glm::make_vec3(position_accessor.max->data<double>());
+    // glTF spec says that the min and max of a position accessor must exist
+    const auto min = glm::make_vec3(position_accessor.min->data<double>()); // NOLINT(bugprone-unchecked-optional-access)
+    const auto max = glm::make_vec3(position_accessor.max->data<double>()); // NOLINT(bugprone-unchecked-optional-access)
 
     return {.min = min, .max = max};
 }
@@ -688,7 +689,7 @@ void copy_vertex_data_to_vector(
             attribute_accessor,
             [&](const glm::vec4& tangent, const size_t idx) {
                 vertices[idx].tangent = tangent;
-                if (tangent.w < 0) {
+                if(tangent.w < 0) {
                     front_face_ccw = false;
                 }
             });
@@ -714,7 +715,7 @@ void copy_vertex_data_to_vector(
             model,
             attribute_accessor,
             [&](const glm::u8vec4& color, const size_t idx) {
-                const auto color_vec = float4{ color } / 255.f;
+                const auto color_vec = float4{color} / 255.f;
                 vertices[idx].color = glm::packUnorm4x8(color_vec);
             });
     }

@@ -398,6 +398,12 @@ void SceneRenderer::render() {
         stbn_3d_unitvec,
         stbn_2d_scalar.get_layer(frame_count));
 
+    // Debug
+
+    if (active_visualization != RenderVisualization::None) {
+        draw_debug_visualizers(render_graph);
+    }
+
     // Anti-aliasing/upscaling
 
     evaluate_antialiasing(render_graph, gbuffer.depth);
@@ -409,12 +415,6 @@ void SceneRenderer::render() {
     // Other postprocessing
 
     // TODO
-
-    // Debug
-
-    if(active_visualization != RenderVisualization::None) {
-        draw_debug_visualizers(render_graph);
-    }
 
     // UI
 

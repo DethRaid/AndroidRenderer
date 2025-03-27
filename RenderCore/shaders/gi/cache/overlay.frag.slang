@@ -78,7 +78,7 @@ half4 main(float4 sv_position: SV_Position) {
 
     if (cascade_index > 3) {
         return (half4)0;
-    }
+    }    
 
     const half3 irradiance = sample_cascade(
         surface.location,
