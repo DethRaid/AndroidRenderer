@@ -17,11 +17,12 @@
 // Cascade 3 is 8x8x2 kilometers
 // I may bring these down if I actually ship a game of some kind
 
-static AutoCVar_Int cvar_rays_per_probe{
-    "r.GI.Cache.RaysPerProbe", "How many rays to send out when updating a probe", 400
-};
 static AutoCVar_Int cvar_probes_per_frame{
-    "r.GI.Cache.UpdatesPerFrame", "How many probes we can update per frame", 32
+    "r.GI.Cache.UpdatesPerFrame", "How many probes we can update per frame", 1024
+};
+
+static AutoCVar_Int cvar_debug_mode{
+    "r.GI.Cache.DebugMode", "What debug mode, if any, to use. 0 = none, 1 = show cascade range", 0
 };
 
 static std::shared_ptr<spdlog::logger> logger;
@@ -175,15 +176,6 @@ IrradianceCache::IrradianceCache() {
             .num_layers = static_cast<uint32_t>(cvar_probes_per_frame.Get()),
         }
     );
-    trace_params_texture = allocator.create_texture(
-        "probe_trace_params",
-        {
-            .format = VK_FORMAT_R16G16B16A16_SFLOAT,
-            .resolution = {20, 20},
-            .usage = TextureUsage::StorageImage,
-            .num_layers = static_cast<uint32_t>(cvar_probes_per_frame.Get()),
-        }
-    );
 
     linear_sampler = allocator.get_sampler(
         {
@@ -211,7 +203,6 @@ IrradianceCache::~IrradianceCache() {
     allocator.destroy_buffer(cascade_cbuffer);
 
     allocator.destroy_texture(trace_results_texture);
-    allocator.destroy_texture(trace_params_texture);
 }
 
 void IrradianceCache::update_cascades_and_probes(
@@ -273,12 +264,18 @@ void IrradianceCache::add_to_lit_scene(CommandBuffer& commands, const BufferHand
     commands.bind_descriptor_set(1, set);
     commands.bind_pipeline(overlay_pso);
     commands.set_push_constant(0, 5u);
-    commands.set_push_constant(0, 6u);
+    commands.set_push_constant(1, 6u);
+
+    commands.set_push_constant(2, static_cast<uint32_t>(cvar_debug_mode.Get()));
 
     commands.draw_triangle();
 
     commands.clear_descriptor_set(1);
 }
+
+void IrradianceCache::draw_debug_overlays(
+    RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, const TextureHandle lit_scene_texture
+) {}
 
 bool IrradianceCache::request_probe_update(const uint3 probe_index) {
     ZoneScoped;
@@ -527,6 +524,8 @@ void IrradianceCache::dispatch_probe_updates(
 
     auto& descriptor_allocator = backend.get_transient_descriptor_allocator();
 
+    const auto num_probes_to_update = static_cast<uint32_t>(probes_to_update.size());
+
     {
         const auto& sky = scene.get_sky();
         auto set = descriptor_allocator.build_set(probe_tracing_pipeline, 0)
@@ -534,15 +533,15 @@ void IrradianceCache::dispatch_probe_updates(
                                        .bind(scene.get_sun_light().get_constant_buffer())
                                        .bind(probes_to_update_buffer)
                                        .bind(scene.get_raytracing_scene().get_acceleration_structure())
+                                       .bind(cascade_cbuffer)
+                                       .bind(trace_results_texture)
+                                       .bind(noise_tex)
                                        .bind(rtgi_a, linear_sampler)
                                        .bind(depth_a, linear_sampler)
-                                       .bind(noise_tex)
-                                       .bind(validity_a)
-                                       .bind(cascade_cbuffer)
+                                       .next_binding(9)
                                        .bind(sky.get_transmittance_lut(), sky.get_sampler())
                                        .bind(sky.get_sky_view_lut(), sky.get_sampler())
-                                       .bind(trace_params_texture)
-                                       .bind(trace_results_texture)
+                                       .bind(validity_a)
                                        .build();
 
         graph.add_pass(
@@ -555,7 +554,7 @@ void IrradianceCache::dispatch_probe_updates(
                     commands.bind_descriptor_set(0, set);
                     commands.bind_descriptor_set(1, backend.get_texture_descriptor_pool().get_descriptor_set());
 
-                    commands.dispatch_rays({20, 20, static_cast<uint32_t>(probes_to_update.size())});
+                    commands.dispatch_rays({20, 20, num_probes_to_update});
 
                     commands.clear_descriptor_set(0);
                 }
@@ -569,7 +568,6 @@ void IrradianceCache::dispatch_probe_updates(
         }
         auto set = descriptor_allocator.build_set(probe_depth_update_shader, 0)
                                        .bind(probes_to_update_buffer)
-                                       .bind(trace_params_texture)
                                        .bind(trace_results_texture)
                                        .bind(depth_a)
                                        .build();
@@ -578,7 +576,7 @@ void IrradianceCache::dispatch_probe_updates(
             ComputeDispatch{
                 .name = "probe_depth_update",
                 .descriptor_sets = {set},
-                .num_workgroups = {static_cast<uint32_t>(probes_to_update.size()), 1, 1},
+                .num_workgroups = {num_probes_to_update, 1, 1},
                 .compute_shader = probe_depth_update_shader
             });
     }
@@ -589,7 +587,6 @@ void IrradianceCache::dispatch_probe_updates(
         }
         auto set = descriptor_allocator.build_set(probe_light_cache_update_shader, 0)
                                        .bind(probes_to_update_buffer)
-                                       .bind(trace_params_texture)
                                        .bind(trace_results_texture)
                                        .bind(light_cache_a)
                                        .build();
@@ -598,7 +595,7 @@ void IrradianceCache::dispatch_probe_updates(
             ComputeDispatch{
                 .name = "probe_light_cache_update",
                 .descriptor_sets = {set},
-                .num_workgroups = {static_cast<uint32_t>(probes_to_update.size()), 1, 1},
+                .num_workgroups = {num_probes_to_update, 1, 1},
                 .compute_shader = probe_light_cache_update_shader
             });
     }
@@ -609,7 +606,6 @@ void IrradianceCache::dispatch_probe_updates(
         }
         auto set = descriptor_allocator.build_set(probe_rtgi_update_shader, 0)
                                        .bind(probes_to_update_buffer)
-                                       .bind(trace_params_texture)
                                        .bind(trace_results_texture)
                                        .bind(rtgi_a)
                                        .build();
@@ -618,7 +614,7 @@ void IrradianceCache::dispatch_probe_updates(
             ComputeDispatch{
                 .name = "probe_rtgi_update",
                 .descriptor_sets = {set},
-                .num_workgroups = {static_cast<uint32_t>(probes_to_update.size()), 1, 1},
+                .num_workgroups = {num_probes_to_update, 1, 1},
                 .compute_shader = probe_rtgi_update_shader
             });
     }
@@ -639,7 +635,7 @@ void IrradianceCache::dispatch_probe_updates(
             ComputeDispatch{
                 .name = "probe_finalize",
                 .descriptor_sets = {set},
-                .num_workgroups = {1, 1, static_cast<uint32_t>(probes_to_update.size())},
+                .num_workgroups = {1, 1, num_probes_to_update},
                 .compute_shader = probe_finalize_shader
             });
     }

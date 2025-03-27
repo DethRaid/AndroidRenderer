@@ -10,6 +10,7 @@
 #include "render/backend/texture_usage_token.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 
+struct GBuffer;
 class RenderScene;
 class RenderGraph;
 class SceneView;
@@ -134,6 +135,10 @@ public:
 
     void add_to_lit_scene(CommandBuffer& commands, BufferHandle view_buffer) const;
 
+    void draw_debug_overlays(
+        RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, TextureHandle lit_scene_texture
+    );
+
 private:
     /**
      * We can skip copying the cascade textures if this is the first frame
@@ -207,13 +212,6 @@ private:
      * This texture stores the irradiance (rgb) and ray distance (a)
      */
     TextureHandle trace_results_texture = nullptr;
-
-    /**
-     * Array texture for storing tracing parameters. 20x20 resolution, 1024 layers
-     *
-     * This texture stores the ray direction (rgb)s
-     */
-    TextureHandle trace_params_texture = nullptr;
 
     VkSampler linear_sampler;
 

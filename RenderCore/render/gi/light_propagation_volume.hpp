@@ -66,17 +66,26 @@ public:
 
     ~LightPropagationVolume() override;
 
-    void pre_render(RenderGraph& graph, const SceneView& view, const RenderScene& scene, TextureHandle noise_tex) override;
+    void pre_render(
+        RenderGraph& graph, const SceneView& view, const RenderScene& scene, TextureHandle noise_tex
+    ) override;
 
-    void post_render(RenderGraph& graph, const SceneView& view, const RenderScene& scene, const GBuffer& gbuffer, TextureHandle noise_tex) override;
+    void post_render(
+        RenderGraph& graph, const SceneView& view, const RenderScene& scene, const GBuffer& gbuffer,
+        TextureHandle noise_tex
+    ) override;
 
-    void get_lighting_resource_usages(eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers) const override;
+    void get_lighting_resource_usages(
+        eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers
+    ) const override;
 
-    void render_to_lit_scene(CommandBuffer& commands, BufferHandle view_buffer, TextureHandle ao_tex, TextureHandle noise_tex) const override;
+    void render_to_lit_scene(
+        CommandBuffer& commands, BufferHandle view_buffer, TextureHandle ao_tex, TextureHandle noise_tex
+    ) const override;
 
-    void visualize_vpls(
-        RenderGraph& graph, BufferHandle scene_view_buffer, TextureHandle lit_scene, TextureHandle depth_buffer
-    );
+    void draw_debug_overlays(
+        RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, TextureHandle lit_scene_texture
+    ) override;
 
 private:
     // RSM render targets. Each is an array texture with one layer per cascade
@@ -199,4 +208,8 @@ private:
      * \param cascade_index Index of the cascade that we're injecting into
      */
     void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index) const;
+
+    void visualize_vpls(
+        RenderGraph& graph, BufferHandle scene_view_buffer, TextureHandle lit_scene, TextureHandle depth_buffer
+    );
 };

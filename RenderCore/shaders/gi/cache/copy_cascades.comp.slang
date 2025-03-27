@@ -20,23 +20,26 @@ cbuffer Constants {
 };
 
 void init_new_probe(in int3 index) {
-    const int3 rtgi_pixel = index * int3(5, 6, 1);
-    for (int y = 0; y < 6; y++) {
-        for (int x = 0; x < 5; x++) {
+    const int2 rtgi_probe_size = int2(7, 8);
+    const int3 rtgi_pixel = index * int3(rtgi_probe_size, 1);
+    for (int y = 0; y < rtgi_probe_size.y; y++) {
+        for (int x = 0; x < rtgi_probe_size.x; x++) {
             rtgi_dest[rtgi_pixel + int3(x, y, 0)] = half3(0);
         }
     }
 
-    const int3 light_cache_pixel = index * int3(11, 11, 1);
-    for (int y = 0; y < 11; y++) {
-        for (int x = 0; x < 11; x++) {
+    const int2 light_cache_probe_size = int2(13, 13);
+    const int3 light_cache_pixel = index * int3(light_cache_probe_size, 1);
+    for (int y = 0; y < light_cache_probe_size.y; y++) {
+        for (int x = 0; x < light_cache_probe_size.x; x++) {
             light_cache_dest[light_cache_pixel + int3(x, y, 0)] = half3(0);
         }
     }
 
-    const int3 depth_pixel = index * int3(10, 10, 1);
-    for (int y = 0; y < 10; y++) {
-        for (int x = 0; x < 10; x++) {
+    const int2 depth_probe_size = int2(12, 12);
+    const int3 depth_pixel = index * int3(depth_probe_size, 1);
+    for (int y = 0; y < depth_probe_size.y; y++) {
+        for (int x = 0; x < depth_probe_size.x; x++) {
             depth_dest[light_cache_pixel + int3(x, y, 0)] = half2(0);
         }
     }
@@ -48,26 +51,29 @@ void init_new_probe(in int3 index) {
 }
 
 void copy_from_cell(in int3 dest_index, in int3 src_index) {
-    const int3 rtgi_dest_pixel = dest_index * int3(5, 6, 1);
-    const int3 rtgi_src_pixel = src_index * int3(5, 6, 1);
-    for (int y = 0; y < 6; y++) {
-        for (int x = 0; x < 5; x++) {
+    const int2 rtgi_probe_size = int2(7, 8);
+    const int3 rtgi_dest_pixel = dest_index * int3(rtgi_probe_size, 1);
+    const int3 rtgi_src_pixel = src_index * int3(rtgi_probe_size, 1);
+    for (int y = 0; y < rtgi_probe_size.y; y++) {
+        for (int x = 0; x < rtgi_probe_size.x; x++) {
             rtgi_dest[rtgi_dest_pixel + int3(x, y, 0)] = rtgi_src[rtgi_src_pixel + int3(x, y, 0)];
         }
     }
 
-    const int3 light_cache_dest_pixel = dest_index * int3(11, 11, 1);
-    const int3 light_cache_src_pixel = src_index * int3(11, 11, 1);
-    for (int y = 0; y < 11; y++) {
-        for (int x = 0; x < 11; x++) {
+    const int2 light_cache_probe_size = int2(13, 13);
+    const int3 light_cache_dest_pixel = dest_index * int3(light_cache_probe_size, 1);
+    const int3 light_cache_src_pixel = src_index * int3(light_cache_probe_size, 1);
+    for (int y = 0; y < light_cache_probe_size.y; y++) {
+        for (int x = 0; x < light_cache_probe_size.x; x++) {
             light_cache_dest[light_cache_dest_pixel + int3(x, y, 0)] = light_cache_src[light_cache_src_pixel + int3(x, y, 0)];
         }
     }
 
-    const int3 depth_dest_pixel = dest_index * int3(10, 10, 1);
-    const int3 depth_src_pixel = src_index * int3(10, 10, 1);
-    for (int y = 0; y < 10; y++) {
-        for (int x = 0; x < 10; x++) {
+    const int2 depth_probe_size = int2(12, 12);
+    const int3 depth_dest_pixel = dest_index * int3(depth_probe_size, 1);
+    const int3 depth_src_pixel = src_index * int3(depth_probe_size, 1);
+    for (int y = 0; y < depth_probe_size.y; y++) {
+        for (int x = 0; x < depth_probe_size.x; x++) {
             depth_dest[depth_dest_pixel + int3(x, y, 0)] = depth_src[depth_src_pixel + int3(x, y, 0)];
         }
     }
@@ -85,7 +91,7 @@ void main(uint3 thread_id: SV_DispatchThreadID) {
 
     const int3 src_cell = (int3)thread_id - (int3)movement;
 
-    if (all(src_cell >= int3(0, 8 * (cascade_index - 1), 0)) && all(src_cell < int3(32, 8 * cascade_index, 32))) {
+    if (all(src_cell >= int3(0, 8 * cascade_index, 0)) && all(src_cell < int3(32, 8 * (cascade_index + 1), 32))) {
         copy_from_cell(thread_id, src_cell);
     } else {
         init_new_probe(thread_id);

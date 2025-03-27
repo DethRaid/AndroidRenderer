@@ -29,6 +29,7 @@ Texture3D<half> probe_validity;
 [vk::push_constant]
 cbuffer Constants {
     uint2 probe_size;
+    uint debug_mode;
 };
 
 float3 get_worldspace_location(const uint2 pixel) {
@@ -92,6 +93,22 @@ half4 main(float4 sv_position: SV_Position) {
     const half3 brdf_result = brdf(surface, surface.normal, worldspace_view_vector);
 
     // ndotl is always 1
-    return half4(brdf_result * irradiance, 1);
+    half3 color = brdf_result * irradiance;
+
+    if (debug_mode == 1) {
+        if (cascade_index == 0) {
+            color = half3(1, 0, 0);
+        } else if (cascade_index == 1) {
+            color = half3(0, 1, 0);
+        } else if (cascade_index == 2) {
+            color = half3(0, 0, 1);
+        } else if (cascade_index == 3) {
+            color = half3(1, 1, 0);
+        } else {
+            color = half3(0.5);
+        }
+    }
+
+    return half4(color, 1);
 }
 

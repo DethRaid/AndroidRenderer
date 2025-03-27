@@ -590,7 +590,7 @@ eastl::vector<StandardVertex>
 read_vertex_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& model) {
     // Get the first attribute's index_count. All the attributes must have the same number of elements, no need to get all their counts
     const auto positions_index = primitive.findAttribute("POSITION")->accessorIndex;
-    const auto positions_accessor = model.accessors[positions_index];
+    const auto& positions_accessor = model.accessors[positions_index];
     const auto num_vertices = positions_accessor.count;
 
     auto vertices = eastl::vector<StandardVertex>();
@@ -642,10 +642,10 @@ read_index_data(const fastgltf::Primitive& primitive, const fastgltf::Asset& mod
 Box read_mesh_bounds(const fastgltf::Primitive& primitive, const fastgltf::Asset& model) {
     const auto position_attribute_idx = primitive.findAttribute("POSITION")->accessorIndex;
     const auto& position_accessor = model.accessors[position_attribute_idx];
-    const auto* min = std::get_if<FASTGLTF_STD_PMR_NS::vector<double>>(&position_accessor.min);
-    const auto* max = std::get_if<FASTGLTF_STD_PMR_NS::vector<double>>(&position_accessor.max);
+    const auto min = glm::make_vec3(position_accessor.min->data<double>());
+    const auto max = glm::make_vec3(position_accessor.max->data<double>());
 
-    return {.min = glm::make_vec3(min->data()), .max = glm::make_vec3(max->data())};
+    return {.min = min, .max = max};
 }
 
 void copy_vertex_data_to_vector(

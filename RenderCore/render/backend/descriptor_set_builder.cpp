@@ -210,6 +210,12 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const AccelerationStructureHand
     return *this;
 }
 
+DescriptorSetBuilder& DescriptorSetBuilder::next_binding(const uint32_t binding_index) {
+    this->binding_index = binding_index;
+
+    return *this;
+}
+
 DescriptorSet DescriptorSetBuilder::build() {
     ZoneScoped;
 
@@ -254,8 +260,6 @@ DescriptorSet DescriptorSetBuilder::build() {
                 {.as = resource.acceleration_structure},
                 binding_info.stageFlags);
 
-        } else {
-            throw std::runtime_error{"Unknown descriptor type!"};
         }
 
         binding_idx++;

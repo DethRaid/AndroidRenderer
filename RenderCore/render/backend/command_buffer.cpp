@@ -329,7 +329,7 @@ void CommandBuffer::dispatch_rays(const glm::uvec3 dispatch_size) {
         &callable_shader_table,
         dispatch_size.x,
         dispatch_size.y,
-        1);
+        dispatch_size.z);
 }
 
 void CommandBuffer::execute_commands() {

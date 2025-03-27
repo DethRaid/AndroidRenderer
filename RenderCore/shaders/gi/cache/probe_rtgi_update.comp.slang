@@ -4,8 +4,6 @@
 
 StructuredBuffer<uint3> probes_to_update;
 
-Texture2DArray<half4> trace_params_texture;
-
 Texture2DArray<half4> trace_results_texture;
 
 RWTexture3D<half3> rtgi_dest;
@@ -15,7 +13,6 @@ RWTexture3D<half3> rtgi_dest;
 void main(uint3 group_id: SV_GroupID, uint3 thread_id: SV_GroupThreadID) {
     const uint probe_index = group_id.x;
     const uint3 probe_id = probes_to_update[probe_index];
-    const uint cascade_index = probe_id.y / 8;
 
     // This thread updates one pixel in the depth texture. We find a cone that represents the depth texel, then sample
     // from the trace results to get the average depth and depth squared
@@ -29,11 +26,14 @@ void main(uint3 group_id: SV_GroupID, uint3 thread_id: SV_GroupThreadID) {
     half3 light = (half3)0;
     half num_valid_samples = 0;
     for (uint i = 0; i < 16; i++) {
-        const uint2 offset = uint2(i % 4, i >> 2);
+        const uint2 offset = uint2(i % 4, i / 4);
         const uint2 read_pixel = source_base_pixel + offset;
         const half4 irradiance = trace_results_texture[uint3(read_pixel, probe_index)];
+        
         if (irradiance.w > 0) {
-            const half3 ray_direction = trace_params_texture[uint3(read_pixel, probe_index)].xyz;
+            const float2 octant_ray_coord = get_normalized_octahedral_coordinates(read_pixel, 20);
+            const float3 ray_direction = get_octahedral_direction(octant_ray_coord);
+
             const half weight = dot(direction, ray_direction);
             light += irradiance.rgb * weight;
             num_valid_samples += 1.h;
@@ -47,5 +47,5 @@ void main(uint3 group_id: SV_GroupID, uint3 thread_id: SV_GroupThreadID) {
         light = 0.h;
     }
 
-    write_probe_texel_with_border<3>(rtgi_dest, int2(5, 6), probe_id, thread_id.xy, light);
+    write_probe_texel_with_border(rtgi_dest, int2(5, 6), probe_id, thread_id.xy, light);
 }

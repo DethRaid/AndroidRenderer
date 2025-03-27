@@ -496,7 +496,7 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
 
         TraceRay(
             rtas,
-            RAY_FLAG_CULL_NON_OPAQUE,
+            RAY_FLAG_CULL_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
             0xFF,
             RAY_TYPE_GI,
             1,
@@ -513,6 +513,8 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
             payload.irradiance += bounce_radiance;
         }
     }
+
+    payload.ray_distance *= sign(dot(surface.normal, WorldRayDirection()));
 }
 #endif  // SAH_RT_GI
 #endif // SAH_RT

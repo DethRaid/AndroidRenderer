@@ -199,3 +199,11 @@ void RayTracedGlobalIllumination::render_to_lit_scene(
         commands.clear_descriptor_set(1);
     }
 }
+
+void RayTracedGlobalIllumination::draw_debug_overlays(
+    RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, TextureHandle lit_scene_texture
+) {
+    if(cvar_gi_cache_debug.Get() != 0 && irradiance_cache) {
+        irradiance_cache->draw_debug_overlays(graph, view, gbuffer, lit_scene_texture);
+    }
+}

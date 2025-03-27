@@ -52,6 +52,10 @@ public:
         CommandBuffer& commands, BufferHandle view_buffer, TextureHandle ao_tex, TextureHandle noise_texture
     ) const override;
 
+    void draw_debug_overlays(
+        RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, TextureHandle lit_scene_texture
+    ) override;
+
 private:
     /**
      * Stores ray start parameters, such as direction and... well, it's just direction

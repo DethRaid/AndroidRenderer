@@ -63,6 +63,8 @@ public:
 
     DescriptorSetBuilder& bind(AccelerationStructureHandle acceleration_structure);
 
+    DescriptorSetBuilder& next_binding(uint32_t binding_index);
+
     /**
      * \brief Creates the Vulkan descriptor set 
      * \return 

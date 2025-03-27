@@ -35,4 +35,11 @@ public:
     virtual void render_to_lit_scene(
         CommandBuffer& commands, BufferHandle view_buffer, TextureHandle ao_tex, TextureHandle noise_tex
     ) const = 0;
+
+    /**
+     * Draws any debug overlays you may want 
+     */
+    virtual void draw_debug_overlays(
+        RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, TextureHandle lit_scene_texture
+    ) = 0;
 };

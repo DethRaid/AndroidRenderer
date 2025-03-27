@@ -11,25 +11,22 @@ StructuredBuffer<uint3> probes_to_update;
 RaytracingAccelerationStructure rtas;
 
 [vk::binding(4, 0)]
-Sampler3D<half3> rtgi;
+ConstantBuffer<ProbeCascade[4]> cascades;
 
 [vk::binding(5, 0)]
-Sampler3D<half2> depth;
+RWTexture2DArray<half4> trace_results_texture;
 
 [vk::binding(6, 0)]
 Texture2D<float3> noisetex;
 
 [vk::binding(7, 0)]
-Texture3D<half> validity;
+Sampler3D<half3> rtgi;
 
 [vk::binding(8, 0)]
-ConstantBuffer<ProbeCascade[4]> cascades;
+Sampler3D<half2> depth;
 
 [vk::binding(11, 0)]
-RWTexture2DArray<half4> trace_params_texture;
-
-[vk::binding(12, 0)]
-RWTexture2DArray<half4> trace_results_texture;
+Texture3D<half> validity;
 
 /**
  * Yeet 400 rays into the aether. Convolve them into our textures. Party
@@ -93,6 +90,8 @@ void main_raygen() {
         payload.irradiance = 0;
     }
 
-    trace_params_texture[thread_id] = half4((half3)ray_direction, 0);
-    trace_results_texture[thread_id] = half4((half3)payload.irradiance, (half)payload.ray_distance);
+    // Number chosen based on what happened to look fine
+    const half exposure_factor = 0.0031415927h;
+
+    trace_results_texture[thread_id] = half4((half3)payload.irradiance * exposure_factor, (half)payload.ray_distance);
 }

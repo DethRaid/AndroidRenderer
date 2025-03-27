@@ -351,6 +351,12 @@ void LightPropagationVolume::render_to_lit_scene(
 
 }
 
+void LightPropagationVolume::draw_debug_overlays(
+    RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, const TextureHandle lit_scene_texture
+) {
+    visualize_vpls(graph, view.get_buffer(), lit_scene_texture, gbuffer.depth);
+}
+
 void LightPropagationVolume::init_resources(ResourceAllocator& allocator) {
     ZoneScoped;
 

@@ -695,13 +695,10 @@ void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
         // Intentionally empty
         break;
 
-    case RenderVisualization::VPLs:
-        // TODO: Get working again. IGlobalIlluminator can have a way to draw a visualization?
-        // lpv->visualize_vpls(
-        //     render_graph,
-        //     player_view.get_buffer(),
-        //     lit_scene_handle,
-        //     depth_culling_phase.get_depth_buffer());
+    case RenderVisualization::GIDebug:
+        if(gi) {
+            gi->draw_debug_overlays(render_graph, player_view, gbuffer, lit_scene_handle);
+        }
         break;
     }
 }
