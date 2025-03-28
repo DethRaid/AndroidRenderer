@@ -27,11 +27,11 @@ struct AttachmentBinding {
 struct ComputePass {
     std::string name;
     
-    eastl::vector<TextureUsageToken> textures;
+    TextureUsageList textures;
 
-    eastl::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 
-    eastl::vector<DescriptorSet> descriptor_sets;
+    eastl::fixed_vector<DescriptorSet, 8> descriptor_sets;
 
     /**
      * Executes this render pass
@@ -55,12 +55,12 @@ struct ComputeDispatch {
     /**
      * \brief Descriptor sets to bind for this pass. Must contain one entry for every descriptor set that the shader needs
      */
-    eastl::vector<DescriptorSet> descriptor_sets;
+    eastl::fixed_vector<DescriptorSet, 4> descriptor_sets;
 
     /**
      * \brief Buffers this pass uses that aren't in a descriptor set. Useful for buffers accessed through BDA
      */
-    eastl::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 
     /**
      * \brief Push constants for this dispatch. Feel free to reinterpret_cast push_constants.data() into your own type
@@ -92,12 +92,12 @@ struct IndirectComputeDispatch {
     /**
      * \brief Descriptor sets to bind for this pass. Must contain one entry for every descriptor set that the shader needs
      */
-    eastl::vector<DescriptorSet> descriptor_sets;
+    eastl::fixed_vector<DescriptorSet, 4> descriptor_sets;
 
     /**
      * \brief Buffers this pass uses that aren't in a descriptor set. Useful for buffers accessed through BDA
      */
-    eastl::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 
     /**
      * \brief Push constants for this dispatch. Feel free to reinterpret_cast push_constants.data() into your own type
@@ -116,9 +116,9 @@ struct IndirectComputeDispatch {
 };
 
 struct TransitionPass {
-    eastl::vector<TextureUsageToken> textures;
+    TextureUsageList textures;
 
-    eastl::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 };
 
 struct BufferCopyPass {
@@ -162,40 +162,22 @@ struct Subpass {
 struct RenderPassBeginInfo {
     std::string name;
 
-    eastl::vector<TextureUsageToken> textures;
+    TextureUsageList textures;
 
-    eastl::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 
     /**
      * \brief Descriptor sets that contain sync info we use
      *
      * I need a better name for this
      */
-    eastl::vector<DescriptorSet> descriptor_sets;
+    eastl::fixed_vector<DescriptorSet, 4> descriptor_sets;
 
-    eastl::vector<TextureHandle> attachments;
+    eastl::fixed_vector<TextureHandle, 8> attachments;
 
-    eastl::vector<VkClearValue> clear_values;
-
-    std::optional<uint32_t> view_mask;
-};
-
-struct RenderPass {
-    std::string name;
-
-    eastl::vector<TextureUsageToken> textures;
-
-    eastl::vector<BufferUsageToken> buffers;
-
-    eastl::vector<DescriptorSet> descriptor_sets;
-    
-    eastl::vector<TextureHandle> attachments;
-
-    eastl::vector<VkClearValue> clear_values;
+    eastl::fixed_vector<VkClearValue, 8> clear_values;
 
     std::optional<uint32_t> view_mask;
-
-    eastl::vector<Subpass> subpasses;
 };
 
 struct AttachmentInfo {
@@ -206,13 +188,13 @@ struct AttachmentInfo {
 struct DynamicRenderingPass {
     std::string name;
 
-    eastl::vector<TextureUsageToken> textures;
+    TextureUsageList textures;
 
-    eastl::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 
-    eastl::vector<DescriptorSet> descriptor_sets;
+    eastl::fixed_vector<DescriptorSet, 4> descriptor_sets;
 
-    eastl::vector<RenderingAttachmentInfo> color_attachments;
+    eastl::fixed_vector<RenderingAttachmentInfo, 8> color_attachments;
 
     std::optional<RenderingAttachmentInfo> depth_attachment;
 

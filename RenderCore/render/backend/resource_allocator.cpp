@@ -531,18 +531,9 @@ void* ResourceAllocator::map_buffer(const BufferHandle buffer_handle) {
     return buffer_handle->allocation_info.pMappedData;
 }
 
-AccelerationStructureHandle ResourceAllocator::create_acceleration_structure() {
-    return {};
-}
-
 void ResourceAllocator::destroy_buffer(BufferHandle handle) {
     auto& cur_frame_zombies = buffer_zombie_lists[backend.get_current_gpu_frame()];
     cur_frame_zombies.emplace_back(handle);
-}
-
-void ResourceAllocator::destroy_framebuffer(Framebuffer&& framebuffer) {
-    auto& cur_frame_zombies = framebuffer_zombie_lists[backend.get_current_gpu_frame()];
-    cur_frame_zombies.emplace_back(framebuffer);
 }
 
 VkSampler ResourceAllocator::get_sampler(const VkSamplerCreateInfo& info) {
@@ -611,18 +602,11 @@ void ResourceAllocator::free_resources_for_frame(const uint32_t frame_idx) {
 
     zombie_textures.clear();
 
-    auto& zombie_framebuffers = framebuffer_zombie_lists[frame_idx];
-    for(const auto& framebuffer : zombie_framebuffers) {
-        vkDestroyFramebuffer(device, framebuffer.framebuffer, nullptr);
-    }
-    zombie_framebuffers.clear();
-
     vmaSetCurrentFrameIndex(vma, frame_idx);
 }
 
 void ResourceAllocator::report_memory_usage() const {
-    auto budgets = eastl::vector<VmaBudget>{};
-    budgets.resize(32);
+    auto budgets = eastl::array<VmaBudget, 32>{};
     vmaGetHeapBudgets(vma, budgets.data());
 
     /*

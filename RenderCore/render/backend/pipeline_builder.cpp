@@ -137,20 +137,20 @@ static VkDescriptorType to_vk_type(SpvReflectDescriptorType type);
 static bool collect_descriptor_sets(
     const eastl::vector<SpvReflectDescriptorSet*>& sets,
     VkShaderStageFlags shader_stage,
-    eastl::vector<DescriptorSetInfo>& descriptor_sets
+    eastl::fixed_vector<DescriptorSetInfo, 8>& descriptor_sets
 );
 
 static bool collect_push_constants(
-    const std::string_view shader_name,
+    std::string_view shader_name,
     const eastl::vector<SpvReflectBlockVariable*>& spv_push_constants,
     VkShaderStageFlags shader_stage,
-    eastl::vector<VkPushConstantRange>& push_constants
+    eastl::fixed_vector<VkPushConstantRange, 4>& push_constants
 );
 
 static void collect_vertex_attributes(
     const VertexLayout& vertex_layout,
     const eastl::vector<SpvReflectInterfaceVariable*>& inputs,
-    eastl::vector<VkVertexInputAttributeDescription>& vertex_attributes,
+    eastl::fixed_vector<VkVertexInputAttributeDescription, 8>& vertex_attributes,
     bool& needs_position_buffer,
     bool& needs_data_buffer,
     bool& needs_primitive_id_buffer
@@ -230,7 +230,12 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_vertex_shader(const std::f
 
     logger->trace("Beginning reflection on vertex shader {}", vertex_shader_name);
 
-    collect_bindings(*vertex_shader_maybe, vertex_shader_name, VK_SHADER_STAGE_VERTEX_BIT, descriptor_sets, push_constants);
+    collect_bindings(
+        *vertex_shader_maybe,
+        vertex_shader_name,
+        VK_SHADER_STAGE_VERTEX_BIT,
+        descriptor_sets,
+        push_constants);
 
     // Collect inputs
     uint32_t input_count;
@@ -404,7 +409,7 @@ GraphicsPipelineHandle GraphicsPipelineBuilder::build() {
 bool collect_descriptor_sets(
     const eastl::vector<SpvReflectDescriptorSet*>& sets,
     const VkShaderStageFlags shader_stage,
-    eastl::vector<DescriptorSetInfo>& descriptor_sets
+    eastl::fixed_vector<DescriptorSetInfo, 8>& descriptor_sets
 ) {
     if(logger == nullptr) {
         init_logger();
@@ -465,7 +470,7 @@ bool collect_push_constants(
     const std::string_view shader_name,
     const eastl::vector<SpvReflectBlockVariable*>& spv_push_constants,
     const VkShaderStageFlags shader_stage,
-    eastl::vector<VkPushConstantRange>& push_constants
+    eastl::fixed_vector<VkPushConstantRange, 4>& push_constants
 ) {
     bool has_error = false;
 
@@ -483,7 +488,7 @@ bool collect_push_constants(
                     "Push constant range at offset {} has size {} in shader {}, but it had size {} earlier",
                     constant_range->offset,
                     constant_range->size,
-                    std::string_view{ shader_name.data(), shader_name.size() },
+                    std::string_view{shader_name.data(), shader_name.size()},
                     existing_constant->size
                 );
                 has_error = true;
@@ -512,8 +517,8 @@ bool collect_push_constants(
 bool collect_bindings(
     const eastl::vector<std::byte>& shader_instructions, const std::string_view shader_name,
     const VkShaderStageFlags shader_stage,
-    eastl::vector<DescriptorSetInfo>& descriptor_sets,
-    eastl::vector<VkPushConstantRange>& push_constants
+    eastl::fixed_vector<DescriptorSetInfo, 8>& descriptor_sets,
+    eastl::fixed_vector<VkPushConstantRange, 4>& push_constants
 ) {
     if(logger == nullptr) {
         init_logger();
@@ -561,7 +566,7 @@ bool collect_bindings(
 void collect_vertex_attributes(
     const VertexLayout& vertex_layout,
     const eastl::vector<SpvReflectInterfaceVariable*>& inputs,
-    eastl::vector<VkVertexInputAttributeDescription>& vertex_attributes,
+    eastl::fixed_vector<VkVertexInputAttributeDescription, 8>& vertex_attributes,
     bool& needs_position_buffer,
     bool& needs_data_buffer,
     bool& needs_primitive_id_buffer
@@ -570,14 +575,14 @@ void collect_vertex_attributes(
     needs_data_buffer = false;
     for(const auto* input : inputs) {
         if(input->name == nullptr) {
-            continue;   // UGH
+            continue; // UGH
         }
         if(auto itr = vertex_layout.attributes.find(input->name); itr != vertex_layout.attributes.end()) {
             auto& attribute = vertex_attributes.emplace_back(itr->second);
             attribute.location = input->location;
         }
 
-        const auto string_name = std::string{ input->name };
+        const auto string_name = std::string{input->name};
 
         if(string_name.find(POSITION_VERTEX_ATTRIBUTE_NAME.c_str()) != std::string::npos) {
             needs_position_buffer = true;

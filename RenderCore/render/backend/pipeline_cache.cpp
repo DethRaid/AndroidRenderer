@@ -125,10 +125,10 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::filesystem::path
 
     auto pipeline = ComputePipeline{};
 
-    pipeline.name = shader_file_path.string().c_str();
+    pipeline.name = shader_file_path.string();
     pipeline.push_constant_stages = VK_SHADER_STAGE_COMPUTE_BIT;
 
-    eastl::vector<VkPushConstantRange> push_constants;
+    eastl::fixed_vector<VkPushConstantRange, 4> push_constants;
     collect_bindings(
         instructions,
         pipeline.name,
@@ -210,7 +210,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<Grap
     return &(*pipelines.emplace(std::move(graphics_pipeline)));
 }
 
-VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
+VkPipeline PipelineCache::get_pipeline(
     GraphicsPipelineHandle pipeline, std::span<const VkFormat> color_attachment_formats,
     std::optional<VkFormat> depth_format, const uint32_t view_mask, const bool use_fragment_shading_rate_attachment
 ) const {
@@ -609,7 +609,7 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
     auto modules = eastl::vector<VkShaderModuleCreateInfo>{};
     modules.reserve(stages.capacity());
 
-    eastl::vector<VkPushConstantRange> push_constants;
+    eastl::fixed_vector<VkPushConstantRange, 4> push_constants;
 
     // Add stages for each shader group, and add two groups for each shader group. Occlusion is first, GI is second
     for(const auto& shader_group : shader_groups) {

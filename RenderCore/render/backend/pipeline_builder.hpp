@@ -23,8 +23,8 @@ bool collect_bindings(
     const eastl::vector<std::byte>& shader_instructions,
     std::string_view shader_name,
     VkShaderStageFlags shader_stage,
-    eastl::vector<DescriptorSetInfo>& descriptor_sets,
-    eastl::vector<VkPushConstantRange>& push_constants
+    eastl::fixed_vector<DescriptorSetInfo, 8>& descriptor_sets,
+    eastl::fixed_vector<VkPushConstantRange, 4>& push_constants
 );
 
 struct VertexLayout {
@@ -154,9 +154,9 @@ private:
      * However, each set in the vertex and fragment shader must be the same - vertex shader set 0 must be the same as
      * fragment shader set 0
      */
-    eastl::vector<DescriptorSetInfo> descriptor_sets;
+    eastl::fixed_vector<DescriptorSetInfo, 8> descriptor_sets;
 
-    eastl::vector<VkPushConstantRange> push_constants;
+    eastl::fixed_vector<VkPushConstantRange, 4> push_constants;
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
 
@@ -168,8 +168,8 @@ private:
     bool need_position_buffer = false;
     bool need_data_buffer = false;
     bool need_primitive_id_buffer = false;
-    eastl::vector<VkVertexInputBindingDescription> vertex_inputs;
-    eastl::vector<VkVertexInputAttributeDescription> vertex_attributes;
+    eastl::fixed_vector<VkVertexInputBindingDescription, 8> vertex_inputs;
+    eastl::fixed_vector<VkVertexInputAttributeDescription, 8> vertex_attributes;
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 

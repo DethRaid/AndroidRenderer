@@ -7,6 +7,7 @@
 #include "core/system_interface.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/resource_upload_queue.hpp"
+#include "render/backend/render_graph.hpp"
 #include "shared/vertex_data.hpp"
 
 constexpr uint32_t max_num_meshes = 65536;
@@ -167,7 +168,7 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
     const auto handle = meshes.add_object(std::move(mesh));
 
     if(mesh_draw_args_upload_buffer.is_full()) {
-        auto graph = backend.create_render_graph();
+        auto graph = RenderGraph{ backend };
         flush_mesh_draw_arg_uploads(graph);
         graph.finish();
         backend.execute_graph(graph);

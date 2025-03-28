@@ -131,7 +131,7 @@ public:
         RenderGraph& graph, const SceneView& view, const RenderScene& scene, TextureHandle noise_tex
     );
 
-    void get_resource_uses(eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers);
+    void get_resource_uses(TextureUsageList& textures, BufferUsageList& buffers);
 
     void add_to_lit_scene(CommandBuffer& commands, BufferHandle view_buffer) const;
 
@@ -146,6 +146,8 @@ private:
     bool first_frame = true;
 
     static inline GraphicsPipelineHandle overlay_pso = nullptr;
+
+    static inline GraphicsPipelineHandle probe_debug_pso = nullptr;
 
     /**
      * Stores 8x8 R11G11B10 textures representing the incoming light at each probe

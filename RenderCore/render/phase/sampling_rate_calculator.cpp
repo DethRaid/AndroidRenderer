@@ -6,6 +6,7 @@
 #include "render/backend/gpu_texture.hpp"
 #include "render/backend/pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
+#include "render/backend/render_graph.hpp"
 
 VRSAA::VRSAA() {
     auto& pipelines = RenderBackend::get().get_pipeline_cache();

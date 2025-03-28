@@ -9,7 +9,6 @@
 #include "streamline_adapter.hpp"
 #include "render/backend/hit_group_builder.hpp"
 #include "render/backend/descriptor_set_allocator.hpp"
-#include "render/backend/render_graph.hpp"
 #include "render/backend/resource_access_synchronizer.hpp"
 #include "render/backend/texture_descriptor_pool.hpp"
 #include "render/backend/resource_allocator.hpp"
@@ -18,6 +17,7 @@
 #include "render/backend/resource_upload_queue.hpp"
 #include "render/backend/constants.hpp"
 
+class RenderGraph;
 class BlasBuildQueue;
 class PipelineCache;
 /**
@@ -67,8 +67,6 @@ public:
     uint32_t get_shader_group_handle_size() const;
 
     uint32_t get_shader_group_alignment() const;
-
-    RenderGraph create_render_graph();
 
     void execute_graph(RenderGraph& render_graph);
 
@@ -277,7 +275,7 @@ private:
     /**
      * Barriers that need to execute to transfer resources from the transfer queue to the graphics queue
      */
-    eastl::vector<VkImageMemoryBarrier2> transfer_barriers = {};
+    eastl::fixed_vector<VkImageMemoryBarrier2, 32> transfer_barriers = {};
 
     eastl::vector<CommandBuffer> queued_command_buffers = {};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR ray_pipeline_features = {};

@@ -2,6 +2,8 @@
 
 #include <volk.h>
 
+#include <EASTL/fixed_vector.h>
+
 #include "render/backend/handles.hpp"
 
 struct BufferUsageToken {
@@ -11,6 +13,8 @@ struct BufferUsageToken {
 
     VkAccessFlags2 access;
 };
+
+using BufferUsageList = eastl::fixed_vector<BufferUsageToken, 32>;
 
 struct BufferBarrier {
     BufferHandle buffer = {};

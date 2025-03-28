@@ -10,6 +10,7 @@
 #include "render/scene_view.hpp"
 #include "render/backend/render_backend.hpp"
 #include "console/cvars.hpp"
+#include "render/backend/render_graph.hpp"
 #include "core/system_interface.hpp"
 #include "core/string_conversion.hpp"
 

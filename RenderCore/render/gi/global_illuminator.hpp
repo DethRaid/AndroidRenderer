@@ -1,11 +1,11 @@
 #pragma once
 #include <EASTL/vector.h>
 
+#include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/texture_usage_token.hpp"
 
 class CommandBuffer;
-struct BufferUsageToken;
 struct GBuffer;
 class RenderGraph;
 class SceneView;
@@ -29,7 +29,7 @@ public:
     ) = 0;
 
     virtual void get_lighting_resource_usages(
-        eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers
+        TextureUsageList& textures, BufferUsageList& buffers
     ) const = 0;
 
     virtual void render_to_lit_scene(

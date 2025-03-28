@@ -52,6 +52,8 @@ private:
 
     bool use_ray_reconstruction = false;
 
+    int selected_gi_quality = 2;
+
     void create_font_texture();
 
 #if defined(_WIN32)
@@ -61,6 +63,10 @@ private:
 #endif
 
     void draw_debug_menu();
+
+    void draw_taa_menu();
+
+    void draw_gi_menu();
 
     static void draw_combo_box(const std::string& name, std::span<const std::string> items, int& selected_item);
 };

@@ -222,7 +222,7 @@ namespace vkutil {
 
     DescriptorBuilder&
     DescriptorBuilder::bind_buffer_array(
-        const uint32_t binding, const eastl::vector<BufferInfo>& infos,
+        const uint32_t binding, const eastl::span<BufferInfo> infos,
         const VkDescriptorType type, const VkShaderStageFlags stage_flags
     ) {
         auto& vk_infos = buffer_infos_to_delete.emplace_back();
@@ -267,7 +267,7 @@ namespace vkutil {
     }
 
     DescriptorBuilder& DescriptorBuilder::bind_image_array(
-        const uint32_t binding, const eastl::vector<ImageInfo>& infos, const VkDescriptorType type,
+        const uint32_t binding, const eastl::span<ImageInfo> infos, const VkDescriptorType type,
         const VkShaderStageFlags stage_flags
     ) {
         auto& vk_infos = image_infos_to_delete.emplace_back();

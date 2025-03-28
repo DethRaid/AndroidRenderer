@@ -1,5 +1,8 @@
 #pragma once
 
+#include <EASTL/span.h>
+
+#include "render/backend/render_backend.hpp"
 #include "render/backend/command_buffer.hpp"
 #include "render/backend/render_pass.hpp"
 
@@ -95,8 +98,8 @@ private:
     uint32_t num_passes = 0;
 
     void update_accesses_and_issues_barriers(
-        const eastl::vector<TextureUsageToken>& textures,
-        const eastl::vector<BufferUsageToken>& buffers
+        eastl::span<TextureUsageToken> textures,
+        eastl::span<BufferUsageToken> buffers
     ) const;
 
     void do_compute_shader_copy(const ImageCopyPass& pass);
@@ -110,34 +113,35 @@ void RenderGraph::add_compute_dispatch(const ComputeDispatch<PushConstantsType>&
         cmds.begin_label(dispatch_info.name);
     }
 
-    eastl::vector<TextureUsageToken> textures;
-    textures.reserve(128);
+    {
+        TracyVkZoneTransient(backend.get_tracy_context(), tracy_zone, cmds.get_vk_commands(), dispatch_info.name.c_str(), true)
 
-    eastl::vector<BufferUsageToken> buffers;
-    buffers.reserve(128);
+        TextureUsageList textures;
+        BufferUsageList buffers;
 
-    for(const auto& descriptor_set : dispatch_info.descriptor_sets) {
-        descriptor_set.get_resource_usage_information(textures, buffers);
-    }
+        for (const auto& descriptor_set : dispatch_info.descriptor_sets) {
+            descriptor_set.get_resource_usage_information(textures, buffers);
+        }
 
-    update_accesses_and_issues_barriers(textures, buffers);
+        update_accesses_and_issues_barriers(textures, buffers);
 
-    cmds.bind_pipeline(dispatch_info.compute_shader);
+        cmds.bind_pipeline(dispatch_info.compute_shader);
 
-    for(auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
-        const auto& set = dispatch_info.descriptor_sets.at(i);
-        cmds.bind_descriptor_set(i, set);
-    }
+        for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+            const auto& set = dispatch_info.descriptor_sets.at(i);
+            cmds.bind_descriptor_set(i, set);
+        }
 
-    auto* push_constants_src = reinterpret_cast<const uint32_t*>(&dispatch_info.push_constants);
-    for(auto i = 0u; i < sizeof(PushConstantsType) / sizeof(uint32_t); i++) {
-        cmds.set_push_constant(i, push_constants_src[i]);
-    }
+        auto* push_constants_src = reinterpret_cast<const uint32_t*>(&dispatch_info.push_constants);
+        for (auto i = 0u; i < sizeof(PushConstantsType) / sizeof(uint32_t); i++) {
+            cmds.set_push_constant(i, push_constants_src[i]);
+        }
 
-    cmds.dispatch(dispatch_info.num_workgroups.x, dispatch_info.num_workgroups.y, dispatch_info.num_workgroups.z);
+        cmds.dispatch(dispatch_info.num_workgroups.x, dispatch_info.num_workgroups.y, dispatch_info.num_workgroups.z);
 
-    for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
-        cmds.clear_descriptor_set(i);
+        for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+            cmds.clear_descriptor_set(i);
+        }
     }
 
     if(!dispatch_info.name.empty()) {
@@ -151,32 +155,34 @@ void RenderGraph::add_compute_dispatch(const IndirectComputeDispatch<PushConstan
         cmds.begin_label(dispatch_info.name);
     }
 
-    eastl::vector<TextureUsageToken> textures;
+    {
+        TracyVkZoneTransient(backend.get_tracy_context(), tracy_zone, cmds.get_vk_commands(), dispatch_info.name.c_str(), true)
+            TextureUsageList textures;
+        BufferUsageList buffers;
 
-    eastl::vector<BufferUsageToken> buffers;
+        for (const auto& descriptor_set : dispatch_info.descriptor_sets) {
+            descriptor_set.get_resource_usage_information(textures, buffers);
+        }
 
-    for(const auto& descriptor_set : dispatch_info.descriptor_sets) {
-        descriptor_set.get_resource_usage_information(textures, buffers);
-    }
+        update_accesses_and_issues_barriers(textures, buffers);
 
-    update_accesses_and_issues_barriers(textures, buffers);
+        cmds.bind_pipeline(dispatch_info.compute_shader);
 
-    cmds.bind_pipeline(dispatch_info.compute_shader);
+        for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+            const auto& set = dispatch_info.descriptor_sets.at(i);
+            cmds.bind_descriptor_set(i, set);
+        }
 
-    for(auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
-        const auto& set = dispatch_info.descriptor_sets.at(i);
-        cmds.bind_descriptor_set(i, set);
-    }
+        auto* push_constants_src = reinterpret_cast<const uint32_t*>(&dispatch_info.push_constants);
+        for (auto i = 0u; i < sizeof(PushConstantsType) / sizeof(uint32_t); i++) {
+            cmds.set_push_constant(i, push_constants_src[i]);
+        }
 
-    auto* push_constants_src = reinterpret_cast<const uint32_t*>(&dispatch_info.push_constants);
-    for(auto i = 0u; i < sizeof(PushConstantsType) / sizeof(uint32_t); i++) {
-        cmds.set_push_constant(i, push_constants_src[i]);
-    }
+        cmds.dispatch_indirect(dispatch_info.dispatch);
 
-    cmds.dispatch_indirect(dispatch_info.dispatch);
-
-    for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
-        cmds.clear_descriptor_set(i);
+        for (auto i = 0u; i < dispatch_info.descriptor_sets.size(); i++) {
+            cmds.clear_descriptor_set(i);
+        }
     }
 
     if(!dispatch_info.name.empty()) {

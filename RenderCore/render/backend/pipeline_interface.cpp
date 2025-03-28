@@ -45,8 +45,8 @@ PipelineBase& PipelineBase::operator=(PipelineBase&& old) noexcept {
 }
 
 void PipelineBase::create_pipeline_layout(
-    RenderBackend& backend, const eastl::vector<DescriptorSetInfo>& descriptor_set_infos,
-    const eastl::vector<VkPushConstantRange>& push_constants
+    RenderBackend& backend, const eastl::fixed_vector<DescriptorSetInfo, 8>& descriptor_set_infos,
+    const eastl::fixed_vector<VkPushConstantRange, 4>& push_constants
 ) {
     // Create descriptor sets
     descriptor_set_layouts.resize(descriptor_set_infos.size());
@@ -55,7 +55,8 @@ void PipelineBase::create_pipeline_layout(
 
     auto set_index = 0u;
     for(const auto& set_info : descriptor_set_infos) {
-        auto bindings = eastl::vector<VkDescriptorSetLayoutBinding>{};
+        auto bindings = eastl::fixed_vector<VkDescriptorSetLayoutBinding, 16>{};
+        bindings.reserve(set_info.bindings.size());
 
         for(const auto& binding : set_info.bindings) {
             bindings.emplace_back(binding);

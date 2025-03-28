@@ -24,7 +24,7 @@ public:
 
     GraphicsPipelineHandle create_pipeline_group(std::span<GraphicsPipelineHandle> pipelines_in);
 
-    VkPipeline get_pipeline_for_dynamic_rendering(
+    VkPipeline get_pipeline(
         GraphicsPipelineHandle pipeline,
         std::span<const VkFormat> color_attachment_formats,
         std::optional<VkFormat> depth_format = std::nullopt,

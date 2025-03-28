@@ -461,7 +461,7 @@ void DepthCullingPhase::draw_visible_objects(
                     VK_ACCESS_2_SHADER_READ_BIT
                 },
             },
-            .descriptor_sets = eastl::vector{view_descriptor, masked_view_descriptor},
+            .descriptor_sets = {view_descriptor, masked_view_descriptor},
             .depth_attachment = RenderingAttachmentInfo{
                 .image = depth_buffer,
                 .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,

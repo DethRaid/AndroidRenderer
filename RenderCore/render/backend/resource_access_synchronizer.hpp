@@ -2,6 +2,7 @@
 #include <EASTL/vector.h>
 #include <volk.h>
 
+#include "EASTL/fixed_vector.h"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/texture_usage_token.hpp"
 #include "render/backend/handles.hpp"
@@ -34,8 +35,8 @@ private:
 
     eastl::vector<TextureUsageToken> last_texture_usages;
 
-    eastl::vector<VkBufferMemoryBarrier2> buffer_barriers;
+    eastl::fixed_vector<VkBufferMemoryBarrier2, 32> buffer_barriers;
 
-    eastl::vector<VkImageMemoryBarrier2> image_barriers;
+    eastl::fixed_vector<VkImageMemoryBarrier2, 32> image_barriers;
 };
 

@@ -13,6 +13,7 @@
 #include "console/cvars.hpp"
 #include "render/scene_view.hpp"
 #include "render/backend/render_backend.hpp"
+#include "render/backend/render_graph.hpp"
 
 static auto cvar_dlss_quality = AutoCVar_Enum{
     "r.DLSS.Quality", "DLSS Quality", sl::DLSSMode::eMaxQuality
@@ -139,7 +140,7 @@ void DLSSAdapter::evaluate(
     const TextureHandle color_in, const TextureHandle color_out,
     const TextureHandle motion_vectors_in
 ) {
-    auto textures = eastl::vector<TextureUsageToken>{
+    auto textures = TextureUsageList{
         {
             .texture = color_in,
             .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,

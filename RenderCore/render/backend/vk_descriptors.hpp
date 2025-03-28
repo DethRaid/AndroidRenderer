@@ -6,6 +6,7 @@
 
 #include <volk.h>
 
+#include "EASTL/span.h"
 #include "render/backend/acceleration_structure.hpp"
 #include "render/backend/handles.hpp"
 
@@ -107,7 +108,7 @@ namespace vkutil {
         );
 
         DescriptorBuilder& bind_buffer_array(
-            uint32_t binding, const eastl::vector<BufferInfo>& infos, VkDescriptorType type,
+            uint32_t binding, eastl::span<BufferInfo> infos, VkDescriptorType type,
             VkShaderStageFlags stage_flags
         );
 
@@ -116,7 +117,7 @@ namespace vkutil {
         );
 
         DescriptorBuilder& bind_image_array(
-            uint32_t binding, const eastl::vector<ImageInfo>& infos,
+            uint32_t binding, eastl::span<ImageInfo> infos,
             VkDescriptorType type, VkShaderStageFlags stage_flags
         );
 

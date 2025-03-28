@@ -22,7 +22,8 @@ static bool is_combined_image_sampler(VkDescriptorType vk_type);
 static bool is_acceleration_structure(VkDescriptorType vk_type);
 
 void DescriptorSet::get_resource_usage_information(
-    eastl::vector<TextureUsageToken>& texture_usages, eastl::vector<BufferUsageToken>& buffer_usages
+    TextureUsageList& texture_usages,
+    BufferUsageList& buffer_usages
 ) const {
     auto binding_idx = 0;
     for(const auto& resource : bindings) {

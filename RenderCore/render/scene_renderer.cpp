@@ -221,7 +221,7 @@ void SceneRenderer::render() {
         upscaler->set_constants(player_view, scene_render_resolution);
     }
 
-    auto render_graph = backend.create_render_graph();
+    auto render_graph = RenderGraph{ backend };
 
     render_graph.add_pass(
         {

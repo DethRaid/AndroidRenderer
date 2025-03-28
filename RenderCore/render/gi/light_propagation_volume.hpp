@@ -76,7 +76,7 @@ public:
     ) override;
 
     void get_lighting_resource_usages(
-        eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers
+        TextureUsageList& textures, BufferUsageList& buffers
     ) const override;
 
     void render_to_lit_scene(

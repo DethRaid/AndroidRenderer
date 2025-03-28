@@ -1,5 +1,6 @@
 #pragma once
 
+#include <EASTL/fixed_vector.h>
 #include <EASTL/vector.h>
 #include <cstdint>
 
@@ -24,9 +25,9 @@ struct GraphicsPipeline : PipelineBase {
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-    eastl::vector<VkVertexInputBindingDescription> vertex_inputs;
+    eastl::fixed_vector<VkVertexInputBindingDescription, 8> vertex_inputs;
 
-    eastl::vector<VkVertexInputAttributeDescription> vertex_attributes;
+    eastl::fixed_vector<VkVertexInputAttributeDescription, 8> vertex_attributes;
 
     eastl::vector<std::byte> geometry_shader;
 

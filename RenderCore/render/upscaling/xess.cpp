@@ -6,6 +6,7 @@
 #include "render/backend/render_backend.hpp"
 #include "render/backend/utils.hpp"
 #include "render/phase/motion_vectors_phase.hpp"
+#include "render/backend/render_graph.hpp"
 
 #if SAH_USE_XESS
 #include <xess/xess_vk.h>

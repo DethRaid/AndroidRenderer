@@ -15,7 +15,6 @@
 #include "render/backend/handles.hpp"
 #include "render/backend/buffer.hpp"
 #include "render/backend/constants.hpp"
-#include "render/backend/framebuffer.hpp"
 
 struct RenderPass;
 class RenderBackend;
@@ -170,8 +169,6 @@ public:
 
     void* map_buffer(BufferHandle buffer_handle);
 
-    AccelerationStructureHandle create_acceleration_structure();
-
     void destroy_buffer(BufferHandle handle);
 
     AccelerationStructureHandle create_acceleration_structure(
@@ -179,8 +176,6 @@ public:
     );
 
     void destroy_acceleration_structure(AccelerationStructureHandle handle);
-
-    void destroy_framebuffer(Framebuffer&& framebuffer);
 
     /**
      * Get a sampler that matches the provided desc
@@ -216,7 +211,6 @@ private:
     eastl::array<eastl::vector<BufferHandle>, num_in_flight_frames> buffer_zombie_lists;
     eastl::array<eastl::vector<TextureHandle>, num_in_flight_frames> texture_zombie_lists;
     eastl::array<eastl::vector<AccelerationStructureHandle>, num_in_flight_frames> as_zombie_lists;
-    eastl::array<eastl::vector<Framebuffer>, num_in_flight_frames> framebuffer_zombie_lists;
 
     struct SamplerCreateInfoHasher {
         std::size_t operator()(const VkSamplerCreateInfo& k) const {

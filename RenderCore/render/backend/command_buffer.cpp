@@ -92,8 +92,9 @@ void CommandBuffer::barrier(
 }
 
 void CommandBuffer::barrier(
-    const eastl::vector<VkMemoryBarrier2>& memory_barriers, const eastl::vector<VkBufferMemoryBarrier2>& buffer_barriers,
-    const eastl::vector<VkImageMemoryBarrier2>& image_barriers
+    const eastl::fixed_vector<VkMemoryBarrier2, 32>& memory_barriers, 
+    const eastl::fixed_vector<VkBufferMemoryBarrier2, 32>& buffer_barriers,
+    const eastl::fixed_vector<VkImageMemoryBarrier2, 32>& image_barriers
 ) const {
     const auto dependency_info = VkDependencyInfo{
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -369,7 +370,7 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
 
     auto& cache = backend->get_pipeline_cache();
 
-    auto vk_pipeline = cache.get_pipeline_for_dynamic_rendering(
+    auto vk_pipeline = cache.get_pipeline(
         pipeline,
         bound_color_attachment_formats,
         bound_depth_attachment_format,

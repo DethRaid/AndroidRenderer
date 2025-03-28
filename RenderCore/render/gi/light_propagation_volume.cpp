@@ -55,7 +55,7 @@ static auto cvar_lpv_build_gv_mode = AutoCVar_Enum{
 static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
     "r.LPV.RsmResolution",
     "Resolution for the RSM targets. Should be a multiple of 16",
-    256
+    128
 };
 
 static auto cvar_lpv_use_compute_vpl_injection = AutoCVar_Int{
@@ -297,7 +297,7 @@ void LightPropagationVolume::post_render(
 }
 
 void LightPropagationVolume::get_lighting_resource_usages(
-    eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers
+    TextureUsageList& textures, BufferUsageList& buffers
 ) const {
     textures.emplace_back(
         lpv_a_red,
@@ -696,7 +696,7 @@ void LightPropagationVolume::inject_indirect_sun_light(
         graph.add_compute_dispatch<VplPipelineConstants>(
             ComputeDispatch<VplPipelineConstants>{
                 .name = "Extract VPLs",
-                .descriptor_sets = eastl::vector{descriptor_set},
+                .descriptor_sets = {descriptor_set},
                 .buffers = {
                     {
                         .buffer = cascade.vpl_count_buffer,
@@ -762,7 +762,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
 
                     }
                 },
-                .descriptor_sets = eastl::vector{descriptor_set},
+                .descriptor_sets = {descriptor_set},
                 .color_attachments = {
                     RenderingAttachmentInfo{
                         .image = lpv_a_red,
@@ -781,7 +781,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
                     },
                 },
                 .view_mask = 0,
-                .execute = [=, this](CommandBuffer& commands) {
+                .execute = [descriptor_set, cascade, cascade_index, this](CommandBuffer& commands) {
                     commands.bind_descriptor_set(0, descriptor_set);
 
                     commands.bind_buffer_reference(0, cascade.vpl_buffer);
@@ -805,7 +805,7 @@ void LightPropagationVolume::dispatch_vpl_injection_pass(
         graph.add_compute_dispatch<VplInjectionConstants>(
             ComputeDispatch<VplInjectionConstants>{
                 .name = "VPL Injection",
-                .descriptor_sets = eastl::vector{descriptor_set},
+                .descriptor_sets = {descriptor_set},
                 .buffers = {
                     {cascade_data_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_UNIFORM_READ_BIT},
                     {cascade.vpl_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT},
@@ -883,7 +883,7 @@ void LightPropagationVolume::clear_volume(RenderGraph& render_graph) const {
     render_graph.add_pass(
         {
             .name = "LightPropagationVolume::clear_volume",
-            .textures = eastl::vector<TextureUsageToken>{
+            .textures = {
                 {
                     .texture = lpv_a_red,
                     .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -1056,7 +1056,7 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) const
         render_graph.add_compute_dispatch(
             ComputeDispatch{
                 .name = "Propagate lighting cascade",
-                .descriptor_sets = eastl::vector{a_to_b_set},
+                .descriptor_sets = {a_to_b_set},
                 .push_constants = constants,
                 .num_workgroups = dispatch_size,
                 .compute_shader = propagation_shader
@@ -1065,7 +1065,7 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) const
         render_graph.add_compute_dispatch(
             ComputeDispatch{
                 .name = "Propagate lighting cascade",
-                .descriptor_sets = eastl::vector{b_to_a_set},
+                .descriptor_sets = {b_to_a_set},
                 .push_constants = constants,
                 .num_workgroups = dispatch_size,
                 .compute_shader = propagation_shader
@@ -1105,7 +1105,7 @@ auto LightPropagationVolume::visualize_vpls(
     RenderGraph& graph, const BufferHandle scene_view_buffer, const TextureHandle lit_scene,
     const TextureHandle depth_buffer
 ) -> void {
-    auto buffer_barriers = eastl::vector<BufferUsageToken>{};
+    auto buffer_barriers = BufferUsageList{};
     buffer_barriers.reserve(cascades.size() * 2);
 
     for(const auto& cascade : cascades) {

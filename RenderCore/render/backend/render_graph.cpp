@@ -9,6 +9,7 @@
 #include "render/backend/utils.hpp"
 #include "render/backend/render_backend.hpp"
 #include "core/system_interface.hpp"
+#include "EASTL/span.h"
 
 static std::shared_ptr<spdlog::logger> logger;
 
@@ -221,8 +222,8 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
 }
 
 void RenderGraph::update_accesses_and_issues_barriers(
-    const eastl::vector<TextureUsageToken>& textures,
-    const eastl::vector<BufferUsageToken>& buffers
+    const eastl::span<TextureUsageToken> textures,
+    const eastl::span<BufferUsageToken> buffers
 ) const {
     for(const auto& buffer_token : buffers) {
         access_tracker.set_resource_usage(buffer_token);

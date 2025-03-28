@@ -9,6 +9,7 @@
 #include "mesh_storage.hpp"
 #include "noise_texture.hpp"
 #include "render_scene.hpp"
+#include "backend/pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/command_buffer.hpp"
@@ -130,7 +131,7 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
     const auto clip_range = z_near + max_shadow_distance;
     const auto ratio = clip_range / z_near;
 
-    auto cascade_splits = eastl::vector<float>{};
+    auto cascade_splits = eastl::fixed_vector<float, 4>{};
     cascade_splits.resize(num_cascades);
 
     // Calculate split depths based on view camera frustum

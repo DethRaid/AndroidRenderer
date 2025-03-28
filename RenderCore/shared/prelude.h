@@ -48,6 +48,7 @@ using half4 = uint2;
 #define unorm4 uint
 
 #define u16vec2 uint16_t2
+#define u16vec3 uint16_t3
 #endif
 
 #ifndef PI

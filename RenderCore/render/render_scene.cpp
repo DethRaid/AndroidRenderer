@@ -275,7 +275,7 @@ BufferHandle RenderScene::generate_vpls_for_primitive(
     graph.add_compute_dispatch(
         ComputeDispatch<EmissivePointCloudConstants>{
             .name = "Build emissive points",
-            .descriptor_sets = eastl::vector{backend.get_texture_descriptor_pool().get_descriptor_set()},
+            .descriptor_sets = {backend.get_texture_descriptor_pool().get_descriptor_set()},
             .buffers = {
                 {
                     vpl_buffer_handle,

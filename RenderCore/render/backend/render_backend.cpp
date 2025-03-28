@@ -18,6 +18,7 @@
 
 #endif
 
+#include "render_graph.hpp"
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 #include "render/backend/blas_build_queue.hpp"
@@ -600,10 +601,6 @@ uint32_t RenderBackend::get_shader_group_alignment() const {
     return ray_tracing_pipeline_properties.shaderGroupBaseAlignment;
 }
 
-RenderGraph RenderBackend::create_render_graph() {
-    return RenderGraph{*this};
-}
-
 void RenderBackend::execute_graph(RenderGraph& render_graph) {
     submit_command_buffer(render_graph.extract_command_buffer());
 
@@ -836,8 +833,8 @@ void RenderBackend::flush_batched_command_buffers() {
             command_buffers.emplace_back(queued_commands.get_vk_commands());
         }
 
-        auto wait_stages = eastl::vector<VkPipelineStageFlags>{VK_PIPELINE_STAGE_ALL_COMMANDS_BIT};
-        auto wait_semaphores = eastl::vector{swapchain_semaphore};
+        auto wait_stages = eastl::fixed_vector<VkPipelineStageFlags, 8>{VK_PIPELINE_STAGE_ALL_COMMANDS_BIT};
+        auto wait_semaphores = eastl::fixed_vector<VkSemaphore, 8>{swapchain_semaphore};
         if(!last_submission_semaphores.empty()) {
             wait_semaphores.insert(
                 wait_semaphores.end(),

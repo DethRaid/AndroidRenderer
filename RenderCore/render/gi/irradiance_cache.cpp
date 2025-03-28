@@ -5,6 +5,7 @@
 #include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 #include "glm/gtx/scalar_relational.inl"
+#include "render/gbuffer.hpp"
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
 #include "render/backend/pipeline_cache.hpp"
@@ -23,6 +24,11 @@ static AutoCVar_Int cvar_probes_per_frame{
 
 static AutoCVar_Int cvar_debug_mode{
     "r.GI.Cache.DebugMode", "What debug mode, if any, to use. 0 = none, 1 = show cascade range", 0
+};
+
+static AutoCVar_Int cvar_probe_debug_mode{
+    "r.GI.Cache.Debug.ProbeMode",
+    "How to debug probes. 0 = RTGI, 1 = Light Cache, 2 = Depth, 3 = Average Irradiance, 4 = Validity", 3
 };
 
 static std::shared_ptr<spdlog::logger> logger;
@@ -58,34 +64,48 @@ IrradianceCache::IrradianceCache() {
     if(logger == nullptr) {
         logger = SystemInterface::get().get_logger("IrradianceCache");
     }
+
+    auto& backend = RenderBackend::get();
+
     if(overlay_pso == nullptr) {
-        overlay_pso = RenderBackend::get().begin_building_pipeline("gi_cache_application")
-                                          .set_vertex_shader("shaders/common/fullscreen.vert.spv")
-                                          .set_fragment_shader("shaders/gi/cache/overlay.frag.spv")
-                                          .set_depth_state(
-                                              {
-                                                  .enable_depth_write = false,
-                                                  .compare_op = VK_COMPARE_OP_LESS
-                                              })
-                                          .set_blend_state(
-                                              0,
-                                              {
-                                                  .blendEnable = VK_TRUE,
-                                                  .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                  .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                  .colorBlendOp = VK_BLEND_OP_ADD,
-                                                  .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                  .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                                  .alphaBlendOp = VK_BLEND_OP_ADD,
-                                                  .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
-                                                  |
-                                                  VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-                                              }
-                                          )
-                                          .build();
+        overlay_pso = backend.begin_building_pipeline("gi_cache_application")
+                             .set_vertex_shader("shaders/common/fullscreen.vert.spv")
+                             .set_fragment_shader("shaders/gi/cache/overlay.frag.spv")
+                             .set_depth_state(
+                                 {
+                                     .enable_depth_write = false,
+                                     .compare_op = VK_COMPARE_OP_LESS
+                                 })
+                             .set_blend_state(
+                                 0,
+                                 {
+                                     .blendEnable = VK_TRUE,
+                                     .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                     .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                                     .colorBlendOp = VK_BLEND_OP_ADD,
+                                     .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                     .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                                     .alphaBlendOp = VK_BLEND_OP_ADD,
+                                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
+                                     |
+                                     VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                 }
+                             )
+                             .build();
     }
 
-    auto& allocator = RenderBackend::get().get_global_allocator();
+    if(probe_debug_pso == nullptr) {
+        probe_debug_pso = backend.begin_building_pipeline("gi_cache_probe_debug")
+                             .set_vertex_shader("shaders/gi/cache/probe_debug.vert.spv")
+                             .set_fragment_shader("shaders/gi/cache/probe_debug.frag.spv")
+                             .set_depth_state(
+                                 {
+                                     .enable_depth_write = false
+                                 })
+                             .build();
+    }
+
+    auto& allocator = backend.get_global_allocator();
 
     // All these volumes are a little bigger than the number of texels per probe might imply, because we have a one pixel border around each texel
 
@@ -223,7 +243,7 @@ void IrradianceCache::update_cascades_and_probes(
 }
 
 void IrradianceCache::get_resource_uses(
-    eastl::vector<TextureUsageToken>& textures, eastl::vector<BufferUsageToken>& buffers
+    TextureUsageList& textures, BufferUsageList& buffers
 ) {
     textures.emplace_back(
         rtgi_a,
@@ -275,7 +295,46 @@ void IrradianceCache::add_to_lit_scene(CommandBuffer& commands, const BufferHand
 
 void IrradianceCache::draw_debug_overlays(
     RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, const TextureHandle lit_scene_texture
-) {}
+) {
+    // Draw the probes for each cascade. We draw a sphere at each probe's location, drawing largest to smallest to let
+    // smaller cascades overwrite larger. Each sphere samples one of the probe textures
+
+    auto& backend = RenderBackend::get();
+    const auto set = backend.get_transient_descriptor_allocator()
+                            .build_set(probe_debug_pso, 0)
+                            .bind(view.get_buffer())
+                            .bind(cascade_cbuffer)
+                            .bind(rtgi_a)
+                            .bind(light_cache_a)
+                            .bind(depth_a)
+                            .bind(average_a)
+                            .bind(validity_a)
+                            .build();
+
+    graph.add_render_pass(
+        {
+            .name = "gi_cache_probe_debug",
+            .descriptor_sets = {set},
+            .color_attachments = {{.image = lit_scene_texture}},
+            .depth_attachment = RenderingAttachmentInfo{.image = gbuffer.depth},
+            .execute = [&](CommandBuffer& commands) {
+                commands.bind_descriptor_set(0, set);
+                commands.bind_pipeline(probe_debug_pso);
+
+                commands.set_push_constant(0, static_cast<uint32_t>(cvar_probe_debug_mode.Get()));
+
+                commands.set_cull_mode(VK_CULL_MODE_NONE);
+
+                for(uint32 cascade_index = 0; cascade_index < 4; cascade_index++) {
+                    commands.set_push_constant(1, cascade_index);
+
+                    commands.draw_indexed(6, cascade_size_xz * cascade_size_y * cascade_size_xz, 0, 0, 0);
+                }
+
+                commands.clear_descriptor_set(0);
+            }
+        });
+}
 
 bool IrradianceCache::request_probe_update(const uint3 probe_index) {
     ZoneScoped;

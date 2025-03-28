@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <EASTL/vector.h>
 #include <EASTL/unordered_map.h>
 #include <EASTL/array.h>
+#include <EASTL/fixed_vector.h>
 #include <string>
 #include <span>
 
@@ -16,7 +18,6 @@
 #include "render/backend/rendering_attachment_info.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
-#include "render/backend/framebuffer.hpp"
 
 struct PipelineBase;
 struct DescriptorSet;
@@ -32,7 +33,7 @@ struct RenderingInfo {
 
     uint32_t view_mask;
 
-    eastl::vector<RenderingAttachmentInfo> color_attachments;
+    eastl::fixed_vector<RenderingAttachmentInfo, 8> color_attachments;
 
     std::optional<RenderingAttachmentInfo> depth_attachment;
 
@@ -82,9 +83,9 @@ public:
      * Issues a batch of pipeline barriers
      */
     void barrier(
-        const eastl::vector<VkMemoryBarrier2>& memory_barriers,
-        const eastl::vector<VkBufferMemoryBarrier2>& buffer_barriers,
-        const eastl::vector<VkImageMemoryBarrier2>& image_barriers
+        const eastl::fixed_vector<VkMemoryBarrier2, 32>& memory_barriers,
+        const eastl::fixed_vector<VkBufferMemoryBarrier2, 32>& buffer_barriers,
+        const eastl::fixed_vector<VkImageMemoryBarrier2, 32>& image_barriers
     ) const;
 
     /**

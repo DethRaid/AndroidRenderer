@@ -6,6 +6,7 @@
 #include "extern/spd/ffx_spd.h"
 
 #include "render/backend/render_backend.hpp"
+#include "render/backend/render_graph.hpp"
 #include "core/system_interface.hpp"
 
 MipChainGenerator::MipChainGenerator() {

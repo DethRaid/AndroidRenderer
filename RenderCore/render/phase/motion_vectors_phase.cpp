@@ -1,11 +1,12 @@
 #include "motion_vectors_phase.hpp"
 
+#include "console/cvars.hpp"
 #include "render/indirect_drawing_utils.hpp"
 #include "render/render_scene.hpp"
 #include "render/backend/render_backend.hpp"
 
 static auto cvar_full_res_motion_vectors = AutoCVar_Int{
-    "r.MotionVectors.FullRes", "Whether to render motion vectors at output resolution, or at render resolution", 0
+    "r.MotionVectors.FullRes", "Whether to render motion vectors at output resolution (1), or at render resolution (0)", 0
 };
 
 bool MotionVectorsPhase::render_full_res() { return cvar_full_res_motion_vectors.Get() == 1; }

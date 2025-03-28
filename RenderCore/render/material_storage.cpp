@@ -1,4 +1,6 @@
 #include "material_storage.hpp"
+
+#include "backend/pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
 
 MaterialStorage::MaterialStorage() : basic_bpr_material_pipelines{ "gltf_basic_pbr" } {

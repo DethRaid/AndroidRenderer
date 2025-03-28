@@ -5,11 +5,9 @@
 
 #include <spdlog/spdlog.h>
 
-#include "pipeline_cache.hpp"
 #include "render/backend/handles.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/render_graph.hpp"
-#include "console/cvars.hpp"
 #include "core/system_interface.hpp"
 
 constexpr inline auto scatter_buffer_size = 1024u;

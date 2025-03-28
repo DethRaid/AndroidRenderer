@@ -139,8 +139,8 @@ void main(uint3 thread_index: SV_GroupThreadID, uint3 group_id: SV_GroupID) {
             blue_coefficients = read_lpv_b_cache[cache_cell_to_load.z][cache_cell_to_load.y][cache_cell_to_load.x];
         }
 
-        const half direct_face_subtended_solid_angle = 0.4006696846f / PI / 2.f;
-        const half side_face_subtended_solid_angle = 0.4234413544f / PI / 3.f;
+        const half direct_face_subtended_solid_angle = 0.4006696846f / PI / 2.h;
+        const half side_face_subtended_solid_angle = 0.4234413544f / PI / 3.h;
 
         for (uint side_face = 0; side_face < 4; side_face++) {
             half3 eval_direction = get_eval_side_direction(side_face, orientation);

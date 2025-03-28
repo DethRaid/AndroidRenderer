@@ -1,5 +1,6 @@
 #include "lighting_phase.hpp"
 
+#include "console/cvars.hpp"
 #include "render/procedural_sky.hpp"
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
@@ -83,7 +84,7 @@ void LightingPhase::render(
                                           .bind(gbuffer.depth, sampler)
                                           .build();
 
-    auto texture_usages = eastl::vector<TextureUsageToken>{
+    auto texture_usages = TextureUsageList{
         {
             .texture = ao_texture,
             .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
@@ -102,7 +103,7 @@ void LightingPhase::render(
             });
     }
 
-    auto buffer_usages = eastl::vector<BufferUsageToken>{};
+    auto buffer_usages = BufferUsageList{};
 
     if(gi) {
         gi->get_lighting_resource_usages(texture_usages, buffer_usages);

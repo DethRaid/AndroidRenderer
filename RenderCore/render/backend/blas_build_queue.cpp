@@ -4,6 +4,7 @@
 
 #include "command_buffer.hpp"
 #include "render_backend.hpp"
+#include "render/backend/render_graph.hpp"
 #include "console/cvars.hpp"
 
 static auto cvar_max_concurrent_builds = AutoCVar_Int{
@@ -45,13 +46,15 @@ void BlasBuildQueue::flush_pending_builds(RenderGraph& graph) {
     allocator.destroy_buffer(scratch_buffer);
 
     for(auto i = 0u; i < pending_jobs.size(); i += batch_size) {
-        auto barriers = eastl::vector<BufferUsageToken>{
+        auto barriers = BufferUsageList{
             {
                 .buffer = scratch_buffer,
                 .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
                 .access = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR
             }
         };
+
+        barriers.reserve(batch_size);
 
         auto build_geometry_infos = eastl::vector<VkAccelerationStructureBuildGeometryInfoKHR>{};
         auto build_range_infos = eastl::vector<VkAccelerationStructureBuildRangeInfoKHR>{};
