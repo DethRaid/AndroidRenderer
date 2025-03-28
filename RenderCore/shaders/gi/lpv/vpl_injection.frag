@@ -16,7 +16,7 @@ void main() {
         discard;
     }
 
-    mediump vec3 scaled_color = color_in * (32 * 32) / (512 * 512);
+    mediump vec3 scaled_color = color_in * (32 * 32) / (128 * 128);
 
     mediump vec3 normal = normal_in;
     // normal.z *= -1;

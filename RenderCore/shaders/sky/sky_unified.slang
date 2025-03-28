@@ -215,7 +215,7 @@ void main_miss(inout uint payload) {
 
 #if SAH_RT_GI
 
-#include "rtgi/rtgi_payload.slangi"
+#include "gi/rtgi/rtgi_payload.slangi"
 
 [vk::binding(1, 0)]
 ConstantBuffer<SunLightConstants> sun_light;

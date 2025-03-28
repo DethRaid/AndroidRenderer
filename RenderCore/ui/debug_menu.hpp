@@ -52,7 +52,7 @@ private:
 
     bool use_ray_reconstruction = false;
 
-    int selected_gi_quality = 2;
+    int selected_gi_quality = 1;
 
     void create_font_texture();
 

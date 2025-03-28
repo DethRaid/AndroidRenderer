@@ -3,7 +3,7 @@
 #include "shared/view_data.hpp"
 #include "shared/primitive_data.hpp"
 #include "util/srgb_conversions.slangi"
-#include "rtgi/rtgi_payload.slangi"
+#include "gi/rtgi/rtgi_payload.slangi"
 
 // Generates rays for the sun shadow. Uses ray tracing pipelines to get pretty shadows
 // The primitive data buffer is bound at 0.0, the other bindings in this file work around it. Check out

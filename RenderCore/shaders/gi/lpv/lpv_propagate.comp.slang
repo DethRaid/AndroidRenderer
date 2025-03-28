@@ -32,10 +32,6 @@ cbuffer Constants {
     uint num_cells;
 };
 
-groupshared half4 read_lpv_r_cache[8][8][8];
-groupshared half4 read_lpv_g_cache[8][8][8];
-groupshared half4 read_lpv_b_cache[8][8][8];
-
 static const half3x3 neighbour_orientations[6] = half3x3[](
     // Z+
     half3x3(1, 0, 0, 0, 1, 0, 0, 0, 1),
@@ -77,28 +73,22 @@ half3 get_reproj_side_direction(uint index, half3x3 orientation) {
     return mul(orientation, half3(s.x, s.y, 0));
 }
 
-[numthreads(8, 8, 8)]
+[numthreads(4, 4, 4)]
 [shader("compute")]
 void main(uint3 thread_index: SV_GroupThreadID, uint3 group_id: SV_GroupID) {
-    const uint num_groups_x = num_cells / 8;
+    const uint num_groups_x = num_cells / 4;
     const uint cascade_index = group_id.x / num_groups_x;
     const uint3 cascade_pixel_offset = uint3(cascade_index * 32, 0, 0);
 
     const int3 local_index = int3(thread_index);
     const int3 group_index_in_cascade = uint3(group_id.x % num_groups_x, group_id.yz);
-    const int3 group_offset_in_cascade = group_index_in_cascade * 8;
+    const int3 group_offset_in_cascade = group_index_in_cascade * 4;
     const int3 cell_index = local_index + group_offset_in_cascade;
 
     // Initialize this cell's local cache
     half4 lpv_r = read_lpv_red[cell_index + cascade_pixel_offset];
     half4 lpv_g = read_lpv_green[cell_index + cascade_pixel_offset];
     half4 lpv_b = read_lpv_blue[cell_index + cascade_pixel_offset];
-
-    read_lpv_r_cache[local_index.z][local_index.y][local_index.x] = lpv_r;
-    read_lpv_g_cache[local_index.z][local_index.y][local_index.x] = lpv_g;
-    read_lpv_b_cache[local_index.z][local_index.y][local_index.x] = lpv_b;
-
-    GroupMemoryBarrierWithGroupSync();
 
     // Propagate lighting
     for (uint neighbor = 0; neighbor < 6; neighbor++) {
@@ -124,23 +114,16 @@ void main(uint3 thread_index: SV_GroupThreadID, uint3 group_id: SV_GroupID) {
         }
 
         const int3 cell_to_load = neighbor_cell + cascade_pixel_offset;
-        const int3 cache_cell_to_load = cell_to_load - group_offset_in_cascade;
         half4 red_coefficients;
         half4 green_coefficients;
         half4 blue_coefficients;
 
-        if (any(cache_cell_to_load < 0) || any(cache_cell_to_load > 7)) {
-            red_coefficients = read_lpv_red[neighbor_cell + cascade_pixel_offset];
-            green_coefficients = read_lpv_green[neighbor_cell + cascade_pixel_offset];
-            blue_coefficients = read_lpv_blue[neighbor_cell + cascade_pixel_offset];
-        } else {
-            red_coefficients = read_lpv_r_cache[cache_cell_to_load.z][cache_cell_to_load.y][cache_cell_to_load.x];
-            green_coefficients = read_lpv_g_cache[cache_cell_to_load.z][cache_cell_to_load.y][cache_cell_to_load.x];
-            blue_coefficients = read_lpv_b_cache[cache_cell_to_load.z][cache_cell_to_load.y][cache_cell_to_load.x];
-        }
+        red_coefficients = read_lpv_red[neighbor_cell + cascade_pixel_offset];
+        green_coefficients = read_lpv_green[neighbor_cell + cascade_pixel_offset];
+        blue_coefficients = read_lpv_blue[neighbor_cell + cascade_pixel_offset];
 
-        const half direct_face_subtended_solid_angle = 0.4006696846f / PI / 2.h;
-        const half side_face_subtended_solid_angle = 0.4234413544f / PI / 3.h;
+        const half direct_face_subtended_solid_angle = 0.4006696846h / PI / 2.h;
+        const half side_face_subtended_solid_angle = 0.4234413544h / PI / 3.h;
 
         for (uint side_face = 0; side_face < 4; side_face++) {
             half3 eval_direction = get_eval_side_direction(side_face, orientation);

@@ -55,6 +55,7 @@ void main() {
     position.x += float(cascade_index);
     position.x /= float(num_cascades);
 
+    // Map from UV space to NDC
     gl_Position = vec4(position.xy * 2.f - 1.f, 0.f, 1.f);
     gl_Layer = int(position.z * 32.f);
     gl_PointSize = 1.f;

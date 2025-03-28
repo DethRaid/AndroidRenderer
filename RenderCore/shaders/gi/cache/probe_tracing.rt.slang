@@ -1,6 +1,6 @@
 #include "shared/view_data.hpp"
 #include "shared/gi_probe.hpp"
-#include "rtgi/rtgi_payload.slangi"
+#include "gi/rtgi/rtgi_payload.slangi"
 #include "probe_sampling.slangi"
 #include "common/octahedral.slangi"
 
@@ -51,7 +51,7 @@ void main_raygen() {
     const float2 octant_ray_coord = get_normalized_octahedral_coordinates(thread_id.xy, 20);
     const float3 ray_direction = get_octahedral_direction(octant_ray_coord);
 
-    float ray_distance = cascade.probe_spacing * 4;
+    float ray_distance = 8192;
     if (cascade_index < 3) {
         ray_distance = cascades[cascade_index + 1].probe_spacing * 8;
     }

@@ -359,7 +359,7 @@ void main_anyhit(inout IrradiancePayload payload, in float2 barycentrics) {
 }
 #endif // SAH_MASKED
 
-#include "rtgi/rtgi_payload.slangi"
+#include "gi/rtgi/rtgi_payload.slangi"
 
 [vk::binding(1, 0)]
 ConstantBuffer<SunLightConstants> sun_light;

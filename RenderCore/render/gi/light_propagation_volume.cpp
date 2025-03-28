@@ -49,7 +49,7 @@ static auto cvar_lpv_behind_camera_percent = AutoCVar_Float{
 static auto cvar_lpv_build_gv_mode = AutoCVar_Enum{
     "r.LPV.GvBuildMode",
     "How to build the geometry volume.\n0 = Disable\n1 = Use the RSM depth buffer and last frame's depth buffer",
-    GvBuildMode::DepthBuffers
+    GvBuildMode::Off
 };
 
 static auto cvar_lpv_rsm_resolution = AutoCVar_Int{
@@ -86,9 +86,9 @@ LightPropagationVolume::LightPropagationVolume() {
     auto& backend = RenderBackend::get();
 
     auto& pipeline_cache = backend.get_pipeline_cache();
-    clear_lpv_shader = pipeline_cache.create_pipeline("shaders/lpv/clear_lpv.comp.spv");
+    clear_lpv_shader = pipeline_cache.create_pipeline("shaders/gi/lpv/clear_lpv.comp.spv");
 
-    propagation_shader = pipeline_cache.create_pipeline("shaders/lpv/lpv_propagate.comp.spv");
+    propagation_shader = pipeline_cache.create_pipeline("shaders/gi/lpv/lpv_propagate.comp.spv");
 
     linear_sampler = backend.get_global_allocator().get_sampler(
         {
@@ -106,13 +106,13 @@ LightPropagationVolume::LightPropagationVolume() {
         }
     );
 
-    rsm_generate_vpls_pipeline = pipeline_cache.create_pipeline("shaders/lpv/rsm_generate_vpls.comp.spv");
+    rsm_generate_vpls_pipeline = pipeline_cache.create_pipeline("shaders/gi/lpv/rsm_generate_vpls.comp.spv");
 
     if(cvar_lpv_use_compute_vpl_injection.Get() == 0) {
         vpl_injection_pipeline = backend.begin_building_pipeline("VPL Injection")
                                         .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
-                                        .set_vertex_shader("shaders/lpv/vpl_injection.vert.spv")
-                                        .set_fragment_shader("shaders/lpv/vpl_injection.frag.spv")
+                                        .set_vertex_shader("shaders/gi/lpv/vpl_injection.vert.spv")
+                                        .set_fragment_shader("shaders/gi/lpv/vpl_injection.frag.spv")
                                         .set_blend_state(
                                             0,
                                             {
@@ -157,13 +157,13 @@ LightPropagationVolume::LightPropagationVolume() {
                                         )
                                         .build();
     } else {
-        vpl_injection_compute_pipeline = pipeline_cache.create_pipeline("shaders/lpv/vpl_injection.comp.spv");
+        vpl_injection_compute_pipeline = pipeline_cache.create_pipeline("shaders/gi/lpv/vpl_injection.comp.spv");
     }
 
     inject_rsm_depth_into_gv_pipeline = backend.begin_building_pipeline("GV Injection")
                                                .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
-                                               .set_vertex_shader("shaders/lpv/gv_injection.vert.spv")
-                                               .set_fragment_shader("shaders/lpv/gv_injection.frag.spv")
+                                               .set_vertex_shader("shaders/gi/lpv/gv_injection.vert.spv")
+                                               .set_fragment_shader("shaders/gi/lpv/gv_injection.frag.spv")
                                                .set_depth_state(
                                                    {.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE}
                                                )
@@ -186,9 +186,9 @@ LightPropagationVolume::LightPropagationVolume() {
     inject_scene_depth_into_gv_pipeline = backend.begin_building_pipeline("Inject scene depth into GV")
                                                  .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
                                                  .use_imgui_vertex_layout()
-                                                 .set_vertex_shader("shaders/lpv/inject_scene_depth_into_gv.vert.spv")
-                                                 .set_geometry_shader("shaders/lpv/inject_scene_depth_into_gv.geom.spv")
-                                                 .set_fragment_shader("shaders/lpv/inject_scene_depth_into_gv.frag.spv")
+                                                 .set_vertex_shader("shaders/gi/lpv/inject_scene_depth_into_gv.vert.spv")
+                                                 .set_geometry_shader("shaders/gi/lpv/inject_scene_depth_into_gv.geom.spv")
+                                                 .set_fragment_shader("shaders/gi/lpv/inject_scene_depth_into_gv.frag.spv")
                                                  .set_depth_state(
                                                      {.enable_depth_test = VK_FALSE, .enable_depth_write = VK_FALSE}
                                                  )
@@ -211,7 +211,7 @@ LightPropagationVolume::LightPropagationVolume() {
 
     lpv_render_shader = backend.begin_building_pipeline("LPV Rendering")
                                .set_vertex_shader("shaders/common/fullscreen.vert.spv")
-                               .set_fragment_shader("shaders/lpv/overlay.frag.spv")
+                               .set_fragment_shader("shaders/gi/lpv/overlay.frag.spv")
                                .set_depth_state(
                                    {
                                        .enable_depth_write = false,
@@ -235,9 +235,9 @@ LightPropagationVolume::LightPropagationVolume() {
 
     vpl_visualization_pipeline = backend.begin_building_pipeline("VPL Visualization")
                                         .set_topology(VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
-                                        .set_vertex_shader("shaders/lpv/visualize_vpls.vert.spv")
-                                        .set_geometry_shader("shaders/lpv/visualize_vpls.geom.spv")
-                                        .set_fragment_shader("shaders/lpv/visualize_vpls.frag.spv")
+                                        .set_vertex_shader("shaders/gi/lpv/visualize_vpls.vert.spv")
+                                        .set_geometry_shader("shaders/gi/lpv/visualize_vpls.geom.spv")
+                                        .set_fragment_shader("shaders/gi/lpv/visualize_vpls.frag.spv")
                                         .set_depth_state({.enable_depth_write = false})
                                         .build();
 
@@ -348,7 +348,6 @@ void LightPropagationVolume::render_to_lit_scene(
     commands.clear_descriptor_set(1);
 
     commands.end_label();
-
 }
 
 void LightPropagationVolume::draw_debug_overlays(
@@ -1038,7 +1037,7 @@ void LightPropagationVolume::propagate_lighting(RenderGraph& render_graph) const
 
     const auto num_cells = static_cast<uint32_t>(cvar_lpv_resolution.Get());
     const auto num_cascades = static_cast<uint32_t>(cvar_lpv_num_cascades.Get());
-    const auto dispatch_size = glm::uvec3{num_cells * num_cascades, num_cells, num_cells} / glm::uvec3{8, 8, 8};
+    const auto dispatch_size = glm::uvec3{num_cells * num_cascades, num_cells, num_cells} / glm::uvec3{4, 4, 4};
 
     struct PropagationConstants {
         uint32_t use_gv;

@@ -108,7 +108,7 @@ void main() {
         if(all(greaterThan(cascade_position.xyz, vec3(0))) && all(lessThan(cascade_position.xyz, vec3(1)))) {
             selected_cascade = i;
             cascade_weights[i] = 1.f / (i + 1);
-            //cascade_weights[i] *= cascade_weights[i];
+            cascade_weights[i] *= cascade_weights[i];
             mediump vec4 offset = vec4(surface.normal + float(i) * 0.01f, 0);
             cascade_samples[i] = sample_light_from_cascade(normal_coefficients, worldspace_position + offset, i);
         }
@@ -122,6 +122,10 @@ void main() {
     }
 
     indirect_light /= total_weight;   
+
+    //mediump vec4 cascade_position = cascade_matrices[0].world_to_cascade * worldspace_position;
+    //mediump vec4 offset = vec4(surface.normal, 0);
+    //mediump vec3 indirect_light = sample_light_from_cascade(normal_coefficients, worldspace_position + offset, 0);
 
     vec3 reflection_vector = reflect(-worldspace_view_vector, surface.normal);
     mediump vec3 specular_light = vec3(0);
@@ -168,7 +172,7 @@ void main() {
     mediump vec3 total_lighting = indirect_light * diffuse_factor * ao + specular_light * specular_factor;
 
     // Number chosen based on what happened to look fine
-    const mediump float exposure_factor = 0.031415927;
+    const mediump float exposure_factor = 0.31415927 / 4.0;
 
     // TODO: https://trello.com/c/4y8bERl1/11-auto-exposure Better exposure
 
@@ -178,4 +182,14 @@ void main() {
 
     lighting = vec4(total_lighting * exposure_factor, 1.f);
     //lighting = vec4(ao.xxx, 1.f);
+
+    // if(selected_cascade == 0) {
+    //     lighting = vec4(1, 0, 0, 1);
+    // } else if(selected_cascade == 1) {
+    //     lighting = vec4(0, 1, 0, 1);
+    // } else if(selected_cascade == 2) {
+    //     lighting = vec4(0, 0, 1, 1);
+    // } else if(selected_cascade == 3) {
+    //     lighting = vec4(1, 1, 0, 1);
+    // }
 }

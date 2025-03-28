@@ -81,7 +81,7 @@ void main_raygen() {
 
     const half ndotl = (half)clamp(dot(light_vector, surface.normal), 0.h, 1.h);
 
-    const float3 view_position = vec3(-view_data.view[3].xyz);
+    const float3 view_position = float3(-view_data.view[3].xyz);
     const float3 worldspace_view_position = surface.location - view_position;
     const half3 worldspace_view_vector = (half3)normalize(worldspace_view_position);
     const half3 brdf_result = brdf(surface, (half3)light_vector, worldspace_view_vector);

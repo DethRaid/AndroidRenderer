@@ -31,7 +31,7 @@ RayTracedGlobalIllumination::RayTracedGlobalIllumination() {
     if(overlay_pso == nullptr) {
         overlay_pso = backend.begin_building_pipeline("rtgi_application")
                              .set_vertex_shader("shaders/common/fullscreen.vert.spv")
-                             .set_fragment_shader("shaders/rtgi/overlay.frag.spv")
+                             .set_fragment_shader("shaders/gi/rtgi/overlay.frag.spv")
                              .set_depth_state(
                                  {
                                      .enable_depth_write = false,
@@ -110,7 +110,7 @@ void RayTracedGlobalIllumination::post_render(
     }
     if(rtgi_pipeline == nullptr) {
         rtgi_pipeline = backend.get_pipeline_cache()
-                               .create_ray_tracing_pipeline("shaders/rtgi/rtgi.rt.spv");
+                               .create_ray_tracing_pipeline("shaders/gi/rtgi/rtgi.rt.spv");
     }
 
     const auto sun_buffer = scene.get_sun_light().get_constant_buffer();
