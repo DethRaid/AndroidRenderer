@@ -1,11 +1,10 @@
-#include <stdexcept>
-
-#include <spdlog/spdlog.h>
-#include <magic_enum.hpp>
 
 #include "render_backend.hpp"
 
+#include <stdexcept>
+
 #include <glm/common.hpp>
+#include <spdlog/spdlog.h>
 #include <tracy/Tracy.hpp>
 #include <vulkan/vk_enum_string_helper.h>
 
@@ -49,6 +48,7 @@ RenderBackend& RenderBackend::get() {
 /**
  * Android driver replacement - possibly useful?
  */
+[[maybe_unused]]
 static void* replace_driver(const std::string& path, const char* hooksDir, const char* driverName) {
     void* lib_vulkan = nullptr;
 #if defined(__ANDROID__)
@@ -76,6 +76,8 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
                                  frame_descriptor_allocators{
                                      DescriptorSetAllocator{*this}, DescriptorSetAllocator{*this}
                                  } {
+    ZoneScoped;
+
     logger = SystemInterface::get().get_logger("RenderBackend");
 
     VkResult volk_result = VK_SUCCESS;
@@ -90,6 +92,7 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
 
 #else
     {
+#if defined(__ANDROID__)
         auto& sys_interface = dynamic_cast<AndroidSystemInterface&>(SystemInterface::get());
         auto* app = sys_interface.get_app();
         const auto srcFolder = std::filesystem::path{
@@ -111,8 +114,11 @@ RenderBackend::RenderBackend() : resource_access_synchronizer{*this}, global_des
                                                                                                "vkGetInstanceProcAddr"));
             volkInitializeCustom(vk_get_instance_proc_addr);
         } else {
+#endif
             volk_result = volkInitialize();
+#if defined(__ANDROID__)
         }
+#endif
     }
 #endif
 
@@ -188,11 +194,13 @@ void RenderBackend::add_transfer_barrier(const VkImageMemoryBarrier2& barrier) {
 }
 
 void RenderBackend::create_instance_and_device() {
+    ZoneScoped;
+
     // vkb enables the surface extensions for us
     auto instance_builder = vkb::InstanceBuilder{vkGetInstanceProcAddr}
                             .set_app_name("Renderer")
-                            .set_engine_name("Sarah's Artisanal Handcrafted Renderer")
-                            .set_app_version(0, 12, 0)
+                            .set_engine_name("𒊓𒊏")
+                            .set_app_version(0, 13, 0)
                             .require_api_version(1, 4, 0)
 #if defined(_WIN32 )
             .enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
@@ -213,16 +221,19 @@ void RenderBackend::create_instance_and_device() {
     }
 #endif
 
-    auto instance_ret = instance_builder.build();
-    if(!instance_ret) {
-        const auto error_message = fmt::format(
-            "Could not initialize Vulkan: {} (VK_RESULT {})",
-            instance_ret.error().message(),
-            magic_enum::enum_name(instance_ret.vk_result())
-        );
-        throw std::runtime_error{error_message};
+    {
+        ZoneScopedN("vkCreateInstance");
+        auto instance_ret = instance_builder.build();
+        if (!instance_ret) {
+            const auto error_message = fmt::format(
+                "Could not initialize Vulkan: {} (VK_RESULT {})",
+                instance_ret.error().message(),
+                string_VkResult(instance_ret.vk_result())
+            );
+            throw std::runtime_error{ error_message };
+        }
+        instance = instance_ret.value();
     }
-    instance = instance_ret.value();
     volkLoadInstance(instance.instance);
 
 #if defined(__ANDROID__)
@@ -246,7 +257,11 @@ void RenderBackend::create_instance_and_device() {
         .hwnd = system_interface.get_hwnd(),
     };
 
-    auto vk_result = vkCreateWin32SurfaceKHR(instance.instance, &surface_create_info, nullptr, &surface);
+    VkResult vk_result;
+    {
+        ZoneScopedN("vkCreateWin32SurfaceKHR");
+        vk_result = vkCreateWin32SurfaceKHR(instance.instance, &surface_create_info, nullptr, &surface);
+    }
     if(vk_result != VK_SUCCESS) {
         throw std::runtime_error{"Could not create rendering surface"};
     }
@@ -428,17 +443,19 @@ void RenderBackend::create_instance_and_device() {
         device_builder.add_pNext(&device_diagnostics_info);
     }
 
-    auto device_ret = device_builder.build();
-    if(!device_ret) {
-        const auto message = fmt::format("Could not create logical device: {}", device_ret.error().message());
-        throw std::runtime_error{"Could not build logical device"};
+    {
+        ZoneScopedN("vkb::DeviceBuilder::build");
+        auto device_ret = device_builder.build();
+        if (!device_ret) {
+            const auto message = fmt::format("Could not create logical device: {}", device_ret.error().message());
+            throw std::runtime_error{ "Could not build logical device" };
+        }
+        device = *device_ret;
     }
-    device = *device_ret;
-    volkLoadDevice(device.device);
-
-#if SAH_USE_STREAMLINE
-    //DLSSAdapter::set_devices_from_backend(*this);
-#endif
+    {
+        ZoneScopedN("volkLoadDevice");
+        volkLoadDevice(device.device);
+    }
 }
 
 void RenderBackend::query_physical_device_features() {
@@ -546,6 +563,8 @@ void RenderBackend::query_physical_device_properties() {
 }
 
 void RenderBackend::create_swapchain() {
+    ZoneScoped;
+
     auto swapchain_ret = vkb::SwapchainBuilder{device}
                          .set_desired_format(
                              {.format = VK_FORMAT_R8G8B8A8_SRGB, .colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR}
@@ -897,6 +916,8 @@ TracyVkCtx RenderBackend::get_tracy_context() const {
 }
 
 void RenderBackend::create_tracy_context() {
+    ZoneScoped;
+
     const auto pool_create_info = VkCommandPoolCreateInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
@@ -973,6 +994,8 @@ VkCommandBuffer RenderBackend::create_transfer_command_buffer(const std::string&
 }
 
 void RenderBackend::create_command_pools() {
+    ZoneScoped;
+
     for(auto& command_pool : graphics_command_allocators) {
         command_pool = CommandAllocator{*this, graphics_queue_family_index};
     }
@@ -1081,6 +1104,8 @@ VkSampler RenderBackend::get_default_sampler() const {
 }
 
 void RenderBackend::create_default_resources() {
+    ZoneScoped;
+
     white_texture_handle = allocator->create_texture(
         "White texture",
         {

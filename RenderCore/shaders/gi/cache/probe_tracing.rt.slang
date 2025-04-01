@@ -11,7 +11,7 @@ StructuredBuffer<uint3> probes_to_update;
 RaytracingAccelerationStructure rtas;
 
 [vk::binding(4, 0)]
-ConstantBuffer<ProbeCascade[4]> cascades;
+ConstantBuffer<IrradianceProbeVolume> probe_volume;
 
 [vk::binding(5, 0)]
 RWTexture2DArray<half4> trace_results_texture;
@@ -20,13 +20,13 @@ RWTexture2DArray<half4> trace_results_texture;
 Texture2D<float3> noisetex;
 
 [vk::binding(7, 0)]
-Sampler3D<half3> rtgi;
+Sampler2DArray<half3> rtgi;
 
 [vk::binding(8, 0)]
-Sampler3D<half2> depth;
+Sampler2DArray<half2> depth;
 
 [vk::binding(11, 0)]
-Texture3D<half> validity;
+Texture2DArray<half> validity;
 
 /**
  * Yeet 400 rays into the aether. Convolve them into our textures. Party
@@ -44,7 +44,7 @@ void main_raygen() {
     const uint3 probe_id = probes_to_update[probe_index];
 
     const uint cascade_index = probe_id.y / 8;
-    const ProbeCascade cascade = cascades[cascade_index];
+    const ProbeCascade cascade = probe_volume.cascades[cascade_index];
 
     const float3 local_probe_id = (float3)uint3(probe_id.x, probe_id.y % 8, probe_id.z);
 
@@ -53,13 +53,13 @@ void main_raygen() {
 
     float ray_distance = 8192;
     if (cascade_index < 3) {
-        ray_distance = cascades[cascade_index + 1].probe_spacing * 8;
+        ray_distance = probe_volume.cascades[cascade_index + 1].probe_spacing * 4;
     }
 
     RayDesc ray = (RayDesc)0;
     ray.Origin = cascade.min + local_probe_id * cascade.probe_spacing;
     ray.Direction = ray_direction;
-    ray.TMin = 0;
+    ray.TMin = 0.05;
     ray.TMax = ray_distance;
 
     IrradiancePayload payload = (IrradiancePayload)0;
@@ -81,10 +81,19 @@ void main_raygen() {
         // If we didn't hit anything and there's a next-largest cascade to sample, sample from it. Otherwise we just 
         // keep the sky irradiance in the payload
         if (cascade_index + 1 < 4) {
-            payload.irradiance = sample_cascade(ray.Origin + ray.Direction * ray.TMax, ray.Direction, cascade_index + 1, cascades[cascade_index + 1], rtgi, uint2(5, 6), depth, validity);
+            payload.irradiance = sample_cascade(
+                ray.Origin + ray.Direction * ray.TMax, 
+                ray.Direction, 
+                cascade_index + 1, 
+                probe_volume.cascades[cascade_index + 1], 
+                rtgi, 
+                probe_volume.rgti_probe_resolution, 
+                depth, 
+                validity);
         }
 
         payload.ray_distance = ray_distance;
+
     } else if (payload.ray_distance < 0) {
         // We hit the back of a surface. Set this ray to black so we don't mess up our results
         payload.irradiance = 0;

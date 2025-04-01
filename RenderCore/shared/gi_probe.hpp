@@ -2,18 +2,15 @@
 
 #include "shared/prelude.h"
 
-/**
- * GI probe, based on page 17 of https://gdcvault.com/play/1034763/Advanced-Graphics-Summit-Raytracing-in
- */
-struct GiProbe {
-};
-
 struct ProbeCascade {
     float3 min;
     float probe_spacing;
 };
 
-struct ProbeTraceResult {
-    half4 irradiance;
-    half4 ray_direction_and_distance;
+struct IrradianceProbeVolume {
+    ProbeCascade cascades[4];
+    u16vec2 trace_resolution;
+    u16vec2 rgti_probe_resolution;
+    u16vec2 light_cache_probe_resolution;
+    u16vec2 depth_probe_resolution;
 };

@@ -1,12 +1,12 @@
 StructuredBuffer<uint3> probes_to_update;
 
-RWTexture3D<half3> rtgi_dest;
+RWTexture2DArray<half3> rtgi_dest;
 
-RWTexture3D<half2> depth_dest;
+RWTexture2DArray<half2> depth_dest;
 
-RWTexture3D<half3> average_dest;
+RWTexture2DArray<half3> average_dest;
 
-RWTexture3D<half> validity_dest;
+RWTexture2DArray<half> validity_dest;
 
 groupshared uint num_valid_samples;
 

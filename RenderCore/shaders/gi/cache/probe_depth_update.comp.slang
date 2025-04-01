@@ -6,7 +6,7 @@ StructuredBuffer<uint3> probes_to_update;
 
 Texture2DArray<half4> trace_results_texture;
 
-RWTexture3D<half2> depth_dest;
+RWTexture2DArray<half2> depth_dest;
 
 [numthreads(10, 10, 1)]
 [shader("compute")]

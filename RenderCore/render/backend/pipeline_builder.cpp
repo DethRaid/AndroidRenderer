@@ -372,6 +372,20 @@ GraphicsPipelineBuilder::set_blend_state(
     return *this;
 }
 
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_num_attachments(const uint32_t num_attachments) {
+    for(auto attachment = 0u; attachment < num_attachments; attachment++) {
+        set_blend_state(
+            attachment,
+            {
+                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                VK_COLOR_COMPONENT_A_BIT
+            }
+        );
+    }
+
+    return *this;
+}
+
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::enable_dgc() {
     should_enable_dgc = true;
 

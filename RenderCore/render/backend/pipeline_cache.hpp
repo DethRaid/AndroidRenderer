@@ -32,10 +32,6 @@ public:
         bool use_fragment_shading_rate_attachment = false
     ) const;
 
-    VkPipeline get_pipeline(
-        GraphicsPipelineHandle pipeline, VkRenderPass active_render_pass, uint32_t active_subpass
-    ) const;
-
     /**
      * Registers global miss shaders, to be used for all RT pipelines
      */

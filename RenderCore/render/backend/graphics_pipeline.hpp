@@ -39,13 +39,7 @@ struct GraphicsPipeline : PipelineBase {
 
     VkPipelineColorBlendStateCreateFlags blend_flags = {};
 
-    eastl::vector<VkPipelineColorBlendAttachmentState> blends = {};
-
-    // Renderpass and subpass index that this pipeline was most recently used with
-
-    VkRenderPass last_renderpass = VK_NULL_HANDLE;
-
-    uint32_t last_subpass_index;
+    eastl::fixed_vector<VkPipelineColorBlendAttachmentState, 8> blends = {};
 
     uint32_t group_index;
 };

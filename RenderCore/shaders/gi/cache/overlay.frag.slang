@@ -20,11 +20,11 @@ ConstantBuffer<ViewDataGPU> view_data;
 [vk::binding(1, 1)]
 ConstantBuffer<ProbeCascade[4]> cascades;
 [vk::binding(2, 1)]
-Sampler3D<half3> probe_irradiance;
+Sampler2DArray<half3> probe_irradiance;
 [vk::binding(3, 1)]
-Sampler3D<half2> probe_depth;
+Sampler2DArray<half2> probe_depth;
 [vk::binding(4, 1)]
-Texture3D<half> probe_validity;
+Texture2DArray<half> probe_validity;
 
 [vk::push_constant]
 cbuffer Constants {

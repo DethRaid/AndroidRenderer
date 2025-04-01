@@ -9,6 +9,7 @@
 #include "render/backend/handles.hpp"
 #include "render/backend/texture_usage_token.hpp"
 #include "render/backend/buffer_usage_token.hpp"
+#include "shared/gi_probe.hpp"
 
 struct GBuffer;
 class RenderScene;
@@ -203,7 +204,7 @@ private:
         },
     };
 
-    BufferHandle cascade_cbuffer = nullptr;
+    BufferHandle cache_cbuffer = nullptr;
 
     eastl::vector<glm::uvec3> probes_to_update = {};
     BufferHandle probes_to_update_buffer = nullptr;
@@ -216,6 +217,8 @@ private:
     TextureHandle trace_results_texture = nullptr;
 
     VkSampler linear_sampler;
+
+    VkSampler point_sampler;
 
     static inline ComputePipelineHandle cascade_copy_shader = nullptr;
 

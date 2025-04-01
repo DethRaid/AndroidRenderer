@@ -45,6 +45,8 @@ static auto cvar_anti_aliasing = AutoCVar_Enum{
 // ReSharper restore CppDeclaratorNeverUsed
 
 SceneRenderer::SceneRenderer() {
+    ZoneScoped;
+
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
     // player_view.set_position(glm::vec3{2.f, -1.f, 3.0f});
@@ -718,6 +720,8 @@ void SceneRenderer::rotate_player(const float delta_pitch, const float delta_yaw
 void SceneRenderer::set_imgui_commands(ImDrawData* im_draw_data) {
     ui_phase.set_imgui_draw_data(im_draw_data);
 }
+
+RenderVisualization SceneRenderer::get_active_visualizer() const { return active_visualization; }
 
 void SceneRenderer::set_active_visualizer(const RenderVisualization visualizer) {
     active_visualization = visualizer;

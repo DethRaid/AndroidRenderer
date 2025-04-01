@@ -15,6 +15,8 @@
 static std::shared_ptr<spdlog::logger> logger;
 
 Application::Application() : parser{fastgltf::Extensions::KHR_texture_basisu} {
+    ZoneScoped;
+
     logger = SystemInterface::get().get_logger("Application");
     spdlog::set_level(spdlog::level::trace);
     spdlog::flush_on(spdlog::level::critical);

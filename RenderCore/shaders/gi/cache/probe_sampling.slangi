@@ -8,10 +8,10 @@ float3 sample_cascade(
     in float3 direction,
     in uint cascade_index,
     in ProbeCascade cascade,
-    in Sampler3D<half3> probe_irradiance, 
-    in uint2 probe_size, 
-    in Sampler3D<half2> probe_depth, 
-    in Texture3D<half> probe_validity) {
+    in Sampler2DArray<half3> probe_irradiance,
+    in uint2 probe_size,
+    in Sampler2DArray<half2> probe_depth,
+    in Texture2DArray<half> probe_validity) {
     // Convert location to cascade space. Sample the eight probes closest to the location. Sample their depths and 
     // validity to weight the result, then sample their rtgi textures. Divide by weight, return
 
@@ -35,7 +35,7 @@ float3 sample_cascade(
     float3 irradiance = 0.h;
     float weight = 0.h;
 
-    for (uint i = 0; i < 8; i++) {
+    for (uint i = 0; i < 1; i++) {
         const float3 probe_location = min_probe + offsets[i];
         const float3 direction_to_probe = probe_location - probespace_location;
         const float distance_to_probe = length(direction_to_probe) * cascade.probe_spacing;
@@ -90,8 +90,8 @@ float3 sample_cascade(
         probe_weight *= trilinear_weight;
 
         const float2 irradiance_octant_coord = get_octahedral_coordinates(direction);
-        const float3 rtgi_uv = get_probe_uv(base_probe_index, irradiance_octant_coord, probe_size);
-        const half3 probe_irradiance = probe_irradiance.SampleLevel(rtgi_uv, 0);
+        const float3 probe_uv = get_probe_uv(base_probe_index, irradiance_octant_coord, probe_size);
+        const half3 probe_irradiance = probe_irradiance.SampleLevel(probe_uv, 0);
 
         irradiance += probe_irradiance * probe_weight;
         weight += probe_weight;

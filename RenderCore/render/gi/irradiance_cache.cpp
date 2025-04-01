@@ -28,7 +28,7 @@ static AutoCVar_Int cvar_debug_mode{
 
 static AutoCVar_Int cvar_probe_debug_mode{
     "r.GI.Cache.Debug.ProbeMode",
-    "How to debug probes. 0 = RTGI, 1 = Light Cache, 2 = Depth, 3 = Average Irradiance, 4 = Validity", 3
+    "How to debug probes. 0 = RTGI, 1 = Light Cache, 2 = Depth, 3 = Average Irradiance, 4 = Validity", 0
 };
 
 static std::shared_ptr<spdlog::logger> logger;
@@ -96,96 +96,115 @@ IrradianceCache::IrradianceCache() {
 
     if(probe_debug_pso == nullptr) {
         probe_debug_pso = backend.begin_building_pipeline("gi_cache_probe_debug")
-                             .set_vertex_shader("shaders/gi/cache/probe_debug.vert.spv")
-                             .set_fragment_shader("shaders/gi/cache/probe_debug.frag.spv")
-                             .set_depth_state(
-                                 {
-                                     .enable_depth_write = false
-                                 })
-                             .build();
+                                 .set_vertex_shader("shaders/gi/cache/probe_debug.vert.spv")
+                                 .set_fragment_shader("shaders/gi/cache/probe_debug.frag.spv")
+                                 .build();
     }
 
     auto& allocator = backend.get_global_allocator();
 
     // All these volumes are a little bigger than the number of texels per probe might imply, because we have a one pixel border around each texel
 
-    constexpr auto resolution = glm::uvec3{cascade_size_xz, cascade_size_y * num_cascades, cascade_size_xz};
-    constexpr uint3 rtgi_probe_size = {7, 8, 1};
-    rtgi_a = allocator.create_volume_texture(
+    constexpr auto resolution = glm::uvec2{cascade_size_xz, cascade_size_y * num_cascades};
+    constexpr uint2 rtgi_probe_size = {7, 8};
+    rtgi_a = allocator.create_texture(
         "probe_rtgi_a",
-        VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        resolution * rtgi_probe_size,
-        1,
-        TextureUsage::StorageImage);
-    rtgi_b = allocator.create_volume_texture(
+        {
+            .format = VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            .resolution = resolution * rtgi_probe_size,
+            .usage = TextureUsage::StorageImage,
+            .num_layers = cascade_size_xz,
+        });
+    rtgi_b = allocator.create_texture(
         "probe_rtgi_b",
-        VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        resolution * rtgi_probe_size,
-        1,
-        TextureUsage::StorageImage);
+        {
+            .format = VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            .resolution = resolution * rtgi_probe_size,
+            .usage = TextureUsage::StorageImage,
+            .num_layers = cascade_size_xz,
+        });
 
-    constexpr uint3 light_cache_probe_size = {13, 13, 1};
-    light_cache_a = allocator.create_volume_texture(
+    constexpr uint2 light_cache_probe_size = {13, 13};
+    light_cache_a = allocator.create_texture(
         "probe_light_cache_a",
-        VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        resolution * light_cache_probe_size,
-        1,
-        TextureUsage::StorageImage);
-    light_cache_b = allocator.create_volume_texture(
+        {
+            .format = VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            .resolution = resolution * light_cache_probe_size,
+            .usage = TextureUsage::StorageImage,
+            .num_layers = cascade_size_xz,
+        });
+    light_cache_b = allocator.create_texture(
         "probe_light_cache_b",
-        VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        resolution * light_cache_probe_size,
-        1,
-        TextureUsage::StorageImage);
+        {
+            .format = VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            .resolution = resolution * light_cache_probe_size,
+            .usage = TextureUsage::StorageImage,
+            .num_layers = cascade_size_xz,
+        });
 
-    constexpr uint3 probe_depth_probe_size = {12, 12, 1};
-    depth_a = allocator.create_volume_texture(
+    constexpr uint2 probe_depth_probe_size = {12, 12};
+    depth_a = allocator.create_texture(
         "probe_depth_a",
-        VK_FORMAT_R16G16_SFLOAT,
-        resolution * probe_depth_probe_size,
-        1,
-        TextureUsage::StorageImage
+        {
+            .format = VK_FORMAT_R16G16_SFLOAT,
+            .resolution = resolution * probe_depth_probe_size,
+            .usage = TextureUsage::StorageImage,
+            .num_layers = cascade_size_xz,
+        }
     );
-    depth_b = allocator.create_volume_texture(
+    depth_b = allocator.create_texture(
         "probe_depth_b",
-        VK_FORMAT_R16G16_SFLOAT,
-        resolution * probe_depth_probe_size,
-        1,
-        TextureUsage::StorageImage
+        {
+            .format = VK_FORMAT_R16G16_SFLOAT,
+            .resolution = resolution * probe_depth_probe_size,
+            .usage = TextureUsage::StorageImage,
+            .num_layers = cascade_size_xz,
+        }
     );
 
-    average_a = allocator.create_volume_texture(
+    average_a = allocator.create_texture(
         "probe_average_a",
-        VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        resolution,
-        1,
-        TextureUsage::StorageImage);
-    average_b = allocator.create_volume_texture(
+        {
+            .format = VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            .resolution = resolution,
+            .usage = TextureUsage::StorageImage,
+            .num_layers = cascade_size_xz,
+        });
+    average_b = allocator.create_texture(
         "probe_average_b",
-        VK_FORMAT_B10G11R11_UFLOAT_PACK32,
-        resolution,
-        1,
-        TextureUsage::StorageImage);
+        {
+            .format = VK_FORMAT_B10G11R11_UFLOAT_PACK32,
+            .resolution = resolution,
+            .usage = TextureUsage::StorageImage,
+            .num_layers = cascade_size_xz,
+        });
 
-    validity_a = allocator.create_volume_texture(
+    validity_a = allocator.create_texture(
         "probe_validity_a",
-        VK_FORMAT_R8_UNORM,
-        resolution,
-        1,
-        TextureUsage::StorageImage);
-    validity_b = allocator.create_volume_texture(
+        {
+            .format = VK_FORMAT_R8_UNORM,
+            .resolution = resolution,
+            .usage = TextureUsage::StorageImage,
+            .num_layers = cascade_size_xz,
+        });
+    validity_b = allocator.create_texture(
         "probe_validity_b",
-        VK_FORMAT_R8_UNORM,
-        resolution,
-        1,
-        TextureUsage::StorageImage);
+        {
+            .format = VK_FORMAT_R8_UNORM,
+            .resolution = resolution,
+            .usage = TextureUsage::StorageImage,
+            .num_layers = cascade_size_xz,
+        });
 
     probes_to_update_buffer = allocator.create_buffer(
         "probes_to_update",
         sizeof(glm::uvec3) * cvar_probes_per_frame.Get(),
         BufferUsage::StorageBuffer);
 
-    cascade_cbuffer = allocator.create_buffer("cascade_cbuffer", sizeof(ProbeCascade) * 4, BufferUsage::UniformBuffer);
+    cache_cbuffer = allocator.create_buffer(
+        "irradiance_cache_cbuffer",
+        sizeof(IrradianceProbeVolume),
+        BufferUsage::UniformBuffer);
 
     trace_results_texture = allocator.create_texture(
         "probe_trace_results",
@@ -202,6 +221,13 @@ IrradianceCache::IrradianceCache() {
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
             .magFilter = VK_FILTER_LINEAR,
             .minFilter = VK_FILTER_LINEAR,
+        });
+
+    point_sampler = allocator.get_sampler(
+        {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_NEAREST,
+            .minFilter = VK_FILTER_NEAREST,
         });
 }
 
@@ -220,7 +246,7 @@ IrradianceCache::~IrradianceCache() {
     allocator.destroy_texture(validity_b);
 
     allocator.destroy_buffer(probes_to_update_buffer);
-    allocator.destroy_buffer(cascade_cbuffer);
+    allocator.destroy_buffer(cache_cbuffer);
 
     allocator.destroy_texture(trace_results_texture);
 }
@@ -275,8 +301,8 @@ void IrradianceCache::get_resource_uses(
 void IrradianceCache::add_to_lit_scene(CommandBuffer& commands, const BufferHandle view_buffer) const {
     const auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(overlay_pso, 1)
                                          .bind(view_buffer)
-                                         .bind(cascade_cbuffer)
-                                         .bind(rtgi_a, linear_sampler)
+                                         .bind(cache_cbuffer)
+                                         .bind(light_cache_a, linear_sampler)
                                          .bind(depth_a, linear_sampler)
                                          .bind(validity_a)
                                          .build();
@@ -303,10 +329,10 @@ void IrradianceCache::draw_debug_overlays(
     const auto set = backend.get_transient_descriptor_allocator()
                             .build_set(probe_debug_pso, 0)
                             .bind(view.get_buffer())
-                            .bind(cascade_cbuffer)
-                            .bind(rtgi_a)
-                            .bind(light_cache_a)
-                            .bind(depth_a)
+                            .bind(cache_cbuffer)
+                            .bind(rtgi_a, point_sampler)
+                            .bind(light_cache_a, point_sampler)
+                            .bind(depth_a, point_sampler)
                             .bind(average_a)
                             .bind(validity_a)
                             .build();
@@ -328,7 +354,7 @@ void IrradianceCache::draw_debug_overlays(
                 for(uint32 cascade_index = 0; cascade_index < 4; cascade_index++) {
                     commands.set_push_constant(1, cascade_index);
 
-                    commands.draw_indexed(6, cascade_size_xz * cascade_size_y * cascade_size_xz, 0, 0, 0);
+                    commands.draw(6, cascade_size_xz * cascade_size_y * cascade_size_xz, 0, 0);
                 }
 
                 commands.clear_descriptor_set(0);
@@ -426,13 +452,18 @@ void IrradianceCache::place_probes_from_view(const SceneView& view) {
 
     first_frame = false;
 
-    eastl::array<ProbeCascade, 4> cascade_gpu_data;
+    IrradianceProbeVolume gpu_data = {
+        .trace_resolution = {20, 20},
+        .rgti_probe_resolution = {5, 6},
+        .light_cache_probe_resolution = {11, 11},
+        .depth_probe_resolution = {10,10} 
+    };
     for(uint i = 0; i < cascades.size(); i++) {
-        cascade_gpu_data[i].min = cascades[i].location;
-        cascade_gpu_data[i].probe_spacing = cascades[i].probe_spacing;
+        gpu_data.cascades[i].min = cascades[i].location;
+        gpu_data.cascades[i].probe_spacing = cascades[i].probe_spacing;
     }
 
-    RenderBackend::get().get_upload_queue().upload_to_buffer(cascade_cbuffer, std::span{cascade_gpu_data});
+    RenderBackend::get().get_upload_queue().upload_to_buffer(cache_cbuffer, gpu_data);
 }
 
 void IrradianceCache::copy_probes_to_new_texture(RenderGraph& graph) {
@@ -568,6 +599,12 @@ void IrradianceCache::find_probes_to_update(const uint32_t frame_count) {
 void IrradianceCache::dispatch_probe_updates(
     RenderGraph& graph, const RenderScene& scene, const TextureHandle noise_tex
 ) {
+    const auto num_probes_to_update = static_cast<uint32_t>(probes_to_update.size());
+
+    if(num_probes_to_update == 0) {
+        return;
+    }
+
     auto& backend = RenderBackend::get();
     backend.get_upload_queue().upload_to_buffer(probes_to_update_buffer, std::span{probes_to_update});
 
@@ -583,8 +620,6 @@ void IrradianceCache::dispatch_probe_updates(
 
     auto& descriptor_allocator = backend.get_transient_descriptor_allocator();
 
-    const auto num_probes_to_update = static_cast<uint32_t>(probes_to_update.size());
-
     {
         const auto& sky = scene.get_sky();
         auto set = descriptor_allocator.build_set(probe_tracing_pipeline, 0)
@@ -592,7 +627,7 @@ void IrradianceCache::dispatch_probe_updates(
                                        .bind(scene.get_sun_light().get_constant_buffer())
                                        .bind(probes_to_update_buffer)
                                        .bind(scene.get_raytracing_scene().get_acceleration_structure())
-                                       .bind(cascade_cbuffer)
+                                       .bind(cache_cbuffer)
                                        .bind(trace_results_texture)
                                        .bind(noise_tex)
                                        .bind(rtgi_a, linear_sampler)
@@ -664,6 +699,7 @@ void IrradianceCache::dispatch_probe_updates(
                 "shaders/gi/cache/probe_rtgi_update.comp.spv");
         }
         auto set = descriptor_allocator.build_set(probe_rtgi_update_shader, 0)
+                                       .bind(cache_cbuffer)
                                        .bind(probes_to_update_buffer)
                                        .bind(trace_results_texture)
                                        .bind(rtgi_a)

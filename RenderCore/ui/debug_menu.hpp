@@ -40,8 +40,6 @@ private:
 
     VkDescriptorSet font_atlas_descriptor_set;
 
-    RenderVisualization selected_visualizer;
-
     int current_taa = 0;
 
     int current_dlss_mode = 1;
@@ -52,7 +50,7 @@ private:
 
     bool use_ray_reconstruction = false;
 
-    int selected_gi_quality = 1;
+    int selected_gi_quality = 2;
 
     void create_font_texture();
 

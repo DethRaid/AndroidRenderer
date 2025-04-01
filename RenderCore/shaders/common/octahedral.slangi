@@ -64,11 +64,11 @@ float2 get_octahedral_coordinates(float3 direction) {
 
 float3 get_probe_uv(in uint3 probe_index, in float2 octant_coords, in uint2 num_probe_texels) {
     const float2 total_num_probe_texels = (float2)num_probe_texels + 2.f;
-    const float2 texture_size = total_num_probe_texels * float2(32, 8);
+    const float2 texture_size = total_num_probe_texels * float2(32, 32);
 
     float2 uv = float2(probe_index.xy * total_num_probe_texels) + total_num_probe_texels * 0.5f;
     uv += octant_coords * ((float2)num_probe_texels * 0.5f);
     uv /= texture_size;
 
-    return float3(uv, probe_index.z / 32.f);
+    return float3(uv, probe_index.z);
 }

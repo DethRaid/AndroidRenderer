@@ -287,9 +287,10 @@ void DLSSAdapter::pack_dlss_rr_inputs(RenderGraph& graph, const GBuffer& gbuffer
 
     if(dlss_rr_packing_pipeline == nullptr) {
         dlss_rr_packing_pipeline = backend.begin_building_pipeline("dlss_rr_input_packing")
-                                          .set_vertex_shader("shaders/common/fullscreen.vert.spv")
-                                          .set_fragment_shader("shaders/dlss/dlss_rr_packing.frag.spv")
-                                          .set_depth_state({.enable_depth_test = false, .enable_depth_write = false})
+            .set_vertex_shader("shaders/common/fullscreen.vert.spv")
+            .set_fragment_shader("shaders/dlss/dlss_rr_packing.frag.spv")
+            .set_depth_state({ .enable_depth_test = false, .enable_depth_write = false })
+            .set_num_attachments(3)
                                           .build();
     }
 

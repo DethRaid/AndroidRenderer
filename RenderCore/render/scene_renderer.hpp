@@ -83,6 +83,8 @@ public:
 
     void set_imgui_commands(ImDrawData* im_draw_data);
 
+    RenderVisualization get_active_visualizer() const;
+
     void set_active_visualizer(RenderVisualization visualizer);
 
 private:
@@ -150,7 +152,7 @@ private:
 
     UiPhase ui_phase;
 
-    RenderVisualization active_visualization = RenderVisualization::None;
+    RenderVisualization active_visualization = RenderVisualization::GIDebug;
 
     std::unique_ptr<IUpscaler> upscaler;
 

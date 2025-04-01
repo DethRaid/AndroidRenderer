@@ -4,22 +4,22 @@
 
 ConstantBuffer<ViewDataGPU> view_data;
 
-ConstantBuffer<ProbeCascade[4]> cascades;
+ConstantBuffer<IrradianceProbeVolume> probe_volume;
 
-Texture3D<half3> rtgi;
+Sampler2DArray<half3> rtgi;
 
-Texture3D<half3> light_cache;
+Sampler2DArray<half3> light_cache;
 
-Texture3D<half2> depth;
+Sampler2DArray<half2> depth;
 
-Texture3D<half3> average;
+Texture2DArray<half3> average;
 
-Texture3D<half> validity;
+Texture2DArray<half> validity;
 
 [vk::push_constant]
 cbuffer Constants {
-    uint cascade_index;
     uint debug_mode;
+    uint cascade_index;
 };
 
 struct VertexOutput {
@@ -35,7 +35,7 @@ half4 main(VertexOutput vertex) {
     }
 
     uint3 probe_id = vertex.probe_id;
-    probe_id.y += cascade_index + 8;
+    probe_id.y += cascade_index * 8;
 
     if (debug_mode == 3) {
         // Sample average and return
@@ -53,41 +53,46 @@ half4 main(VertexOutput vertex) {
     normal.xy = vertex.offset;
     normal.z = sqrt(1.h - vertex.offset.x * vertex.offset.x - vertex.offset.y * vertex.offset.y);
     normal = normalize(normal);
+    normal = (half3)mul(view_data.inverse_view, float4(normal, 0)).xyz;
 
     uint2 probe_size = uint2(5, 6);
     switch (debug_mode) {
     case 0:
-        probe_size = uint2(5, 6);
+        probe_size = probe_volume.rgti_probe_resolution;
         break;
 
     case 1:
-        probe_size = uint2(11, 11);
+        probe_size = probe_volume.light_cache_probe_resolution;
         break;
 
     case 2:
-        probe_size = uint2(10, 10);
+        probe_size = probe_volume.depth_probe_resolution;
         break;
     }
 
     const float2 octant_coord = get_octahedral_coordinates(normal);
     const float3 uv = get_probe_uv(probe_id, octant_coord, probe_size);
-    const int3 texel = (int3)(uv * float3(32, 32, 32) * float3(probe_size, 1));
 
     half3 result;
 
     switch (debug_mode) {
     case 0:
-        result = rtgi[texel];
+        result = rtgi.SampleLevel(uv, 0);
         break;
 
     case 1:
-        result = light_cache[texel];
+        result = light_cache.SampleLevel(uv, 0);
 
     case 2:
-        result.xy = depth[texel];
+        result.xy = depth.SampleLevel(uv, 0);
         result.z = 0;
         break;
     }
 
-    return half4(result, 1);
+    return half4(result * 0.01h, 1);
+
+    // result = (half3)probe_id / half3(32, 8, 32);
+    //result = half3(octant_coord * 0.5 + 0.5, 0);
+
+    // return half4(result, 1);
 }

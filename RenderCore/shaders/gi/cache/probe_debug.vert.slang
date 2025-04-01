@@ -3,22 +3,12 @@
 
 ConstantBuffer<ViewDataGPU> view_data;
 
-ConstantBuffer<ProbeCascade[4]> cascades;
-
-Texture3D<half3> rtgi;
-
-Texture3D<half3> light_cache;
-
-Texture3D<half2> depth;
-
-Texture3D<half3> average;
-
-Texture3D<half> validity;
+ConstantBuffer<IrradianceProbeVolume> probe_volume;
 
 [vk::push_constant]
 cbuffer Constants {
-    uint cascade_index;
     uint debug_mode;
+    uint cascade_index;
 };
 
 struct VertexOutput {
@@ -30,12 +20,12 @@ struct VertexOutput {
 [shader("vertex")]
 VertexOutput main(uint vertex_id: SV_VertexID, uint instance_id: SV_InstanceID) {
     const uint3 probe_id = uint3(instance_id % 32, (instance_id / 32) % 8, instance_id / (32 * 8));
-    const ProbeCascade cascade = cascades[cascade_index];
-    const float3 worldspace_probe_position = cascade.min * (float3)probe_id * cascade.probe_spacing;
+    const ProbeCascade cascade = probe_volume.cascades[cascade_index];
+    const float3 worldspace_probe_position = cascade.min + (float3)probe_id * cascade.probe_spacing;
     const float4 viewspace_probe_position = mul(view_data.view, float4(worldspace_probe_position, 1));
 
     // Draw the probe with a radius of probe_spacing / 2 in viewspace;
-    const float probe_radius = cascade.probe_spacing / 2.f;
+    const float probe_radius = 0.0625;//cascade.probe_spacing / 8.f;
 
     float4 view_position = viewspace_probe_position;
 

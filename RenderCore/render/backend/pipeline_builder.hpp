@@ -120,6 +120,11 @@ public:
     );
 
     /**
+     * Sets the default blend state for the specified number of attachments
+     */
+    GraphicsPipelineBuilder& set_num_attachments(uint32_t num_attachments);
+
+    /**
      * Enables using the pipeline in a pipeline group
      */
     GraphicsPipelineBuilder& enable_dgc();
@@ -163,7 +168,7 @@ private:
     VkPipelineRasterizationStateCreateInfo raster_state = {};
 
     VkPipelineColorBlendStateCreateFlags blend_flags = {};
-    eastl::vector<VkPipelineColorBlendAttachmentState> blends = {};
+    eastl::fixed_vector<VkPipelineColorBlendAttachmentState, 8> blends = {};
 
     bool need_position_buffer = false;
     bool need_data_buffer = false;

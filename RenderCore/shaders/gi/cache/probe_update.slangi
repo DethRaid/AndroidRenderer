@@ -1,7 +1,7 @@
 #pragma once
 
 // from https://github.com/Sunset-Flock/Timberdoodle/blob/dc4ce0ce311d15b47d5283b208fbe6d245a5928c/src/rendering/pgi/pgi_update.hlsl#L60
-void write_probe_texel_with_border<let N : uint>(RWTexture3D<vector<half, N>> tex, int2 probe_res, int3 base_index, int2 probe_texel, vector<half, N> value) {
+void write_probe_texel_with_border<let N : uint>(RWTexture2DArray<vector<half, N>> tex, int2 probe_res, int3 base_index, int2 probe_texel, vector<half, N> value) {
     base_index *= int3(probe_res + 2, 1);
 
     bool2 on_edge = probe_texel == 0 || probe_texel == (probe_res - 1);

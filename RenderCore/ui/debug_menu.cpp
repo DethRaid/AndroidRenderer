@@ -322,8 +322,8 @@ void DebugUI::draw_debug_menu() {
 
         draw_gi_menu();
 
-
         if(ImGui::CollapsingHeader("Visualizers")) {
+            auto selected_visualizer = renderer.get_active_visualizer();
             for(auto visualizer : magic_enum::enum_values<RenderVisualization>()) {
                 const auto name = to_string(visualizer);
                 if(ImGui::Selectable(name, selected_visualizer == visualizer)) {

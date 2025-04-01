@@ -2,17 +2,17 @@
  * Copies probe information from one texture to another, to account for cascade movement. Any new probes get a special value written to validity (0xFF)
  */
 
-Texture3D<half3> rtgi_src;
-Texture3D<half3> light_cache_src;
-Texture3D<half2> depth_src;
-Texture3D<half3> average_srv;
-Texture3D<half> validity_src;
+Texture2DArray<half3> rtgi_src;
+Texture2DArray<half3> light_cache_src;
+Texture2DArray<half2> depth_src;
+Texture2DArray<half3> average_srv;
+Texture2DArray<half> validity_src;
 
-RWTexture3D<half3> rtgi_dest;
-RWTexture3D<half3> light_cache_dest;
-RWTexture3D<half2> depth_dest;
-RWTexture3D<half3> average_dest;
-RWTexture3D<half> validity_dest;
+RWTexture2DArray<half3> rtgi_dest;
+RWTexture2DArray<half3> light_cache_dest;
+RWTexture2DArray<half2> depth_dest;
+RWTexture2DArray<half3> average_dest;
+RWTexture2DArray<half> validity_dest;
 
 [vk::push_constant]
 cbuffer Constants {

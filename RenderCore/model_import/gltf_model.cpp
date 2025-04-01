@@ -105,7 +105,7 @@ void GltfModel::add_primitives(RenderScene& scene, RenderGraph& graph) {
                     const auto& gltf_primitive = mesh.primitives.at(i);
                     const auto& imported_mesh = gltf_primitive_to_mesh_primitive.at(mesh_index).at(i);
                     const auto& imported_material = gltf_material_to_material_handle.at(
-                        *gltf_primitive.materialIndex
+                        gltf_primitive.materialIndex.value_or(0)
                     );
 
                     const auto& bounds = imported_mesh->bounds;
