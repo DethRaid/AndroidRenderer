@@ -11,27 +11,27 @@ struct SunLightConstants {
     /**
      * Light direction (xyz) and tangent of the angular size (w)
      */
-    vec4 direction_and_tan_size;
+    float4 direction_and_tan_size;
 
     /**
      * HDR light color
      */
-    vec4 color;
+    float4 color;
 
-    uvec4 csm_resolution;
+    uint4 csm_resolution;
 
     // Split depth in the x, unused in the y z and w
-    vec4 data[4];
+    float4 data[4];
 
     /**
      * Matrix that goes from world space -> shadow NDC
      */
-    mat4 cascade_matrices[4];
+    float4x4 cascade_matrices[4];
 
     /**
      * Matrix that goes from shadow NDC -> world space
      */
-    mat4 cascade_inverse_matrices[4];
+    float4x4 cascade_inverse_matrices[4];
 
     /**
      * How to handle this light's shadows. See SHADOW_MODE_ above

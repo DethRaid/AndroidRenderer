@@ -1,4 +1,6 @@
 #include "material_storage.hpp"
+
+#include "backend/pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
 
 MaterialStorage::MaterialStorage() : basic_bpr_material_pipelines{ "gltf_basic_pbr" } {
@@ -60,15 +62,14 @@ GraphicsPipelineHandle MaterialStorage::get_pipeline_group() {
     auto& backend = RenderBackend::get();
     auto& pipeline_allocator = backend.get_pipeline_cache();
 
-    auto pipelines_in_group = std::vector<GraphicsPipelineHandle>{};
+    auto pipelines_in_group = eastl::vector<GraphicsPipelineHandle>{};
     pipelines_in_group.reserve(1024);
     const auto& material_proxies = material_instance_pool.get_data();
     for(auto i = 0; i < material_proxies.size(); i++) {
         const auto& proxy = material_instance_pool.make_handle(i);
-        pipelines_in_group.insert(
-            pipelines_in_group.end(),
-            proxy->second.pipelines.begin(),
-            proxy->second.pipelines.end());
+        for(auto handle : proxy->second.pipelines) {
+            pipelines_in_group.emplace_back(handle);
+        }
     }
 
     pipeline_group = pipeline_allocator.create_pipeline_group(pipelines_in_group);

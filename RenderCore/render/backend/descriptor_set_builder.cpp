@@ -22,7 +22,8 @@ static bool is_combined_image_sampler(VkDescriptorType vk_type);
 static bool is_acceleration_structure(VkDescriptorType vk_type);
 
 void DescriptorSet::get_resource_usage_information(
-    std::vector<TextureUsageToken>& texture_usages, std::vector<BufferUsageToken>& buffer_usages
+    TextureUsageList& texture_usages,
+    BufferUsageList& buffer_usages
 ) const {
     auto binding_idx = 0;
     for(const auto& resource : bindings) {
@@ -210,6 +211,12 @@ DescriptorSetBuilder& DescriptorSetBuilder::bind(const AccelerationStructureHand
     return *this;
 }
 
+DescriptorSetBuilder& DescriptorSetBuilder::next_binding(const uint32_t binding_index) {
+    this->binding_index = binding_index;
+
+    return *this;
+}
+
 DescriptorSet DescriptorSetBuilder::build() {
     ZoneScoped;
 
@@ -254,8 +261,6 @@ DescriptorSet DescriptorSetBuilder::build() {
                 {.as = resource.acceleration_structure},
                 binding_info.stageFlags);
 
-        } else {
-            throw std::runtime_error{"Unknown descriptor type!"};
         }
 
         binding_idx++;

@@ -9,6 +9,7 @@
 #include "mesh_storage.hpp"
 #include "noise_texture.hpp"
 #include "render_scene.hpp"
+#include "backend/pipeline_cache.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/command_buffer.hpp"
@@ -63,7 +64,7 @@ DirectionalLight::DirectionalLight() {
                       .set_depth_state(
                           DepthStencilState{
                               .enable_depth_write = false,
-                              .compare_op = VK_COMPARE_OP_GREATER
+                              .compare_op = VK_COMPARE_OP_LESS
                           }
                       )
                       .set_blend_state(
@@ -130,7 +131,7 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
     const auto clip_range = z_near + max_shadow_distance;
     const auto ratio = clip_range / z_near;
 
-    auto cascade_splits = std::vector<float>{};
+    auto cascade_splits = eastl::fixed_vector<float, 4>{};
     cascade_splits.resize(num_cascades);
 
     // Calculate split depths based on view camera frustum
@@ -148,7 +149,7 @@ void DirectionalLight::update_shadow_cascades(const SceneView& view) {
     for(auto i = 0u; i < num_cascades; i++) {
         const auto split_distance = cascade_splits[i];
 
-        auto frustum_corners = std::array{
+        auto frustum_corners = eastl::array{
             glm::vec3{-1.0f, 1.0f, -1.0f},
             glm::vec3{1.0f, 1.0f, -1.0f},
             glm::vec3{1.0f, -1.0f, -1.0f},
@@ -376,7 +377,7 @@ void DirectionalLight::raytrace(
 
     if(rt_pipeline == nullptr) {
         rt_pipeline = backend.get_pipeline_cache()
-                             .create_ray_tracing_pipeline("shaders/lighting/directional_light.rt.raygen.spv", true);
+                             .create_ray_tracing_pipeline("shaders/lighting/directional_light.rt.spv", true);
     }
 
     auto set = backend.get_transient_descriptor_allocator()
@@ -387,7 +388,7 @@ void DirectionalLight::raytrace(
                       .bind(scene.get_raytracing_scene().get_acceleration_structure())
                       .bind(lit_scene)
                       .bind(gbuffer.color)
-                      .bind(gbuffer.normal)
+                      .bind(gbuffer.normals)
                       .bind(gbuffer.data)
                       .bind(gbuffer.depth)
                       .bind(noise.layers[frame_index % noise.num_layers])

@@ -2,7 +2,7 @@
 
 #include <compare>
 #include <typeindex>
-#include <vector>
+#include <EASTL/vector.h>
 
 #include <spdlog/spdlog.h>
 
@@ -52,9 +52,9 @@ public:
 
     PooledObject<ObjectType> make_handle(uint32_t index_in);
 
-    std::vector<ObjectType>& get_data();
+    eastl::vector<ObjectType>& get_data();
 
-    const std::vector<ObjectType>& get_data() const;
+    const eastl::vector<ObjectType>& get_data() const;
 
     ObjectType& operator[](uint32_t index);
 
@@ -65,9 +65,9 @@ private:
 
     std::function<void(ObjectType&&)> deleter;
 
-    std::vector<ObjectType> objects;
+    eastl::vector<ObjectType> objects;
 
-    std::vector<PooledObject<ObjectType>> available_handles;
+    eastl::vector<PooledObject<ObjectType>> available_handles;
 };
 
 template <typename ObjectType>
@@ -139,12 +139,12 @@ ObjectType& ObjectPool<ObjectType>::get_object(const PooledObject<ObjectType>& h
 }
 
 template <typename ObjectType>
-std::vector<ObjectType>& ObjectPool<ObjectType>::get_data() {
+eastl::vector<ObjectType>& ObjectPool<ObjectType>::get_data() {
     return objects;
 }
 
 template <typename ObjectType>
-const std::vector<ObjectType>& ObjectPool<ObjectType>::get_data() const {
+const eastl::vector<ObjectType>& ObjectPool<ObjectType>::get_data() const {
     return objects;
 }
 

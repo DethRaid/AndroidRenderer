@@ -329,7 +329,7 @@ struct DrawBatchCommand {
 
 void DepthCullingPhase::create_command_signature() {
     auto& backend = RenderBackend::get();
-    const auto tokens = std::array{
+    const auto tokens = eastl::array{
         VkIndirectCommandsLayoutTokenNV{
             .sType = VK_STRUCTURE_TYPE_INDIRECT_COMMANDS_LAYOUT_TOKEN_NV,
             .tokenType = VK_INDIRECT_COMMANDS_TOKEN_TYPE_SHADER_GROUP_NV,
@@ -461,11 +461,11 @@ void DepthCullingPhase::draw_visible_objects(
                     VK_ACCESS_2_SHADER_READ_BIT
                 },
             },
-            .descriptor_sets = std::vector{view_descriptor, masked_view_descriptor},
+            .descriptor_sets = {view_descriptor, masked_view_descriptor},
             .depth_attachment = RenderingAttachmentInfo{
                 .image = depth_buffer,
                 .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .clear_value = {.depthStencil = {.depth = 1.0}}
+                .clear_value = {.depthStencil = {.depth = 0.0}}
             },
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_descriptor_set(0, view_descriptor);

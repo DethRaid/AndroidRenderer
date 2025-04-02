@@ -2,7 +2,7 @@
 
 #include <functional>
 #include <queue>
-#include <vector>
+#include <EASTL/vector.h>
 #include <glm/vec2.hpp>
 
 #include <glm/vec3.hpp>
@@ -48,11 +48,11 @@ private:
 
     glm::vec2 player_rotation_input = {};
 
-    std::vector<std::function<void(const glm::vec3&)>> movement_callbacks;
+    eastl::vector<std::function<void(const glm::vec3&)>> movement_callbacks;
 
-    std::vector<std::function<void(const glm::vec2&)>> rotation_callbacks;
+    eastl::vector<std::function<void(const glm::vec2&)>> rotation_callbacks;
 
-    std::vector<std::function<void(const InputEvent&)>> event_callbacks;
+    eastl::vector<std::function<void(const InputEvent&)>> event_callbacks;
 
     std::queue<InputEvent> events;
 };

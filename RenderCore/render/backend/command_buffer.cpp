@@ -92,8 +92,9 @@ void CommandBuffer::barrier(
 }
 
 void CommandBuffer::barrier(
-    const std::vector<VkMemoryBarrier2>& memory_barriers, const std::vector<VkBufferMemoryBarrier2>& buffer_barriers,
-    const std::vector<VkImageMemoryBarrier2>& image_barriers
+    const eastl::fixed_vector<VkMemoryBarrier2, 32>& memory_barriers, 
+    const eastl::fixed_vector<VkBufferMemoryBarrier2, 32>& buffer_barriers,
+    const eastl::fixed_vector<VkImageMemoryBarrier2, 32>& image_barriers
 ) const {
     const auto dependency_info = VkDependencyInfo{
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -131,7 +132,7 @@ void CommandBuffer::build_acceleration_structures(
 }
 
 void CommandBuffer::begin_rendering(const RenderingInfo& info) {
-    auto attachment_infos = std::vector<VkRenderingAttachmentInfo>{};
+    auto attachment_infos = eastl::vector<VkRenderingAttachmentInfo>{};
     attachment_infos.reserve(
         info.color_attachments.size() +
         (info.depth_attachment.has_value() ? 1 : 0)
@@ -313,6 +314,10 @@ void CommandBuffer::draw_triangle() {
 }
 
 void CommandBuffer::dispatch_rays(const glm::uvec2 dispatch_size) {
+    dispatch_rays(glm::uvec3{ dispatch_size, 1u });
+}
+
+void CommandBuffer::dispatch_rays(const glm::uvec3 dispatch_size) {
     commit_bindings();
 
     constexpr auto callable_shader_table = VkStridedDeviceAddressRegionKHR{};
@@ -325,7 +330,7 @@ void CommandBuffer::dispatch_rays(const glm::uvec2 dispatch_size) {
         &callable_shader_table,
         dispatch_size.x,
         dispatch_size.y,
-        1);
+        dispatch_size.z);
 }
 
 void CommandBuffer::execute_commands() {
@@ -365,7 +370,7 @@ void CommandBuffer::bind_pipeline(const GraphicsPipelineHandle& pipeline) {
 
     auto& cache = backend->get_pipeline_cache();
 
-    auto vk_pipeline = cache.get_pipeline_for_dynamic_rendering(
+    auto vk_pipeline = cache.get_pipeline(
         pipeline,
         bound_color_attachment_formats,
         bound_depth_attachment_format,
@@ -498,8 +503,8 @@ void CommandBuffer::reset_event(const VkEvent event, const VkPipelineStageFlags 
     vkCmdResetEvent2(commands, event, stages);
 }
 
-void CommandBuffer::set_event(const VkEvent event, const std::vector<BufferBarrier>& buffers) {
-    auto buffer_barriers = std::vector<VkBufferMemoryBarrier2>{};
+void CommandBuffer::set_event(const VkEvent event, const eastl::vector<BufferBarrier>& buffers) {
+    auto buffer_barriers = eastl::vector<VkBufferMemoryBarrier2>{};
     buffer_barriers.reserve(buffers.size());
     for(const auto& buffer_barrier : buffers) {
         const auto barrier = VkBufferMemoryBarrier2{
@@ -595,7 +600,7 @@ void CommandBuffer::commit_bindings() {
     }
 
     for(uint32_t i = 0; i < descriptor_sets.size(); i++) {
-        if(descriptor_sets[i] != VK_NULL_HANDLE && num_descriptor_sets_in_current_pipeline >= i) {
+        if(descriptor_sets[i] != VK_NULL_HANDLE && num_descriptor_sets_in_current_pipeline > i) {
             vkCmdBindDescriptorSets(
                 commands,
                 current_bind_point,

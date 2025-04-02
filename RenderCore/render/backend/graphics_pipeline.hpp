@@ -1,6 +1,7 @@
 #pragma once
 
-#include <vector>
+#include <EASTL/fixed_vector.h>
+#include <EASTL/vector.h>
 #include <cstdint>
 
 #include "render/backend/pipeline_interface.hpp"
@@ -20,17 +21,17 @@ struct GraphicsPipeline : PipelineBase {
 
     VkPipelineCreateFlags flags;
 
-    std::vector<uint8_t> vertex_shader;
+    eastl::vector<std::byte> vertex_shader;
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-    std::vector<VkVertexInputBindingDescription> vertex_inputs;
+    eastl::fixed_vector<VkVertexInputBindingDescription, 8> vertex_inputs;
 
-    std::vector<VkVertexInputAttributeDescription> vertex_attributes;
+    eastl::fixed_vector<VkVertexInputAttributeDescription, 8> vertex_attributes;
 
-    std::vector<uint8_t> geometry_shader;
+    eastl::vector<std::byte> geometry_shader;
 
-    std::vector<uint8_t> fragment_shader;
+    eastl::vector<std::byte> fragment_shader;
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
 
@@ -38,13 +39,7 @@ struct GraphicsPipeline : PipelineBase {
 
     VkPipelineColorBlendStateCreateFlags blend_flags = {};
 
-    std::vector<VkPipelineColorBlendAttachmentState> blends = {};
-
-    // Renderpass and subpass index that this pipeline was most recently used with
-
-    VkRenderPass last_renderpass = VK_NULL_HANDLE;
-
-    uint32_t last_subpass_index;
+    eastl::fixed_vector<VkPipelineColorBlendAttachmentState, 8> blends = {};
 
     uint32_t group_index;
 };

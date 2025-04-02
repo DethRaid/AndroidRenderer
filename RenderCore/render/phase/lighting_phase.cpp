@@ -1,10 +1,10 @@
 #include "lighting_phase.hpp"
 
+#include "console/cvars.hpp"
 #include "render/procedural_sky.hpp"
 #include "render/render_scene.hpp"
 #include "render/scene_view.hpp"
-#include "render/gi/light_propagation_volume.hpp"
-#include "render/gi/rtgi.hpp"
+#include "render/gi/global_illuminator.hpp"
 
 enum class SkyOcclusionType {
     Off,
@@ -24,33 +24,20 @@ LightingPhase::LightingPhase() {
                                .set_depth_state(
                                    DepthStencilState{
                                        .enable_depth_write = false,
-                                       .compare_op = VK_COMPARE_OP_GREATER
+                                       .compare_op = VK_COMPARE_OP_LESS
                                    }
                                )
-                               .set_blend_state(
-                                   0,
-                                   {
-                                       .blendEnable = VK_TRUE,
-                                       .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                       .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                       .colorBlendOp = VK_BLEND_OP_ADD,
-                                       .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                       .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                       .alphaBlendOp = VK_BLEND_OP_ADD,
-                                       .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-                                   }
-                               )
+                               .set_blend_mode(BlendMode::Additive)
                                .build();
 }
 
 void LightingPhase::render(
     RenderGraph& render_graph,
     const SceneView& view,
+    const GBuffer& gbuffer,
     const TextureHandle lit_scene_texture,
     TextureHandle ao_texture,
-    const LightPropagationVolume* lpv,
-    const RayTracedGlobalIllumination* rtgi,
+    const IGlobalIlluminator* gi,
     const std::optional<TextureHandle> vrsaa_shading_rate_image,
     const NoiseTexture& noise,
     const TextureHandle noise_2d
@@ -75,15 +62,16 @@ void LightingPhase::render(
     auto& sun_pipeline = sun.get_pipeline();
 
     const auto sampler = backend.get_default_sampler();
-    auto gbuffers_descriptor_set = backend.get_transient_descriptor_allocator().build_set(sun_pipeline, 0)
+    auto gbuffers_descriptor_set = backend.get_transient_descriptor_allocator()
+                                          .build_set(sun_pipeline, 0)
                                           .bind(gbuffer.color, sampler)
-                                          .bind(gbuffer.normal, sampler)
+                                          .bind(gbuffer.normals, sampler)
                                           .bind(gbuffer.data, sampler)
                                           .bind(gbuffer.emission, sampler)
                                           .bind(gbuffer.depth, sampler)
                                           .build();
 
-    auto texture_usages = std::vector<TextureUsageToken>{
+    auto texture_usages = TextureUsageList{
         {
             .texture = ao_texture,
             .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
@@ -102,10 +90,10 @@ void LightingPhase::render(
             });
     }
 
-    auto buffer_usages = std::vector<BufferUsageToken>{};
+    auto buffer_usages = BufferUsageList{};
 
-    if(rtgi) {
-        rtgi->get_resource_usages(texture_usages, buffer_usages);
+    if(gi) {
+        gi->get_lighting_resource_usages(texture_usages, buffer_usages);
     }
 
     render_graph.add_render_pass(
@@ -117,9 +105,6 @@ void LightingPhase::render(
             .color_attachments = {
                 RenderingAttachmentInfo{.image = lit_scene_texture, .load_op = VK_ATTACHMENT_LOAD_OP_CLEAR}
             },
-            .depth_attachment = RenderingAttachmentInfo{
-                .image = gbuffer.depth, .load_op = VK_ATTACHMENT_LOAD_OP_LOAD, .store_op = VK_ATTACHMENT_STORE_OP_STORE
-            },
             .execute = [&](CommandBuffer& commands) {
                 commands.bind_descriptor_set(0, gbuffers_descriptor_set);
 
@@ -127,11 +112,8 @@ void LightingPhase::render(
                     sun.render(commands, view);
                 }
 
-                if(lpv) {
-                    lpv->add_lighting_to_scene(commands, view.get_buffer(), ao_texture);
-                }
-                if(rtgi) {
-                    rtgi->add_lighting_to_scene(commands, view.get_buffer(), noise_2d);
+                if(gi) {
+                    gi->render_to_lit_scene(commands, view.get_buffer(), ao_texture, noise_2d);
                 }
 
                 if(*CVarSystem::Get()->GetIntCVar("r.MeshLight.Raytrace")) {
@@ -140,7 +122,7 @@ void LightingPhase::render(
 
                 add_emissive_lighting(commands);
 
-                scene->get_sky().render_sky(commands, view.get_buffer(), sun.get_constant_buffer());
+                scene->get_sky().render_sky(commands, view.get_buffer(), sun.get_constant_buffer(), gbuffer.depth);
 
                 // The sky uses different descriptor sets, so if we add anything after this we'll have to re-bind the gbuffer descriptor set
             }
@@ -150,11 +132,6 @@ void LightingPhase::render(
         sun.raytrace(render_graph, view, gbuffer, *scene, lit_scene_texture, noise);
     }
 }
-
-void LightingPhase::set_gbuffer(const GBuffer& gbuffer_in) {
-    gbuffer = gbuffer_in;
-}
-
 
 void LightingPhase::set_scene(RenderScene& scene_in) {
     scene = &scene_in;

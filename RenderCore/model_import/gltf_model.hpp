@@ -2,10 +2,10 @@
 
 #include <filesystem>
 #include <span>
-#include <unordered_map>
+#include <EASTL/unordered_map.h>
 
 #include <glm/gtc/type_ptr.hpp>
-#include <fastgltf_types.hpp>
+#include <fastgltf/types.hpp>
 
 #include "render/scene_primitive.hpp"
 #include "render/texture_type.hpp"
@@ -27,7 +27,7 @@ glm::mat4 get_node_to_parent_matrix(const fastgltf::Node& node);
  */
 class GltfModel {
 public:
-    GltfModel(std::filesystem::path filepath_in, std::unique_ptr<fastgltf::Asset>&& model, SceneRenderer& renderer);
+    GltfModel(std::filesystem::path filepath_in, fastgltf::Asset&& model, SceneRenderer& renderer);
 
     glm::vec4 get_bounding_sphere() const;
 
@@ -53,19 +53,19 @@ public:
 private:
     std::filesystem::path filepath;
 
-    std::unique_ptr<fastgltf::Asset> model;
+    fastgltf::Asset model;
      
-    std::unordered_map<size_t, TextureHandle> gltf_texture_to_texture_handle;
+    eastl::unordered_map<size_t, TextureHandle> gltf_texture_to_texture_handle;
 
-    std::vector<PooledObject<BasicPbrMaterialProxy>> gltf_material_to_material_handle;
+    eastl::vector<PooledObject<BasicPbrMaterialProxy>> gltf_material_to_material_handle;
 
     // Outer vector is the mesh, inner vector is the primitives within that mesh
-    std::vector<std::vector<MeshHandle>> gltf_primitive_to_mesh_primitive;
+    eastl::vector<eastl::vector<MeshHandle>> gltf_primitive_to_mesh_primitive;
 
     /**
      * All the MeshPrimitives that came from this glTF model
      */
-    std::vector<PooledObject<MeshPrimitive>> scene_primitives;
+    eastl::vector<PooledObject<MeshPrimitive>> scene_primitives;
 
     glm::vec4 bounding_sphere = {};
 
@@ -94,9 +94,9 @@ private:
 
 template <typename TraversalFunction>
 void GltfModel::traverse_nodes(TraversalFunction&& traversal_function) const {
-    const auto& scene = model->scenes[*model->defaultScene];
+    const auto& scene = model.scenes[*model.defaultScene];
     for (const auto& node : scene.nodeIndices) {
-        visit_node(traversal_function, model->nodes[node], glm::mat4{1.f});
+        visit_node(traversal_function, model.nodes[node], glm::mat4{1.f});
     }
 }
 
@@ -109,6 +109,6 @@ void GltfModel::visit_node(TraversalFunction&& traversal_function, const fastglt
     traversal_function(node, local_to_world);
 
     for (const auto& child_node : node.children) {
-        visit_node(traversal_function, model->nodes[child_node], local_to_world);
+        visit_node(traversal_function, model.nodes[child_node], local_to_world);
     }
 }

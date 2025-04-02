@@ -13,7 +13,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_prepass", material_name);
-        depth_pso = backend.begin_building_pipeline(variant_name)
+        depth_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                            .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                            .enable_dgc()
                            .build();
@@ -21,7 +21,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_prepass_masked", material_name);
-        depth_masked_pso = backend.begin_building_pipeline(variant_name)
+        depth_masked_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                                   .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                                   .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
                                   .enable_dgc()
@@ -30,8 +30,13 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_shadow", material_name);
-        shadow_pso = backend.begin_building_pipeline(variant_name)
+        shadow_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                             .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
+                            .set_depth_state(
+                                {
+                                    .compare_op = VK_COMPARE_OP_LESS
+                                }
+                            )
                             .set_raster_state(
                                 {
                                     .depth_clamp_enable = true
@@ -42,9 +47,14 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_shadow_masked", material_name);
-        shadow_masked_pso = backend.begin_building_pipeline(variant_name)
+        shadow_masked_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                                    .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                                    .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
+                                   .set_depth_state(
+                                       {
+                                           .compare_op = VK_COMPARE_OP_LESS
+                                       }
+                                   )
                                    .set_raster_state(
                                        {
                                            .depth_clamp_enable = true
@@ -59,9 +69,14 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
     };
     {
         const auto variant_name = fmt::format("{}_rsm", material_name);
-        rsm_pso = backend.begin_building_pipeline(variant_name)
+        rsm_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                          .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                          .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
+                         .set_depth_state(
+                             {
+                                 .compare_op = VK_COMPARE_OP_LESS
+                             }
+                         )
                          .set_blend_state(0, blend_state)
                          .set_blend_state(1, blend_state)
                          .build();
@@ -69,9 +84,14 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_rsm_masked", material_name);
-        rsm_masked_pso = backend.begin_building_pipeline(variant_name)
+        rsm_masked_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                                 .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                                 .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
+                                .set_depth_state(
+                                    {
+                                        .compare_op = VK_COMPARE_OP_LESS
+                                    }
+                                )
                                 .set_blend_state(0, blend_state)
                                 .set_blend_state(1, blend_state)
                                 .build();
@@ -79,7 +99,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     {
         const auto variant_name = fmt::format("{}_gbuffer", material_name);
-        gbuffer_pso = backend.begin_building_pipeline(variant_name)
+        gbuffer_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                              .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                              .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
                              .set_depth_state(
@@ -97,7 +117,7 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
     }
     {
         const auto variant_name = fmt::format("{}_gbuffer_masked", material_name);
-        gbuffer_masked_pso = backend.begin_building_pipeline(variant_name)
+        gbuffer_masked_pso = backend.begin_building_pipeline(std::string_view{ variant_name.c_str() })
                                     .set_vertex_shader(fmt::format("shaders/materials/{}.vert.spv", variant_name))
                                     .set_fragment_shader(fmt::format("shaders/materials/{}.frag.spv", variant_name))
                                     .set_depth_state(
@@ -134,19 +154,24 @@ MaterialPipelines::MaterialPipelines(std::string_view material_name) {
 
     // Opaque hit group
     opaque_hit_group = backend.create_hit_group(material_name)
-           .add_gi_closesthit_shader(fmt::format("shaders/materials/{}_gi.closesthit.spv", material_name))
-           .add_occlusion_closesthit_shader(fmt::format("shaders/materials/{}_occlusion.closesthit.spv", material_name))
-           .build();
+                              .add_gi_closesthit_shader(
+                                  fmt::format("shaders/materials/{}_gi.closesthit.spv", material_name))
+                              .add_occlusion_closesthit_shader(
+                                  fmt::format("shaders/materials/{}_occlusion.closesthit.spv", material_name))
+                              .build();
 
     // Masked hit group
 
     masked_hit_group = backend.create_hit_group(material_name)
-           .add_gi_anyhit_shader(fmt::format("shaders/materials/{}_gi_masked.anyhit.spv", material_name))
-           .add_gi_closesthit_shader(fmt::format("shaders/materials/{}_gi_masked.closesthit.spv", material_name))
-           .add_occlusion_anyhit_shader(fmt::format("shaders/materials/{}_occlusion_masked.anyhit.spv", material_name))
-           .add_occlusion_closesthit_shader(
-               fmt::format("shaders/materials/{}_occlusion_masked.closesthit.spv", material_name))
-           .build();
+                              .add_gi_anyhit_shader(
+                                  fmt::format("shaders/materials/{}_gi_masked.anyhit.spv", material_name))
+                              .add_gi_closesthit_shader(
+                                  fmt::format("shaders/materials/{}_gi_masked.closesthit.spv", material_name))
+                              .add_occlusion_anyhit_shader(
+                                  fmt::format("shaders/materials/{}_occlusion_masked.anyhit.spv", material_name))
+                              .add_occlusion_closesthit_shader(
+                                  fmt::format("shaders/materials/{}_occlusion_masked.closesthit.spv", material_name))
+                              .build();
 }
 
 GraphicsPipelineHandle MaterialPipelines::get_depth_pso() const {

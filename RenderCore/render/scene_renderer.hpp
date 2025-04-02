@@ -28,6 +28,24 @@
 class GltfModel;
 
 /**
+ * How to calculate global illumination
+ */
+enum class GIMode {
+    /**
+     * No GI
+     */
+    Off,
+    /**
+     * Light Propagation Volume, a la Crytek 2009. This leaks a ton because I don't have the geometry volume working, but it's vaguely plausible and very fast
+     */
+    LPV,
+    /**
+     * Ray traced global illumination
+     */
+    RT
+};
+
+/**
  * Renders the scene
  */
 class SceneRenderer {
@@ -65,6 +83,8 @@ public:
 
     void set_imgui_commands(ImDrawData* im_draw_data);
 
+    RenderVisualization get_active_visualizer() const;
+
     void set_active_visualizer(RenderVisualization visualizer);
 
 private:
@@ -96,32 +116,19 @@ private:
      */
     NoiseTexture stbn_2d_scalar;
 
-    std::unique_ptr<LightPropagationVolume> lpv;
+    GIMode cached_gi_mode = GIMode::Off;
 
-    std::unique_ptr<RayTracedGlobalIllumination> rtgi;
+    std::unique_ptr<IGlobalIlluminator> gi;
 
-    TextureHandle gbuffer_color_handle = nullptr;
-
-    TextureHandle gbuffer_normals_handle = nullptr;
-
-    TextureHandle gbuffer_data_handle = nullptr;
-
-    TextureHandle gbuffer_emission_handle = nullptr;
+    GBuffer gbuffer = {};
 
     TextureHandle ao_handle = nullptr;
-
-    // This should be something like an extracted texture?
-    TextureHandle depth_buffer_mip_chain = nullptr;
-    TextureUsageToken last_frame_depth_usage = {};
-    
-    TextureHandle normal_target_mip_chain = nullptr;
-    TextureUsageToken last_frame_normal_usage = {};
 
     TextureHandle lit_scene_handle = nullptr;
 
     TextureHandle antialiased_scene_handle = nullptr;
 
-    std::vector<TextureHandle> swapchain_images;
+    eastl::vector<TextureHandle> swapchain_images;
 
     /**
      * \brief Screen-space camera jitter applied to this frame
@@ -152,7 +159,7 @@ private:
     AntiAliasingType cached_aa = AntiAliasingType::None;
 
     uint32_t frame_count = 0;
-    
+
     void set_render_resolution(glm::uvec2 new_render_resolution);
 
     void create_scene_render_targets();

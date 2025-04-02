@@ -1,7 +1,8 @@
 #pragma once
-#include <vector>
+#include <EASTL/vector.h>
 #include <volk.h>
 
+#include "EASTL/fixed_vector.h"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/texture_usage_token.hpp"
 #include "render/backend/handles.hpp"
@@ -26,16 +27,16 @@ public:
 private:
     RenderBackend& backend;
 
-    std::vector<BufferUsageToken> initial_buffer_usages;
+    eastl::vector<BufferUsageToken> initial_buffer_usages;
 
-    std::vector<BufferUsageToken> last_buffer_usages;
+    eastl::vector<BufferUsageToken> last_buffer_usages;
 
-    std::vector<TextureUsageToken>  initial_texture_usages;
+    eastl::vector<TextureUsageToken>  initial_texture_usages;
 
-    std::vector<TextureUsageToken> last_texture_usages;
+    eastl::vector<TextureUsageToken> last_texture_usages;
 
-    std::vector<VkBufferMemoryBarrier2> buffer_barriers;
+    eastl::fixed_vector<VkBufferMemoryBarrier2, 32> buffer_barriers;
 
-    std::vector<VkImageMemoryBarrier2> image_barriers;
+    eastl::fixed_vector<VkImageMemoryBarrier2, 32> image_barriers;
 };
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
+#include <EASTL/vector.h>
 #include <span>
 
 #include "render/backend/handles.hpp"
@@ -17,7 +17,7 @@ struct ktxTexture;
 struct TextureUploadJob {
     TextureHandle destination;
     uint32_t mip;
-    std::vector<uint8_t> data;
+    eastl::vector<uint8_t> data;
 };
 
 /**
@@ -30,7 +30,7 @@ struct KtxUploadJob {
 
 struct BufferUploadJob {
     BufferHandle buffer;
-    std::vector<uint8_t> data;
+    eastl::vector<uint8_t> data;
     uint32_t dest_offset;
 };
 
@@ -79,11 +79,11 @@ private:
 
     RenderBackend& backend;
 
-    std::vector<TextureUploadJob> texture_uploads;
+    eastl::vector<TextureUploadJob> texture_uploads;
 
-    std::vector<KtxUploadJob> ktx_uploads;
+    eastl::vector<KtxUploadJob> ktx_uploads;
 
-    std::vector<BufferUploadJob> buffer_uploads;
+    eastl::vector<BufferUploadJob> buffer_uploads;
 
     void upload_ktx(VkCommandBuffer cmds, const KtxUploadJob& job, const GpuBuffer& staging_buffer, size_t offset) const;
 };
@@ -97,7 +97,7 @@ template <typename DataType>
 void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<const DataType> data, const uint32_t dest_offset) {
     auto job = BufferUploadJob{
             .buffer = buffer,
-            .data = std::vector<uint8_t>(data.size() * sizeof(DataType)),
+            .data = eastl::vector<uint8_t>(data.size() * sizeof(DataType)),
             .dest_offset = dest_offset,
     };
     std::memcpy(job.data.data(), data.data(), data.size() * sizeof(DataType));
@@ -109,7 +109,7 @@ template <typename DataType>
 void ResourceUploadQueue::upload_to_buffer(const BufferHandle buffer, std::span<DataType> data, const uint32_t dest_offset) {
     auto job = BufferUploadJob{
             .buffer = buffer,
-            .data = std::vector<uint8_t>(data.size() * sizeof(DataType)),
+            .data = eastl::vector<uint8_t>(data.size() * sizeof(DataType)),
             .dest_offset = dest_offset,
     };
     std::memcpy(job.data.data(), data.data(), data.size() * sizeof(DataType));

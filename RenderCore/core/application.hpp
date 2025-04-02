@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-#include <fastgltf_parser.hpp>
+#include <fastgltf/core.hpp>
 
 #include "user_options_controller.hpp"
 #include "input/input_manager.hpp"

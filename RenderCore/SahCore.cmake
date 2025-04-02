@@ -55,6 +55,7 @@ target_compile_definitions(SahCore PUBLIC
         SAH_USE_STREAMLINE=${SAH_USE_STREAMLINE}
         SAH_USE_XESS=${SAH_USE_XESS}
         UTF_CPP_CPLUSPLUS=202002
+        EASTL_EASTDC_VSNPRINTF=0
         )
 
 if(WIN32)
@@ -75,6 +76,7 @@ target_include_directories(SahCore PUBLIC
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-format-security")
 target_link_libraries(SahCore PUBLIC
+        EASTL
         fastgltf::fastgltf
         glm::glm-header-only
         GPUOpen::VulkanMemoryAllocator

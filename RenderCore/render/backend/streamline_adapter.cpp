@@ -1,5 +1,7 @@
 #include "streamline_adapter.hpp"
 
+#include <tracy/Tracy.hpp>
+
 #if SAH_USE_STREAMLINE
 #include <sl_core_api.h>
 #include <sl_core_types.h>
@@ -10,11 +12,13 @@
 static std::shared_ptr<spdlog::logger> logger;
 
 StreamlineAdapter::StreamlineAdapter() {
+    ZoneScoped;
+
     if (logger == nullptr) {
         logger = SystemInterface::get().get_logger("StreamlineAdapter");
     }
 
-    auto features_to_load = std::vector<sl::Feature>{sl::kFeatureDLSS };
+    auto features_to_load = eastl::vector<sl::Feature>{sl::kFeatureDLSS, sl::kFeatureDLSS_RR };
 
     auto prefs = sl::Preferences{};
     prefs.showConsole = true;
@@ -37,6 +41,8 @@ StreamlineAdapter::~StreamlineAdapter() {
 }
 
 PFN_vkGetInstanceProcAddr StreamlineAdapter::try_load_interposer() {
+    ZoneScoped;
+
     const auto path = std::filesystem::path{ SAH_BINARY_DIR } / "sl.interposer.dll";
     const auto streamline_dir = path.generic_u16string();
     const auto* skill_issue_char = reinterpret_cast<const wchar_t*>(streamline_dir.c_str());

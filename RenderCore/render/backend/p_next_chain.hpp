@@ -1,6 +1,6 @@
 #pragma once
 
-#include <array>
+#include <EASTL/array.h>
 
 #include <volk.h>
 
@@ -13,7 +13,7 @@ struct ExtensibleStruct : ParentStruct {
 
     const ParentStruct* operator*() const;
 
-    std::array<uint8_t, 2048> extension_struct_storage = {};
+    eastl::array<uint8_t, 2048> extension_struct_storage = {};
 
     uint8_t* write_ptr = nullptr;
 

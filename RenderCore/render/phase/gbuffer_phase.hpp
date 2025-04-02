@@ -4,6 +4,7 @@
 
 #include "render/backend/handles.hpp"
 
+struct GBuffer;
 class RenderScene;
 class SceneView;
 struct IndirectDrawingBuffers;
@@ -15,8 +16,7 @@ public:
 
     void render(
         RenderGraph& graph, const RenderScene& scene, const IndirectDrawingBuffers& buffers,
-        const IndirectDrawingBuffers& visible_masked_buffers, TextureHandle gbuffer_depth, TextureHandle gbuffer_color,
-        TextureHandle gbuffer_normals, TextureHandle gbuffer_data, TextureHandle gbuffer_emission,
+        const IndirectDrawingBuffers& visible_masked_buffers, const GBuffer& gbuffer,
         std::optional<TextureHandle> shading_rate, const SceneView& player_view
     );
 };

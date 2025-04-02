@@ -90,7 +90,7 @@ struct VertexOutput {
 #endif
 #if !SAH_DEPTH_ONLY
     half3 normal;
-    half3 tangent;
+    half4 tangent;
 #endif
 };
 
@@ -111,7 +111,7 @@ struct RsmOutput {
 VertexOutput main_vs(
     const float3 position_in,
     const float3 normal_in,
-    const float3 tangent_in,
+    const float4 tangent_in,
     const float2 texcoord_in,
     const half4 color_in,
 #if SAH_MAIN_VIEW
@@ -140,8 +140,9 @@ VertexOutput main_vs(
     output.color = color_in;
 
 #if !SAH_DEPTH_ONLY
-    output.normal = (half3)normalize(mul((half3x3)data.model, normal_in));
-    output.tangent = (half3)normalize(mul((half3x3)data.model, tangent_in));
+    output.normal = (half3)normalize(mul((float3x3)data.model, normal_in));
+    output.tangent.xyz = (half3)normalize(mul((float3x3)data.model, tangent_in.xyz));
+    output.tangent.w = (half)tangent_in.w;
 #endif
 
     return output;
@@ -199,7 +200,13 @@ main_fs(const VertexOutput vertex) {
 
     // Normals
 #if SAH_MAIN_VIEW
-    float3x3 tbn = cotangent_frame(vertex.normal, vertex.viewspace_position, vertex.texcoord);
+    // float3x3 tbn = cotangent_frame(vertex.normal, vertex.viewspace_position, vertex.texcoord);
+    half3 bitangent = cross(vertex.normal, vertex.tangent.xyz) * vertex.tangent.w;
+    half3x3 tbn = half3x3(
+        vertex.tangent.xyz,
+        bitangent,
+        vertex.normal
+    );
     Sampler2D normals_texture = textures[material.normal_texture_index];
     half3 normal_sample = (half3)normals_texture.SampleBias(vertex.texcoord, mip_bias).xyz * 2.h - 1.h;
     half3 normal = mul(normal_sample, tbn);
@@ -352,7 +359,7 @@ void main_anyhit(inout IrradiancePayload payload, in float2 barycentrics) {
 }
 #endif // SAH_MASKED
 
-#include "rtgi/rtgi_payload.slangi"
+#include "gi/rtgi/rtgi_payload.slangi"
 
 [vk::binding(1, 0)]
 ConstantBuffer<SunLightConstants> sun_light;
@@ -363,8 +370,12 @@ RaytracingAccelerationStructure rtas;
 [vk::binding(6, 0)]
 Texture2D<float3> noisetex;
 
+#ifndef RAY_TYPE_OCCLUSION
 #define RAY_TYPE_OCCLUSION 0
+#endif
+#ifndef RAY_TYPE_GI
 #define RAY_TYPE_GI 1
+#endif
 
 [shader("closesthit")]
 void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
@@ -430,16 +441,16 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
     half shadow = 0;
 
     const uint2 noisetex_pixel = uint2(DispatchRaysIndex().xy) % 128;
+    const float3 noise = normalize(noisetex[noisetex_pixel].xyz * 2.f - 1.f);
 
     if (ndotl > 0) {
         const float noise_size = sun_light.direction_and_tan_size.w;
 
-        const float3 noise = normalize(noisetex[noisetex_pixel].xyz * 2.f - 1.f);
         const float3 ray_direction = normalize(light_vector + noise * noise_size);
 
         RayDesc ray;
         ray.Origin = surface.location;
-        ray.Direction = light_vector;
+        ray.Direction = ray_direction;
         ray.TMin = 0.05f;
         ray.TMax = 100000.f;
 
@@ -463,8 +474,12 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
 
     payload.irradiance = brdf_result * sun_light.color.rgb * ndotl * shadow;
 
-    if (payload.num_bounces > 0) {
-        float3 ray_direction = normalize(noisetex[noisetex_pixel].xyz * 2.f - 1.f);
+    payload.irradiance += surface.emission;
+
+    payload.ray_distance = RayTCurrent();
+
+    if (payload.remaining_bounces > 0) {
+        float3 ray_direction = noise;
         if (dot(surface.normal, ray_direction) < 0) {
             ray_direction *= -1;
         }
@@ -477,11 +492,11 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
 
         // irradiance that comes in along the ray
         IrradiancePayload new_payload = (IrradiancePayload)0;
-        new_payload.num_bounces = payload.num_bounces - 1;
+        new_payload.remaining_bounces = payload.remaining_bounces - 1;
 
         TraceRay(
             rtas,
-            RAY_FLAG_CULL_NON_OPAQUE,
+            RAY_FLAG_CULL_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES,
             0xFF,
             RAY_TYPE_GI,
             1,
@@ -497,6 +512,11 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
         if (!any(isnan(bounce_radiance)) && !any(isinf(bounce_radiance))) {
             payload.irradiance += bounce_radiance;
         }
+    }
+
+    if (HitKind() == HIT_KIND_TRIANGLE_BACK_FACE) {
+        payload.ray_distance *= -1;
+        payload.irradiance = 0;
     }
 }
 #endif  // SAH_RT_GI

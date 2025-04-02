@@ -22,7 +22,7 @@ RenderScene::RenderScene(MeshStorage& meshes_in, MaterialStorage& materials_in)
     );
 
     // Defaults
-    sun.set_direction({0.1f, -1.f, -0.33f});
+    sun.set_direction({0.1f, -1.f, -1.f});
     // sun.set_direction({0.1f, -1.f, -0.01f});
     sun.set_color(glm::vec4{1.f, 1.f, 1.f, 0.f} * 80000.f);
 
@@ -105,15 +105,15 @@ void RenderScene::begin_frame(RenderGraph& graph) {
     sky.update_sky_luts(graph, sun.get_direction());
 }
 
-const std::vector<PooledObject<MeshPrimitive>>& RenderScene::get_solid_primitives() const {
+const eastl::vector<PooledObject<MeshPrimitive>>& RenderScene::get_solid_primitives() const {
     return solid_primitives;
 }
 
-const std::vector<MeshPrimitiveHandle>& RenderScene::get_masked_primitives() const {
+const eastl::vector<MeshPrimitiveHandle>& RenderScene::get_masked_primitives() const {
     return masked_primitives;
 }
 
-const std::vector<MeshPrimitiveHandle>& RenderScene::get_transparent_primitives() const {
+const eastl::vector<MeshPrimitiveHandle>& RenderScene::get_transparent_primitives() const {
     return translucent_primitives;
 }
 
@@ -133,10 +133,10 @@ const DirectionalLight& RenderScene::get_sun_light() const { return sun; }
 
 const ProceduralSky& RenderScene::get_sky() const { return sky; }
 
-std::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
+eastl::vector<PooledObject<MeshPrimitive>> RenderScene::get_primitives_in_bounds(
     const glm::vec3& min_bounds, const glm::vec3& max_bounds
 ) const {
-    auto output = std::vector<PooledObject<MeshPrimitive>>{};
+    auto output = eastl::vector<PooledObject<MeshPrimitive>>{};
     output.reserve(solid_primitives.size());
 
     const auto test_box = Box{.min = min_bounds, .max = max_bounds};
@@ -275,7 +275,7 @@ BufferHandle RenderScene::generate_vpls_for_primitive(
     graph.add_compute_dispatch(
         ComputeDispatch<EmissivePointCloudConstants>{
             .name = "Build emissive points",
-            .descriptor_sets = std::vector{backend.get_texture_descriptor_pool().get_descriptor_set()},
+            .descriptor_sets = {backend.get_texture_descriptor_pool().get_descriptor_set()},
             .buffers = {
                 {
                     vpl_buffer_handle,

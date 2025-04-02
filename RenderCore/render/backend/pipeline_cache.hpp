@@ -20,11 +20,11 @@ public:
 
     GraphicsPipelineHandle create_pipeline(const GraphicsPipelineBuilder& pipeline_builder);
 
-    ComputePipelineHandle create_pipeline(const std::string& shader_file_path);
+    ComputePipelineHandle create_pipeline(const std::filesystem::path& shader_file_path);
 
     GraphicsPipelineHandle create_pipeline_group(std::span<GraphicsPipelineHandle> pipelines_in);
 
-    VkPipeline get_pipeline_for_dynamic_rendering(
+    VkPipeline get_pipeline(
         GraphicsPipelineHandle pipeline,
         std::span<const VkFormat> color_attachment_formats,
         std::optional<VkFormat> depth_format = std::nullopt,
@@ -32,14 +32,10 @@ public:
         bool use_fragment_shading_rate_attachment = false
     ) const;
 
-    VkPipeline get_pipeline(
-        GraphicsPipelineHandle pipeline, VkRenderPass active_render_pass, uint32_t active_subpass
-    ) const;
-
     /**
      * Registers global miss shaders, to be used for all RT pipelines
      */
-    void add_miss_shaders(std::span<const uint8_t> occlusion_miss, std::span<const uint8_t> gi_miss);
+    void add_miss_shaders(std::span<const std::byte> occlusion_miss, std::span<const std::byte> gi_miss);
 
     /**
      * Adds a shader group to the cache. All shader groups will be added to every ray tracing pipeline. This should be
@@ -60,9 +56,9 @@ private:
 
     plf::colony<HitGroup> shader_groups;
 
-    std::vector<uint8_t> occlusion_miss_shader;
+    eastl::vector<std::byte> occlusion_miss_shader;
 
-    std::vector<uint8_t> gi_miss_shader;
+    eastl::vector<std::byte> gi_miss_shader;
 
     plf::colony<RayTracingPipeline> ray_tracing_pipelines;
 };

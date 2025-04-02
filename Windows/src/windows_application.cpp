@@ -22,7 +22,7 @@ int main(const int argc, const char** argv) {
 
         {
             ZoneScopedN("Init application");
-            application.load_scene("assets/Sponza/Sponza.compressed.glb");
+            // application.load_scene("assets/Sponza/Sponza.compressed.glb");
             // application.load_scene("assets/path_tracing_nightmare.compressed.glb");
             // application.load_scene("assets/shadow_test.glb");
             // application.load_scene("assets/deccercube/SM_Deccer_Cubes_Textured.compressed.glb");
@@ -37,6 +37,7 @@ int main(const int argc, const char** argv) {
             // application.load_scene("assets/NormalTangentTest/gltf/NormalTangentTest.gltf");
             // application.load_scene("assets/AlphaTest.gltf");
             // application.load_scene("assets/CornelBoxKinda.glb");
+            application.load_scene("assets/GiOcclusionTest.glb");
             application.update_resolution();
         }
 

@@ -1,10 +1,12 @@
 #include "xess.hpp"
 
 #include "core/system_interface.hpp"
+#include "render/gbuffer.hpp"
 #include "render/scene_view.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/utils.hpp"
 #include "render/phase/motion_vectors_phase.hpp"
+#include "render/backend/render_graph.hpp"
 
 #if SAH_USE_XESS
 #include <xess/xess_vk.h>
@@ -22,7 +24,7 @@ static AutoCVar_Enum cvar_xess_mode{
     XESS_QUALITY_SETTING_AA
 };
 
-std::vector<std::string> XeSSAdapter::get_instance_extensions() {
+eastl::vector<std::string> XeSSAdapter::get_instance_extensions() {
     uint32_t instance_extension_count;
     const char* const* instance_extensions;
     uint32_t api_version;
@@ -36,7 +38,7 @@ std::vector<std::string> XeSSAdapter::get_instance_extensions() {
         return {};
     }
 
-    auto extensions = std::vector<std::string>{};
+    auto extensions = eastl::vector<std::string>{};
     extensions.reserve(instance_extension_count);
 
     for(auto i = 0u; i < instance_extension_count; i++) {
@@ -46,7 +48,7 @@ std::vector<std::string> XeSSAdapter::get_instance_extensions() {
     return extensions;
 }
 
-std::vector<std::string> XeSSAdapter::get_device_extensions(
+eastl::vector<std::string> XeSSAdapter::get_device_extensions(
     const VkInstance instance, const VkPhysicalDevice physical_device
 ) {
     uint32_t device_extension_count;
@@ -62,7 +64,7 @@ std::vector<std::string> XeSSAdapter::get_device_extensions(
         return {};
     }
 
-    auto extensions = std::vector<std::string>{};
+    auto extensions = eastl::vector<std::string>{};
     extensions.reserve(device_extension_count);
 
     for(auto i = 0u; i < device_extension_count; i++) {
@@ -131,7 +133,7 @@ void XeSSAdapter::initialize(const glm::uvec2 output_resolution, const uint32_t 
         cached_output_resolution = output_resolution;
         cached_quality_mode = cvar_xess_mode.Get();
 
-        uint32_t flags = XESS_INIT_FLAG_JITTERED_MV;
+        uint32_t flags = XESS_INIT_FLAG_JITTERED_MV | XESS_INIT_FLAG_INVERTED_DEPTH;
         if(MotionVectorsPhase::render_full_res()) {
             flags |= XESS_INIT_FLAG_HIGH_RES_MV;
         }
@@ -174,8 +176,8 @@ void XeSSAdapter::set_constants(const SceneView& scene_view, const glm::uvec2 re
 static xess_vk_image_view_info wrap_image(TextureHandle texture);
 
 void XeSSAdapter::evaluate(
-    RenderGraph& graph, const TextureHandle color_in, const TextureHandle color_out, const TextureHandle depth_in,
-    const TextureHandle motion_vectors_in
+    RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, const TextureHandle color_in,
+    const TextureHandle color_out, const TextureHandle motion_vectors_in
 ) {
     graph.add_pass(
         {
@@ -194,7 +196,7 @@ void XeSSAdapter::evaluate(
                     .layout = VK_IMAGE_LAYOUT_GENERAL
                 },
                 {
-                    .texture = depth_in,
+                    .texture = gbuffer.depth,
                     .stage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                     .access = VK_ACCESS_2_SHADER_READ_BIT,
                     .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -209,7 +211,7 @@ void XeSSAdapter::evaluate(
             .execute = [&](CommandBuffer& commands) {
                 params.colorTexture = wrap_image(color_in);
                 params.velocityTexture = wrap_image(motion_vectors_in);
-                params.depthTexture = wrap_image(depth_in);
+                params.depthTexture = wrap_image(gbuffer.depth);
                 params.outputTexture = wrap_image(color_out);
 
                 auto result = xessVKExecute(context, commands.get_vk_commands(), &params);

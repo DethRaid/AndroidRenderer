@@ -1,7 +1,7 @@
 #pragma once
 
 #include <memory>
-#include <vector>
+#include <EASTL/vector.h>
 #include <volk.h>
 
 #include "descriptor_set_builder.hpp"
@@ -38,8 +38,8 @@ private:
 
     DescriptorSet descriptor_set;
 
-    std::vector<uint32_t> available_handles;
+    eastl::vector<uint32_t> available_handles;
 
-    std::vector<std::unique_ptr<VkDescriptorImageInfo>> image_infos;
-    std::vector<VkWriteDescriptorSet> pending_writes;
+    eastl::vector<std::unique_ptr<VkDescriptorImageInfo>> image_infos;
+    eastl::vector<VkWriteDescriptorSet> pending_writes;
 };

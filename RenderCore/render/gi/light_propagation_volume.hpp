@@ -1,10 +1,11 @@
 #pragma once
 
-#include <vector>
+#include <EASTL/vector.h>
 
 #include <glm/mat4x4.hpp>
 #include <vulkan/vulkan_core.h>
 
+#include "global_illuminator.hpp"
 #include "render/backend/handles.hpp"
 
 class ResourceUploadQueue;
@@ -59,62 +60,32 @@ enum class GvBuildMode {
  *
  * Each cascade is 2x as large as the previous cascade, but has the same number of cells
  */
-class LightPropagationVolume {
+class LightPropagationVolume : public IGlobalIlluminator {
 public:
     explicit LightPropagationVolume();
 
-    ~LightPropagationVolume();
+    ~LightPropagationVolume() override;
 
-    /**
-     * Updates the transform of this LPV to match the scene view
-     */
-    void update_cascade_transforms(const SceneView& view, const DirectionalLight& light);
+    void pre_render(
+        RenderGraph& graph, const SceneView& view, const RenderScene& scene, TextureHandle noise_tex
+    ) override;
 
-    void clear_volume(RenderGraph& render_graph);
+    void post_render(
+        RenderGraph& graph, const SceneView& view, const RenderScene& scene, const GBuffer& gbuffer,
+        TextureHandle noise_tex
+    ) override;
 
-    static GvBuildMode get_build_mode();
+    void get_lighting_resource_usages(
+        TextureUsageList& textures, BufferUsageList& buffers
+    ) const override;
 
-    /**
-     * \brief Builds the geometry volume from last frame's depth buffer
-     *
-     * \param graph Render graph to use
-     * \param depth_buffer Scene depth buffer to inject
-     * \param normal_target gbuffer normals to inject
-     * \param view_uniform_buffer The view uniform buffer that was used to render the depth and normals targets
-     * \param resolution Resolution of the depth and normal targets
-     */
-    void build_geometry_volume_from_scene_view(
-        RenderGraph& graph, TextureHandle depth_buffer,
-        TextureHandle normal_target, BufferHandle view_uniform_buffer, glm::uvec2 resolution
-    ) const;
+    void render_to_lit_scene(
+        CommandBuffer& commands, BufferHandle view_buffer, TextureHandle ao_tex, TextureHandle noise_tex
+    ) const override;
 
-    void inject_indirect_sun_light(RenderGraph& graph, RenderScene& scene);
-
-    void dispatch_vpl_injection_pass(
-        RenderGraph& graph, uint32_t cascade_index, const CascadeData& cascade
-    );
-
-    /**
-     * \brief Injects emissive mesh VPL clouds into the LPV
-     */
-    void inject_emissive_point_clouds(RenderGraph& graph, const RenderScene& scene);
-
-    void propagate_lighting(RenderGraph& render_graph);
-
-    /**
-     * Additively renders the LPV onto the bound framebuffer
-     *
-     * @param commands The command buffer to render with. Should already have a framebuffer bound
-     * @param scene_view_buffer Buffer with the matrices of the scene view
-     * @param ao_texture Ambient occlusion texture
-     */
-    void add_lighting_to_scene(
-        CommandBuffer& commands, BufferHandle scene_view_buffer, TextureHandle ao_texture
-    ) const;
-
-    void visualize_vpls(
-        RenderGraph& graph, BufferHandle scene_view_buffer, TextureHandle lit_scene, TextureHandle depth_buffer
-    );
+    void draw_debug_overlays(
+        RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, TextureHandle lit_scene_texture
+    ) override;
 
 private:
     // RSM render targets. Each is an array texture with one layer per cascade
@@ -150,7 +121,7 @@ private:
 
     ComputePipelineHandle propagation_shader;
 
-    std::vector<CascadeData> cascades;
+    eastl::vector<CascadeData> cascades;
     BufferHandle cascade_data_buffer = {};
 
     /**
@@ -162,6 +133,8 @@ private:
      * Renders the LPV into the lighting buffer
      */
     GraphicsPipelineHandle lpv_render_shader;
+
+    static inline GraphicsPipelineHandle gv_visualization_pipeline = nullptr;
 
     /**
      * Renders a visualization of each VPL
@@ -179,6 +152,52 @@ private:
     void update_buffers() const;
 
     /**
+     * Updates the transform of this LPV to match the scene view
+     */
+    void update_cascade_transforms(const SceneView& view, const DirectionalLight& light);
+
+    void clear_volume(RenderGraph& render_graph) const;
+
+    static GvBuildMode get_build_mode();
+
+    /**
+     * \brief Builds the geometry volume from last frame's depth buffer
+     *
+     * \param graph Render graph to use
+     * \param depth_buffer Scene depth buffer to inject
+     * \param normal_target gbuffer normals to inject
+     * \param view_uniform_buffer The view uniform buffer that was used to render the depth and normals targets
+     */
+    void build_geometry_volume_from_scene_view(
+        RenderGraph& graph, TextureHandle depth_buffer,
+        TextureHandle normal_target, BufferHandle view_uniform_buffer
+    ) const;
+
+    void inject_indirect_sun_light(RenderGraph& graph, const RenderScene& scene) const;
+
+    void dispatch_vpl_injection_pass(
+        RenderGraph& graph, uint32_t cascade_index, const CascadeData& cascade
+    ) const;
+
+    /**
+     * \brief Injects emissive mesh VPL clouds into the LPV
+     */
+    void inject_emissive_point_clouds(RenderGraph& graph, const RenderScene& scene) const;
+
+    void propagate_lighting(RenderGraph& render_graph) const;
+
+    /**
+     * Additively renders the LPV onto the bound framebuffer
+     *
+     * @param commands The command buffer to render with. Should already have a framebuffer bound
+     * @param scene_view_buffer Buffer with the matrices of the scene view
+     * @param ao_texture Ambient occlusion texture
+     */
+    void add_lighting_to_scene(
+        CommandBuffer& commands, BufferHandle scene_view_buffer, TextureHandle ao_texture
+    ) const;
+
+    /**
      * \brief Injects the RSM depth and normals buffers for a given cascade into that cascade's geometry volume
      *
      * This method dispatches one point for each pixel in the depth buffer. The vertex shader reads the depth and
@@ -190,4 +209,12 @@ private:
      * \param cascade_index Index of the cascade that we're injecting into
      */
     void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index) const;
+
+    void visualize_geometry_volume(
+        RenderGraph& graph, const SceneView& view, TextureHandle lit_scene_texture, TextureHandle depth
+    );
+
+    void visualize_vpls(
+        RenderGraph& graph, BufferHandle scene_view_buffer, TextureHandle lit_scene, TextureHandle depth_buffer
+    );
 };

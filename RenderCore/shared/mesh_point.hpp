@@ -4,8 +4,8 @@
 #include "shared/prelude.h"
 
 struct ShPoint {
-    vec4 position;
-    vec4 sh;
+    float4 position;
+    float4 sh;
 };
 
 #endif

@@ -1,0 +1,74 @@
+#pragma once
+
+/**
+ * Returns either -1 or 1 based on the sign of the input value.
+ * If the input is zero, 1 is returned.
+ */
+float sign_not_zero(float v) {
+    return (v >= 0.f) ? 1.f : -1.f;
+}
+
+float2 sign_not_zero(float2 v) {
+    return select(v >= 0.f, float2(1.f), float2(-1.f));
+}
+
+/**
+ * Computes normalized octahedral coordinates for the given texel coordinates.
+ */
+float2 get_normalized_octahedral_coordinates(in int2 tex_coords, in uint num_texels) {
+    return get_normalized_octahedral_coordinates(tex_coords, uint2(num_texels, num_texels));
+}
+
+/**
+ * Computes normalized octahedral coordinates for the given texel coordinates.
+ */
+float2 get_normalized_octahedral_coordinates(in int2 tex_coords, in uint2 num_texels) {
+    // Map 2D texture coordinates to a normalized octahedral space
+    float2 octahedral_texel_coord = float2(tex_coords % num_texels);
+
+    // Move to the center of a texel
+    octahedral_texel_coord.xy += 0.5f;
+
+    // Normalize
+    octahedral_texel_coord.xy /= float2(num_texels);
+
+    // Shift to [-1, 1);
+    octahedral_texel_coord *= 2.f;
+    octahedral_texel_coord -= float2(1.f, 1.f);
+
+    return octahedral_texel_coord;
+}
+
+/**
+ * Computes the normalized octahedral direction that corresponds to the given normalized coordinates on the [-1, 1] square.
+ */
+float3 get_octahedral_direction(in float2 coords) {
+    float3 direction = float3(coords.x, coords.y, 1.f - abs(coords.x) - abs(coords.y));
+    if(direction.z < 0.f) {
+        direction.xy = (1.f - abs(direction.yx)) * sign_not_zero(direction.xy);
+    }
+    return normalize(direction);
+}
+
+/**
+ * Computes the octant coordinates in the normalized [-1, 1] square, for the given a unit direction vector.
+ */
+float2 get_octahedral_coordinates(float3 direction) {
+    float l1norm = abs(direction.x) + abs(direction.y) + abs(direction.z);
+    float2 uv = direction.xy * (1.f / l1norm);
+    if(direction.z < 0.f) {
+        uv = (1.f - abs(uv.yx)) * sign_not_zero(uv.xy);
+    }
+    return uv;
+}
+
+float3 get_probe_uv(in uint3 probe_index, in float2 octant_coords, in uint2 num_probe_texels) {
+    const float2 total_num_probe_texels = (float2)num_probe_texels + 2.f;
+    const float2 texture_size = total_num_probe_texels * float2(32, 32);
+
+    float2 uv = float2(probe_index.xy * total_num_probe_texels) + total_num_probe_texels * 0.5f;
+    uv += octant_coords * ((float2)num_probe_texels * 0.5f);
+    uv /= texture_size;
+
+    return float3(uv, probe_index.z);
+}

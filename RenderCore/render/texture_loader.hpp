@@ -4,6 +4,7 @@
 // #define KHRONOS_STATIC
 
 #include <filesystem>
+#include <unordered_map>
 
 #include <tl/optional.hpp>
 #include <volk.h>
@@ -40,7 +41,7 @@ public:
      * @param data The raw data for the texture
      */
     tl::optional<TextureHandle> upload_texture_ktx(
-        const std::filesystem::path& filepath, const std::vector<uint8_t>& data
+        const std::filesystem::path& filepath, const eastl::vector<std::byte>& data
     );
 
     /**
@@ -51,7 +52,7 @@ public:
      * @param type The type of the texture
      */
     tl::optional<TextureHandle> upload_texture_stbi(
-        const std::filesystem::path& filepath, const std::vector<uint8_t>& data, TextureType type
+        const std::filesystem::path& filepath, const eastl::vector<std::byte>& data, TextureType type
     );
 
 private:

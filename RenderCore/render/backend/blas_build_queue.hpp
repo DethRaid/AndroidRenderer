@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <EASTL/vector.h>
 
 #include "render/backend/acceleration_structure.hpp"
 
@@ -20,5 +20,5 @@ public:
     void flush_pending_builds(RenderGraph& graph);
 
 private:
-    std::vector<BlasBuildJob> pending_jobs;
+    eastl::vector<BlasBuildJob> pending_jobs;
 };

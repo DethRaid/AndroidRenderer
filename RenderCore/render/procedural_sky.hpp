@@ -25,12 +25,12 @@ public:
     void update_sky_luts(RenderGraph& graph, const glm::vec3& light_vector) const;
 
     void render_sky(
-        CommandBuffer& commands, BufferHandle view_buffer, BufferHandle sun_buffer
+        CommandBuffer& commands, BufferHandle view_buffer, BufferHandle sun_buffer, TextureHandle gbuffer_depth
     ) const;
 
     TextureHandle get_sky_view_lut() const;
 
-    TextureHandle get_transmission_lut() const;
+    TextureHandle get_transmittance_lut() const;
 
     VkSampler get_sampler() const;
 

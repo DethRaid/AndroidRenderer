@@ -1,6 +1,0 @@
-#pragma once
-
-struct IrradiancePayload {
-    float3 irradiance;
-    uint num_bounces;
-}

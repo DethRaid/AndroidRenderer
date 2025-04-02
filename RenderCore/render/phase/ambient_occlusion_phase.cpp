@@ -22,7 +22,7 @@ static AutoCVar_Int cvar_rtao_samples{
 };
 
 static AutoCVar_Float cvar_ao_radius{
-    "r.AO.MaxRayDistance", "Maximum ray distance for RTAO", 1.2f
+    "r.AO.MaxRayDistance", "Maximum ray distance for RTAO", 8.f
 };
 
 #if SAH_USE_FFX

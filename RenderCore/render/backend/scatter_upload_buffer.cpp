@@ -1,5 +1,7 @@
 #include "scatter_upload_buffer.hpp"
 
+#include "render/backend/pipeline_cache.hpp"
+
 static ComputePipelineHandle scatter_shader = nullptr;
 
 ComputePipelineHandle get_scatter_upload_shader() {

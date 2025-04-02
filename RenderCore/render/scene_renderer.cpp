@@ -15,19 +15,9 @@
 
 static std::shared_ptr<spdlog::logger> logger;
 
-enum class GIMode {
-    Off,
-    LPV,
-    RT
-};
-
 // ReSharper disable CppDeclaratorNeverUsed
 static auto cvar_gi_mode = AutoCVar_Enum{
     "r.GI.Mode", "How to calculate GI", GIMode::RT
-};
-
-static auto cvar_enable_mesh_lights = AutoCVar_Int{
-    "r.MeshLight.Enable", "Whether or not to enable mesh lights", 1
 };
 
 static auto cvar_raytrace_mesh_lights = AutoCVar_Int{
@@ -35,7 +25,7 @@ static auto cvar_raytrace_mesh_lights = AutoCVar_Int{
 };
 
 static auto cvar_anti_aliasing = AutoCVar_Enum{
-    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::DLSS
+    "r.AntiAliasing", "What kind of antialiasing to use", AntiAliasingType::FSR3
 };
 
 /*
@@ -55,6 +45,8 @@ static auto cvar_anti_aliasing = AutoCVar_Enum{
 // ReSharper restore CppDeclaratorNeverUsed
 
 SceneRenderer::SceneRenderer() {
+    ZoneScoped;
+
     logger = SystemInterface::get().get_logger("SceneRenderer");
 
     // player_view.set_position(glm::vec3{2.f, -1.f, 3.0f});
@@ -133,6 +125,8 @@ void SceneRenderer::render() {
 
     backend.advance_frame();
 
+    player_view.increment_frame_count();
+
     logger->trace("Beginning frame");
 
     auto needs_motion_vectors = false;
@@ -141,7 +135,7 @@ void SceneRenderer::render() {
     case AntiAliasingType::None:
         vrsaa = nullptr;
         upscaler = nullptr;
-        set_render_resolution(output_resolution );
+        set_render_resolution(output_resolution);
         player_view.set_mip_bias(0);
         break;
 
@@ -199,35 +193,27 @@ void SceneRenderer::render() {
         needs_motion_vectors = true;
     }
 
-    if(cvar_gi_mode.Get() == GIMode::LPV) {
-        if(lpv == nullptr) {
-            lpv = std::make_unique<LightPropagationVolume>();
+    switch(cvar_gi_mode.Get()) {
+    case GIMode::Off:
+        gi = nullptr;
+        break;
+    case GIMode::LPV:
+        if(cached_gi_mode != GIMode::LPV) {
+            gi = std::make_unique<LightPropagationVolume>();
         }
-    } else {
-        lpv = nullptr;
-    }
-
-    if(cvar_gi_mode.Get() == GIMode::RT && RayTracedGlobalIllumination::should_render()) {
-        if(rtgi == nullptr) {
-            rtgi = std::make_unique<RayTracedGlobalIllumination>();
+        break;
+    case GIMode::RT:
+        if(cached_gi_mode != GIMode::RT) {
+            gi = std::make_unique<RayTracedGlobalIllumination>();
         }
-    } else {
-        rtgi = nullptr;
+        break;
     }
+    cached_gi_mode = cvar_gi_mode.Get();
 
     ui_phase.add_data_upload_passes(backend.get_upload_queue());
 
-    const auto gbuffer_depth_handle = depth_culling_phase.get_depth_buffer();
-    lighting_pass.set_gbuffer(
-        GBuffer{
-            .color = gbuffer_color_handle,
-            .normal = gbuffer_normals_handle,
-            .data = gbuffer_data_handle,
-            .emission = gbuffer_emission_handle,
-            .depth = gbuffer_depth_handle,
-        }
-    );
-
+    gbuffer.depth = depth_culling_phase.get_depth_buffer();
+    
     backend.get_texture_descriptor_pool().commit_descriptors();
 
     update_jitter();
@@ -237,14 +223,7 @@ void SceneRenderer::render() {
         upscaler->set_constants(player_view, scene_render_resolution);
     }
 
-    auto render_graph = backend.create_render_graph();
-
-    if(last_frame_depth_usage.texture != nullptr) {
-        render_graph.set_resource_usage(last_frame_depth_usage, true);
-    }
-    if(last_frame_normal_usage.texture != nullptr) {
-        render_graph.set_resource_usage(last_frame_normal_usage, true);
-    }
+    auto render_graph = RenderGraph{ backend };
 
     render_graph.add_pass(
         {
@@ -263,10 +242,6 @@ void SceneRenderer::render() {
         }
 
         sun.update_buffer(backend.get_upload_queue());
-
-        if(lpv) {
-            lpv->update_cascade_transforms(player_view, scene->get_sun_light());
-        }
     }
 
     backend.get_blas_build_queue().flush_pending_builds(render_graph);
@@ -340,29 +315,8 @@ void SceneRenderer::render() {
             visible_masked_buffers);
     }
 
-    // LPV
-
-    if(lpv) {
-        lpv->clear_volume(render_graph);
-
-        const auto build_mode = LightPropagationVolume::get_build_mode();
-        if(build_mode == GvBuildMode::DepthBuffers) {
-            lpv->build_geometry_volume_from_scene_view(
-                render_graph,
-                depth_buffer_mip_chain,
-                normal_target_mip_chain,
-                player_view.get_buffer(),
-                scene_render_resolution / glm::uvec2{2}
-            );
-        }
-
-        // VPL cloud generation
-
-        lpv->inject_indirect_sun_light(render_graph, *scene);
-
-        if(cvar_enable_mesh_lights.Get()) {
-            lpv->inject_emissive_point_clouds(render_graph, *scene);
-        }
+    if(gi) {
+        gi->pre_render(render_graph, player_view, *scene, stbn_3d_unitvec.get_layer(frame_count));
     }
 
     // Shadows
@@ -370,10 +324,6 @@ void SceneRenderer::render() {
     if(DirectionalLight::get_shadow_mode() == SunShadowMode::CascadedShadowMaps) {
         const auto& sun = scene->get_sun_light();
         sun.render_shadows(render_graph, *scene);
-    }
-
-    if(lpv) {
-        lpv->propagate_lighting(render_graph);
     }
 
     // Generate shading rate image
@@ -417,21 +367,16 @@ void SceneRenderer::render() {
         *scene,
         visible_solids_buffers,
         visible_masked_buffers,
-        gbuffer_depth_handle,
-        gbuffer_color_handle,
-        gbuffer_normals_handle,
-        gbuffer_data_handle,
-        gbuffer_emission_handle,
+        gbuffer,
         vrsaa_shading_rate_image,
         player_view);
 
-    if(rtgi) {
-        rtgi->trace_global_illumination(
+    if(gi) {
+        gi->post_render(
             render_graph,
             player_view,
             *scene,
-            gbuffer_normals_handle,
-            gbuffer_depth_handle,
+            gbuffer,
             stbn_3d_unitvec.layers[frame_count % stbn_3d_unitvec.num_layers]);
     }
 
@@ -440,24 +385,30 @@ void SceneRenderer::render() {
         player_view,
         *scene,
         stbn_3d_unitvec,
-        gbuffer_normals_handle,
-        gbuffer_depth_handle,
+        gbuffer.normals,
+        gbuffer.depth,
         ao_handle);
 
     lighting_pass.render(
         render_graph,
         player_view,
+        gbuffer,
         lit_scene_handle,
         ao_handle,
-        lpv.get(),
-        rtgi.get(),
+        gi.get(),
         vrsaa_shading_rate_image,
         stbn_3d_unitvec,
         stbn_2d_scalar.get_layer(frame_count));
 
+    // Debug
+
+    if (active_visualization != RenderVisualization::None) {
+        draw_debug_visualizers(render_graph);
+    }
+
     // Anti-aliasing/upscaling
 
-    evaluate_antialiasing(render_graph, gbuffer_depth_handle);
+    evaluate_antialiasing(render_graph, gbuffer.depth);
 
     // Bloom
 
@@ -466,12 +417,6 @@ void SceneRenderer::render() {
     // Other postprocessing
 
     // TODO
-
-    // Debug
-
-    if(active_visualization != RenderVisualization::None) {
-        draw_debug_visualizers(render_graph);
-    }
 
     // UI
 
@@ -503,12 +448,6 @@ void SceneRenderer::render() {
             }
         });
 
-    mip_chain_generator.fill_mip_chain(render_graph, gbuffer_depth_handle, depth_buffer_mip_chain);
-    mip_chain_generator.fill_mip_chain(
-        render_graph,
-        gbuffer_normals_handle,
-        normal_target_mip_chain);
-
     render_graph.add_finish_frame_and_present_pass(
         {
             .swapchain_image = swapchain_image
@@ -516,9 +455,6 @@ void SceneRenderer::render() {
     );
 
     render_graph.finish();
-
-    last_frame_depth_usage = render_graph.get_last_usage_token(depth_buffer_mip_chain);
-    last_frame_normal_usage = render_graph.get_last_usage_token(normal_target_mip_chain);
 
     auto& allocator = backend.get_global_allocator();
     allocator.destroy_buffer(visible_solids_buffers.commands);
@@ -539,7 +475,7 @@ void SceneRenderer::evaluate_antialiasing(RenderGraph& render_graph, const Textu
     switch(cvar_anti_aliasing.Get()) {
     case AntiAliasingType::VRSAA:
         if(vrsaa) {
-            vrsaa->measure_aliasing(render_graph, gbuffer_color_handle, gbuffer_depth_handle);
+            vrsaa->measure_aliasing(render_graph, gbuffer.color, gbuffer_depth_handle);
             // TODO: Perform a proper VSR resolve, and also do VRS in lighting
         }
         break;
@@ -553,9 +489,10 @@ void SceneRenderer::evaluate_antialiasing(RenderGraph& render_graph, const Textu
             const auto motion_vectors_handle = motion_vectors_phase.get_motion_vectors();
             upscaler->evaluate(
                 render_graph,
+                player_view,
+                gbuffer,
                 lit_scene_handle,
                 antialiased_scene_handle,
-                gbuffer_depth_handle,
                 motion_vectors_handle);
             break;
         } else {
@@ -607,28 +544,20 @@ void SceneRenderer::create_scene_render_targets() {
     auto& backend = RenderBackend::get();
     auto& allocator = backend.get_global_allocator();
 
-    if(gbuffer_color_handle != nullptr) {
-        allocator.destroy_texture(gbuffer_color_handle);
+    if(gbuffer.color != nullptr) {
+        allocator.destroy_texture(gbuffer.color);
     }
 
-    if(gbuffer_normals_handle != nullptr) {
-        allocator.destroy_texture(gbuffer_normals_handle);
+    if(gbuffer.normals != nullptr) {
+        allocator.destroy_texture(gbuffer.normals);
     }
 
-    if(gbuffer_data_handle != nullptr) {
-        allocator.destroy_texture(gbuffer_data_handle);
+    if(gbuffer.data != nullptr) {
+        allocator.destroy_texture(gbuffer.data);
     }
 
-    if(gbuffer_emission_handle != nullptr) {
-        allocator.destroy_texture(gbuffer_emission_handle);
-    }
-
-    if(depth_buffer_mip_chain != nullptr) {
-        allocator.destroy_texture(depth_buffer_mip_chain);
-    }
-
-    if(normal_target_mip_chain != nullptr) {
-        allocator.destroy_texture(normal_target_mip_chain);
+    if(gbuffer.emission != nullptr) {
+        allocator.destroy_texture(gbuffer.emission);
     }
 
     if(ao_handle != nullptr) {
@@ -648,7 +577,7 @@ void SceneRenderer::create_scene_render_targets() {
     motion_vectors_phase.set_render_resolution(scene_render_resolution, output_resolution);
 
     // gbuffer and lighting render targets
-    gbuffer_color_handle = allocator.create_texture(
+    gbuffer.color = allocator.create_texture(
         "gbuffer_color",
         {
             VK_FORMAT_R8G8B8A8_SRGB,
@@ -658,7 +587,7 @@ void SceneRenderer::create_scene_render_targets() {
         }
     );
 
-    gbuffer_normals_handle = allocator.create_texture(
+    gbuffer.normals = allocator.create_texture(
         "gbuffer_normals",
         {
             VK_FORMAT_R16G16B16A16_SFLOAT,
@@ -668,7 +597,7 @@ void SceneRenderer::create_scene_render_targets() {
         }
     );
 
-    gbuffer_data_handle = allocator.create_texture(
+    gbuffer.data = allocator.create_texture(
         "gbuffer_data",
         {
             VK_FORMAT_R8G8B8A8_UNORM,
@@ -678,36 +607,13 @@ void SceneRenderer::create_scene_render_targets() {
         }
     );
 
-    gbuffer_emission_handle = allocator.create_texture(
+    gbuffer.emission = allocator.create_texture(
         "gbuffer_emission",
         {
             VK_FORMAT_R8G8B8A8_SRGB,
             scene_render_resolution,
             1,
             TextureUsage::RenderTarget
-        }
-    );
-
-    const auto mip_chain_resolution = scene_render_resolution / glm::uvec2{2};
-    const auto minor_dimension = glm::min(mip_chain_resolution.x, mip_chain_resolution.y);
-    const auto num_mips = static_cast<uint32_t>(floor(log2(minor_dimension)));
-    depth_buffer_mip_chain = allocator.create_texture(
-        "Depth buffer mip chain",
-        {
-            VK_FORMAT_R16_SFLOAT,
-            mip_chain_resolution,
-            num_mips,
-            TextureUsage::StorageImage
-        }
-    );
-
-    normal_target_mip_chain = allocator.create_texture(
-        "gbuffer_normals B",
-        {
-            VK_FORMAT_R16G16B16A16_SFLOAT,
-            mip_chain_resolution,
-            num_mips,
-            TextureUsage::StorageImage
         }
     );
 
@@ -791,12 +697,10 @@ void SceneRenderer::draw_debug_visualizers(RenderGraph& render_graph) {
         // Intentionally empty
         break;
 
-    case RenderVisualization::VPLs:
-        lpv->visualize_vpls(
-            render_graph,
-            player_view.get_buffer(),
-            lit_scene_handle,
-            depth_culling_phase.get_depth_buffer());
+    case RenderVisualization::GIDebug:
+        if(gi) {
+            gi->draw_debug_overlays(render_graph, player_view, gbuffer, lit_scene_handle);
+        }
         break;
     }
 }
@@ -816,6 +720,8 @@ void SceneRenderer::rotate_player(const float delta_pitch, const float delta_yaw
 void SceneRenderer::set_imgui_commands(ImDrawData* im_draw_data) {
     ui_phase.set_imgui_draw_data(im_draw_data);
 }
+
+RenderVisualization SceneRenderer::get_active_visualizer() const { return active_visualization; }
 
 void SceneRenderer::set_active_visualizer(const RenderVisualization visualizer) {
     active_visualization = visualizer;

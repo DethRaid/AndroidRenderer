@@ -1,0 +1,10 @@
+#pragma once
+
+#define RAY_TYPE_OCCLUSION 0
+#define RAY_TYPE_GI 1
+
+struct IrradiancePayload {
+    float3 irradiance;
+    float ray_distance;
+    float remaining_bounces;
+}

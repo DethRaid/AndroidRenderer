@@ -1,14 +1,14 @@
 ﻿#include "cvars.hpp"
 
-#include <array>
+#include <EASTL/array.h>
 #include <algorithm>
 #include <shared_mutex>
-#include <unordered_map>
-#include <vector>
+#include <EASTL/unordered_map.h>
+#include <EASTL/vector.h>
 
 #include <imgui.h>
-#include <imgui_stdlib.h>
 #include <imgui_internal.h>
+#include <imgui_stdlib.h>
 
 #include "core/user_options_controller.hpp"
 
@@ -187,9 +187,9 @@ private:
 
     CVarParameter* InitCVar(const char* name, const char* description);
 
-    std::unordered_map<uint32_t, CVarParameter> savedCVars;
+    eastl::unordered_map<uint32_t, CVarParameter> savedCVars;
 
-    std::vector<CVarParameter*> cachedEditParameters;
+    eastl::vector<CVarParameter*> cachedEditParameters;
 
     CvarChangeDispatcher dispatcher;
 };

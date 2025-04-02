@@ -1,0 +1,37 @@
+#pragma once
+
+// from https://github.com/Sunset-Flock/Timberdoodle/blob/dc4ce0ce311d15b47d5283b208fbe6d245a5928c/src/rendering/pgi/pgi_update.hlsl#L60
+void write_probe_texel_with_border<let N : uint>(RWTexture2DArray<vector<half, N>> tex, int2 probe_res, int3 base_index, int2 probe_texel, vector<half, N> value) {
+    base_index *= int3(probe_res + 2, 1);
+
+    bool2 on_edge = probe_texel == 0 || probe_texel == (probe_res - 1);
+    int2 mirror_index = probe_texel - probe_res / 2;
+    mirror_index += int2(mirror_index >= int2(0, 0)) * int2(1, 1);
+    bool border_corner = all(on_edge);
+    tex[int3(probe_texel, 0) + base_index] = value;
+
+    if (border_corner)
+    {
+        // Diagonal Border Texel
+        int2 diag_index = -mirror_index;
+        diag_index += int2(mirror_index >= int2(0, 0)) * int2(-1, -1);
+        diag_index += probe_res / 2;
+        tex[int3(diag_index, 0) + base_index] = value;
+    }
+
+    if (on_edge.x)
+    {
+        int2 edge_index = int2(mirror_index.x + sign(mirror_index.x), -mirror_index.y);
+        edge_index += int2(edge_index >= int2(0, 0)) * int2(-1, -1);
+        edge_index += probe_res / 2;
+        tex[int3(edge_index, 0) + base_index] = value;
+    }
+
+    if (on_edge.y)
+    {
+        int2 edge_index = int2(-mirror_index.x, mirror_index.y + sign(mirror_index.y));
+        edge_index += int2(edge_index >= int2(0, 0)) * int2(-1, -1);
+        edge_index += probe_res / 2;
+        tex[int3(edge_index, 0) + base_index] = value;
+    }
+}

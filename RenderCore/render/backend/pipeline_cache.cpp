@@ -18,7 +18,7 @@ PipelineCache::PipelineCache(RenderBackend& backend_in) : backend{backend_in} {
     const auto data = SystemInterface::get()
                       .load_file("cache/pipeline_cache")
                       .and_then(
-                          [&](const auto& cache_data) -> tl::optional<std::vector<uint8_t>> {
+                          [&](const auto& cache_data) -> tl::optional<eastl::vector<std::byte>> {
                               const auto* header = reinterpret_cast<const VkPipelineCacheHeaderVersionOne*>(cache_data.
                                   data());
                               if(header->vendorID == physical_device.properties.vendorID &&
@@ -48,7 +48,7 @@ PipelineCache::~PipelineCache() {
         auto pipeline_cache_size = size_t{};
         vkGetPipelineCacheData(backend.get_device(), vk_pipeline_cache, &pipeline_cache_size, nullptr);
 
-        auto pipeline_cache_data = std::vector<uint8_t>{};
+        auto pipeline_cache_data = eastl::vector<uint8_t>{};
         pipeline_cache_data.resize(pipeline_cache_size);
         vkGetPipelineCacheData(
             backend.get_device(),
@@ -112,8 +112,8 @@ GraphicsPipelineHandle PipelineCache::create_pipeline(const GraphicsPipelineBuil
     return &(*pipelines.emplace(std::move(pipeline)));
 }
 
-ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_file_path) {
-    logger->debug("Creating compute PSO {}", shader_file_path);
+ComputePipelineHandle PipelineCache::create_pipeline(const std::filesystem::path& shader_file_path) {
+    logger->debug("Creating compute PSO {}", shader_file_path.string());
 
     const auto instructions = *SystemInterface::get().load_file(shader_file_path);
 
@@ -125,13 +125,13 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
 
     auto pipeline = ComputePipeline{};
 
-    pipeline.name = shader_file_path;
+    pipeline.name = shader_file_path.string();
     pipeline.push_constant_stages = VK_SHADER_STAGE_COMPUTE_BIT;
 
-    std::vector<VkPushConstantRange> push_constants;
+    eastl::fixed_vector<VkPushConstantRange, 4> push_constants;
     collect_bindings(
         instructions,
-        shader_file_path,
+        pipeline.name,
         VK_SHADER_STAGE_COMPUTE_BIT,
         pipeline.descriptor_sets,
         push_constants);
@@ -165,15 +165,15 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
         nullptr,
         &pipeline.pipeline);
     if(result != VK_SUCCESS) {
-        logger->error("Could not create pipeline {}: Vulkan error {}", shader_file_path, result);
+        logger->error("Could not create pipeline {}: Vulkan error {}", shader_file_path.string(), result);
         return {};
     }
 
     logger->trace("Created pipeline");
 
-    const auto layout_name = fmt::format("{} Layout", shader_file_path);
+    const auto layout_name = fmt::format("{} Layout", shader_file_path.string());
 
-    backend.set_object_name(pipeline.pipeline, shader_file_path);
+    backend.set_object_name(pipeline.pipeline, pipeline.name);
     backend.set_object_name(pipeline.layout, layout_name);
 
     logger->trace("Named pipeline and pipeline layout");
@@ -184,7 +184,7 @@ ComputePipelineHandle PipelineCache::create_pipeline(const std::string& shader_f
 GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<GraphicsPipelineHandle> pipelines_in) {
     auto graphics_pipeline = GraphicsPipeline{};
 
-    auto vk_pipelines = std::vector<VkPipeline>{};
+    auto vk_pipelines = eastl::vector<VkPipeline>{};
     vk_pipelines.reserve(pipelines_in.size());
     for(const auto& pipeline : pipelines_in) {
         vk_pipelines.emplace_back(pipeline->pipeline);
@@ -210,7 +210,7 @@ GraphicsPipelineHandle PipelineCache::create_pipeline_group(const std::span<Grap
     return &(*pipelines.emplace(std::move(graphics_pipeline)));
 }
 
-VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
+VkPipeline PipelineCache::get_pipeline(
     GraphicsPipelineHandle pipeline, std::span<const VkFormat> color_attachment_formats,
     std::optional<VkFormat> depth_format, const uint32_t view_mask, const bool use_fragment_shading_rate_attachment
 ) const {
@@ -221,7 +221,7 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         return pipeline->pipeline;
     }
 
-    auto stages = std::vector<VkPipelineShaderStageCreateInfo>{};
+    auto stages = eastl::vector<VkPipelineShaderStageCreateInfo>{};
     stages.reserve(3);
 
     const auto vertex_module = VkShaderModuleCreateInfo{
@@ -305,7 +305,7 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
         .pAttachments = pipeline->blends.data(),
     };
 
-    const auto dynamic_states = std::array{
+    const auto dynamic_states = eastl::array{
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR,
         VK_DYNAMIC_STATE_FRONT_FACE,
@@ -389,170 +389,9 @@ VkPipeline PipelineCache::get_pipeline_for_dynamic_rendering(
     return pipeline->pipeline;
 }
 
-VkPipeline PipelineCache::get_pipeline(
-    const GraphicsPipelineHandle pipeline, const VkRenderPass active_render_pass, const uint32_t active_subpass
-) const {
-    ZoneScoped;
-
-    if(pipeline->last_renderpass == active_render_pass && pipeline->last_subpass_index == active_subpass) {
-        return pipeline->pipeline;
-    }
-
-    if(pipeline->pipeline != VK_NULL_HANDLE) {
-        // logger->warn("Recompiling pipeline. {} This is cringe", pipeline->pipeline_name);
-    }
-
-    auto stages = std::vector<VkPipelineShaderStageCreateInfo>{};
-    stages.reserve(3);
-
-    const auto vertex_module = VkShaderModuleCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = static_cast<uint32_t>(pipeline->vertex_shader.size()),
-        .pCode = reinterpret_cast<const uint32_t*>(pipeline->vertex_shader.data()),
-    };
-
-    stages.emplace_back(
-        VkPipelineShaderStageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .pNext = &vertex_module,
-            .stage = VK_SHADER_STAGE_VERTEX_BIT,
-            .pName = "main",
-        });
-
-    VkShaderModuleCreateInfo geometry_module;
-    if(!pipeline->geometry_shader.empty()) {
-        geometry_module = VkShaderModuleCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = static_cast<uint32_t>(pipeline->geometry_shader.size()),
-            .pCode = reinterpret_cast<const uint32_t*>(pipeline->geometry_shader.data()),
-        };
-
-        stages.emplace_back(
-            VkPipelineShaderStageCreateInfo{
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                .pNext = &geometry_module,
-                .stage = VK_SHADER_STAGE_GEOMETRY_BIT,
-                .pName = "main",
-            });
-    }
-
-    VkShaderModuleCreateInfo fragment_module;
-    if(!pipeline->fragment_shader.empty()) {
-        fragment_module = VkShaderModuleCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = static_cast<uint32_t>(pipeline->fragment_shader.size()),
-            .pCode = reinterpret_cast<const uint32_t*>(pipeline->fragment_shader.data()),
-        };
-
-        stages.emplace_back(
-            VkPipelineShaderStageCreateInfo{
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                .pNext = &fragment_module,
-                .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .pName = "main",
-            });
-    }
-
-    const auto vertex_input_stage = VkPipelineVertexInputStateCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = static_cast<uint32_t>(pipeline->vertex_inputs.size()),
-        .pVertexBindingDescriptions = pipeline->vertex_inputs.data(),
-        .vertexAttributeDescriptionCount = static_cast<uint32_t>(pipeline->vertex_attributes.size()),
-        .pVertexAttributeDescriptions = pipeline->vertex_attributes.data(),
-    };
-
-    const auto input_assembly_state = VkPipelineInputAssemblyStateCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = pipeline->topology,
-    };
-
-    const auto viewport_state = VkPipelineViewportStateCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .scissorCount = 1,
-        // Dynamic viewport and scissor state
-    };
-
-    const auto multisample_state = VkPipelineMultisampleStateCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
-    };
-
-    const auto color_blend_state = VkPipelineColorBlendStateCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .flags = pipeline->blend_flags,
-        .attachmentCount = static_cast<uint32_t>(pipeline->blends.size()),
-        .pAttachments = pipeline->blends.data(),
-    };
-
-    const auto dynamic_states = std::array{
-        VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR,
-        VK_DYNAMIC_STATE_FRONT_FACE,
-        VK_DYNAMIC_STATE_CULL_MODE
-    };
-
-    const auto dynamic_state = VkPipelineDynamicStateCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = static_cast<uint32_t>(dynamic_states.size()),
-        .pDynamicStates = dynamic_states.data(),
-    };
-
-    auto create_info = VkGraphicsPipelineCreateInfo{
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-
-        .flags = pipeline->flags,
-
-        .stageCount = static_cast<uint32_t>(stages.size()),
-        .pStages = stages.data(),
-
-        .pVertexInputState = &vertex_input_stage,
-        .pInputAssemblyState = &input_assembly_state,
-
-        .pViewportState = &viewport_state,
-
-        .pRasterizationState = &pipeline->raster_state,
-        .pMultisampleState = &multisample_state,
-
-        .pDepthStencilState = &pipeline->depth_stencil_state,
-
-        .pColorBlendState = &color_blend_state,
-
-        .pDynamicState = &dynamic_state,
-
-        .layout = pipeline->layout,
-
-        .renderPass = active_render_pass,
-        .subpass = active_subpass,
-    };
-
-    const auto& device = backend.get_device();
-    vkCreateGraphicsPipelines(
-        device,
-        vk_pipeline_cache,
-        1,
-        &create_info,
-        nullptr,
-        &pipeline->pipeline
-    );
-
-    if(!pipeline->name.empty() && vkSetDebugUtilsObjectNameEXT != nullptr) {
-        const auto name_info = VkDebugUtilsObjectNameInfoEXT{
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_PIPELINE,
-            .objectHandle = reinterpret_cast<uint64_t>(pipeline->pipeline),
-            .pObjectName = pipeline->name.c_str()
-        };
-        vkSetDebugUtilsObjectNameEXT(device, &name_info);
-    }
-
-    pipeline->last_renderpass = active_render_pass;
-    pipeline->last_subpass_index = active_subpass;
-
-    return pipeline->pipeline;
-}
-
-void PipelineCache::add_miss_shaders(const std::span<const uint8_t> occlusion_miss, const std::span<const uint8_t> gi_miss) {
+void PipelineCache::add_miss_shaders(
+    const std::span<const std::byte> occlusion_miss, const std::span<const std::byte> gi_miss
+) {
     occlusion_miss_shader.resize(occlusion_miss.size());
     std::memcpy(occlusion_miss_shader.data(), occlusion_miss.data(), occlusion_miss.size_bytes());
 
@@ -585,7 +424,9 @@ static uint32_t round_up(const uint32_t num, const uint32_t multiple) {
     return num + multiple - remainder;
 }
 
-RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(const std::filesystem::path& raygen_shader_path, bool skip_gi_miss_shader) {
+RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(
+    const std::filesystem::path& raygen_shader_path, bool skip_gi_miss_shader
+) {
     ZoneScoped;
 
     logger->debug("Creating RT PSO {}", raygen_shader_path.string());
@@ -596,16 +437,16 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(const std::f
 
     // Reserve enough space for both a closesthit and anyhit for both GI and occlusion - but non-masked materials don't
     // have anyhit shaders
-    auto stages = std::vector<VkPipelineShaderStageCreateInfo>{};
+    auto stages = eastl::vector<VkPipelineShaderStageCreateInfo>{};
     stages.reserve(shader_groups.size() * 4 + 2);
 
-    auto groups = std::vector<VkRayTracingShaderGroupCreateInfoKHR>{};
+    auto groups = eastl::vector<VkRayTracingShaderGroupCreateInfoKHR>{};
     groups.reserve(shader_groups.size() * 2 + 2);
 
-    auto modules = std::vector<VkShaderModuleCreateInfo>{};
+    auto modules = eastl::vector<VkShaderModuleCreateInfo>{};
     modules.reserve(stages.capacity());
 
-    std::vector<VkPushConstantRange> push_constants;
+    eastl::fixed_vector<VkPushConstantRange, 4> push_constants;
 
     // Add stages for each shader group, and add two groups for each shader group. Occlusion is first, GI is second
     for(const auto& shader_group : shader_groups) {
@@ -862,9 +703,10 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(const std::f
             .intersectionShader = VK_SHADER_UNUSED_KHR,
         });
 
+    const auto raygen_shader_name = raygen_shader_path.string();
     collect_bindings(
         *raygen_shader_maybe,
-        raygen_shader_path.string(),
+        std::string_view{raygen_shader_name.c_str()},
         VK_SHADER_STAGE_RAYGEN_BIT_KHR,
         pipeline.descriptor_sets,
         push_constants);
@@ -914,7 +756,7 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(const std::f
     const auto shader_group_handle_size = backend.get_shader_group_handle_size();
     const auto shader_group_alignment = backend.get_shader_group_alignment();
 
-    auto shader_group_handles = std::vector<uint8_t>{};
+    auto shader_group_handles = eastl::vector<uint8_t>{};
 
     const auto hit_table_size = round_up(groups.size() * shader_group_handle_size, shader_group_alignment);
     const auto miss_table_size = round_up(shader_group_handle_size * num_miss_shaders, shader_group_alignment);
@@ -964,8 +806,9 @@ RayTracingPipelineHandle PipelineCache::create_ray_tracing_pipeline(const std::f
         logger->error("Could not retrieve miss groups handles");
     }
 
+    const auto buffer_name = fmt::format("{} shader tables", raygen_shader_path.string());
     pipeline.shader_tables_buffer = backend.get_global_allocator().create_buffer(
-        fmt::format("{} shader tables", raygen_shader_path.string()),
+        buffer_name.c_str(),
         shader_group_handles.size(),
         BufferUsage::ShaderBindingTable
     );

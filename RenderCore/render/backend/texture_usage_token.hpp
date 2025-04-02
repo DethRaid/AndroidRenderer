@@ -2,6 +2,8 @@
 
 #include <volk.h>
 
+#include <EASTL/fixed_vector.h>
+
 #include "render/backend/handles.hpp"
 
 struct TextureUsageToken {
@@ -13,3 +15,5 @@ struct TextureUsageToken {
 
     VkImageLayout layout;
 };
+
+using TextureUsageList = eastl::fixed_vector<TextureUsageToken, 32>;

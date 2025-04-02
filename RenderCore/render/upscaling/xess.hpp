@@ -4,7 +4,7 @@
 
 #if SAH_USE_XESS
 #include <string>
-#include <vector>
+#include <EASTL/vector.h>
 
 #include <xess/xess.h>
 #include <xess/xess_vk.h>
@@ -14,23 +14,24 @@
 
 #include "render/upscaling/upscaler.hpp"
 
-class XeSSAdapter : public IUpscaler
-{
+class XeSSAdapter : public IUpscaler {
 public:
     /**
      * Retrieves the instance extension that XeSS requires
      */
-    static std::vector<std::string> get_instance_extensions();
+    static eastl::vector<std::string> get_instance_extensions();
 
     /**
      * Retrieves the device extensions that XeSS requires
      */
-    static std::vector<std::string> get_device_extensions(VkInstance instance, VkPhysicalDevice physical_device);
+    static eastl::vector<std::string> get_device_extensions(VkInstance instance, VkPhysicalDevice physical_device);
 
     /**
      * Modifies the provided Vulkan features with the features that XeSS requires
      */
-    static void add_required_features(VkInstance instance, VkPhysicalDevice physical_device, VkPhysicalDeviceFeatures2& features);
+    static void add_required_features(
+        VkInstance instance, VkPhysicalDevice physical_device, VkPhysicalDeviceFeatures2& features
+    );
 
     XeSSAdapter();
 
@@ -42,9 +43,9 @@ public:
 
     void set_constants(const SceneView& scene_view, glm::uvec2 render_resolution) override;
 
-     void evaluate(
-        RenderGraph& graph, TextureHandle color_in, TextureHandle color_out, TextureHandle depth_in,
-        TextureHandle motion_vectors_in
+    void evaluate(
+        RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, TextureHandle color_in,
+        TextureHandle color_out, TextureHandle motion_vectors_in
     ) override;
 
 private:

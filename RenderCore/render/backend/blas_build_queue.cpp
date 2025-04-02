@@ -4,6 +4,7 @@
 
 #include "command_buffer.hpp"
 #include "render_backend.hpp"
+#include "render/backend/render_graph.hpp"
 #include "console/cvars.hpp"
 
 static auto cvar_max_concurrent_builds = AutoCVar_Int{
@@ -45,7 +46,7 @@ void BlasBuildQueue::flush_pending_builds(RenderGraph& graph) {
     allocator.destroy_buffer(scratch_buffer);
 
     for(auto i = 0u; i < pending_jobs.size(); i += batch_size) {
-        auto barriers = std::vector<BufferUsageToken>{
+        auto barriers = BufferUsageList{
             {
                 .buffer = scratch_buffer,
                 .stage = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
@@ -53,9 +54,11 @@ void BlasBuildQueue::flush_pending_builds(RenderGraph& graph) {
             }
         };
 
-        auto build_geometry_infos = std::vector<VkAccelerationStructureBuildGeometryInfoKHR>{};
-        auto build_range_infos = std::vector<VkAccelerationStructureBuildRangeInfoKHR>{};
-        auto build_range_info_ptrs = std::vector<VkAccelerationStructureBuildRangeInfoKHR*>{};
+        barriers.reserve(batch_size);
+
+        auto build_geometry_infos = eastl::vector<VkAccelerationStructureBuildGeometryInfoKHR>{};
+        auto build_range_infos = eastl::vector<VkAccelerationStructureBuildRangeInfoKHR>{};
+        auto build_range_info_ptrs = eastl::vector<VkAccelerationStructureBuildRangeInfoKHR*>{};
         build_geometry_infos.reserve(batch_size);
         build_range_infos.reserve(batch_size);
         build_range_info_ptrs.reserve(batch_size);

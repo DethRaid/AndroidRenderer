@@ -4,6 +4,9 @@
 #include <string>
 #include <string_view>
 
+#include <EASTL/vector.h>
+#include <EASTL/fixed_vector.h>
+
 #include "render/backend/acceleration_structure.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/texture_usage_token.hpp"
@@ -38,11 +41,11 @@ public:
 
     DescriptorSetInfo set_info;
 
-    std::vector<detail::BoundResource> bindings;
+    eastl::fixed_vector<detail::BoundResource, 16> bindings;
 
     void get_resource_usage_information(
-        std::vector<TextureUsageToken>& texture_usages,
-        std::vector<BufferUsageToken>& buffer_usages
+        TextureUsageList& texture_usages,
+        BufferUsageList& buffer_usages
     ) const;
 };
 
@@ -61,6 +64,8 @@ public:
 
     DescriptorSetBuilder& bind(AccelerationStructureHandle acceleration_structure);
 
+    DescriptorSetBuilder& next_binding(uint32_t binding_index);
+
     /**
      * \brief Creates the Vulkan descriptor set 
      * \return 
@@ -76,7 +81,7 @@ private:
 
     uint32_t binding_index = 0;
 
-    std::vector<detail::BoundResource> bindings;
+    eastl::fixed_vector<detail::BoundResource, 16> bindings;
 
     std::string name;
 };

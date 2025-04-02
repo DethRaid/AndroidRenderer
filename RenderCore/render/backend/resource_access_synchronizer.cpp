@@ -4,6 +4,7 @@
 #include <magic_enum.hpp>
 #include <vulkan/vk_enum_string_helper.h>
 
+#include "render/backend/command_buffer.hpp"
 #include "core/system_interface.hpp"
 #include "render/backend/render_backend.hpp"
 #include "render/backend/utils.hpp"
@@ -181,7 +182,7 @@ void ResourceAccessTracker::set_resource_usage(const BufferUsageToken& usage) {
 }
 
 void ResourceAccessTracker::issue_barriers(const CommandBuffer& commands) {
-    const static auto memory_barriers = std::vector<VkMemoryBarrier2>{};
+    const static auto memory_barriers = eastl::fixed_vector<VkMemoryBarrier2, 32>{};
     commands.barrier(memory_barriers, buffer_barriers, image_barriers);
     buffer_barriers.clear();
     image_barriers.clear();

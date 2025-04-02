@@ -2,6 +2,7 @@
 
 #include "backend/pipeline_cache.hpp"
 #include "console/cvars.hpp"
+#include "render/backend/render_graph.hpp"
 #include "render/backend/render_backend.hpp"
 #include "core/system_interface.hpp"
 

@@ -1,5 +1,6 @@
 #include "fsr3.hpp"
 
+#include "render/gbuffer.hpp"
 #include "render/phase/motion_vectors_phase.hpp"
 
 #if SAH_USE_FFX
@@ -9,6 +10,7 @@
 #include "render/scene_view.hpp"
 #include "render/backend/render_backend.hpp"
 #include "console/cvars.hpp"
+#include "render/backend/render_graph.hpp"
 #include "core/system_interface.hpp"
 #include "core/string_conversion.hpp"
 
@@ -62,6 +64,7 @@ void FidelityFSSuperResolution3::initialize(const glm::uvec2 output_resolution_i
             to_string(cvar_fsr3_quality.Get()));
 
         if(has_context) {
+            RenderBackend::get().wait_for_idle();
             ffx::DestroyContext(upscaling_context);
             has_context = false;
         }
@@ -72,6 +75,7 @@ void FidelityFSSuperResolution3::initialize(const glm::uvec2 output_resolution_i
         create_upscaling.flags = FFX_UPSCALE_ENABLE_HIGH_DYNAMIC_RANGE |
             FFX_UPSCALE_ENABLE_MOTION_VECTORS_JITTER_CANCELLATION |
             FFX_UPSCALE_ENABLE_AUTO_EXPOSURE |
+            FFX_UPSCALE_ENABLE_DEPTH_INVERTED |
             FFX_UPSCALE_ENABLE_DEPTH_INFINITE |
             FFX_UPSCALE_ENABLE_DEBUG_CHECKING;
         if(MotionVectorsPhase::render_full_res()) {
@@ -128,15 +132,15 @@ void FidelityFSSuperResolution3::set_constants(const SceneView& scene_transform,
     dispatch_desc.upscaleSize = {output_resolution.x, output_resolution.y};
     dispatch_desc.frameTimeDelta = 7.5f; // Hardcoded, please fix
     dispatch_desc.preExposure = 1.f;
-    dispatch_desc.cameraNear = scene_transform.get_near();
-    dispatch_desc.cameraFar = FLT_MAX;
+    dispatch_desc.cameraNear = FLT_MAX;
+    dispatch_desc.cameraFar = scene_transform.get_near();
     dispatch_desc.cameraFovAngleVertical = glm::radians(scene_transform.get_fov());
     dispatch_desc.viewSpaceToMetersFactor = 1.f;
 }
 
 void FidelityFSSuperResolution3::evaluate(
-    RenderGraph& graph, const TextureHandle color_in, const TextureHandle color_out,
-    const TextureHandle depth_in, const TextureHandle motion_vectors_in
+    RenderGraph& graph, const SceneView& view, const GBuffer& gbuffer, const TextureHandle color_in,
+    const TextureHandle color_out, const TextureHandle motion_vectors_in
 ) {
     graph.add_pass(
         {
@@ -155,7 +159,7 @@ void FidelityFSSuperResolution3::evaluate(
                     .layout = VK_IMAGE_LAYOUT_GENERAL
                 },
                 {
-                    .texture = depth_in,
+                    .texture = gbuffer.depth,
                     .stage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                     .access = VK_ACCESS_2_SHADER_READ_BIT,
                     .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -179,8 +183,8 @@ void FidelityFSSuperResolution3::evaluate(
                     .state = FFX_API_RESOURCE_STATE_UNORDERED_ACCESS
                 };
                 const auto depth_in_res = FfxApiResource{
-                    .resource = depth_in->image,
-                    .description = ffxApiGetImageResourceDescriptionVK(depth_in->image, depth_in->create_info, 0),
+                    .resource = gbuffer.depth->image,
+                    .description = ffxApiGetImageResourceDescriptionVK(gbuffer.depth->image, gbuffer.depth->create_info, 0),
                     .state = FFX_API_RESOURCE_STATE_COMPUTE_READ
                 };
                 const auto motion_vectors_in_res = FfxApiResource{

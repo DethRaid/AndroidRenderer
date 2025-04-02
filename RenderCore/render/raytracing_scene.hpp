@@ -25,7 +25,7 @@ public:
 private:
     RenderScene& scene;
 
-    std::vector<VkAccelerationStructureInstanceKHR> placed_blases;
+    eastl::vector<VkAccelerationStructureInstanceKHR> placed_blases;
     bool is_dirty = false;
     AccelerationStructureHandle acceleration_structure = {};
 

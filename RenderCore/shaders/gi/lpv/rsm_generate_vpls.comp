@@ -14,10 +14,6 @@
 /**
  * Super cool compute shader to extract VPLs from the RSM textures
  *
- * This is expected to run on a 1024x1024 render target, on a device with a subgroup size of 16. My
- * phone has such a subgroup size. Nvidia has a size of 32, AMD has a size of 64. On those devices
- * we may need to do something else to get the LPV quality we want... but that's a problem for later
- *
  * This CS atmonically adds lights to a UAV
  */
 
@@ -47,7 +43,7 @@ layout(push_constant) uniform Constants {
 
 vec4 get_worldspace_position(ivec2 texel) {
     float depth = texelFetch(rsm_depth, ivec3(texel, cascade_index), 0).r;
-    vec2 texcoord = vec2(vec2(texel) / float(rsm_resolution));
+    vec2 texcoord = vec2((vec2(texel) + 0.5) / float(rsm_resolution));
     vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
     vec4 worldspace_position = cascade_matrices[cascade_index].inverse_rsm_vp * ndc_position;
     worldspace_position /= worldspace_position.w;

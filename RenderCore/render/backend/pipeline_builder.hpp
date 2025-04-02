@@ -1,9 +1,10 @@
 #pragma once
 
 #include <filesystem>
-#include <vector>
+#include <EASTL/vector.h>
 #include <cstdint>
-#include <unordered_map>
+#include <EASTL/unordered_map.h>
+#include <EASTL/string.h>
 
 #include <volk.h>
 
@@ -19,16 +20,16 @@ struct SpvReflectBlockVariable;
 struct SpvReflectInterfaceVariable;
 
 bool collect_bindings(
-    const std::vector<uint8_t>& shader_instructions,
-    const std::string& shader_name,
+    const eastl::vector<std::byte>& shader_instructions,
+    std::string_view shader_name,
     VkShaderStageFlags shader_stage,
-    std::vector<DescriptorSetInfo>& descriptor_sets,
-    std::vector<VkPushConstantRange>& push_constants
+    eastl::fixed_vector<DescriptorSetInfo, 8>& descriptor_sets,
+    eastl::fixed_vector<VkPushConstantRange, 4>& push_constants
 );
 
 struct VertexLayout {
-    std::vector<VkVertexInputBindingDescription> input_bindings;
-    std::unordered_map<std::string, VkVertexInputAttributeDescription> attributes;
+    eastl::vector<VkVertexInputBindingDescription> input_bindings;
+    eastl::unordered_map<eastl::string, VkVertexInputAttributeDescription> attributes;
 };
 
 /**
@@ -45,7 +46,7 @@ struct DepthStencilState {
 
     bool enable_depth_write = true;
 
-    VkCompareOp compare_op = VK_COMPARE_OP_LESS;
+    VkCompareOp compare_op = VK_COMPARE_OP_GREATER;
 
     bool enable_depth_bounds_test = false;
 
@@ -66,6 +67,11 @@ struct RasterState {
     float line_width = 1.f;
 
     bool depth_clamp_enable = false;
+};
+
+enum class BlendMode {
+    NoBlending,
+    Additive
 };
 
 class GraphicsPipelineBuilder {
@@ -114,6 +120,16 @@ public:
 
     GraphicsPipelineBuilder& add_blend_flag(VkPipelineColorBlendStateCreateFlagBits flag);
 
+    /**
+     * Sets the default blend state for the specified number of attachments
+     */
+    GraphicsPipelineBuilder& set_num_attachments(uint32_t num_attachments);
+
+    /**
+     * Sets the blend mode for all current attachments. Recommended to call this after set_num_attachments
+     */
+    GraphicsPipelineBuilder& set_blend_mode(BlendMode mode);
+
     GraphicsPipelineBuilder& set_blend_state(
         uint32_t color_target_index, const VkPipelineColorBlendAttachmentState& blend
     );
@@ -133,15 +149,15 @@ private:
     /**
      * Vertex shader SPIR-V code. If this is present, you may not load another vertex shader
      */
-    std::optional<std::vector<uint8_t>> vertex_shader;
+    std::optional<eastl::vector<std::byte>> vertex_shader;
 
     std::string vertex_shader_name;
 
-    std::optional<std::vector<uint8_t>> geometry_shader;
+    std::optional<eastl::vector<std::byte>> geometry_shader;
 
     std::string geometry_shader_name;
 
-    std::optional<std::vector<uint8_t>> fragment_shader;
+    std::optional<eastl::vector<std::byte>> fragment_shader;
 
     std::string fragment_shader_name;
 
@@ -153,22 +169,22 @@ private:
      * However, each set in the vertex and fragment shader must be the same - vertex shader set 0 must be the same as
      * fragment shader set 0
      */
-    std::vector<DescriptorSetInfo> descriptor_sets;
+    eastl::fixed_vector<DescriptorSetInfo, 8> descriptor_sets;
 
-    std::vector<VkPushConstantRange> push_constants;
+    eastl::fixed_vector<VkPushConstantRange, 4> push_constants;
 
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
 
     VkPipelineRasterizationStateCreateInfo raster_state = {};
 
     VkPipelineColorBlendStateCreateFlags blend_flags = {};
-    std::vector<VkPipelineColorBlendAttachmentState> blends = {};
+    eastl::fixed_vector<VkPipelineColorBlendAttachmentState, 8> blends = {};
 
     bool need_position_buffer = false;
     bool need_data_buffer = false;
     bool need_primitive_id_buffer = false;
-    std::vector<VkVertexInputBindingDescription> vertex_inputs;
-    std::vector<VkVertexInputAttributeDescription> vertex_attributes;
+    eastl::fixed_vector<VkVertexInputBindingDescription, 8> vertex_inputs;
+    eastl::fixed_vector<VkVertexInputAttributeDescription, 8> vertex_attributes;
 
     VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 

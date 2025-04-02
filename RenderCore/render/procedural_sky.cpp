@@ -149,7 +149,8 @@ void ProceduralSky::update_sky_luts(RenderGraph& graph, const glm::vec3& light_v
 }
 
 void ProceduralSky::render_sky(
-    CommandBuffer& commands, const BufferHandle view_buffer, const BufferHandle sun_buffer
+    CommandBuffer& commands, const BufferHandle view_buffer, const BufferHandle sun_buffer,
+    const TextureHandle gbuffer_depth
 ) const {
     auto& backend = RenderBackend::get();
 
@@ -158,6 +159,7 @@ void ProceduralSky::render_sky(
                             .bind(sky_view_lut, linear_sampler)
                             .bind(view_buffer)
                             .bind(sun_buffer)
+                            .bind(gbuffer_depth)
                             .build();
 
     commands.bind_pipeline(sky_application_pso);
@@ -173,7 +175,7 @@ TextureHandle ProceduralSky::get_sky_view_lut() const {
     return sky_view_lut;
 }
 
-TextureHandle ProceduralSky::get_transmission_lut() const {
+TextureHandle ProceduralSky::get_transmittance_lut() const {
     return transmittance_lut;
 }
 

@@ -1,22 +1,25 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
+#include <optional>
+#include <EASTL/vector.h>
+#include <EASTL/unordered_map.h>
+#include <EASTL/array.h>
+#include <EASTL/fixed_vector.h>
+#include <string>
 #include <span>
-#include <unordered_map>
 
 #include <volk.h>
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyVulkan.hpp>
 
-#include "render/backend/compute_shader.hpp"
 #include "render/backend/rendering_attachment_info.hpp"
 #include "render/backend/buffer_usage_token.hpp"
 #include "render/backend/handles.hpp"
-#include "render/backend/graphics_pipeline.hpp"
-#include "render/backend/framebuffer.hpp"
 
+struct PipelineBase;
 struct DescriptorSet;
 struct ComputePipeline;
 class RenderBackend;
@@ -30,7 +33,7 @@ struct RenderingInfo {
 
     uint32_t view_mask;
 
-    std::vector<RenderingAttachmentInfo> color_attachments;
+    eastl::fixed_vector<RenderingAttachmentInfo, 8> color_attachments;
 
     std::optional<RenderingAttachmentInfo> depth_attachment;
 
@@ -80,9 +83,9 @@ public:
      * Issues a batch of pipeline barriers
      */
     void barrier(
-        const std::vector<VkMemoryBarrier2>& memory_barriers,
-        const std::vector<VkBufferMemoryBarrier2>& buffer_barriers,
-        const std::vector<VkImageMemoryBarrier2>& image_barriers
+        const eastl::fixed_vector<VkMemoryBarrier2, 32>& memory_barriers,
+        const eastl::fixed_vector<VkBufferMemoryBarrier2, 32>& buffer_barriers,
+        const eastl::fixed_vector<VkImageMemoryBarrier2, 32>& image_barriers
     ) const;
 
     /**
@@ -164,6 +167,8 @@ public:
 
     void dispatch_rays(glm::uvec2 dispatch_size);
 
+    void dispatch_rays(glm::uvec3 dispatch_size);
+
     /**
      * Executes a buffer of device-generated commands
      */
@@ -206,7 +211,7 @@ public:
 
     void reset_event(VkEvent event, VkPipelineStageFlags stages) const;
 
-    void set_event(VkEvent event, const std::vector<BufferBarrier>& buffers);
+    void set_event(VkEvent event, const eastl::vector<BufferBarrier>& buffers);
 
     void wait_event(VkEvent);
 
@@ -231,15 +236,15 @@ private:
 
     uint32_t bound_view_mask = 0;
 
-    std::vector<VkFormat> bound_color_attachment_formats;
+    eastl::vector<VkFormat> bound_color_attachment_formats;
 
     std::optional<VkFormat> bound_depth_attachment_format;
 
     bool using_fragment_shading_rate_attachment = false;
 
-    std::array<uint32_t, 128> push_constants = {};
+    eastl::array<uint32_t, 128> push_constants = {};
 
-    std::array<VkDescriptorSet, 8> descriptor_sets = {};
+    eastl::array<VkDescriptorSet, 8> descriptor_sets = {};
 
     VkPipelineBindPoint current_bind_point = {};
 
@@ -257,7 +262,7 @@ private:
      * The spec states that the dependency info for each set/wait event call for the same event must match. The backend
      * should handle that noise
      */
-    std::unordered_map<VkEvent, std::vector<VkBufferMemoryBarrier2>> event_buffer_barriers;
+    eastl::unordered_map<VkEvent, eastl::vector<VkBufferMemoryBarrier2>> event_buffer_barriers;
     uint32_t num_descriptor_sets_in_current_pipeline = 0;
 
     RayTracingPipelineHandle current_ray_pipeline = nullptr;

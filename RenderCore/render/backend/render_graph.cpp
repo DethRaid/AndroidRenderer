@@ -9,6 +9,7 @@
 #include "render/backend/utils.hpp"
 #include "render/backend/render_backend.hpp"
 #include "core/system_interface.hpp"
+#include "EASTL/span.h"
 
 static std::shared_ptr<spdlog::logger> logger;
 
@@ -89,7 +90,7 @@ void RenderGraph::add_pass(ComputePass pass) {
         cmds.begin_label(pass.name);
     }
 
-    for (const auto& set : pass.descriptor_sets) {
+    for(const auto& set : pass.descriptor_sets) {
         set.get_resource_usage_information(pass.textures, pass.buffers);
     }
 
@@ -118,39 +119,60 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
         set.get_resource_usage_information(pass.textures, pass.buffers);
     }
 
-    update_accesses_and_issues_barriers(pass.textures, pass.buffers);
-
     auto num_layers = 0u;
     for(const auto& attachment_token : pass.color_attachments) {
-        access_tracker.set_resource_usage(
-            TextureUsageToken{
-                .texture = attachment_token.image,
-                .stage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .access = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                .layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
-            });
+        if(auto itr = std::find_if(
+            pass.textures.begin(),
+            pass.textures.end(),
+            [&](const TextureUsageToken& token) {
+                return token.texture == attachment_token.image;
+            }); itr != pass.textures.end()) {
+            itr->stage |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+            itr->access |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+            itr->layout = VK_IMAGE_LAYOUT_GENERAL;
+        } else {
+            pass.textures.emplace_back(
+                TextureUsageToken{
+                    .texture = attachment_token.image,
+                    .stage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    .access = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                    .layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+                });
+        }
 
         // Assumes that all render targets have the same depth
         num_layers = attachment_token.image->create_info.extent.depth;
     }
 
     if(pass.depth_attachment) {
-        access_tracker.set_resource_usage(
-            TextureUsageToken{
-                .texture = pass.depth_attachment->image,
-                .stage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                .access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                .layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
-            });
+        if(auto itr = std::find_if(
+            pass.textures.begin(),
+            pass.textures.end(),
+            [&](const TextureUsageToken& token) {
+                return token.texture == pass.depth_attachment->image;
+            }); itr != pass.textures.end()) {
+            itr->stage |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+            itr->access |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            itr->layout = VK_IMAGE_LAYOUT_GENERAL;
+        } else {
+            pass.textures.emplace_back(
+                TextureUsageToken{
+                    .texture = pass.depth_attachment->image,
+                    .stage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                    .access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                    .layout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+                });
+        }
 
         // Assumes that all render targets have the same depth
         num_layers = pass.depth_attachment->image->create_info.extent.depth;
     }
 
     if(pass.shading_rate_image) {
-        access_tracker.set_resource_usage(
-            {
+        pass.textures.emplace_back(
+            TextureUsageToken{
                 .texture = *pass.shading_rate_image,
                 .stage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR,
                 .access = VK_ACCESS_2_FRAGMENT_SHADING_RATE_ATTACHMENT_READ_BIT_KHR,
@@ -158,6 +180,8 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
             }
         );
     }
+
+    update_accesses_and_issues_barriers(pass.textures, pass.buffers);
 
     cmds.begin_label(pass.name);
     {
@@ -198,8 +222,8 @@ void RenderGraph::add_render_pass(DynamicRenderingPass pass) {
 }
 
 void RenderGraph::update_accesses_and_issues_barriers(
-    const std::vector<TextureUsageToken>& textures,
-    const std::vector<BufferUsageToken>& buffers
+    const eastl::span<TextureUsageToken> textures,
+    const eastl::span<BufferUsageToken> buffers
 ) const {
     for(const auto& buffer_token : buffers) {
         access_tracker.set_resource_usage(buffer_token);
@@ -221,7 +245,8 @@ void RenderGraph::do_compute_shader_copy(const ImageCopyPass& pass) {
     }
 
     if(!image_copy_shader) {
-        image_copy_shader = RenderBackend::get().get_pipeline_cache().create_pipeline("shaders/util/image_copy.comp.spv");
+        image_copy_shader = RenderBackend::get().get_pipeline_cache().create_pipeline(
+            "shaders/util/image_copy.comp.spv");
     }
 
     const auto set = RenderBackend::get().get_transient_descriptor_allocator()

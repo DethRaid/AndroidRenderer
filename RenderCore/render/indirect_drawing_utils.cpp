@@ -4,6 +4,7 @@
 
 #include "backend/pipeline_cache.hpp"
 #include "backend/render_backend.hpp"
+#include "render/backend/render_graph.hpp"
 
 static ComputePipelineHandle init_count_buffer_pipeline = nullptr;
 

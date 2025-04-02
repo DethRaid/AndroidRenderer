@@ -7,6 +7,7 @@
 #include "core/system_interface.hpp"
 #include "render/backend/resource_allocator.hpp"
 #include "render/backend/resource_upload_queue.hpp"
+#include "render/backend/render_graph.hpp"
 #include "shared/vertex_data.hpp"
 
 constexpr uint32_t max_num_meshes = 65536;
@@ -101,8 +102,8 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
     mesh.num_indices = static_cast<uint32_t>(indices.size());
     mesh.bounds = bounds;
 
-    auto positions = std::vector<StandardVertexPosition>{};
-    auto data = std::vector<StandardVertexData>{};
+    auto positions = eastl::vector<StandardVertexPosition>{};
+    auto data = eastl::vector<StandardVertexData>{};
     positions.reserve(vertices.size());
     data.reserve(vertices.size());
 
@@ -167,7 +168,7 @@ tl::optional<MeshHandle> MeshStorage::add_mesh(
     const auto handle = meshes.add_object(std::move(mesh));
 
     if(mesh_draw_args_upload_buffer.is_full()) {
-        auto graph = backend.create_render_graph();
+        auto graph = RenderGraph{ backend };
         flush_mesh_draw_arg_uploads(graph);
         graph.finish();
         backend.execute_graph(graph);
@@ -240,14 +241,14 @@ void MeshStorage::bind_to_commands(const CommandBuffer& commands) const {
  * \param prefices Prefix sums of all the reservoir probabilities
  * \return Index of the reservoir that contains the probability
  */
-size_t find_reservoir(double probability_sample, const std::vector<double>& prefices);
+size_t find_reservoir(double probability_sample, const eastl::vector<double>& prefices);
 
-std::pair<std::vector<StandardVertex>, float> MeshStorage::generate_surface_point_cloud(
+std::pair<eastl::vector<StandardVertex>, float> MeshStorage::generate_surface_point_cloud(
     const std::span<const StandardVertex> vertices, const std::span<const uint32_t> indices
 ) const {
     ZoneScoped;
 
-    auto triangle_areas = std::vector<double>{};
+    auto triangle_areas = eastl::vector<double>{};
     triangle_areas.reserve(indices.size() / 3);
 
     auto area_accumulator = 0.0;
@@ -278,7 +279,7 @@ std::pair<std::vector<StandardVertex>, float> MeshStorage::generate_surface_poin
     }
 
     // Prefix sum my beloved
-    auto prefices = std::vector<double>{};
+    auto prefices = eastl::vector<double>{};
     prefices.reserve(triangle_areas.size());
 
     auto last_prefix = 0.0;
@@ -294,7 +295,7 @@ std::pair<std::vector<StandardVertex>, float> MeshStorage::generate_surface_poin
     auto num_samples = static_cast<size_t>(glm::ceil(area_accumulator / 0.1));
     num_samples = glm::min(num_samples, static_cast<size_t>(65536));
 
-    auto points = std::vector<StandardVertex>{};
+    auto points = eastl::vector<StandardVertex>{};
     points.reserve(num_samples);
 
     auto r = std::random_device{};
@@ -392,8 +393,8 @@ glm::vec4 dir_to_sh(const glm::vec3 dir) {
     return glm::vec4{SH_c0, -SH_c1 * dir.y, SH_c1 * dir.z, -SH_c1 * dir.x};
 }
 
-BufferHandle MeshStorage::generate_sh_point_cloud(const std::vector<StandardVertex>& point_cloud) const {
-    auto sh_points = std::vector<ShPoint>{};
+BufferHandle MeshStorage::generate_sh_point_cloud(const eastl::vector<StandardVertex>& point_cloud) const {
+    auto sh_points = eastl::vector<ShPoint>{};
     sh_points.reserve(point_cloud.size());
 
     for(const auto& point : point_cloud) {
@@ -414,7 +415,7 @@ BufferHandle MeshStorage::generate_sh_point_cloud(const std::vector<StandardVert
     return sh_buffer_handle;
 }
 
-size_t find_reservoir(const double probability_sample, const std::vector<double>& prefices) {
+size_t find_reservoir(const double probability_sample, const eastl::vector<double>& prefices) {
     // Find the index where prefices[n] > sample but prefices[n - 1] < sample
 
     // BINARY SEARCH

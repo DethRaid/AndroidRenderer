@@ -30,12 +30,12 @@ using VertexDataPointer = uint64_t;
 #endif
 
 struct PrimitiveDataGPU {
-    mat4 model;
-    mat4 inverse_model;
+    float4x4 model;
+    float4x4 inverse_model;
 
     // Bounds min (xyz) and radius (w) of the mesh
-    vec4 bounds_min_and_radius;
-    vec4 bounds_max;
+    float4 bounds_min_and_radius;
+    float4 bounds_max;
 
     MaterialPointer material;
 

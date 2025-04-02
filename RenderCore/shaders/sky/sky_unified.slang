@@ -1,4 +1,4 @@
-// Unifie3d sky shader - contains both the fragment shader to draw the sky in the lighting pass, and the miss shaders
+// Unified sky shader - contains both the fragment shader to draw the sky in the lighting pass, and the miss shaders
 // for the sky for both occlusion and radiance rays
 
 #ifndef SAH_RT
@@ -179,12 +179,20 @@ ConstantBuffer<ViewDataGPU> view_info;
 [vk::binding(3, 0)]
 ConstantBuffer<SunLightConstants> sun_info;
 
+[vk::binding(4, 0)]
+Texture2D<float> gbuffer_depth;
+
 [shader("fragment")]
 half4 main_fs(float4 fragcoord: SV_Position) {
-    // Screen position for the ray
-    float2 location_screen = fragcoord.xy / view_info.render_resolution.xy;
+    const float depth = gbuffer_depth[fragcoord.xy];
+    if (depth != 0.f) {
+        discard;
+    }
 
-    float4 location_clipspace = float4(location_screen, 0.f, 1.f);
+    // Screen position for the ray
+    float2 location_screen = (fragcoord.xy + 0.5) / view_info.render_resolution.xy;
+
+    float4 location_clipspace = float4(location_screen, 1.f, 1.f);
     float4 location_viewspace = mul(view_info.inverse_projection, location_clipspace);
     location_viewspace /= location_viewspace.w;
     float3 view_vector_worldspace = -normalize(mul(view_info.inverse_view, float4(location_viewspace.xyz, 0)).xyz);
@@ -207,7 +215,7 @@ void main_miss(inout uint payload) {
 
 #if SAH_RT_GI
 
-#include "rtgi/rtgi_payload.slangi"
+#include "gi/rtgi/rtgi_payload.slangi"
 
 [vk::binding(1, 0)]
 ConstantBuffer<SunLightConstants> sun_light;

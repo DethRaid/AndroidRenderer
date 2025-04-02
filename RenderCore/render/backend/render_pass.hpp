@@ -3,7 +3,7 @@
 #include <string>
 #include <functional>
 #include <optional>
-#include <vector>
+#include <EASTL/vector.h>
 
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -27,11 +27,11 @@ struct AttachmentBinding {
 struct ComputePass {
     std::string name;
     
-    std::vector<TextureUsageToken> textures;
+    TextureUsageList textures;
 
-    std::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 
-    std::vector<DescriptorSet> descriptor_sets;
+    eastl::fixed_vector<DescriptorSet, 8> descriptor_sets;
 
     /**
      * Executes this render pass
@@ -55,12 +55,12 @@ struct ComputeDispatch {
     /**
      * \brief Descriptor sets to bind for this pass. Must contain one entry for every descriptor set that the shader needs
      */
-    std::vector<DescriptorSet> descriptor_sets;
+    eastl::fixed_vector<DescriptorSet, 4> descriptor_sets;
 
     /**
      * \brief Buffers this pass uses that aren't in a descriptor set. Useful for buffers accessed through BDA
      */
-    std::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 
     /**
      * \brief Push constants for this dispatch. Feel free to reinterpret_cast push_constants.data() into your own type
@@ -92,12 +92,12 @@ struct IndirectComputeDispatch {
     /**
      * \brief Descriptor sets to bind for this pass. Must contain one entry for every descriptor set that the shader needs
      */
-    std::vector<DescriptorSet> descriptor_sets;
+    eastl::fixed_vector<DescriptorSet, 4> descriptor_sets;
 
     /**
      * \brief Buffers this pass uses that aren't in a descriptor set. Useful for buffers accessed through BDA
      */
-    std::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 
     /**
      * \brief Push constants for this dispatch. Feel free to reinterpret_cast push_constants.data() into your own type
@@ -116,9 +116,9 @@ struct IndirectComputeDispatch {
 };
 
 struct TransitionPass {
-    std::vector<TextureUsageToken> textures;
+    TextureUsageList textures;
 
-    std::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 };
 
 struct BufferCopyPass {
@@ -144,12 +144,12 @@ struct Subpass {
     /**
      * Indices of any input attachments. These indices refer to the render targets in the parent render pass
      */
-    std::vector<uint32_t> input_attachments = {};
+    eastl::vector<uint32_t> input_attachments = {};
 
     /**
      * Indices of any output attachments. These indices refer to the render targets in the parent render pass
      */
-    std::vector<uint32_t> color_attachments = {};
+    eastl::vector<uint32_t> color_attachments = {};
 
     /**
      * Index of the depth attachment. This index refers to the render targets in the parent render pass
@@ -162,40 +162,22 @@ struct Subpass {
 struct RenderPassBeginInfo {
     std::string name;
 
-    std::vector<TextureUsageToken> textures;
+    TextureUsageList textures;
 
-    std::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 
     /**
      * \brief Descriptor sets that contain sync info we use
      *
      * I need a better name for this
      */
-    std::vector<DescriptorSet> descriptor_sets;
+    eastl::fixed_vector<DescriptorSet, 4> descriptor_sets;
 
-    std::vector<TextureHandle> attachments;
+    eastl::fixed_vector<TextureHandle, 8> attachments;
 
-    std::vector<VkClearValue> clear_values;
-
-    std::optional<uint32_t> view_mask;
-};
-
-struct RenderPass {
-    std::string name;
-
-    std::vector<TextureUsageToken> textures;
-
-    std::vector<BufferUsageToken> buffers;
-
-    std::vector<DescriptorSet> descriptor_sets;
-    
-    std::vector<TextureHandle> attachments;
-
-    std::vector<VkClearValue> clear_values;
+    eastl::fixed_vector<VkClearValue, 8> clear_values;
 
     std::optional<uint32_t> view_mask;
-
-    std::vector<Subpass> subpasses;
 };
 
 struct AttachmentInfo {
@@ -206,13 +188,13 @@ struct AttachmentInfo {
 struct DynamicRenderingPass {
     std::string name;
 
-    std::vector<TextureUsageToken> textures;
+    TextureUsageList textures;
 
-    std::vector<BufferUsageToken> buffers;
+    BufferUsageList buffers;
 
-    std::vector<DescriptorSet> descriptor_sets;
+    eastl::fixed_vector<DescriptorSet, 4> descriptor_sets;
 
-    std::vector<RenderingAttachmentInfo> color_attachments;
+    eastl::fixed_vector<RenderingAttachmentInfo, 8> color_attachments;
 
     std::optional<RenderingAttachmentInfo> depth_attachment;
 

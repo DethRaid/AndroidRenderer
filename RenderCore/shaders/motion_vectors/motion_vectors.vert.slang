@@ -24,9 +24,9 @@ VertexOutput main(
     output.primitive_id = primitive_id_in;
     PrimitiveDataGPU data = primitive_datas[output.primitive_id];
 
-    output.position = mul(camera_data.projection, mul(camera_data.view, mul(data.model, vec4(position_in, 1.f))));
+    output.position = mul(camera_data.projection, mul(camera_data.view, mul(data.model, float4(position_in, 1.f))));
 
-    const float4 last_frame_position = mul(camera_data.last_frame_projection, mul(camera_data.last_frame_view, mul(data.model, vec4(position_in, 1.f))));
+    const float4 last_frame_position = mul(camera_data.last_frame_projection, mul(camera_data.last_frame_view, mul(data.model, float4(position_in, 1.f))));
 
     output.previous_clipspace_location = last_frame_position.xyw;
 

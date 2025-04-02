@@ -1,5 +1,4 @@
-#ifndef SPHERICAL_HARMONICS_GLSL
-#define SPHERICAL_HARMONICS_GLSL
+#pragma once
 
 /**
  * Library of SH functions
@@ -15,15 +14,15 @@
 
 /*Spherical harmonics coefficients – precomputed*/
 // 1 / 2sqrt(pi)
-#define SH_c0 0.282094792f 
+#define SH_c0 0.282094792 
 // sqrt(3/pi) / 2
-#define SH_c1 0.488602512f 
+#define SH_c1 0.488602512
 
 /*Cosine lobe coeff*/
 // sqrt(pi)/2
-#define SH_cosLobe_c0 0.886226925f
+#define SH_cosLobe_c0 0.886226925
 // sqrt(pi/3) 
-#define SH_cosLobe_c1 1.02332671f 
+#define SH_cosLobe_c1 1.02332671 
 
 half4 dir_to_cosine_lobe_ericpolman(half3 dir) {
     return half4(SH_cosLobe_c0, -SH_cosLobe_c1 * dir.y, SH_cosLobe_c1 * dir.z, -SH_cosLobe_c1 * dir.x);
@@ -131,5 +130,3 @@ half sh_lookup_band1(half4 coefficients, half3 direction) {
 
 	return dot(projected_direction, coefficients);
 }
-
-#endif 

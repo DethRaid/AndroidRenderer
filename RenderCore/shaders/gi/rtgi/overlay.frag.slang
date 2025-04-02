@@ -37,7 +37,7 @@ float2 r1(uint n) {
 
 float3 get_worldspace_location(const uint2 pixel) {
     const float depth = gbuffer_depth[pixel];
-    const float2 texcoord = (float2)pixel / view_data.render_resolution.xy;
+    const float2 texcoord = ((float2)pixel + 0.5) / view_data.render_resolution.xy;
     const float4 ndc_position = float4(texcoord * 2.f - 1.f, depth, 1.f);
     float4 viewspace_position = mul(view_data.inverse_projection, ndc_position);
     viewspace_position /= viewspace_position.w;
@@ -69,6 +69,11 @@ half3 calc_contribution_from_ray(in SurfaceInfo surface, in half3 view_vector, i
 float4 main(float4 sv_position: SV_Position) {
     int2 pixel = (int2)sv_position.xy;
 
+    const float depth = gbuffer_depth[pixel];
+    if (depth == 0.f) {
+        discard;
+    }
+
     SurfaceInfo surface = (SurfaceInfo)0;
     surface.base_color = gbuffer_base_color[pixel].rgb;
     surface.normal = normalize(gbuffer_normals[pixel].xyz);
@@ -79,7 +84,7 @@ float4 main(float4 sv_position: SV_Position) {
     surface.location = get_worldspace_location(pixel);
     surface.emission = gbuffer_emission[pixel].rgb;
 
-    const float3 view_position = vec3(-view_data.view[3].xyz);
+    const float3 view_position = float3(-view_data.view[3].xyz);
     const float3 worldspace_view_position = surface.location - view_position;
     const half3 worldspace_view_vector = (half3)normalize(worldspace_view_position);
 

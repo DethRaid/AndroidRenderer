@@ -30,7 +30,7 @@ static GLFWscrollfun prev_scroll_callback;
 static GLFWkeyfun prev_key_callback;
 static GLFWcharfun prev_char_callback;
 
-std::array<GLFWcursor*, ImGuiMouseCursor_COUNT> mouse_cursors = {};
+eastl::array<GLFWcursor*, ImGuiMouseCursor_COUNT> mouse_cursors = {};
 
 static const char* get_clipboard_text(void* user_data) {
     return glfwGetClipboardString(static_cast<GLFWwindow*>(user_data));
@@ -168,7 +168,7 @@ DebugUI::DebugUI(SceneRenderer& renderer_in) : renderer{renderer_in},
     case 2:
         current_taa = 2;
         break;
-    case 3: 
+    case 3:
         current_taa = 0;
         break;
     case 4:
@@ -177,6 +177,8 @@ DebugUI::DebugUI(SceneRenderer& renderer_in) : renderer{renderer_in},
     default:
         current_taa = 3;
     }
+
+    use_ray_reconstruction = *CVarSystem::Get()->GetIntCVar("r.DLSS-RR.Enabled") != 0;
 }
 
 void DebugUI::draw() {
@@ -242,7 +244,7 @@ void DebugUI::create_font_texture() {
     upload_queue.enqueue(
         TextureUploadJob{
             .destination = font_atlas_handle, .mip = 0,
-            .data = std::vector(pixels, pixels + static_cast<ptrdiff_t>(width * height))
+            .data = eastl::vector<uint8_t>(pixels, pixels + static_cast<ptrdiff_t>(width * height))
         }
     );
 
@@ -316,111 +318,12 @@ void DebugUI::update_mouse_cursor() const {
 
 void DebugUI::draw_debug_menu() {
     if(ImGui::Begin("Debug Menu", &is_debug_menu_open)) {
-        ImGui::Text("TAA");
-        ImGui::Separator();
-        draw_combo_box("TAA Technique", std::array<std::string, 4>{"DLSS", "XeSS", "FSR", "None"}, current_taa);
+        draw_taa_menu();
 
-#if SAH_USE_STREAMLINE
-        if(current_taa == 0) {
-            CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::DLSS));
-
-            draw_combo_box(
-                "DLSS Mode",
-                std::array<std::string, 4>{"DLAA", "Quality", "Balanced", "Performance"},
-                current_dlss_mode);
-            auto* dlss_quality = CVarSystem::Get()->GetIntCVar("r.DLSS.Quality");
-            switch(current_dlss_mode) {
-            case 0:
-                *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eDLAA);
-                break;
-            case 1:
-                *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eMaxQuality);
-                break;
-            case 2:
-                *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eBalanced);
-                break;
-            case 3:
-                *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eMaxPerformance);
-                break;
-            }
-
-        } else
-#endif
-#if SAH_USE_XESS
-            if(current_taa == 1) {
-                CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::XeSS));
-
-                draw_combo_box(
-                    "XeSS Mode",
-                    std::array<std::string, 7>{
-                        "AA", "Ultra Quality Plus", "Ultra Quality", "Quality", "Balanced", "Performance",
-                        "Ultra Performance"
-                    },
-                    current_xess_mode);
-                auto* xess_quality = CVarSystem::Get()->GetIntCVar("r.XeSS.Mode");
-                switch(current_xess_mode) {
-                case 0:
-                    *xess_quality = XESS_QUALITY_SETTING_AA;
-                    break;
-                case 1:
-                    *xess_quality = XESS_QUALITY_SETTING_ULTRA_QUALITY_PLUS;
-                    break;
-                case 2:
-                    *xess_quality = XESS_QUALITY_SETTING_ULTRA_QUALITY;
-                    break;
-                case 3:
-                    *xess_quality = XESS_QUALITY_SETTING_QUALITY;
-                    break;
-                case 4:
-                    *xess_quality = XESS_QUALITY_SETTING_BALANCED;
-                    break;
-                case 5:
-                    *xess_quality = XESS_QUALITY_SETTING_PERFORMANCE;
-                    break;
-                case 6:
-                    *xess_quality = XESS_QUALITY_SETTING_ULTRA_PERFORMANCE;
-                    break;
-                }
-
-            } else
-#endif
-#if SAH_USE_FFX
-                if(current_taa == 2) {
-                    CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::FSR3));
-
-                    draw_combo_box(
-                        "FSR Mode",
-                        std::array<std::string, 5>{
-                            "Native AA", "Quality", "Balanced", "Performance", "Ultra Performance"
-                        },
-                        current_fsr_mode);
-                    auto* fsr_quality = CVarSystem::Get()->GetIntCVar("r.FSR3.Quality");
-                    switch(current_fsr_mode) {
-                    case 0:
-                        *fsr_quality = FFX_UPSCALE_QUALITY_MODE_NATIVEAA;
-                        break;
-                    case 1:
-                        *fsr_quality = FFX_UPSCALE_QUALITY_MODE_QUALITY;
-                        break;
-                    case 2:
-                        *fsr_quality = FFX_UPSCALE_QUALITY_MODE_BALANCED;
-                        break;
-                    case 3:
-                        *fsr_quality = FFX_UPSCALE_QUALITY_MODE_PERFORMANCE;
-                        break;
-                    case 4:
-                        *fsr_quality = FFX_UPSCALE_QUALITY_MODE_ULTRA_PERFORMANCE;
-                        break;
-                    }
-
-                } else
-#endif
-                {
-                    CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::None));
-                }
-
+        draw_gi_menu();
 
         if(ImGui::CollapsingHeader("Visualizers")) {
+            auto selected_visualizer = renderer.get_active_visualizer();
             for(auto visualizer : magic_enum::enum_values<RenderVisualization>()) {
                 const auto name = to_string(visualizer);
                 if(ImGui::Selectable(name, selected_visualizer == visualizer)) {
@@ -439,6 +342,143 @@ void DebugUI::draw_debug_menu() {
 
     ImGui::End();
 }
+
+void DebugUI::draw_taa_menu() {
+    ImGui::Text("TAA");
+    ImGui::Separator();
+    draw_combo_box("TAA Technique", eastl::array<std::string, 4>{"DLSS", "XeSS", "FSR", "None"}, current_taa);
+
+#if SAH_USE_STREAMLINE
+    if(current_taa == 0) {
+        CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::DLSS));
+
+        draw_combo_box(
+            "DLSS Mode",
+            eastl::array<std::string, 4>{"DLAA", "Quality", "Balanced", "Performance"},
+            current_dlss_mode);
+        auto* dlss_quality = CVarSystem::Get()->GetIntCVar("r.DLSS.Quality");
+        switch(current_dlss_mode) {
+        case 0:
+            *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eDLAA);
+            break;
+        case 1:
+            *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eMaxQuality);
+            break;
+        case 2:
+            *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eBalanced);
+            break;
+        case 3:
+            *dlss_quality = static_cast<int32_t>(sl::DLSSMode::eMaxPerformance);
+            break;
+        }
+
+        ImGui::Checkbox("DLSS Ray Reconstruction", &use_ray_reconstruction);
+        CVarSystem::Get()->SetIntCVar("r.DLSS-RR.Enabled", use_ray_reconstruction);
+
+    } else
+#endif
+#if SAH_USE_XESS
+        if(current_taa == 1) {
+            CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::XeSS));
+
+            draw_combo_box(
+                "XeSS Mode",
+                eastl::array<std::string, 7>{
+                    "AA", "Ultra Quality Plus", "Ultra Quality", "Quality", "Balanced", "Performance",
+                    "Ultra Performance"
+                },
+                current_xess_mode);
+            auto* xess_quality = CVarSystem::Get()->GetIntCVar("r.XeSS.Mode");
+            switch(current_xess_mode) {
+            case 0:
+                *xess_quality = XESS_QUALITY_SETTING_AA;
+                break;
+            case 1:
+                *xess_quality = XESS_QUALITY_SETTING_ULTRA_QUALITY_PLUS;
+                break;
+            case 2:
+                *xess_quality = XESS_QUALITY_SETTING_ULTRA_QUALITY;
+                break;
+            case 3:
+                *xess_quality = XESS_QUALITY_SETTING_QUALITY;
+                break;
+            case 4:
+                *xess_quality = XESS_QUALITY_SETTING_BALANCED;
+                break;
+            case 5:
+                *xess_quality = XESS_QUALITY_SETTING_PERFORMANCE;
+                break;
+            case 6:
+                *xess_quality = XESS_QUALITY_SETTING_ULTRA_PERFORMANCE;
+                break;
+            }
+
+        } else
+#endif
+#if SAH_USE_FFX
+            if(current_taa == 2) {
+                CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::FSR3));
+
+                draw_combo_box(
+                    "FSR Mode",
+                    eastl::array<std::string, 5>{
+                        "Native AA", "Quality", "Balanced", "Performance", "Ultra Performance"
+                    },
+                    current_fsr_mode);
+                auto* fsr_quality = CVarSystem::Get()->GetIntCVar("r.FSR3.Quality");
+                switch(current_fsr_mode) {
+                case 0:
+                    *fsr_quality = FFX_UPSCALE_QUALITY_MODE_NATIVEAA;
+                    break;
+                case 1:
+                    *fsr_quality = FFX_UPSCALE_QUALITY_MODE_QUALITY;
+                    break;
+                case 2:
+                    *fsr_quality = FFX_UPSCALE_QUALITY_MODE_BALANCED;
+                    break;
+                case 3:
+                    *fsr_quality = FFX_UPSCALE_QUALITY_MODE_PERFORMANCE;
+                    break;
+                case 4:
+                    *fsr_quality = FFX_UPSCALE_QUALITY_MODE_ULTRA_PERFORMANCE;
+                    break;
+                }
+
+            } else
+#endif
+            {
+                CVarSystem::Get()->SetIntCVar("r.AntiAliasing", static_cast<int32_t>(AntiAliasingType::None));
+            }
+
+    ImGui::Separator();
+}
+
+void DebugUI::draw_gi_menu() {
+    ImGui::Text("Global Illumination");
+
+    ImGui::Separator();
+
+    auto* cvars = CVarSystem::Get();
+
+    draw_combo_box("GI Quality", eastl::array<std::string, 3>{"Low", "Medium", "High"}, selected_gi_quality);
+    switch(selected_gi_quality) {
+    case 0:
+        cvars->SetEnumCVar("r.GI.Mode", GIMode::LPV);
+        cvars->SetEnumCVar("r.AO", AoTechnique::Off);
+        break;
+
+    case 1:
+        cvars->SetEnumCVar("r.GI.Mode", GIMode::LPV);
+        cvars->SetEnumCVar("r.AO", AoTechnique::RTAO);
+        break;
+
+    case 2:
+        cvars->SetEnumCVar("r.GI.Mode", GIMode::RT);
+        cvars->SetEnumCVar("r.AO", AoTechnique::Off);
+        break;
+    }
+}
+
 
 void DebugUI::draw_combo_box(const std::string& name, std::span<const std::string> items, int& selected_item) {
     if(ImGui::BeginCombo(name.c_str(), items[selected_item].c_str(), ImGuiComboFlags_None)) {

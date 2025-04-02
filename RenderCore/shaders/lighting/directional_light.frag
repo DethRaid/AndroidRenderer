@@ -44,7 +44,7 @@ layout(location = 0) out medvec4 lighting;
 
 vec3 get_viewspace_position() {
     const float depth = texelFetch(gbuffer_depth, ivec2(gl_FragCoord.xy), 0).r;
-    vec2 texcoord = gl_FragCoord.xy / view_info.render_resolution.xy;
+    vec2 texcoord = (gl_FragCoord.xy + 0.5) / view_info.render_resolution.xy;
     vec4 ndc_position = vec4(vec3(texcoord * 2.0 - 1.0, depth), 1.f);
     vec4 viewspace_position = view_info.inverse_projection * ndc_position;
     viewspace_position /= viewspace_position.w;
@@ -95,6 +95,12 @@ medfloat sample_csm(vec3 worldspace_position, float viewspace_depth, float ndotl
 
 void main() {
     ivec2 pixel = ivec2(gl_FragCoord.xy);
+    
+    const float depth = texelFetch(gbuffer_depth, pixel, 0).r;
+    if(depth == 0) {
+        discard;
+    }
+
     medvec3 base_color_sample = texelFetch(gbuffer_base_color, pixel, 0).rgb;
     medvec3 normal_sample = normalize(texelFetch(gbuffer_normal, pixel, 0).xyz);
     medvec4 data_sample = texelFetch(gbuffer_data, pixel, 0);

@@ -23,7 +23,7 @@ namespace vkutil {
         VkDevice device, const DescriptorAllocator::PoolSizes& poolSizes, int count,
         VkDescriptorPoolCreateFlags flags
     ) {
-        std::vector<VkDescriptorPoolSize> sizes;
+        eastl::vector<VkDescriptorPoolSize> sizes;
         sizes.reserve(poolSizes.sizes.size());
         for(auto sz : poolSizes.sizes) {
             sizes.push_back({sz.first, uint32_t(sz.second * count)});
@@ -158,7 +158,7 @@ namespace vkutil {
             );
         }
         auto flags_create_info = VkDescriptorSetLayoutBindingFlagsCreateInfo{};
-        auto flags = std::vector<VkDescriptorBindingFlags>{};
+        auto flags = eastl::vector<VkDescriptorBindingFlags>{};
         if (info->bindingCount > 0) {
             const auto& last_binding = info->pBindings[info->bindingCount - 1];
             if (is_descriptor_array(last_binding)) {
@@ -208,7 +208,7 @@ namespace vkutil {
         const VkShaderStageFlags stage_flags
     ) {
         auto& vk_info = buffer_infos_to_delete.emplace_back(
-            std::vector{
+            eastl::vector{
                 VkDescriptorBufferInfo{
                     .buffer = info.buffer->buffer,
                     .offset = info.offset,
@@ -222,7 +222,7 @@ namespace vkutil {
 
     DescriptorBuilder&
     DescriptorBuilder::bind_buffer_array(
-        const uint32_t binding, const std::vector<BufferInfo>& infos,
+        const uint32_t binding, const eastl::span<BufferInfo> infos,
         const VkDescriptorType type, const VkShaderStageFlags stage_flags
     ) {
         auto& vk_infos = buffer_infos_to_delete.emplace_back();
@@ -254,7 +254,7 @@ namespace vkutil {
         }
 
         auto& vk_info = image_infos_to_delete.emplace_back(
-            std::vector{
+            eastl::vector{
                 VkDescriptorImageInfo{
                     .sampler = info.sampler,
                     .imageView = image_view,
@@ -267,7 +267,7 @@ namespace vkutil {
     }
 
     DescriptorBuilder& DescriptorBuilder::bind_image_array(
-        const uint32_t binding, const std::vector<ImageInfo>& infos, const VkDescriptorType type,
+        const uint32_t binding, const eastl::span<ImageInfo> infos, const VkDescriptorType type,
         const VkShaderStageFlags stage_flags
     ) {
         auto& vk_infos = image_infos_to_delete.emplace_back();
