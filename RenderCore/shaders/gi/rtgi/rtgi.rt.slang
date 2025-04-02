@@ -107,3 +107,4 @@ void main_raygen() {
     ray_buffer[thread_id] = float4(ray_direction, payload.ray_distance);
     ray_irradiance[thread_id] = float4(payload.irradiance * exposure_factor, 0);
 }
+

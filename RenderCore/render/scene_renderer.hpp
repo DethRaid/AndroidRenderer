@@ -152,7 +152,7 @@ private:
 
     UiPhase ui_phase;
 
-    RenderVisualization active_visualization = RenderVisualization::GIDebug;
+    RenderVisualization active_visualization = RenderVisualization::None;
 
     std::unique_ptr<IUpscaler> upscaler;
 

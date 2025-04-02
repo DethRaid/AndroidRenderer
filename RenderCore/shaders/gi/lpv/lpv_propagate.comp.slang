@@ -102,7 +102,6 @@ void main(uint3 thread_index: SV_GroupThreadID, uint3 group_id: SV_GroupID) {
         }
 
         half4 gv_sh = half4(0);
-        half geo_volume_factor = 1.h;
         if (use_gv != 0) {
             float3 gv_coordinate = float3(neighbor_cell) / 32.f;
             // Add a half-cell offset to the GV
@@ -112,7 +111,6 @@ void main(uint3 thread_index: SV_GroupThreadID, uint3 group_id: SV_GroupID) {
             gv_coordinate.x /= 4.f;
 
             gv_sh = geo_volume.SampleLevel(gv_coordinate, 0);
-            geo_volume_factor = step(0.1f, abs(dot(gv_sh, gv_sh)));
         }
 
         const int3 cell_to_load = neighbor_cell + cascade_pixel_offset;
@@ -134,7 +132,7 @@ void main(uint3 thread_index: SV_GroupThreadID, uint3 group_id: SV_GroupID) {
             half4 eval_direction_sh = dir_to_sh(eval_direction);
             half4 reproj_direction_cosine_lobs_sh = dir_to_cosine_lobe(reproj_direction);
 
-            // half geo_volume_factor = 1 - clamp(gv_sh.x * eval_direction_sh.x + abs(dot(gv_sh.yzw, eval_direction_sh.yzw)), 0, 1);            
+            half geo_volume_factor = 1 - clamp(gv_sh.x * eval_direction_sh.x + abs(dot(gv_sh.yzw, eval_direction_sh.yzw)), 0, 1);            
 
             lpv_r += side_face_subtended_solid_angle * dot(red_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh * geo_volume_factor;
             lpv_g += side_face_subtended_solid_angle * dot(green_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh * geo_volume_factor;
@@ -145,7 +143,7 @@ void main(uint3 thread_index: SV_GroupThreadID, uint3 group_id: SV_GroupID) {
         half4 cur_cosine_lobe = dir_to_cosine_lobe(cur_direction);
         half4 cur_direction_sh = dir_to_sh(cur_direction);
 
-        //half geo_volume_factor = 1 - clamp(gv_sh.x * cur_direction_sh.x + abs(dot(gv_sh.yzw, cur_direction_sh.yzw)), 0, 1);
+        half geo_volume_factor = 1 - clamp(gv_sh.x * cur_direction_sh.x + abs(dot(gv_sh.yzw, cur_direction_sh.yzw)), 0, 1);
 
         lpv_r += direct_face_subtended_solid_angle * dot(red_coefficients, cur_direction_sh) * cur_cosine_lobe * geo_volume_factor;
         lpv_g += direct_face_subtended_solid_angle * dot(green_coefficients, cur_direction_sh) * cur_cosine_lobe * geo_volume_factor;
