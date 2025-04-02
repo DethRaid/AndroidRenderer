@@ -514,7 +514,10 @@ void main_closesthit(inout IrradiancePayload payload, in float2 barycentrics) {
         }
     }
 
-    payload.ray_distance *= -sign(dot(surface.normal, WorldRayDirection()));
+    if (HitKind() == HIT_KIND_TRIANGLE_BACK_FACE) {
+        payload.ray_distance *= -1;
+        payload.irradiance = 0;
+    }
 }
 #endif  // SAH_RT_GI
 #endif // SAH_RT

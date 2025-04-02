@@ -19,30 +19,30 @@ float3 sample_cascade(
     const float3 probespace_location = relative_location / cascade.probe_spacing;
     const float3 min_probe = floor(probespace_location);
 
-    const float3 alpha = clamp((probespace_location - min_probe) / cascade.probe_spacing, 0.f, 1.f);
+    const float3 alpha = clamp(probespace_location - min_probe, 0.f, 1.f);
 
     const float3 offsets[8] = float3[8](
         float3(0, 0, 0),
-        float3(0, 0, 1),
-        float3(0, 1, 0),
-        float3(0, 1, 1),
         float3(1, 0, 0),
-        float3(1, 0, 1),
+        float3(0, 1, 0),
         float3(1, 1, 0),
+        float3(0, 0, 1),
+        float3(1, 0, 1),
+        float3(0, 1, 1),
         float3(1, 1, 1)
     );
 
     float3 irradiance = 0.h;
     float weight = 0.h;
 
-    for (uint i = 0; i < 1; i++) {
+    for (uint i = 0; i < 8; i++) {
         const float3 probe_location = min_probe + offsets[i];
         const float3 direction_to_probe = probe_location - probespace_location;
         const float distance_to_probe = length(direction_to_probe) * cascade.probe_spacing;
 
-        const uint3 base_probe_index = (uint3)(probe_location + float3(0, cascade_index * 8.f, 0));
+        const uint3 probe_index = (uint3)(probe_location + float3(0, cascade_index * 8.f, 0));
 
-        const half probe_validity = probe_validity[base_probe_index];
+        const half probe_validity = probe_validity[probe_index];
         if (probe_validity == 0) {
             continue;
         }
@@ -55,7 +55,7 @@ float3 sample_cascade(
         float probe_weight = 1.h;
 
         const float2 depth_octant_coord = get_octahedral_coordinates(-direction_to_probe);
-        const float3 depth_uv = get_probe_uv(base_probe_index, depth_octant_coord, uint2(10, 10));
+        const float3 depth_uv = get_probe_uv(probe_index, depth_octant_coord, uint2(10, 10));
         const half2 depth = probe_depth.SampleLevel(depth_uv, 0);
 
         const float variance = abs((depth.x * depth.x) - depth.y);
@@ -90,14 +90,17 @@ float3 sample_cascade(
         probe_weight *= trilinear_weight;
 
         const float2 irradiance_octant_coord = get_octahedral_coordinates(direction);
-        const float3 probe_uv = get_probe_uv(base_probe_index, irradiance_octant_coord, probe_size);
+        const float3 probe_uv = get_probe_uv(probe_index, irradiance_octant_coord, probe_size);
         const half3 probe_irradiance = probe_irradiance.SampleLevel(probe_uv, 0);
 
         irradiance += probe_irradiance * probe_weight;
         weight += probe_weight;
     }
 
-    irradiance /= weight;
+    if (weight == 0) {
+        return 0;
+    }
 
+    irradiance /= weight;
     return irradiance * 2 * PI;
 }

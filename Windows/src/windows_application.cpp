@@ -36,7 +36,8 @@ int main(const int argc, const char** argv) {
             // application.load_scene("assets/BoomBoxWithAxes/gltf/BoomBoxWithAxes.gltf");
             // application.load_scene("assets/NormalTangentTest/gltf/NormalTangentTest.gltf");
             // application.load_scene("assets/AlphaTest.gltf");
-            application.load_scene("assets/CornelBoxKinda.glb");
+            // application.load_scene("assets/CornelBoxKinda.glb");
+            application.load_scene("assets/GiOcclusionTest.glb");
             application.update_resolution();
         }
 

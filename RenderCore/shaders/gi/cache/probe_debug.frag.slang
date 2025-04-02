@@ -10,7 +10,7 @@ Sampler2DArray<half3> rtgi;
 
 Sampler2DArray<half3> light_cache;
 
-Sampler2DArray<half2> depth;
+//Sampler2DArray<half2> depth;
 
 Texture2DArray<half3> average;
 
@@ -84,7 +84,7 @@ half4 main(VertexOutput vertex) {
         result = light_cache.SampleLevel(uv, 0);
 
     case 2:
-        result.xy = depth.SampleLevel(uv, 0);
+        //result.xy = depth.SampleLevel(uv, 0);
         result.z = 0;
         break;
     }

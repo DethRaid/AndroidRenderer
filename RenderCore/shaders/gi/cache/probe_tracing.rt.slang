@@ -48,7 +48,7 @@ void main_raygen() {
 
     const float3 local_probe_id = (float3)uint3(probe_id.x, probe_id.y % 8, probe_id.z);
 
-    const float2 octant_ray_coord = get_normalized_octahedral_coordinates(thread_id.xy, 20);
+    const float2 octant_ray_coord = get_normalized_octahedral_coordinates(thread_id.xy, probe_volume.trace_resolution);
     const float3 ray_direction = get_octahedral_direction(octant_ray_coord);
 
     float ray_distance = 8192;
@@ -75,21 +75,21 @@ void main_raygen() {
         ray,
         payload);
 
-    // TODO: If the ray misses (trace distance = 0), sample the next-highest cascade (or the sky, if we're already in cascade 3)
-
     if (payload.ray_distance == 0) {
         // If we didn't hit anything and there's a next-largest cascade to sample, sample from it. Otherwise we just 
         // keep the sky irradiance in the payload
         if (cascade_index + 1 < 4) {
             payload.irradiance = sample_cascade(
-                ray.Origin + ray.Direction * ray.TMax, 
-                ray.Direction, 
-                cascade_index + 1, 
-                probe_volume.cascades[cascade_index + 1], 
-                rtgi, 
-                probe_volume.rgti_probe_resolution, 
-                depth, 
+                ray.Origin + ray.Direction * ray.TMax,
+                ray.Direction,
+                cascade_index + 1,
+                probe_volume.cascades[cascade_index + 1],
+                rtgi,
+                probe_volume.rgti_probe_resolution,
+                depth,
                 validity);
+        } else {
+            payload.irradiance *= 10.f;
         }
 
         payload.ray_distance = ray_distance;

@@ -134,6 +134,8 @@ private:
      */
     GraphicsPipelineHandle lpv_render_shader;
 
+    static inline GraphicsPipelineHandle gv_visualization_pipeline = nullptr;
+
     /**
      * Renders a visualization of each VPL
      *
@@ -165,11 +167,10 @@ private:
      * \param depth_buffer Scene depth buffer to inject
      * \param normal_target gbuffer normals to inject
      * \param view_uniform_buffer The view uniform buffer that was used to render the depth and normals targets
-     * \param resolution Resolution of the depth and normal targets
      */
     void build_geometry_volume_from_scene_view(
         RenderGraph& graph, TextureHandle depth_buffer,
-        TextureHandle normal_target, BufferHandle view_uniform_buffer, glm::uvec2 resolution
+        TextureHandle normal_target, BufferHandle view_uniform_buffer
     ) const;
 
     void inject_indirect_sun_light(RenderGraph& graph, const RenderScene& scene) const;
@@ -208,6 +209,10 @@ private:
      * \param cascade_index Index of the cascade that we're injecting into
      */
     void inject_rsm_depth_into_cascade_gv(RenderGraph& graph, const CascadeData& cascade, uint32_t cascade_index) const;
+
+    void visualize_geometry_volume(
+        RenderGraph& graph, const SceneView& view, TextureHandle lit_scene_texture, TextureHandle depth
+    );
 
     void visualize_vpls(
         RenderGraph& graph, BufferHandle scene_view_buffer, TextureHandle lit_scene, TextureHandle depth_buffer

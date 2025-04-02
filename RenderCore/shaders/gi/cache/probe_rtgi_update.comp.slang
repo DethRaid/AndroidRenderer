@@ -32,14 +32,14 @@ void main(uint3 group_id: SV_GroupID, uint3 thread_id: SV_GroupThreadID) {
         const uint2 read_pixel = source_base_pixel + offset;
         const half4 irradiance = trace_results_texture[uint3(read_pixel, probe_index)];
 
-        // if (irradiance.w > 0) {
+        if (irradiance.w > 0) {
         const float2 octant_ray_coord = get_normalized_octahedral_coordinates(read_pixel, probe_volume.trace_resolution);
             const float3 ray_direction = get_octahedral_direction(octant_ray_coord);
 
             const half weight = dot(direction, ray_direction);
             light += irradiance.rgb;
             num_valid_samples += 1.h;
-        //}
+        }
     }
 
     if (num_valid_samples > 0) {

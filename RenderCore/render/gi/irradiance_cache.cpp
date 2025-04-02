@@ -76,21 +76,7 @@ IrradianceCache::IrradianceCache() {
                                      .enable_depth_write = false,
                                      .compare_op = VK_COMPARE_OP_LESS
                                  })
-                             .set_blend_state(
-                                 0,
-                                 {
-                                     .blendEnable = VK_TRUE,
-                                     .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                     .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
-                                     .colorBlendOp = VK_BLEND_OP_ADD,
-                                     .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                     .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-                                     .alphaBlendOp = VK_BLEND_OP_ADD,
-                                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
-                                     |
-                                     VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-                                 }
-                             )
+                             .set_blend_mode(BlendMode::Additive)
                              .build();
     }
 
@@ -302,7 +288,7 @@ void IrradianceCache::add_to_lit_scene(CommandBuffer& commands, const BufferHand
     const auto set = RenderBackend::get().get_transient_descriptor_allocator().build_set(overlay_pso, 1)
                                          .bind(view_buffer)
                                          .bind(cache_cbuffer)
-                                         .bind(light_cache_a, linear_sampler)
+                                         .bind(rtgi_a, linear_sampler)
                                          .bind(depth_a, linear_sampler)
                                          .bind(validity_a)
                                          .build();
@@ -332,7 +318,7 @@ void IrradianceCache::draw_debug_overlays(
                             .bind(cache_cbuffer)
                             .bind(rtgi_a, point_sampler)
                             .bind(light_cache_a, point_sampler)
-                            .bind(depth_a, point_sampler)
+                            //.bind(depth_a, point_sampler)
                             .bind(average_a)
                             .bind(validity_a)
                             .build();
@@ -456,7 +442,7 @@ void IrradianceCache::place_probes_from_view(const SceneView& view) {
         .trace_resolution = {20, 20},
         .rgti_probe_resolution = {5, 6},
         .light_cache_probe_resolution = {11, 11},
-        .depth_probe_resolution = {10,10} 
+        .depth_probe_resolution = {10, 10}
     };
     for(uint i = 0; i < cascades.size(); i++) {
         gpu_data.cascades[i].min = cascades[i].location;
@@ -680,6 +666,7 @@ void IrradianceCache::dispatch_probe_updates(
                 "shaders/gi/cache/probe_light_cache_update.comp.spv");
         }
         auto set = descriptor_allocator.build_set(probe_light_cache_update_shader, 0)
+                                       .bind(cache_cbuffer)
                                        .bind(probes_to_update_buffer)
                                        .bind(trace_results_texture)
                                        .bind(light_cache_a)

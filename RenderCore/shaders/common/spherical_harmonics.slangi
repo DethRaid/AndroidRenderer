@@ -1,5 +1,4 @@
-#ifndef SPHERICAL_HARMONICS_GLSL
-#define SPHERICAL_HARMONICS_GLSL
+#pragma once
 
 /**
  * Library of SH functions
@@ -131,5 +130,3 @@ half sh_lookup_band1(half4 coefficients, half3 direction) {
 
 	return dot(projected_direction, coefficients);
 }
-
-#endif 

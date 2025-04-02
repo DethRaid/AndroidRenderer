@@ -171,15 +171,6 @@ void UiPhase::create_pipelines() {
                                 .enable_depth_write = false,
                             }
                         )
-                        .set_blend_state(
-                            0,
-                            {
-                                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                                VK_COLOR_COMPONENT_G_BIT |
-                                VK_COLOR_COMPONENT_B_BIT |
-                                VK_COLOR_COMPONENT_A_BIT
-                            }
-                        )
                         .build();
 
     imgui_pipeline = backend

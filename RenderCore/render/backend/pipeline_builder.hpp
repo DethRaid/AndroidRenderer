@@ -69,6 +69,11 @@ struct RasterState {
     bool depth_clamp_enable = false;
 };
 
+enum class BlendMode {
+    NoBlending,
+    Additive
+};
+
 class GraphicsPipelineBuilder {
     friend class PipelineCache;
 
@@ -115,14 +120,19 @@ public:
 
     GraphicsPipelineBuilder& add_blend_flag(VkPipelineColorBlendStateCreateFlagBits flag);
 
-    GraphicsPipelineBuilder& set_blend_state(
-        uint32_t color_target_index, const VkPipelineColorBlendAttachmentState& blend
-    );
-
     /**
      * Sets the default blend state for the specified number of attachments
      */
     GraphicsPipelineBuilder& set_num_attachments(uint32_t num_attachments);
+
+    /**
+     * Sets the blend mode for all current attachments. Recommended to call this after set_num_attachments
+     */
+    GraphicsPipelineBuilder& set_blend_mode(BlendMode mode);
+
+    GraphicsPipelineBuilder& set_blend_state(
+        uint32_t color_target_index, const VkPipelineColorBlendAttachmentState& blend
+    );
 
     /**
      * Enables using the pipeline in a pipeline group

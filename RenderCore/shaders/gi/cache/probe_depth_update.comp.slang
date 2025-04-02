@@ -32,9 +32,9 @@ void main(uint3 group_id: SV_GroupID, uint2 thread_id: SV_GroupThreadID) {
         if (ray_depth > 0) {
             const float2 octant_ray_coord = get_normalized_octahedral_coordinates(read_pixel, 20);
             const float3 ray_direction = get_octahedral_direction(octant_ray_coord);
-            
+
             const half weight = dot(direction, ray_direction);
-            depth += ray_depth * weight;
+            depth += ray_depth;// * weight;
             num_valid_samples += 1.h;
         }
     }

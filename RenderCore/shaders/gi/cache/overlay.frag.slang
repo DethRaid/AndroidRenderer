@@ -92,8 +92,10 @@ half4 main(float4 sv_position: SV_Position) {
 
     const half3 brdf_result = brdf(surface, surface.normal, worldspace_view_vector);
 
+    const half exposure_factor = 0.314159h;
+
     // ndotl is always 1
-    half3 color = brdf_result * irradiance;
+    half3 color = brdf_result * irradiance * exposure_factor;
 
     if (debug_mode == 1) {
         if (cascade_index == 0) {
@@ -107,6 +109,10 @@ half4 main(float4 sv_position: SV_Position) {
         } else {
             color = half3(0.5);
         }
+    }
+
+    if (any(isnan(color))) {
+        color = 0.h;
     }
 
     return half4(color, 1);

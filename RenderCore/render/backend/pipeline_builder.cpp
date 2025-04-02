@@ -358,6 +358,34 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::add_blend_flag(VkPipelineColor
     return *this;
 }
 
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_blend_mode(const BlendMode mode) {
+    for(auto& blend_state : blends) {
+        switch (mode) {
+        case BlendMode::NoBlending:
+            blend_state = {
+                .blendEnable = VK_FALSE,
+                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            };
+            break;
+
+        case BlendMode::Additive:
+            blend_state = {
+                .blendEnable = VK_TRUE,
+                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                .colorBlendOp = VK_BLEND_OP_ADD,
+                .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                .alphaBlendOp = VK_BLEND_OP_ADD,
+                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            };
+            break;
+        }
+    }
+
+    return *this;
+}
+
 GraphicsPipelineBuilder&
 GraphicsPipelineBuilder::set_blend_state(
     const uint32_t color_target_index,
