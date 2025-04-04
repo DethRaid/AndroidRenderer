@@ -75,7 +75,7 @@ static auto cvar_enable_mesh_lights = AutoCVar_Int{
 };
 
 static auto cvar_lpv_exposure = AutoCVar_Float{
-    "r.GI.LPV.Exposure", "Exposure to use when applying the LPV to the scene", PI / 1000.f
+    "r.GI.LPV.Exposure", "Exposure to use when applying the LPV to the scene", PI * 10.f
 };
 
 static auto cvar_lpv_debug_mode = AutoCVar_Int{"r.GI.LPV.DebugMode", "0 = GV, 1 = VPLs", 0};
