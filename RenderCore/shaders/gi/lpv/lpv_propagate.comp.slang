@@ -86,9 +86,9 @@ void main(uint3 thread_index: SV_GroupThreadID, uint3 group_id: SV_GroupID) {
     const int3 cell_index = local_index + group_offset_in_cascade;
 
     // Initialize this cell's local cache
-    half4 lpv_r = read_lpv_red[cell_index + cascade_pixel_offset];
-    half4 lpv_g = read_lpv_green[cell_index + cascade_pixel_offset];
-    half4 lpv_b = read_lpv_blue[cell_index + cascade_pixel_offset];
+    half4 lpv_r = (half4)0; // read_lpv_red[cell_index + cascade_pixel_offset];
+    half4 lpv_g = (half4)0; // read_lpv_green[cell_index + cascade_pixel_offset];
+    half4 lpv_b = (half4)0; // read_lpv_blue[cell_index + cascade_pixel_offset];
 
     // Propagate lighting
     for (uint neighbor = 0; neighbor < 6; neighbor++) {
@@ -122,8 +122,8 @@ void main(uint3 thread_index: SV_GroupThreadID, uint3 group_id: SV_GroupID) {
         green_coefficients = read_lpv_green[neighbor_cell + cascade_pixel_offset];
         blue_coefficients = read_lpv_blue[neighbor_cell + cascade_pixel_offset];
 
-        const half direct_face_subtended_solid_angle = 0.4006696846h / PI / 2.h;
-        const half side_face_subtended_solid_angle = 0.4234413544h / PI / 3.h;
+        const half direct_face_subtended_solid_angle = 0.4006696846h / PI;
+        const half side_face_subtended_solid_angle = 0.4234413544h / PI;
 
         for (uint side_face = 0; side_face < 4; side_face++) {
             half3 eval_direction = get_eval_side_direction(side_face, orientation);
@@ -134,9 +134,9 @@ void main(uint3 thread_index: SV_GroupThreadID, uint3 group_id: SV_GroupID) {
 
             half geo_volume_factor = 1 - clamp(gv_sh.x * eval_direction_sh.x + abs(dot(gv_sh.yzw, eval_direction_sh.yzw)), 0, 1);            
 
-            lpv_r += side_face_subtended_solid_angle * dot(red_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh * geo_volume_factor;
-            lpv_g += side_face_subtended_solid_angle * dot(green_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh * geo_volume_factor;
-            lpv_b += side_face_subtended_solid_angle * dot(blue_coefficients, eval_direction_sh) * reproj_direction_cosine_lobs_sh * geo_volume_factor;
+            lpv_r += side_face_subtended_solid_angle * max(0, dot(red_coefficients, eval_direction_sh)) * reproj_direction_cosine_lobs_sh * geo_volume_factor;
+            lpv_g += side_face_subtended_solid_angle * max(0, dot(green_coefficients, eval_direction_sh)) * reproj_direction_cosine_lobs_sh * geo_volume_factor;
+            lpv_b += side_face_subtended_solid_angle * max(0, dot(blue_coefficients, eval_direction_sh)) * reproj_direction_cosine_lobs_sh * geo_volume_factor;
         }
 
         half3 cur_direction = directions[neighbor];
@@ -145,13 +145,12 @@ void main(uint3 thread_index: SV_GroupThreadID, uint3 group_id: SV_GroupID) {
 
         half geo_volume_factor = 1 - clamp(gv_sh.x * cur_direction_sh.x + abs(dot(gv_sh.yzw, cur_direction_sh.yzw)), 0, 1);
 
-        lpv_r += direct_face_subtended_solid_angle * dot(red_coefficients, cur_direction_sh) * cur_cosine_lobe * geo_volume_factor;
-        lpv_g += direct_face_subtended_solid_angle * dot(green_coefficients, cur_direction_sh) * cur_cosine_lobe * geo_volume_factor;
-        lpv_b += direct_face_subtended_solid_angle * dot(blue_coefficients, cur_direction_sh) * cur_cosine_lobe * geo_volume_factor;
+        lpv_r += direct_face_subtended_solid_angle * max(0, dot(red_coefficients, cur_direction_sh)) * cur_cosine_lobe * geo_volume_factor;
+        lpv_g += direct_face_subtended_solid_angle * max(0, dot(green_coefficients, cur_direction_sh)) * cur_cosine_lobe * geo_volume_factor;
+        lpv_b += direct_face_subtended_solid_angle * max(0, dot(blue_coefficients, cur_direction_sh)) * cur_cosine_lobe * geo_volume_factor;
     }
 
     write_lpv_red[cell_index + cascade_pixel_offset] = lpv_r;
     write_lpv_green[cell_index + cascade_pixel_offset] = lpv_g;
     write_lpv_blue[cell_index + cascade_pixel_offset] = lpv_b;
 }
-
